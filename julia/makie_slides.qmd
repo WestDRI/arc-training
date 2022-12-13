@@ -1,0 +1,496 @@
+---
+title: Makie
+subtitle: <b>A data visualization ecosystem for Julia</b>
+author: <img src="img/beautifulmakie.png" width="50%"><br><em>Marie-Hélène Burle</em>
+date: 2022-10-26
+date-format: full
+execute:
+  error: true
+  echo: true
+format:
+  revealjs:
+    theme: [default, ../revealjs.scss]
+    logo: /img/sfudrac_logo.png
+    highlight-style: monokai
+    code-line-numbers: false
+    embed-resources: true
+    code-overflow: wrap
+    # template-partials:
+      # - title-slide.html
+    footer: "[Back to workshop page](makie.html)"
+jupyter: julia-1.8
+---
+
+# Introduction
+
+## Plotting in Julia {.smaller}
+<br>
+test
+. . .
+
+Many options:
+
+- [Plots.jl](https://github.com/JuliaPlots/Plots.jl){target="_blank"}: high-level API for working with different back-ends (GR, Pyplot, Plotly...)
+- [PyPlot.jl](https://github.com/JuliaPy/PyPlot.jl){target="_blank"}: Julia interface to Matplotlib's `matplotlib.pyplot`
+- [PlotlyJS.jl](https://github.com/JuliaPlots/PlotlyJS.jl){target="_blank"}: Julia interface to plotly.js
+- [PlotlyLight.jl](https://github.com/JuliaComputing/PlotlyLight.jl){target="_blank"}: the fastest plotting option in Julia by far, but limited features
+- [Gadfly.jl](https://github.com/GiovineItalia/Gadfly.jl){target="_blank"}: following the grammar of graphics popularized by Hadley Wickham in R
+- [VegaLite.jl](https://github.com/queryverse/VegaLite.jl){target="_blank"}: grammar of interactive graphics
+- [PGFPlotsX.jl](https://github.com/KristofferC/PGFPlotsX.jl){target="_blank"}: Julia interface to the PGFPlots LaTeX package
+- [UnicodePlots.jl](https://github.com/JuliaPlots/UnicodePlots.jl){target="_blank"}: plots in the terminal 🙂
+
+. . .
+
+- **[Makie.jl](https://github.com/MakieOrg/Makie.jl){target="_blank"}: powerful plotting ecosystem: animation, 3D, GPU optimization**
+
+## Makie ecosystem {.smaller}
+<br>
+
+. . .
+
+- Main package:
+
+	+ `Makie`: plots functionalities. Backend needed to render plots into images or vector graphics
+
+. . .
+
+- Backends:
+
+	+ `CairoMakie`: vector graphics or high-quality 2D plots. Creates, but does not display plots (you need an IDE that does or you can use [ElectronDisplay.jl](https://github.com/queryverse/ElectronDisplay.jl){target="_blank"})
+
+	+ `GLMakie`: based on [OpenGL](https://en.wikipedia.org/wiki/OpenGL){target="_blank"}; 3D rendering and interactivity in [GLFW](https://www.glfw.org/){target="_blank"} window (no vector graphics)
+
+	+ `WGLMakie`: web version of `GLMakie` (plots rendered in a browser instead of a window)
+
+## Extensions
+
+- [GeoMakie.jl](https://github.com/MakieOrg/GeoMakie.jl){target="_blank"} add geographical plotting utilities to Makie
+- [AlgebraOfGraphics.jl](https://github.com/MakieOrg/AlgebraOfGraphics.jl/){target="_blank"} turns plotting into a simple algebra of building blocks
+- [GraphMakie.jl](https://github.com/MakieOrg/GraphMakie.jl){target="_blank"} to create network graphs
+
+## Cheatsheet 2D
+
+![](img/makiecheatsheet2D.png){width=85%}
+
+<span style="font-size: 1rem;">*From: [Storopoli, Huijzer and Alonso (2021). Julia Data Science. https://juliadatascience.io. ISBN: 97984898](https://juliadatascience.io/datavisMakie_attributes){target="_blank"}*</span>
+
+## Cheatsheet 3D
+
+![](img/makiecheatsheet3D.png)
+
+<span style="font-size: 1rem;">*From: [Storopoli, Huijzer and Alonso (2021). Julia Data Science. https://juliadatascience.io. ISBN: 97984898](https://juliadatascience.io/datavisMakie_attributes){target="_blank"}*</span>
+
+## Resources
+<br>
+
+- [Official documentation](https://docs.makie.org/stable/){target="_blank"}
+- [Julia Data Science book, chapter 5](https://juliadatascience.io/DataVisualizationMakie){target="_blank"}
+- Many examples in the project [Beautiful Makie](https://github.com/MakieOrg/BeautifulMakie){target="_blank"}
+
+## Troubleshooting
+<br>
+
+Installing GLMakie can be challenging. [This page](https://github.com/MakieOrg/Makie.jl/tree/master/GLMakie#troubleshooting-opengl){target="_blank"} may lead you towards solutions
+
+CairoMakie and WGLMakie should install without issues
+
+# Fundamental functioning
+
+## Figure
+<br>
+
+Load the package\
+Here, we are using CairoMakie
+
+```{julia}
+using CairoMakie                        # no need to import Makie itself
+```
+
+:::: {.columns}
+
+::: {.column width="48%"}
+<br>
+Create a `Figure` (container object)
+
+```{julia}
+fig = Figure()
+```
+:::
+
+::: {.column width="4%"}
+
+:::
+
+::: {.column width="48%"}
+<br>
+<br>
+```{julia}
+typeof(fig)
+```
+
+:::
+
+::::
+
+---
+
+You can customize a `Figure`:
+
+```{julia}
+fig2 = Figure(backgroundcolor=:grey22, resolution=(300, 300))
+```
+
+Makie uses the [Colors.jl](https://github.com/JuliaGraphics/Colors.jl){target="_blank"} package as a dependency \
+You can find a list of all named colours [here](https://juliagraphics.github.io/Colors.jl/stable/namedcolors/){target="_blank"}
+
+---
+
+To use CSS specification (e.g. hex), you need to install Colors explicitly and use [its color parsing capabilities](http://juliagraphics.github.io/Colors.jl/stable/constructionandconversion/#Color-Parsing){target="_blank"}
+
+```{julia}
+using Colors
+fig3 = Figure(backgroundcolor=colorant"#adc2eb")
+```
+
+## Axis
+
+:::: {.columns}
+::: {.column width="48%"}
+<br>
+Then, you can create an `Axis`
+
+```{julia}
+ax = Axis(Figure()[1, 1])
+```
+:::
+::: {.column width="4%"}
+
+:::
+::: {.column width="48%"}
+<br>
+<br>
+```{julia}
+typeof(ax)
+```
+:::
+::::
+
+---
+
+```{julia}
+Axis(fig3[1, 1])  # fig3[1, 1] sets the subplot layout: fig[row, col]
+fig3
+```
+
+---
+
+```{julia}
+Axis(fig[2, 3])  # This is what happens if we change the layout
+fig
+```
+
+---
+
+```{julia}
+Axis(fig3[2, 3])  # We can add another axis on fig3
+fig3
+```
+
+---
+
+Axis are customizable
+
+```{julia}
+fig4 = Figure()
+Axis(fig4[1, 1],
+     xlabel="x label",
+     ylabel="y label",
+     title="Title of the plot")
+fig4
+```
+
+## Plot
+
+Finally, we can add a plot
+
+```{julia}
+#| code-line-numbers: "1-4|5|6"
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+x = LinRange(-10, 10, 20)
+y = x
+scatter!(ax, x, y)  # Functions with ! transform their arguments
+fig
+```
+
+---
+
+Of course, there are many plotting functions, e.g. `scatterlines!`
+
+```{julia}
+fig = Figure()
+ax = Axis(fig[1, 1])
+x = LinRange(-10, 10, 20)
+y = x
+scatterlines!(ax, x, y)  # Functions with ! transform their arguments
+fig
+```
+
+---
+
+We can also use `lines!`
+
+```{julia}
+fig = Figure()
+ax = Axis(fig[1, 1])
+x = LinRange(-10, 10, 20)
+y = sin.(x)  # The . means that the function is broadcast to each element of x
+lines!(ax, x, y)
+fig
+```
+
+---
+
+Let's add points to get a smoother line
+  
+```{julia}
+fig = Figure()
+ax = Axis(fig[1, 1])
+x = LinRange(-10, 10, 1000)
+y = sin.(x)  # The . means that the function is broadcast to each element of x
+lines!(ax, x, y)
+fig
+```
+
+---
+
+Now, you don't have to create the `Figure`, `Axis`, and plot one at a time\
+You can create them at the same time with, for instance `lines`
+<br>
+<br>
+
+```{julia}
+x = LinRange(-10, 10, 1000)
+y = sin.(x)
+lines(x, y)  # Note the use of lines instead of lines!
+```
+
+---
+
+Or even more simply
+
+```{julia}
+x = LinRange(-10, 10, 1000)
+lines(x, sin)
+```
+
+---
+
+This is a lot simpler, but it is important to understand the concepts of the `Figure` and `Axis` objects as you will need it to customize them
+<br>
+<br>
+
+```{julia}
+x = LinRange(-10, 10, 1000)
+y = cos.(x)
+lines(x, y;
+      figure=(; backgroundcolor=:green),
+      axis=(; title="Cosinus function", xlabel="x label", ylabel="y label"))
+```
+
+---
+
+When you create the `Figure`, `Axis`, and plot at the same time, you create a `FigureAxisPlot` object
+<br>
+<br>
+
+```{julia}
+x = LinRange(-10, 10, 1000)
+y = cos.(x)
+obj = lines(x, y;
+            figure=(; backgroundcolor=:green),  # We use ; here because these are one-element NamedTuples
+            axis=(; title="Cosinus function",
+                  xlabel="x label",
+                  ylabel="y label"));
+typeof(obj)
+```
+
+---
+
+The mutating functions (with `!`) can be used to add plots to an existing figure, but first, you need to decompose the `FigureAxisPlot` object
+
+```{julia}
+fig, ax, plot = lines(x, sin)
+lines!(ax, x, cos)  # Remember that we are transforming the Axis object
+fig                 # Now we can plot the transformed Figure
+```
+
+---
+
+Or we can add several plots on different `Axis` in the same `Figure`
+
+```{julia}
+fig, ax1, plot = lines(x, sin)
+ax2 = Axis(fig[1, 2])
+lines!(ax2, x, cos)
+fig
+```
+
+# Examples
+
+## 2D
+<br>
+
+```{julia}
+#| output-location: slide
+
+using CairoMakie
+using StatsBase, LinearAlgebra
+using Interpolations, OnlineStats
+using Distributions
+CairoMakie.activate!(type = "png")
+
+function eq_hist(matrix; nbins = 256 * 256)
+    h_eq = fit(Histogram, vec(matrix), nbins = nbins)
+    h_eq = normalize(h_eq, mode = :density)
+    cdf = cumsum(h_eq.weights)
+    cdf = cdf / cdf[end]
+    edg = h_eq.edges[1]
+    interp_linear = LinearInterpolation(edg, [cdf..., cdf[end]])
+    out = reshape(interp_linear(vec(matrix)), size(matrix))
+    return out
+end
+
+function getcounts!(h, fn; n = 100)
+    for _ in 1:n
+        vals = eigvals(fn())
+        x0 = real.(vals)
+        y0 = imag.(vals)
+        fit!(h, zip(x0,y0))
+    end
+end
+
+m(;a=10rand()-5, b=10rand()-5) = [0 0 0 a; -1 -1 1 0; b 0 0 0; -1 -1 -1 -1]
+
+h = HeatMap(range(-3.5,3.5,length=1200), range(-3.5,3.5, length=1200))
+getcounts!(h, m; n=2_000_000)
+
+with_theme(theme_black()) do
+    fig = Figure(figure_padding=0,resolution=(600,600))
+    ax = Axis(fig[1,1]; aspect = DataAspect())
+    heatmap!(ax,-3.5..3.5, -3.5..3.5, eq_hist(h.counts); colormap = :bone_1)
+    hidedecorations!(ax)
+    hidespines!(ax)
+    fig
+end
+```
+
+## 3D
+
+```{julia}
+#| output-location: slide
+
+using GLMakie, Random
+GLMakie.activate!()
+
+Random.seed!(13)
+x = -6:0.5:6
+y = -6:0.5:6
+z = 6exp.( -(x.^2 .+ y' .^ 2)./4)
+
+box = Rect3(Point3f(-0.5), Vec3f(1))
+n = 100
+g(x) = x^(1/10)
+alphas = [g(x) for x in range(0,1,length=n)]
+cmap_alpha = resample_cmap(:linear_worb_100_25_c53_n256, n, alpha = alphas)
+
+with_theme(theme_dark()) do
+    fig, ax, = meshscatter(x, y, z;
+                           marker=box,
+                           markersize = 0.5,
+                           color = vec(z),
+                           colormap = cmap_alpha,
+                           colorrange = (0,6),
+                           axis = (;
+                                   type = Axis3,
+                                   aspect = :data,
+                                   azimuth = 7.3,
+                                   elevation = 0.189,
+            perspectiveness = 0.5),
+        figure = (;
+            resolution =(1200,800)))
+    meshscatter!(ax, x .+ 7, y, z./2;
+        markersize = 0.25,
+        color = vec(z./2),
+        colormap = cmap_alpha,
+        colorrange = (0, 6),
+        ambient = Vec3f(0.85, 0.85, 0.85),
+        backlight = 1.5f0)
+    xlims!(-5.5,10)
+    ylims!(-5.5,5.5)
+    hidedecorations!(ax; grid = false)
+    hidespines!(ax)
+    fig
+end
+```
+
+# <span style="font-size: 3rem;">For more examples, have a look at [Beautiful Makie](https://github.com/MakieOrg/BeautifulMakie){target="_blank"}</span>
+
+# Compiling sysimages
+<br>
+
+While Makie is extremely powerful, its compilation time and its time to first plot are extremely long
+<br>
+
+For this reason, it might save you a lot of time to create a sysimage (a file containing information from a Julia session such as loaded packages, global variables, compiled code, etc.) with [PackageCompiler.jl](https://github.com/JuliaLang/PackageCompiler.jl){target="_blank"}
+
+# Using the Alliance clusters
+
+## CairoMakie
+<br>
+
+CairoMakie will run without problem on the Alliance clusters
+
+It is not designed for interactivity, so saving to file is what makes the most sense
+
+<br>
+Example
+
+```{.julia}
+save("graph.png", fig)
+```
+
+<br>
+Remember however that CairoMakie is 2D only (for now)
+
+## GLMakie
+<br>
+
+GLMakie relies on [GLFW](https://www.glfw.org/){target="_blank"} to create windows with OpenGL
+
+GLFW doesn't support creating contexts without an associated window
+
+The dependency [GLFW.jl](https://github.com/JuliaGL/GLFW.jl){target="_blank"} will thus not install in the clusters—even with X11 forwarding—unless you use [VDI nodes](https://docs.alliancecan.ca/wiki/VNC#VDI_Nodes){target="_blank"}, [VNC](https://docs.alliancecan.ca/wiki/VNC){target="_blank"}, or [Virtual GL](https://virtualgl.org/){target="_blank"}
+
+## WGLMakie
+<br>
+
+You can setup a server with [JSServe.jl](https://github.com/SimonDanisch/JSServe.jl){target="_blank"} as per [the documentation](http://juliaplots.org/WGLMakie.jl/stable/){target="_blank"}
+
+However, this method is intended at creating interactive widget, e.g. for a website
+
+While this is really cool, it isn't optimized for performance
+
+There might also be a way to create an SSH tunnel to your local browser, although there is no documentation on this
+
+Best probably is to save to file
+
+## Conclusion about the Makie ecosystem on production clusters
+<br>
+
+2D plots: use CairoMakie and save to file
+
+3D plots: use WGLMakie and save to file
+
+# Questions?
