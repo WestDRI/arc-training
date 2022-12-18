@@ -3001,5 +3001,54 @@
     "title": "Everything you wanted to know (and more) about PyTorch tensors",
     "section": "List of PyTorch tensor dtypes",
     "text": "List of PyTorch tensor dtypes\n\n\n\n\n\n\n\n\ntorch.float16 / torch.half | 16-bit / half-precision floating-point\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\ntorch.float16 / torch.half\n\n\n  \n\n\n16-bit / half-precision floating-point\n\n\n\n\ntorch.float32 / torch.float\n\n\n\n\n32-bit / single-precision floating-point\n\n\n\n\ntorch.float64 / torch.double\n\n\n\n\n64-bit / double-precision floating-point\n\n\n\n\n\n\n\n\n\n\ntorch.uint8\n\n\n\n\nunsigned 8-bit integers\n\n\n\n\ntorch.int8\n\n\n\n\nsigned 8-bit integers\n\n\n\n\ntorch.int16 / torch.short\n\n\n\n\nsigned 16-bit integers\n\n\n\n\ntorch.int32 / torch.int\n\n\n\n\nsigned 32-bit integers\n\n\n\n\ntorch.int64 / torch.long\n\n\n\n\nsigned 64-bit integers\n\n\n\n\n\n\n\n\n\n\n\n\ntorch.bool\n\n\n\n\nboolean"
+  },
+  {
+    "objectID": "julia/covid.html",
+    "href": "julia/covid.html",
+    "title": "Covid-19 in Julia",
+    "section": "",
+    "text": "1 - The current Julia stable release\nInstallation instructions can be found here.\n2 - The packages: CSV, DataFrames, TimeSeries, Plots\nPackages can be installed with ] add <package>.\n3 - Covid-19 data from the Johns Hopkins University CSSE repository\nClone (git clone <repo url>) or download and unzip the repository."
+  },
+  {
+    "objectID": "julia/covid.html#load-the-data",
+    "href": "julia/covid.html#load-the-data",
+    "title": "Covid-19 in Julia",
+    "section": "Load the data",
+    "text": "Load the data\nIf you did not clone or download and unzip the Covid-19 data repository in your working directory, adapt the path consequently.\n#= create a variable with the path we are interested in;\nthis makes the code below a bit shorter =#\ndir = \"COVID-19/csse_covid_19_data/csse_covid_19_time_series\"\n\n# create a list of the full paths of all the files in dir\nlist = joinpath.(relpath(dir), readdir(dir))\n\n#= read in the 3 csv files with confirmed, dead, and recovered numbers\ncorresponding to the first set of data (until March 22, 2020) =#\ndat = DataFrame.(CSV.File.(list[collect(2:4)]))\nWe now have a one-dimensional array of 3 DataFrames called dat."
+  },
+  {
+    "objectID": "julia/covid.html#transform-data-into-long-format",
+    "href": "julia/covid.html#transform-data-into-long-format",
+    "title": "Covid-19 in Julia",
+    "section": "Transform data into long format",
+    "text": "Transform data into long format\n# rename some variables to easier names\nDataFrames.rename!.(dat, Dict.(1 => Symbol(\"province\"),\n                               2 => Symbol(\"country\")))\n\n# create a one-dimensional array of strings\nvar = [\"total\", \"dead\", \"recovered\"]\n\n#= transform the data into long format in a vectorized fashion\nusing both our one-dimensional arrays of 3 elements =#\ndatlong = map((x, y) -> stack(x, Not(collect(1:4)),\n                              variable_name = Symbol(\"date\"),\n                              value_name = Symbol(\"$y\")),\n              dat, var)\nWe now have a one-dimensional array of 3 DataFrames in long format called datlong.\n# join all elements of this array into a single DataFrame\nall = join(datlong[1], datlong[2], datlong[3],\n           on = [:date, :country, :province, :Lat, :Long])\n\n# get rid of \"Lat\" and \"Long\" and re-order the columns\nselect!(all, [4, 3, 1, 2, 7, 8])\n\n#= turn the year from 2 digits to 4 digits using regular expression\n(in a vectorised fashion by braodcasting with the dot notation);\nthen turn these values into strings, and finally into dates =#\nall.date = Date.(replace.(string.(all[:, 3]),\n                          r\"(.*)(..)$\" => s\"\\g<1>20\\2\"), \"m/dd/yy\");\n\n#= replace the missing values by the string \"NA\"\n(these are not real missing values, but rather non applicable ones) =#\nreplace!(all.province, missing => \"NA\");\nWe now have a single DataFrame called all, in long format, with the variables confirmed, dead, recovered, and ill.\nCalculate the number of currently ill individuals (again, in a vectorized fashion, by broadcasting with the dot notation):\nall.current = all.total .- all.dead .- all.recovered;"
+  },
+  {
+    "objectID": "julia/covid.html#world-summary",
+    "href": "julia/covid.html#world-summary",
+    "title": "Covid-19 in Julia",
+    "section": "World summary",
+    "text": "World summary\nTo make a single plot with world totals of confirmed, dead, recovered, and ill cases, we want the sums of these variables for each day. We do this by grouping the data by date:\nworld = by(all, :date,\n           total = :total => sum,\n           dead = :dead => sum,\n           recovered = :recovered => sum,\n           current = :current => sum)\nNow we can plot our new variable world.\nAs our data is a time series, we need to transform it to a TimeArray thanks to the TimeArray() function from the TimeSeries package.\nplot(TimeArray(world, timestamp = :date),\n     title = \"World\",\n     legend = :outertopright,\n     widen = :false)\n Data until March 22, 2020"
+  },
+  {
+    "objectID": "julia/covid.html#countriesprovinces-summaries",
+    "href": "julia/covid.html#countriesprovinces-summaries",
+    "title": "Covid-19 in Julia",
+    "section": "Countries/provinces summaries",
+    "text": "Countries/provinces summaries\nNow, we want to group the data by country:\ncountries = groupby(all, :country)\nWe also need to know how the authors of the dataset decided to label the various countries and their subregions.\nFor example, if you want to see what the data looks like for France, Canada, and India, you can run:\ncountries[findall(x -> \"France\" in x, keys(countries))]\ncountries[findall(x -> \"Canada\" in x, keys(countries))]\ncountries[findall(x -> \"India\" in x, keys(countries))]\nThen you need to subset the data for the countries or provinces you are interested in.\nHere are some examples:\n# countries for which there are data for several provinces\ncanada = all[all[:, :country] .== \"Canada\", :]\nus = all[all[:, :country] .== \"US\", :]\nchina = all[all[:, :country] .== \"China\", :]\n\n# countries with no province data\nskorea = all[all[:, :country] .== \"Korea, South\", :]\ntaiwan = all[all[:, :country] .== \"Taiwan*\", :]\nsingapore = all[all[:, :country] .== \"Singapore\", :]\nitaly = all[all[:, :country] .== \"Italy\", :]\nspain = all[all[:, :country] .== \"Spain\", :]\n\n#= countries wich have subregions spread widely in the world;\nhere, I took the arbitrary decision to only look at the main subregions =#\nfrance = all[all[:, :province] .== \"France\", :]\nuk = all[all[:, :province] .== \"United Kingdom\", :]\n\n# provinces\nbc = all[all[:, :province] .== \"British Columbia\", :]\nny = all[all[:, :province] .== \"New York\", :]\nCalculate the totals for Canada, US, and China which all have data for subregions:\ncanada, us, china = by.([canada, us, china], :date,\n                        total = :total => sum,\n                        dead = :dead => sum,\n                        recovered = :recovered => sum,\n                        current = :current => sum)\nloclist1 = [canada, us, china]\nloctitles1 = [\"Canada\", \"US\", \"China\"]\n\npcanada, pus, pchina =\n    map((x, y) -> plot(TimeArray(x, timestamp = :date),\n                       title = \"$y\", legend = :outertopright,\n                       widen = :false, dpi = :300),\n        loclist1, loctitles1)\nloclist2 = [france, bc, ny, taiwan, skorea, singapore, spain, italy, uk]\nloctitles2 = [\"France\", \"BC\", \"NY\", \"Taiwan\", \"South Korea\",\n              \"Singapore\", \"Spain\", \"Italy\", \"UK\"]\n\npfrance, pbc, pny, ptaiwan, pskorea,\npsingapore, pspain, pitaly, puk =\n    map((x, y) -> plot(TimeArray(select(x, Not([:country, :province])),\n                                 timestamp = :date),\n                       title = \"$y\", legend = :outertopright,\n                       widen = :false, dpi = :300),\n        loclist2, loctitles2)\nNow, let’s plot a few countries/provinces:\n\nNorth America\nplot(pcanada, pbc, pus, pny,\n     legend = false, titlefontsize = 7, tickfontsize = 6)\n Data until March 22, 2020\n\n\nAsia\nplot(pchina, ptaiwan, pskorea, psingapore,\n     legend = false, titlefontsize = 7, tickfontsize = 6)\n Data until March 22, 2020\n\n\nEurope\nplot(pfrance, pspain, pitaly, puk,\n     legend = false, titlefontsize = 7, tickfontsize = 6)\n Data until March 22, 2020"
+  },
+  {
+    "objectID": "julia/covid.html#summary-graphs",
+    "href": "julia/covid.html#summary-graphs",
+    "title": "Covid-19 in Julia",
+    "section": "Summary graphs",
+    "text": "Summary graphs\n\n\nYour turn:\n\nWrite the code to create an up-to-date graph for the world using the files: time_series_covid19_confirmed_global.csv and time_series_covid19_deaths_global.csv.\n\nHere is the result:\n Data until March 25, 2020\n\n\nYour turn:\n\nCreate up-to-date graphs for the countries and/or provinces of your choice.\n\nHere are a few possible results:\n Data until March 25, 2020"
+  },
+  {
+    "objectID": "julia/covid.html#countries-comparison",
+    "href": "julia/covid.html#countries-comparison",
+    "title": "Covid-19 in Julia",
+    "section": "Countries comparison",
+    "text": "Countries comparison\nOur side by side graphs don’t make comparisons very easy since they vary greatly in their axes scales.\nOf course, we could constrain them to have the same axes, but then, why not plot multiple countries or provinces in the same graph?\ncanada[!, :loc] .= \"Canada\";\nchina[!, :loc] .= \"China\";\n\nall = join(all, canada, china, on = [:date, :total, :dead, :loc],\n           kind = :outer)\n\nconfirmed = unstack(all[:, collect(3:5)], :loc, :total)\n\nconf_sel = select(confirmed,\n                  [:date, :Italy, :Spain, :China, :Iran,\n                   :France, :US, Symbol(\"South Korea\"), :Canada])\n\nplot(TimeArray(conf_sel, timestamp = :date),\n     title = \"Confirmed across a few countries\",\n     legend = :outertopright, widen = :false)\n Data until March 25, 2020\n\n\nYour turn:\n\nWrite the code to make a similar graph with the number of deaths in a few countries of your choice.\n\nHere is a possible result:\n Data until March 25, 2020"
   }
 ]
