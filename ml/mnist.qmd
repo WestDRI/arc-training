@@ -22,7 +22,7 @@ The goal is to build a neural network which can learn from the training set to p
 
 Now, let's explore the MNIST with PyTorch.
 
-# Downloading and preparing the MNIST data
+# Download, unzip, and transform the data
 
 ## Where to store the data in the cluster
 
@@ -40,52 +40,87 @@ It would make little sense to all download the same MNIST data in different plac
 
 The dataset can be downloaded directly from [the MNIST website](http://yann.lecun.com/exdb/mnist/), but the PyTorch package TorchVision has tools to download and transform several classic vision datasets, including the MNIST.
 
-## Transforming the data
+```{.python}
+help(torchvision.datasets.MNIST)
+```
+```
+Help on class MNIST in module torchvision.datasets.mnist:
 
-We will transform the raw data to tensors and normalize it using the mean and standard deviation of the MNIST training data (0.1307 and 0.3081 respectively).
+class MNIST(torchvision.datasets.vision.VisionDataset)
+
+MNIST(root: str, train: bool = True, transform: Optional[Callable] = None,
+  target_transform: Optional[Callable] = None, download: bool = False) -> None
+  
+
+Args:
+  root (string): Root directory of dataset where 
+    MNIST/raw/train-images-idx3-ubyte and  MNIST/raw/t10k-images-idx3-ubyte
+    exist.
+  train (bool, optional): If True, creates dataset from 
+    train-images-idx3-ubyte, otherwise from t10k-images-idx3-ubyte.
+  download (bool, optional): If True, downloads the dataset from the internet
+    and puts it in root directory. If dataset is already downloaded, it is not
+    downloaded again.
+  transform (callable, optional): A function/transform that  takes in an PIL 
+    image and returns a transformed version. E.g, transforms.RandomCrop
+  target_transform (callable, optional): A function/transform that takes in 
+  the target and transforms it.
+```
+
+Note that here too, the `root` argument sets the location of the downloaded data and we will use `/project/def-sponsor00/data/`.
+
+## Prepare the data
 
 First, let's load the needed libraries:
 
-```{.python}
+```{python}
 import torch
 from torchvision import datasets, transforms
 from matplotlib import pyplot as plt
 ```
 
-Then, let's define a transformation:
+The MNIST dataset already consists of a training and a testing sets, so we don't have to split the data manually. Instead, we can directly create 2 different objects with the same function (`train=True` selects the train set and `train=False` selects the test set).
 
-```{.python}
+We will transform the raw data to tensors and normalize them using the mean and standard deviation of the MNIST training set: `0.1307` and `0.3081` respectively (even though the mean and standard deviation of the test data are slightly different, it is important to normalize the test data with the values of the training data to apply the same treatment to both sets).
+
+So we first need to define a transformation:
+
+```{python}
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.1307,), (0.3081,))
 ])
 ```
 
-## Downloading the data
-
-We can now download and transform the data.
+## We can now create our data objects
 
 ### Training data
 
-```{.python}
+:::{.note}
+
+Remember that `train=True` selects the training set of the MNIST.
+
+:::
+
+```{python}
 train_data = datasets.MNIST(
     '~/projects/def-sponsor00/data',
     train=True, download=True, transform=transform)
 ```
 
-`train=True` selects the training set of the MNIST.
-
 ### Test data
 
-Even though the mean and standard deviation of the test data are slightly different, it is important to normalize the test data in the same way.
+:::{.note}
 
-```{.python}
+`train=False` selects the test set.
+
+:::
+
+```{python}
 test_data = datasets.MNIST(
     '~/projects/def-sponsor00/data',
     train=False, transform=transform)
 ```
-
-`train=False` selects the test set.
 
 # Exploring the data
 
@@ -93,31 +128,31 @@ test_data = datasets.MNIST(
 
 First, let's check the size of `train_data`:
 
-```{.python}
+```{python}
 print(len(train_data))
 ```
 
-OK, that makes sense since the MNIST's training set has 60,000 pairs. `train_data` has 60,000 elements and we should expect each element to be of size 2 since it is a pair. Let's double-check with the first element:
+That makes sense since the MNIST's training set has 60,000 pairs. `train_data` has 60,000 elements and we should expect each element to be of size 2 since it is a pair. Let's double-check with the first element:
 
-```{.python}
+```{python}
 print(len(train_data[0]))
 ```
 
-OK. So far, so good. We can print that first pair:
+So far, so good. We can print that first pair:
 
-```{.python}
+```{python}
 print(train_data[0])
 ```
 
 And you can see that it is a tuple with:
 
-```{.python}
+```{python}
 print(type(train_data[0]))
 ```
 
 What is that tuple made of?
 
-```{.python}
+```{python}
 print(type(train_data[0][0]))
 print(type(train_data[0][1]))
 ```
@@ -126,7 +161,7 @@ It is made of the tensor for the first image (remember that we transformed the i
 
 So since `train_data[0][0]` is the tensor representing the image of the first pair, let's check its size:
 
-```{.python}
+```{python}
 print(train_data[0][0].size())
 ```
 
@@ -202,14 +237,16 @@ PyTorch provides the [torch.utils.data.DataLoader](https://pytorch.org/docs/stab
 
 So our last step in preparing the data is to pass it through `DataLoader`.
 
-## Training data
+## Create DataLoaders
+
+### Training data
 
 ```{.python}
 train_loader = torch.utils.data.DataLoader(
     train_data, batch_size=20, shuffle=True)
 ```
 
-## Test data
+### Test data
 
 ```{.python}
 test_loader = torch.utils.data.DataLoader(
