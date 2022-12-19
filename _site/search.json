@@ -2952,5 +2952,47 @@
     "title": "Classifying the MNIST dataset",
     "section": "Define a training function",
     "text": "Define a training function\ndef train(model, device, train_loader, optimizer, epoch):\n    model.train()\n    for batch_idx, (data, target) in enumerate(train_loader):\n        data, target = data.to(device), target.to(device)\n        optimizer.zero_grad()  # reset the gradients to 0\n        output = model(data)\n        loss = F.nll_loss(output, target)  # negative log likelihood\n        writer.add_scalar(\"Loss/train\", loss, epoch)\n        loss.backward()\n        optimizer.step()\n        if batch_idx % 10 == 0:\n            print('Train Epoch: {} [{}/{} ({:.0f}%)]\\tLoss: {:.6f}'.format(\n                epoch, batch_idx * len(data), len(train_loader.dataset),\n                100. * batch_idx / len(train_loader), loss.item()))"
+  },
+  {
+    "objectID": "ml/autograd.html",
+    "href": "ml/autograd.html",
+    "title": "Automatic differentiation",
+    "section": "",
+    "text": "Imagine how hard it would be to write the chain rules of neural networks (with so many derivatives!) in backpropagation manually.\nPyTorch has automatic differentiation abilities—meaning that it can track all the operations conducted on tensors and do the backprop for you—thanks to its package torch.autograd."
+  },
+  {
+    "objectID": "ml/autograd.html#the-grad_fun-attribute",
+    "href": "ml/autograd.html#the-grad_fun-attribute",
+    "title": "Automatic differentiation",
+    "section": "The grad_fun attribute",
+    "text": "The grad_fun attribute\nWhenever a tensor is created by an operation involving a tracked tensor, it has a grad_fun attribute:\nx = torch.ones(2, 4, requires_grad=True)\nprint(x)\ny = x + 1\nprint(y)\nprint(y.grad_fn)"
+  },
+  {
+    "objectID": "ml/autograd.html#judicious-tracking",
+    "href": "ml/autograd.html#judicious-tracking",
+    "title": "Automatic differentiation",
+    "section": "Judicious tracking",
+    "text": "Judicious tracking\nYou don’t want to track more than is necessary. There are multiple ways to avoid tracking what you don’t want to.\nYou can simply stop tracking computations on a tensor with the method detach:\nx = torch.rand(4, 3, requires_grad=True)\nprint(x)\nprint(x.detach_())\nYou can change its requires_grad flag:\nx = torch.rand(4, 3, requires_grad=True)\nprint(x)\nprint(x.requires_grad_(False))\nAlternatively, you can wrap any code you don’t want to track with with torch.no_grad():\nwith torch.no_grad():\n    <some code>"
+  },
+  {
+    "objectID": "ml/autograd.html#manual-derivative-calculation",
+    "href": "ml/autograd.html#manual-derivative-calculation",
+    "title": "Automatic differentiation",
+    "section": "Manual derivative calculation",
+    "text": "Manual derivative calculation\nThe formula for this first derivative, with the loss function we used, is:\n\\[\\text{gradient}_\\text{predicted}=2(\\text{predicted} - \\text{real})\\]\nThere is no point in adding this operation to predicted’s computation history, so we will exclude it with with torch.no_grad():\nwith torch.no_grad():\n    manual_gradient_predicted = 2.0 * (predicted - real)\n\nprint(manual_gradient_predicted)"
+  },
+  {
+    "objectID": "ml/autograd.html#automatic-derivative-calculation",
+    "href": "ml/autograd.html#automatic-derivative-calculation",
+    "title": "Automatic differentiation",
+    "section": "Automatic derivative calculation",
+    "text": "Automatic derivative calculation\nNow, with torch.autograd:\nloss.backward()\nSince we tracked computations on predicted, we can calculate its gradient with:\nauto_gradient_predicted = predicted.grad\nprint(auto_gradient_predicted)"
+  },
+  {
+    "objectID": "ml/autograd.html#comparison",
+    "href": "ml/autograd.html#comparison",
+    "title": "Automatic differentiation",
+    "section": "Comparison",
+    "text": "Comparison\nThe result is the same, as can be tested with:\nprint(manual_gradient_predicted.eq(auto_gradient_predicted).all())\nThe calculation of this first derivative of backpropagation was simple enough. But to propagate all the derivatives calculations backward through the chain rule would quickly turn into a deep calculus problem.\nWith torch.autograd, calculating the gradients of all the other elements of the network is as simple as calling them with the attribute grad once the function torch.Tensor.backward() has been run."
   }
 ]
