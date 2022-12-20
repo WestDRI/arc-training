@@ -1,0 +1,170 @@
+---
+title: Training a model
+---
+
+## Prerequisites
+
+Before we can train a model, we need to:
+
+- load the needed packages,
+- get the data,
+- create data loaders for training and testing,
+- define a model.
+
+Let's do this for the [FashionMNIST dataset](https://github.com/zalandoresearch/fashion-mnist):
+
+```{.python}
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torchvision import datasets
+from torchvision.transforms import ToTensor, Lambda
+
+training_data = datasets.FashionMNIST(
+    root="~/projects/def-sponsor00/data/",
+    train=True,
+    download=True,
+    transform=ToTensor(),
+    target_transform=Lambda(lambda y: torch.zeros(10, dtype=torch.float).scatter_(0, torch.tensor(y), value=1))
+)
+
+test_data = datasets.FashionMNIST(
+    root="~/projects/def-sponsor00/data/",
+    train=False,
+    download=True,
+    transform=ToTensor(),
+    target_transform=Lambda(lambda y: torch.zeros(10, dtype=torch.float).scatter_(0, torch.tensor(y), value=1))
+)
+
+train_dataloader = DataLoader(training_data, batch_size=10)
+test_dataloader = DataLoader(test_data, batch_size=10)
+
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.flatten = nn.Flatten()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(28*28, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 10),
+        )
+
+    def forward(self, x):
+        x = self.flatten(x)
+        logits = self.linear_relu_stack(x)
+        return logits
+
+model = Net()
+```
+
+## Hyperparameters
+
+While the learning parameters of a model (weights and biases) are the values that get adjusted through training (and they will become part of the final program, along with the model architecture, once training is over), hyperparameters control the training process.
+
+They include:
+
+- batch size: number of samples passed through the model before the parameters are updated,
+- number of epochs: number iterations,
+- learning rate: size of the incremental changes to model parameters at each iteration. Smaller values yield slow learning speed, while large values may miss minima.
+
+Let's define them here:
+
+```{.python}
+learning_rate = 1e-3
+batch_size = 64
+epochs = 5
+```
+
+## Define the loss function
+
+To assess the predicted outputs of our model against the true values from the labels, we also need a loss function (e.g. mean square error for regressions: `nn.MSELoss` or negative log likelihood for classification: `nn.NLLLoss`)
+
+The machine learning literature is rich in information about various loss functions.
+
+Here is an example with `nn.CrossEntropyLoss` which combines `nn.LogSoftmax` and `nn.NLLLoss`:
+
+```{.python}
+loss_fn = nn.CrossEntropyLoss()
+```
+
+## Initialize the optimizer
+
+The optimization algorithm determines how the model parameters get adjusted at each iteration.
+
+There are many optimizers and you need to search in the literature which one performs best for your time of model and data.
+
+Below is an example with stochastic gradient descent:
+
+```{.python}
+optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+```
+
+:::{.note}
+
+- lr is the learning rate
+- momentum is a method increasing convergence rate and reducing oscillation for SDG 
+
+:::
+
+## Define the train and test loops
+
+Finally, we need to define the train and test loops.
+
+The train loop:
+
+- gets a batch of training data from the DataLoader,
+- resets the gradients of model parameters with `optimizer.zero_grad()`,
+- calculates predictions from the model for an input batch,
+- calculates the loss for that set of predictions vs. the labels on the dataset,
+- calculates the backward gradients over the learning parameters (that's the backpropagation) with `loss.backward()`,
+- adjusts the parameters by the gradients collected in the backward pass  with `optimizer.step()`.
+
+The test loop evaluates the model’s performance against the test data.
+
+```{.python}
+def train(dataloader, model, loss_fn, optimizer):
+    size = len(dataloader.dataset)
+    for batch, (X, y) in enumerate(dataloader):
+        # Compute prediction and loss
+        pred = model(X)
+        loss = loss_fn(pred, y)
+
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if batch % 100 == 0:
+            loss, current = loss.item(), batch * len(X)
+            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+
+
+def test(dataloader, model, loss_fn):
+    size = len(dataloader.dataset)
+    num_batches = len(dataloader)
+    test_loss, correct = 0, 0
+
+    with torch.no_grad():
+        for X, y in dataloader:
+            pred = model(X)
+            test_loss += loss_fn(pred, y).item()
+            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
+
+    test_loss /= num_batches
+    correct /= size
+    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+```
+
+## Train
+
+To train our model, we just run the loop over the epochs:
+
+```{.python}
+for t in range(epochs):
+    print(f"Epoch {t+1}\n-------------------------------")
+    train(train_dataloader, model, loss_fn, optimizer)
+    test(test_dataloader, model, loss_fn)
+print("Training completed")
+```
