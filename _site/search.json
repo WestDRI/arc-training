@@ -368,7 +368,7 @@
     "href": "julia/makie.html",
     "title": "Makie",
     "section": "",
-    "text": "There are several popular data visualization libraries for the Julia programming language (e.g. Plots, Gadfly, VegaLite, Makie). They vary in their precompilation time, time to first plot, layout capabilities, ability to handle 3D data, ease of use, and syntax style. In this landscape, Makie focuses on high performance, fancy layouts, and extensibility.\nMakie comes with multiple backends. In this workshop, we will cover:\n\nGLMakie (ideal for interactive 2D and 3D plotting)\nWGLMakie (an equivalent that runs within browsers)\nCairoMakie (best for high-quality vector graphics)\n\nWe will also see how to run Makie in the Alliance clusters.\n\nSlides"
+    "text": "There are several popular data visualization libraries for the Julia programming language (e.g. Plots, Gadfly, VegaLite, Makie). They vary in their precompilation time, time to first plot, layout capabilities, ability to handle 3D data, ease of use, and syntax style. In this landscape, Makie focuses on high performance, fancy layouts, and extensibility.\nMakie comes with multiple backends. In this workshop, we will cover:\n\nGLMakie (ideal for interactive 2D and 3D plotting)\nWGLMakie (an equivalent that runs within browsers)\nCairoMakie (best for high-quality vector graphics)\n\nWe will also see how to run Makie in the Alliance clusters.\n\nSlides (click and wait: my reveal.js presentations are heavy and take some time to load…)"
   },
   {
     "objectID": "julia/makie_slides.html#plotting-in-julia",
@@ -546,6 +546,188 @@
     "text": "Countries comparison\nOur side by side graphs don’t make comparisons very easy since they vary greatly in their axes scales.\nOf course, we could constrain them to have the same axes, but then, why not plot multiple countries or provinces in the same graph?\ncanada[!, :loc] .= \"Canada\";\nchina[!, :loc] .= \"China\";\n\nall = join(all, canada, china, on = [:date, :total, :dead, :loc],\n           kind = :outer)\n\nconfirmed = unstack(all[:, collect(3:5)], :loc, :total)\n\nconf_sel = select(confirmed,\n                  [:date, :Italy, :Spain, :China, :Iran,\n                   :France, :US, Symbol(\"South Korea\"), :Canada])\n\nplot(TimeArray(conf_sel, timestamp = :date),\n     title = \"Confirmed across a few countries\",\n     legend = :outertopright, widen = :false)\n Data until March 25, 2020\n\n\nYour turn:\n\nWrite the code to make a similar graph with the number of deaths in a few countries of your choice.\n\nHere is a possible result:\n Data until March 25, 2020"
   },
   {
+    "objectID": "ml/audio_dataloader.html",
+    "href": "ml/audio_dataloader.html",
+    "title": "Creating an audio DataLoader",
+    "section": "",
+    "text": "import torch\nimport torchaudio\nimport matplotlib.pyplot as plt"
+  },
+  {
+    "objectID": "ml/audio_dataloader.html#download-and-unzip-data",
+    "href": "ml/audio_dataloader.html#download-and-unzip-data",
+    "title": "Creating an audio DataLoader",
+    "section": "Download and unzip data",
+    "text": "Download and unzip data\nPyTorch comes with many classic datasets.\n\nExamples:\n\nlist of available datasets for vision\nlist of audio datasets\nlist of texts datasets\n\n\nThis is convenient to develop and test your model, or to compare its performance with existing models using these datasets.\nHere, we will use the YESNO dataset which can be accessed through the torchaudio.datasets.YESNO class:\nhelp(torchaudio.datasets.YESNO)\nHelp on class YESNO in module torchaudio.datasets.yesno:\n\nclass YESNO(torch.utils.data.dataset.Dataset)\n\n |  YESNO(root: Union[str, pathlib.Path], url: str =\n |    'http://www.openslr.org/resources/1/waves_yesno.tar.gz', \n |    folder_in_archive: str = 'waves_yesno', \n |    download: bool = False) -> None\n |  \n |  Args:\n |    root (str or Path): Path to the directory where the dataset is found \n |      or downloaded.\n |    url (str, optional): The URL to download the dataset from.\n |      (default: \"http://www.openslr.org/resources/1/waves_yesno.tar.gz\")\n |    folder_in_archive (str, optional):\n |      The top-level directory of the dataset. (default: \"waves_yesno\")\n |    download (bool, optional):\n |      Whether to download the dataset if it is not found at root path. \n |      (default: False).\nThe root argument sets the location of the downloaded data.\n\nWhere to store this data in the cluster\nWe will all use the same data. It would make little sense to all download it in our home directory.\n\nIn the Alliance clusters, a good place to store data shared amongst members of a project is in the /project file system.\nYou usually belong to /project/def-<group>, where <group> is the name of your PI. You can access it from your home directory through the symbolic link ~/projects/def-<group>.\n\nIn our training cluster, we are all part of the group def-sponsor00, accessible through /project/def-sponsor00 (or the hyperlink ~/projects/def-sponsor00).\nWe will thus use ~/projects/def-sponsor00/data as the root argument for torchaudio.datasets.yesno):\nyesno_data = torchaudio.datasets.YESNO(\n    '~/projects/def-sponsor00/data/',\n    download=True)"
+  },
+  {
+    "objectID": "ml/audio_dataloader.html#explore-the-data",
+    "href": "ml/audio_dataloader.html#explore-the-data",
+    "title": "Creating an audio DataLoader",
+    "section": "Explore the data",
+    "text": "Explore the data\nA data point in YESNO is a tuple of waveform, sample_rate, and labels (the labels are 1 for “yes” and 0 for “no”).\nLet’s have a look at the first data point:\n\nyesno_data[0]\n\n(tensor([[ 3.0518e-05,  6.1035e-05,  3.0518e-05,  ..., -1.8616e-03,\n          -2.2583e-03, -1.3733e-03]]),\n 8000,\n [0, 0, 0, 0, 1, 1, 1, 1])\n\n\nOr, more nicely:\n\nwaveform, sample_rate, labels = yesno_data[0]\nprint(\"Waveform: {}\\nSample rate: {}\\nLabels: {}\".format(waveform, sample_rate, labels))\n\nWaveform: tensor([[ 3.0518e-05,  6.1035e-05,  3.0518e-05,  ..., -1.8616e-03,\n         -2.2583e-03, -1.3733e-03]])\nSample rate: 8000\nLabels: [0, 0, 0, 0, 1, 1, 1, 1]\n\n\nYou can also plot the data. For this, we will use pyplot from matplotlib.\nLet’s look at the waveform:\n\nplt.figure()\nplt.plot(waveform.t().numpy())"
+  },
+  {
+    "objectID": "ml/audio_dataloader.html#split-the-data-into-a-training-set-and-a-testing-set",
+    "href": "ml/audio_dataloader.html#split-the-data-into-a-training-set-and-a-testing-set",
+    "title": "Creating an audio DataLoader",
+    "section": "Split the data into a training set and a testing set",
+    "text": "Split the data into a training set and a testing set\n\ntrain_size = int(0.8 * len(yesno_data))\ntest_size = len(yesno_data) - train_size\ntrain_dataset, test_dataset = torch.utils.data.random_split(yesno_data, [train_size, test_size])"
+  },
+  {
+    "objectID": "ml/audio_dataloader.html#create-training-and-testing-dataloaders",
+    "href": "ml/audio_dataloader.html#create-training-and-testing-dataloaders",
+    "title": "Creating an audio DataLoader",
+    "section": "Create training and testing DataLoaders",
+    "text": "Create training and testing DataLoaders\nDataLoaders are Python iterables created by the torch.utils.data.DataLoader class from a dataset and a sampler.\nWe already have a dataset (yesno_data). Now we need a sampler (or sampling strategy) to draw samples from it. The sampling strategy contains the batch size, whether the data get shuffled prior to sampling, the number of workers used if the data is loaded in parallel, etc.\nTo create a training DataLoader with shuffled data and batch size of 1 (the default), we run:\n\ntrain_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True)\n\ndata_loader is an iterable of 0.8*60=48 elements (80% of the 60 samples in the YESNO dataset):\n\nlen(train_loader)\n\n48\n\n\nWe do the same to create the testing DataLoader:\n\ntest_loader = torch.utils.data.DataLoader(test_dataset, shuffle=True)"
+  },
+  {
+    "objectID": "ml/audio_dataloader.html#why-do-we-need-to-create-a-dataloader",
+    "href": "ml/audio_dataloader.html#why-do-we-need-to-create-a-dataloader",
+    "title": "Creating an audio DataLoader",
+    "section": "Why do we need to create a DataLoader?",
+    "text": "Why do we need to create a DataLoader?\nA DataLoader is the iterable that “presents” data to a model. When we train a model, we run it for each element of the DataLoader in a for loop:\nfor i in data_loader:\n    <run some model>"
+  },
+  {
+    "objectID": "ml/autograd.html",
+    "href": "ml/autograd.html",
+    "title": "Automatic differentiation",
+    "section": "",
+    "text": "Imagine how hard it would be to write the chain rules of neural networks (with so many derivatives!) in backpropagation manually.\nPyTorch has automatic differentiation abilities—meaning that it can track all the operations conducted on tensors and do the backprop for you—thanks to its package torch.autograd."
+  },
+  {
+    "objectID": "ml/autograd.html#the-grad_fun-attribute",
+    "href": "ml/autograd.html#the-grad_fun-attribute",
+    "title": "Automatic differentiation",
+    "section": "The grad_fun attribute",
+    "text": "The grad_fun attribute\nWhenever a tensor is created by an operation involving a tracked tensor, it has a grad_fun attribute:\nx = torch.ones(2, 4, requires_grad=True)\nprint(x)\ny = x + 1\nprint(y)\nprint(y.grad_fn)"
+  },
+  {
+    "objectID": "ml/autograd.html#judicious-tracking",
+    "href": "ml/autograd.html#judicious-tracking",
+    "title": "Automatic differentiation",
+    "section": "Judicious tracking",
+    "text": "Judicious tracking\nYou don’t want to track more than is necessary. There are multiple ways to avoid tracking what you don’t want to.\nYou can simply stop tracking computations on a tensor with the method detach:\nx = torch.rand(4, 3, requires_grad=True)\nprint(x)\nprint(x.detach_())\nYou can change its requires_grad flag:\nx = torch.rand(4, 3, requires_grad=True)\nprint(x)\nprint(x.requires_grad_(False))\nAlternatively, you can wrap any code you don’t want to track with with torch.no_grad():\nwith torch.no_grad():\n    <some code>"
+  },
+  {
+    "objectID": "ml/autograd.html#manual-derivative-calculation",
+    "href": "ml/autograd.html#manual-derivative-calculation",
+    "title": "Automatic differentiation",
+    "section": "Manual derivative calculation",
+    "text": "Manual derivative calculation\nThe formula for this first derivative, with the loss function we used, is:\n\\[\\text{gradient}_\\text{predicted}=2(\\text{predicted} - \\text{real})\\]\nThere is no point in adding this operation to predicted’s computation history, so we will exclude it with with torch.no_grad():\nwith torch.no_grad():\n    manual_gradient_predicted = 2.0 * (predicted - real)\n\nprint(manual_gradient_predicted)"
+  },
+  {
+    "objectID": "ml/autograd.html#automatic-derivative-calculation",
+    "href": "ml/autograd.html#automatic-derivative-calculation",
+    "title": "Automatic differentiation",
+    "section": "Automatic derivative calculation",
+    "text": "Automatic derivative calculation\nNow, with torch.autograd:\nloss.backward()\nSince we tracked computations on predicted, we can calculate its gradient with:\nauto_gradient_predicted = predicted.grad\nprint(auto_gradient_predicted)"
+  },
+  {
+    "objectID": "ml/autograd.html#comparison",
+    "href": "ml/autograd.html#comparison",
+    "title": "Automatic differentiation",
+    "section": "Comparison",
+    "text": "Comparison\nThe result is the same, as can be tested with:\nprint(manual_gradient_predicted.eq(auto_gradient_predicted).all())\nThe calculation of this first derivative of backpropagation was simple enough. But to propagate all the derivatives calculations backward through the chain rule would quickly turn into a deep calculus problem.\nWith torch.autograd, calculating the gradients of all the other elements of the network is as simple as calling them with the attribute grad once the function torch.Tensor.backward() has been run."
+  },
+  {
+    "objectID": "ml/choosing_frameworks.html",
+    "href": "ml/choosing_frameworks.html",
+    "title": "Which framework to choose?",
+    "section": "",
+    "text": "With the growing popularity of machine learning, many frameworks have appeared in various languages. One of the questions you might be facing is: which tool should I choose?\nThe main focus here is on the downsides of proprietary tools.\n\n\nPoints worth considering\nThere are a several points you might want to consider in making that choice. For instance, what tools do people use in your field? (what tools are used in the papers you read?) What tools are your colleagues and collaborators using?\nLooking a bit further into the future, whether you are considering staying in academia or working in industry could also influence your choice. If the former, paying attention to the literature is key, if the latter, it may be good to have a look at the trends in job postings.\nSome frameworks offer collections of already-made toolkits. They are thus easy to start using and do not require a lot of programming experience. On the other hand, they may feel like black boxes and they are not very customizable. Scikit-learn and Keras—usually run on top of TensorFlow—fall in that category. Lower level tools allow you full control and tuning of your models, but can come with a steeper learning curve.\nPyTorch, developed by Facebook’s AI Research lab, has seen a huge increase in popularity in research in recent years due to its highly pythonic syntax, very convenient tensors, just-in-time (JIT) compilation, dynamic computation graphs, and because it is free and open-source.\nSeveral libraries are now adding a higher level on top of PyTorch: fastai, which we will use in this course, PyTorch Lightning, and PyTorch Ignite. fastai, in addition to the convenience of being able to write a model in a few lines of code, allows to dive as low as you choose into the PyTorch code, thus making it unconstrained by the optional ease of use. It also adds countless functionality. The downside of using this added layer is that it can make it less straightforward to install on a machine or to tweak and customize.\nThe most popular machine learning library currently remains TensorFlow, developed by the Google Brain Team. While it has a Python API, its syntax can be more obscure.\nJulia’s syntax is well suited for the implementation of mathematical models, GPU kernels can be written directly in Julia, and Julia’s speed is attractive in computation hungry fields. So Julia has also seen the development of many ML packages such as Flux or Knet. The user base of Julia remains quite small however.\nMy main motivation in writing this section however is to raise awareness about one question that should really be considered: whether the tool you decide to learn and use in your research is open-source or proprietary.\n\n\nProprietary tools: a word of caution\nAs a student, it is tempting to have the following perspective:\n\nMy university pays for this very expensive license. I have free access to this very expensive tool. It would be foolish not to make use of it while I can!\n\nWhen there are no equivalent or better open-source tools, that might be true. But when superior open-source tools exist, these university licenses are more of a trap than a gift.\nHere are some of the reasons you should be wary of proprietary tools:\n\nResearchers who do not have access to the tool cannot reproduce your methods\nLarge Canadian universities may offer a license for the tool, but grad students in other countries, independent researchers, researchers in small organizations, etc. may not have access to a free license (or tens of thousands of dollars to pay for it).\n\n\nOnce you graduate, you may not have access to the tool anymore\nOnce you leave your Canadian institution, you may become one of those researchers who do not have access to that tool. This means that you will not be able to re-run your thesis analyses, re-use your methods, and apply the skills you learnt. The time you spent learning that expensive tool you could play with for free may feel a lot less like a gift then.\n\n\nYour university may stop paying for a license\nAs commercial tools fall behind successful open-source ones, some universities may decide to stop purchasing a license. It happened during my years at SFU with an expensive and clunky citation manager which, after having been promoted for years by the library through countless workshops, got abandoned in favour of a much better free and open-source one.\n\n\nYou may get locked-in\nProprietary tools often come with proprietary formats and, depending on the tool, it may be painful (or impossible) to convert your work to another format. When that happens, you are locked-in.\n\n\nProprietary tools are often black boxes\nIt is often impossible to see the source code of proprietary software.\n\n\nLong-term access\nIt is often very difficult to have access to old versions of proprietary tools (and this can be necessary to reproduce old studies). When companies disappear, the tools they produced usually disappear with them. open-source tools, particularly those who have their code under version control in repositories such as GitHub, remain fully accessible (including all stages of development), and if they get abandoned, their maintenance can be taken over or restarted by others.\n\n\nThe licenses you have access to may be limiting and a cause of headache\nFor instance, the Alliance does not have an unlimited number of MATLAB licenses. Since these licenses come with complex rules (one license needed for each node, additional licenses for each toolbox, additional licenses for newer tools, etc.), it can quickly become a nightmare to navigate through it all. You may want to have a look at some of the comments in this thread.\n\n\nProprietary tools fall behind popular open-source tools\nEven large teams of software engineers cannot compete against an active community of researchers developing open-source tools. When open-source tools become really popular, the number of users contributing to their development vastly outnumbers what any company can provide. The testing, licensing, and production of proprietary tools are also too slow to keep up with quickly evolving fields of research. (Of course, open-source tools which do not take off and remain absolutely obscure do not see the benefit of a vast community.)\n\n\nProprietary tools often fail to address specialized edge cases needed in research\nIt is not commercially sound to develop cutting edge capabilities so specialized in a narrow subfield that they can only target a minuscule number of customers. But this is often what research needs. With open-source tools, researchers can develop the capabilities that fit their very specific needs. So while commercial tools are good and reliable for large audiences, they are often not the best in research. This explains the success of R over tools such as SASS or Stata in the past decade.\n\n\n\nConclusion\nAll that said, sometimes you don’t have a choice over the tool to use for your research as this may be dictated by the culture in your field or by your supervisor. But if you are free to choose and if superior or equal open-source alternatives exist and are popular, do not fall in the trap of thinking that because your university and the Alliance pay for a license, you should make use of it. It may be free for you—for now—but it can have hidden costs."
+  },
+  {
+    "objectID": "ml/concept.html",
+    "href": "ml/concept.html",
+    "title": "Overarching concept of deep learning",
+    "section": "",
+    "text": "Neural networks learn by adjusting their parameters automatically in an iterative manner. This is derived from Arthur Samuel’s concept.\nIt is important to get a good understanding of this process. Let’s go over it step by step."
+  },
+  {
+    "objectID": "ml/concept.html#decide-on-an-architecture",
+    "href": "ml/concept.html#decide-on-an-architecture",
+    "title": "Overarching concept of deep learning",
+    "section": "Decide on an architecture",
+    "text": "Decide on an architecture\n\nThe architecture won’t change during training. This is set. The type of architecture you choose (e.g. CNN, Transformer, etc.) depends on the type of data you have (e.g. vision, textual, etc.). The depth and breadth of your network depend on the amount of data and computing resource you have."
+  },
+  {
+    "objectID": "ml/concept.html#set-some-initial-parameters",
+    "href": "ml/concept.html#set-some-initial-parameters",
+    "title": "Overarching concept of deep learning",
+    "section": "Set some initial parameters",
+    "text": "Set some initial parameters\n\nYou can initialize them randomly or get much better ones through transfer learning.\nWhile the parameters are also part of the model, those will change during training."
+  },
+  {
+    "objectID": "ml/concept.html#get-some-labelled-data",
+    "href": "ml/concept.html#get-some-labelled-data",
+    "title": "Overarching concept of deep learning",
+    "section": "Get some labelled data",
+    "text": "Get some labelled data\n\nWhen we say that we need a lot of data for machine learning, we mean “lots of labelled data” as this is what gets used for training models."
+  },
+  {
+    "objectID": "ml/concept.html#make-sure-to-keep-some-data-for-testing",
+    "href": "ml/concept.html#make-sure-to-keep-some-data-for-testing",
+    "title": "Overarching concept of deep learning",
+    "section": "Make sure to keep some data for testing",
+    "text": "Make sure to keep some data for testing\n\nThose data won’t be used for training the model. Often people keep around 20% of their data for testing."
+  },
+  {
+    "objectID": "ml/concept.html#train-data-and-parameters-are-passed-through-the-architecture",
+    "href": "ml/concept.html#train-data-and-parameters-are-passed-through-the-architecture",
+    "title": "Overarching concept of deep learning",
+    "section": "Train data and parameters are passed through the architecture",
+    "text": "Train data and parameters are passed through the architecture\n\nThe train data are the inputs and the process of calculating the outputs is the forward pass."
+  },
+  {
+    "objectID": "ml/concept.html#the-outputs-of-the-model-are-predictions",
+    "href": "ml/concept.html#the-outputs-of-the-model-are-predictions",
+    "title": "Overarching concept of deep learning",
+    "section": "The outputs of the model are predictions",
+    "text": "The outputs of the model are predictions"
+  },
+  {
+    "objectID": "ml/concept.html#compare-those-predictions-to-the-train-labels",
+    "href": "ml/concept.html#compare-those-predictions-to-the-train-labels",
+    "title": "Overarching concept of deep learning",
+    "section": "Compare those predictions to the train labels",
+    "text": "Compare those predictions to the train labels\n\nSince our data was labelled, we know what the true outputs are."
+  },
+  {
+    "objectID": "ml/concept.html#calculate-train-loss",
+    "href": "ml/concept.html#calculate-train-loss",
+    "title": "Overarching concept of deep learning",
+    "section": "Calculate train loss",
+    "text": "Calculate train loss\n\nThe deviation of our predictions from the true outputs gives us a measure of training loss."
+  },
+  {
+    "objectID": "ml/concept.html#parameters-adjustement",
+    "href": "ml/concept.html#parameters-adjustement",
+    "title": "Overarching concept of deep learning",
+    "section": "Parameters adjustement",
+    "text": "Parameters adjustement\n\nThe parameters get automatically adjusted to reduce the training loss through the mechanism of backpropagation.\nThis is the actual training part.\nThis process is repeated many times. Training models is pretty much a giant for loop."
+  },
+  {
+    "objectID": "ml/concept.html#from-model-to-program",
+    "href": "ml/concept.html#from-model-to-program",
+    "title": "Overarching concept of deep learning",
+    "section": "From model to program",
+    "text": "From model to program\n\nRemember that the model architecture is fixed, but that the parameters change at each iteration of the training process.\nWhile the labelled data are key to training, what we are really interested in is the combination of architecture + final parameters.\n\nWhen the training is over, the parameters become fixed. Which means that our model now behaves like a classic program."
+  },
+  {
+    "objectID": "ml/concept.html#evaluating-the-model",
+    "href": "ml/concept.html#evaluating-the-model",
+    "title": "Overarching concept of deep learning",
+    "section": "Evaluating the model",
+    "text": "Evaluating the model\n\nWe can now use the testing set (which was never used to train the model) to evaluate our model: if we pass the test inputs through our program, we get some predictions that we can compare to the test labels (which are the true outputs).\nThis gives us the test loss: a measure of how well our model performs."
+  },
+  {
+    "objectID": "ml/concept.html#use-the-model",
+    "href": "ml/concept.html#use-the-model",
+    "title": "Overarching concept of deep learning",
+    "section": "Use the model",
+    "text": "Use the model\n\nNow that we have a program, we can use it on unlabelled inputs to get what people ultimately want: unknown outputs. This is when we put our model to actual use to solve some problem."
+  },
+  {
     "objectID": "ml/fastai.html",
     "href": "ml/fastai.html",
     "title": "fastai",
@@ -560,11 +742,305 @@
     "text": "Find this webinar in the Julia section."
   },
   {
+    "objectID": "ml/high_level_frameworks.html",
+    "href": "ml/high_level_frameworks.html",
+    "title": "High-level frameworks built on top of PyTorch",
+    "section": "",
+    "text": "Several popular higher-level frameworks are built on top of PyTorch and make the code easier to write and run:\n\nignite is developed by the PyTorch project. It is the easiest to combine with raw PyTorch, but not the easiest to use.\nPyTorch-lightning is probably the most popular. It makes some operations (e.g. using multiple GPUs) very easy, but some of the Lightning products are not free.\nfastai adds several interesting concepts to PyTorch borrowed from other languages, but debugging can be challenging.\nCatalyst\n\nThe following tag trends on Stack Overflow might give an idea of the popularity of these frameworks over time (catalyst doesn’t have any Stack Overflow tag):\n\nIf this data is to be believed, ignite never really took off (it also has a lower number of stars on GitHub), fast-ai was extremely popular when it came out, but its usage is going down, and PyTorch-lightning is currently the most popular.\n\nShould you use one (and which one)?\nLearning raw PyTorch is probably the best option for research. PyTorch is stable and here to stay. Higher-level frameworks may rise and drop in popularity and today’s popular one may see little usage tomorrow.\nRaw PyTorch is also the most flexible, the closest to the actual computations happening in your model, and probably the easiest to debug.\nDepending on your deep learning trajectory, you might find some of these tools useful though:\n\nIf you work in industry, you might want or need to get results quickly\nSome operations (e.g. parallel execution on multiple GPUs) can be tricky in raw PyTorch, while being extremely streamlined when using e.g. PyTorch-lightning\nEven in research, it might make sense to spend more time thinking about the structure of your model and the functioning of a network instead of getting bogged down in writing code\n\n\nBefore moving to any of these tools, it is probably a good idea to get a good knowledge of raw PyTorch: use these tools to simplify your workflow, not cloud your understanding of what your code is doing."
+  },
+  {
     "objectID": "ml/intro_hss.html",
     "href": "ml/intro_hss.html",
     "title": "Introduction to machine learning for the humanities",
     "section": "",
     "text": "We hear about it all the time, but what really is machine learning? And what about deep learning? Neural networks?? How can any of this help me with my work? And how? Which tools do I need to make use of the transformative advances happening in that field??\nThis workshop will answer these questions in a non-technical manner to give you a high level overview of a discipline that has become crucial in all fields of research."
+  },
+  {
+    "objectID": "ml/mnist.html",
+    "href": "ml/mnist.html",
+    "title": "Classifying the MNIST dataset",
+    "section": "",
+    "text": "In this workshop, we will classify the MNIST dataset—a classic of machine learning—with PyTorch."
+  },
+  {
+    "objectID": "ml/mnist.html#where-to-store-the-data-in-the-cluster",
+    "href": "ml/mnist.html#where-to-store-the-data-in-the-cluster",
+    "title": "Classifying the MNIST dataset",
+    "section": "Where to store the data in the cluster",
+    "text": "Where to store the data in the cluster\nWe will all use the same data. It would make little sense to all download it in our home directory.\nIn the Alliance clusters, a good place to store data shared amongst members of a project is in the /project file system.\nYou usually belong to /project/def-<group>, where <group> is the name of your PI. You can access it from your home directory through the symbolic link ~/projects/def-<group>.\nIn our training cluster, we are all part of the group def-sponsor00, accessible through /project/def-sponsor00 (or the hyperlink ~/projects/def-sponsor00).\nWe will thus all access the MNIST data in ~/projects/def-sponsor00/data."
+  },
+  {
+    "objectID": "ml/mnist.html#how-to-obtain-the-data",
+    "href": "ml/mnist.html#how-to-obtain-the-data",
+    "title": "Classifying the MNIST dataset",
+    "section": "How to obtain the data?",
+    "text": "How to obtain the data?\nThe dataset can be downloaded directly from the MNIST website, but the PyTorch package TorchVision has tools to download and transform several classic vision datasets, including the MNIST.\nhelp(torchvision.datasets.MNIST)\nHelp on class MNIST in module torchvision.datasets.mnist:\n\nclass MNIST(torchvision.datasets.vision.VisionDataset)\n\n |  MNIST(root: str, train: bool = True, \n |    transform: Optional[Callable] = None,\n |    target_transform: Optional[Callable] = None, \n |    download: bool = False) -> None\n |   \n |  Args:\n |    root (string): Root directory of dataset where \n |      MNIST/raw/train-images-idx3-ubyte and \n |      MNIST/raw/t10k-images-idx3-ubyte exists.\n |    train (bool, optional): If True, creates dataset from \n |      train-images-idx3-ubyte, otherwise from t10k-images-idx3-ubyte.\n |    download (bool, optional): If True, downloads the dataset from the \n |      internet and puts it in root directory. If dataset is already \n |      downloaded, it is not downloaded again.\n |    transform (callable, optional): A function/transform that takes in \n |      an PIL image and returns a transformed version.\n |      E.g, transforms.RandomCrop\n |    target_transform (callable, optional): A function/transform that \n |      takes in the target and transforms it.\nNote that here too, the root argument sets the location of the downloaded data and we will use /project/def-sponsor00/data/."
+  },
+  {
+    "objectID": "ml/mnist.html#prepare-the-data",
+    "href": "ml/mnist.html#prepare-the-data",
+    "title": "Classifying the MNIST dataset",
+    "section": "Prepare the data",
+    "text": "Prepare the data\nFirst, let’s load the needed libraries:\n\nimport torch\nfrom torchvision import datasets, transforms\nfrom matplotlib import pyplot as plt\n\nThe MNIST dataset already consists of a training and a testing sets, so we don’t have to split the data manually. Instead, we can directly create 2 different objects with the same function (train=True selects the train set and train=False selects the test set).\nWe will transform the raw data to tensors and normalize them using the mean and standard deviation of the MNIST training set: 0.1307 and 0.3081 respectively (even though the mean and standard deviation of the test data are slightly different, it is important to normalize the test data with the values of the training data to apply the same treatment to both sets).\nSo we first need to define a transformation:\n\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])"
+  },
+  {
+    "objectID": "ml/mnist.html#we-can-now-create-our-data-objects",
+    "href": "ml/mnist.html#we-can-now-create-our-data-objects",
+    "title": "Classifying the MNIST dataset",
+    "section": "We can now create our data objects",
+    "text": "We can now create our data objects\n\nTraining data\n\nRemember that train=True selects the training set of the MNIST.\n\n\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\n\n\n\nTest data\n\ntrain=False selects the test set.\n\n\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)"
+  },
+  {
+    "objectID": "ml/mnist.html#data-inspection",
+    "href": "ml/mnist.html#data-inspection",
+    "title": "Classifying the MNIST dataset",
+    "section": "Data inspection",
+    "text": "Data inspection\nFirst, let’s check the size of train_data:\n\nprint(len(train_data))\n\n60000\n\n\nThat makes sense since the MNIST’s training set has 60,000 pairs. train_data has 60,000 elements and we should expect each element to be of size 2 since it is a pair. Let’s double-check with the first element:\n\nprint(len(train_data[0]))\n\n2\n\n\nSo far, so good. We can print that first pair:\n\nprint(train_data[0])\n\n(tensor([[[-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.3860, -0.1951,\n          -0.1951, -0.1951,  1.1795,  1.3068,  1.8032, -0.0933,  1.6887,\n           2.8215,  2.7197,  1.1923, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.0424,  0.0340,  0.7722,  1.5359,  1.7396,  2.7960,\n           2.7960,  2.7960,  2.7960,  2.7960,  2.4396,  1.7650,  2.7960,\n           2.6560,  2.0578,  0.3904, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n           0.1995,  2.6051,  2.7960,  2.7960,  2.7960,  2.7960,  2.7960,\n           2.7960,  2.7960,  2.7960,  2.7706,  0.7595,  0.6195,  0.6195,\n           0.2886,  0.0722, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.1951,  2.3633,  2.7960,  2.7960,  2.7960,  2.7960,  2.7960,\n           2.0960,  1.8923,  2.7197,  2.6433, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242,  0.5940,  1.5614,  0.9377,  2.7960,  2.7960,  2.1851,\n          -0.2842, -0.4242,  0.1231,  1.5359, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.2460, -0.4115,  1.5359,  2.7960,  0.7213,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242,  1.3450,  2.7960,  1.9942,\n          -0.3988, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.2842,  1.9942,  2.7960,\n           0.4668, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,  0.0213,  2.6433,\n           2.4396,  1.6123,  0.9504, -0.4115, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,  0.6068,\n           2.6306,  2.7960,  2.7960,  1.0904, -0.1060, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n           0.1486,  1.9432,  2.7960,  2.7960,  1.4850, -0.0806, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.2206,  0.7595,  2.7833,  2.7960,  1.9560, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242,  2.7451,  2.7960,  2.7451,  0.3904,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n           0.1613,  1.2305,  1.9051,  2.7960,  2.7960,  2.2105, -0.3988,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,  0.0722,  1.4596,\n           2.4906,  2.7960,  2.7960,  2.7960,  2.7578,  1.8923, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.1187,  1.0268,  2.3887,  2.7960,\n           2.7960,  2.7960,  2.7960,  2.1342,  0.5686, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.1315,  0.4159,  2.2869,  2.7960,  2.7960,  2.7960,\n           2.7960,  2.0960,  0.6068, -0.3988, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.1951,\n           1.7523,  2.3633,  2.7960,  2.7960,  2.7960,  2.7960,  2.0578,\n           0.5940, -0.3097, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242,  0.2758,  1.7650,  2.4524,\n           2.7960,  2.7960,  2.7960,  2.7960,  2.6815,  1.2686, -0.2842,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242,  1.3068,  2.7960,  2.7960,\n           2.7960,  2.2742,  1.2941,  1.2559, -0.2206, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242],\n         [-0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242,\n          -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242, -0.4242]]]), 5)\n\n\nAnd you can see that it is a tuple with:\n\nprint(type(train_data[0]))\n\n<class 'tuple'>\n\n\nWhat is that tuple made of?\n\nprint(type(train_data[0][0]))\nprint(type(train_data[0][1]))\n\n<class 'torch.Tensor'>\n<class 'int'>\n\n\nIt is made of the tensor for the first image (remember that we transformed the images into tensors when we created the objects train_data and test_data) and the integer of the first label (which you can see is 5 when you print train_data[0][1]).\nSo since train_data[0][0] is the tensor representing the image of the first pair, let’s check its size:\n\nprint(train_data[0][0].size())\n\ntorch.Size([1, 28, 28])\n\n\nThat makes sense: a color image would have 3 layers of RGB values (so the size in the first dimension would be 3), but because the MNIST has black and white images, there is a single layer of values—the values of each pixel on a gray scale—so the first dimension has a size of 1. The 2nd and 3rd dimensions correspond to the width and length of the image in pixels, hence 28 and 28.\n\n\nYour turn:\n\nRun the following:\nprint(train_data[0][0][0])\nprint(train_data[0][0][0][0])\nprint(train_data[0][0][0][0][0])\nAnd think about what each of them represents.\nThen explore the test_data object."
+  },
+  {
+    "objectID": "ml/mnist.html#plotting-an-image-from-the-data",
+    "href": "ml/mnist.html#plotting-an-image-from-the-data",
+    "title": "Classifying the MNIST dataset",
+    "section": "Plotting an image from the data",
+    "text": "Plotting an image from the data\nFor this, we will use pyplot from matplotlib.\nFirst, we select the image of the first pair and we resize it from 3 to 2 dimensions by removing its dimension of size 1 with torch.squeeze:\nimg = torch.squeeze(train_data[0][0])\nThen, we plot it with pyplot, but since we are in a cluster, instead of showing it to screen with plt.show(), we save it to file:\nplt.imshow(img, cmap='gray')\nThis is what that first image looks like:\n\nAnd indeed, it matches the first label we explored earlier (train_data[0][1])."
+  },
+  {
+    "objectID": "ml/mnist.html#plotting-an-image-with-its-pixel-values",
+    "href": "ml/mnist.html#plotting-an-image-with-its-pixel-values",
+    "title": "Classifying the MNIST dataset",
+    "section": "Plotting an image with its pixel values",
+    "text": "Plotting an image with its pixel values\nWe can plot it with more details by showing the value of each pixel in the image. One little twist is that we need to pick a threshold value below which we print the pixel values in white otherwise they would not be visible (black on near black background). We also round the pixel values to one decimal digit so as not to clutter the result.\nimgplot = plt.figure(figsize = (12, 12))\nsub = imgplot.add_subplot(111)\nsub.imshow(img, cmap='gray')\nwidth, height = img.shape\nthresh = img.max() / 2.5\nfor x in range(width):\n    for y in range(height):\n        val = round(img[x][y].item(), 1)\n        sub.annotate(str(val), xy=(y, x),\n                     horizontalalignment='center',\n                     verticalalignment='center',\n                     color='white' if img[x][y].item() < thresh else 'black')"
+  },
+  {
+    "objectID": "ml/mnist.html#create-dataloaders",
+    "href": "ml/mnist.html#create-dataloaders",
+    "title": "Classifying the MNIST dataset",
+    "section": "Create DataLoaders",
+    "text": "Create DataLoaders\n\nTraining data\ntrain_loader = torch.utils.data.DataLoader(\n    train_data, batch_size=20, shuffle=True)\n\n\nTest data\ntest_loader = torch.utils.data.DataLoader(\n    test_data, batch_size=20, shuffle=False)"
+  },
+  {
+    "objectID": "ml/mnist.html#plot-a-full-batch-of-images-with-their-labels",
+    "href": "ml/mnist.html#plot-a-full-batch-of-images-with-their-labels",
+    "title": "Classifying the MNIST dataset",
+    "section": "Plot a full batch of images with their labels",
+    "text": "Plot a full batch of images with their labels\nNow that we have passed our data through DataLoader, it is easy to select one batch from it. Let’s plot an entire batch of images with their labels.\nFirst, we need to get one batch of training images and their labels:\ndataiter = iter(train_loader)\nbatchimg, batchlabel = dataiter.next()\nThen, we can plot them:\nbatchplot = plt.figure(figsize=(20, 5))\nfor i in torch.arange(20):\n    sub = batchplot.add_subplot(2, 10, i+1, xticks=[], yticks=[])\n    sub.imshow(torch.squeeze(batchimg[i]), cmap='gray')\n    sub.set_title(str(batchlabel[i].item()), fontsize=25)"
+  },
+  {
+    "objectID": "ml/mnist.html#load-packages",
+    "href": "ml/mnist.html#load-packages",
+    "title": "Classifying the MNIST dataset",
+    "section": "Load packages",
+    "text": "Load packages\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nimport torch.optim as optim\nfrom torch.utils.tensorboard import SummaryWriter\nfrom torchvision import datasets, transforms\nfrom torch.optim.lr_scheduler import StepLR\nThe torch.nn.functional module contains all the functions of the torch.nn package.\nThese functions include loss functions, activation functions, pooling functions…"
+  },
+  {
+    "objectID": "ml/mnist.html#create-a-summarywriter-instance-for-tensorboard",
+    "href": "ml/mnist.html#create-a-summarywriter-instance-for-tensorboard",
+    "title": "Classifying the MNIST dataset",
+    "section": "Create a SummaryWriter instance for TensorBoard",
+    "text": "Create a SummaryWriter instance for TensorBoard\nwriter = SummaryWriter()"
+  },
+  {
+    "objectID": "ml/mnist.html#define-the-architecture-of-the-network",
+    "href": "ml/mnist.html#define-the-architecture-of-the-network",
+    "title": "Classifying the MNIST dataset",
+    "section": "Define the architecture of the network",
+    "text": "Define the architecture of the network\n# To build a model, create a subclass of torch.nn.Module:\nclass Net(nn.Module):\n    def __init__(self):\n        super(Net, self).__init__()\n        self.fc1 = nn.Linear(784, 128)\n        self.fc2 = nn.Linear(128, 10)\n\n    # Method for the forward pass:\n    def forward(self, x):\n        x = torch.flatten(x, 1)\n        x = self.fc1(x)\n        x = F.relu(x)\n        x = self.fc2(x)\n        output = F.log_softmax(x, dim=1)\n        return output\nPython’s class inheritance gives our subclass all the functionality of torch.nn.Module while allowing us to customize it."
+  },
+  {
+    "objectID": "ml/mnist.html#define-a-training-function",
+    "href": "ml/mnist.html#define-a-training-function",
+    "title": "Classifying the MNIST dataset",
+    "section": "Define a training function",
+    "text": "Define a training function\ndef train(model, device, train_loader, optimizer, epoch):\n    model.train()\n    for batch_idx, (data, target) in enumerate(train_loader):\n        data, target = data.to(device), target.to(device)\n        optimizer.zero_grad()  # reset the gradients to 0\n        output = model(data)\n        loss = F.nll_loss(output, target)  # negative log likelihood\n        writer.add_scalar(\"Loss/train\", loss, epoch)\n        loss.backward()\n        optimizer.step()\n        if batch_idx % 10 == 0:\n            print('Train Epoch: {} [{}/{} ({:.0f}%)]\\tLoss: {:.6f}'.format(\n                epoch, batch_idx * len(data), len(train_loader.dataset),\n                100. * batch_idx / len(train_loader), loss.item()))"
+  },
+  {
+    "objectID": "ml/mnist.html#define-a-testing-function",
+    "href": "ml/mnist.html#define-a-testing-function",
+    "title": "Classifying the MNIST dataset",
+    "section": "Define a testing function",
+    "text": "Define a testing function\ndef test(model, device, test_loader):\n    model.eval()\n    test_loss = 0\n    correct = 0\n    with torch.no_grad():\n        for data, target in test_loader:\n            data, target = data.to(device), target.to(device)\n            output = model(data)\n            # Sum up batch loss:\n            test_loss += F.nll_loss(output, target, reduction='sum').item()\n            # Get the index of the max log-probability:\n            pred = output.argmax(dim=1, keepdim=True)\n            correct += pred.eq(target.view_as(pred)).sum().item()\n\n    test_loss /= len(test_loader.dataset)\n\n    # Print a summary\n    print('\\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\\n'.format(\n        test_loss, correct, len(test_loader.dataset),\n        100. * correct / len(test_loader.dataset)))"
+  },
+  {
+    "objectID": "ml/mnist.html#define-a-function-main-which-runs-our-network",
+    "href": "ml/mnist.html#define-a-function-main-which-runs-our-network",
+    "title": "Classifying the MNIST dataset",
+    "section": "Define a function main() which runs our network",
+    "text": "Define a function main() which runs our network\ndef main():\n    epochs = 1\n    torch.manual_seed(1)\n    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')\n\n    transform = transforms.Compose([\n        transforms.ToTensor(),\n        transforms.Normalize((0.1307,), (0.3081,))\n    ])\n\n    train_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=True, download=True, transform=transform)\n\n    test_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=False, transform=transform)\n\n    train_loader = torch.utils.data.DataLoader(train_data, batch_size=64)\n    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1000)\n    model = Net().to(device)  # create instance of our network and send it to device\n    optimizer = optim.Adadelta(model.parameters(), lr=1.0)\n    scheduler = StepLR(optimizer, step_size=1, gamma=0.7)\n\n    for epoch in range(1, epochs + 1):\n        train(model, device, train_loader, optimizer, epoch)\n        test(model, device, test_loader)\n        scheduler.step()"
+  },
+  {
+    "objectID": "ml/mnist.html#run-the-network",
+    "href": "ml/mnist.html#run-the-network",
+    "title": "Classifying the MNIST dataset",
+    "section": "Run the network",
+    "text": "Run the network\nmain()"
+  },
+  {
+    "objectID": "ml/mnist.html#write-pending-events-to-disk-and-close-the-tensorboard",
+    "href": "ml/mnist.html#write-pending-events-to-disk-and-close-the-tensorboard",
+    "title": "Classifying the MNIST dataset",
+    "section": "Write pending events to disk and close the TensorBoard",
+    "text": "Write pending events to disk and close the TensorBoard\nwriter.flush()\nwriter.close()\nThe code is working. Time to actually train our model!\nJupyter is a fantastic tool. It has a major downside however: when you launch a Jupyter server, you are running a job on a compute node. If you want to play for 8 hours in Jupyter, you are requesting an 8 hour job. Now, most of the time you spend on Jupyter is spent typing, running bits and pieces of code, or doing nothing at all. If you ask for GPUs, many CPUs, and lots of RAM, all of it will remain idle almost all of the time. It is a really suboptimal use of Compute Canada resources.\nIn addition, if you ask for lots of resources for a long time, you will have to wait a long time in the queue before they get allocated to you.\nLastly, you will go through your allocation quickly.\nA much better strategy is to develop and test your code (with very little data, few epochs, etc.) in an interactive job (with salloc) or in Jupyter, then, launch an sbatch job to actually train your model. This ensures that heavy duty resources such as GPU(s) are only allocated to you when you are actually needing and using them.\n\nConcrete example with our training cluster: this cluster only has 1 GPU. If you want to use it in Jupyter, you have to request it for your Jupyter session. This means that the entire time your Jupyter session is active, nobody else can use that GPU. While you let your session idle or do tasks that do not require a GPU, this is not a good use of resources."
+  },
+  {
+    "objectID": "ml/mnist.html#log-in-the-training-cluster",
+    "href": "ml/mnist.html#log-in-the-training-cluster",
+    "title": "Classifying the MNIST dataset",
+    "section": "Log in the training cluster",
+    "text": "Log in the training cluster\nOpen a terminal and SSH to our training cluster as we saw in the first lesson."
+  },
+  {
+    "objectID": "ml/mnist.html#load-necessary-modules",
+    "href": "ml/mnist.html#load-necessary-modules",
+    "title": "Classifying the MNIST dataset",
+    "section": "Load necessary modules",
+    "text": "Load necessary modules\nFirst, we need to load the Python and CUDA modules. This is done with the Lmod tool through the module command. Here are some key Lmod commands:\n# Get help on the module command\n$ module help\n\n# List modules that are already loaded\n$ module list\n\n# See which modules are available for a tool\n$ module avail <tool>\n\n# Load a module\n$ module load <module>[/<version>]\nHere are the modules we need:\n$ module load nixpkgs/16.09 gcc/7.3.0 cuda/10.0.130 cudnn/7.6 python/3.8.2"
+  },
+  {
+    "objectID": "ml/mnist.html#install-python-packages",
+    "href": "ml/mnist.html#install-python-packages",
+    "title": "Classifying the MNIST dataset",
+    "section": "Install Python packages",
+    "text": "Install Python packages\nYou also need the Python packages matplotlib, torch, torchvision, and tensorboard.\nOn Compute Canada clusters, you need to create a virtual environment in which you install packages with pip.\n\nDo not use Anaconda.\nWhile Anaconda is a great tool on personal computers, it is not an appropriate tool when working on the Compute Canada clusters: binaries are unoptimized for those clusters and library paths are inconsistent with their architecture. Anaconda installs packages in $HOME where it creates a very large number of small files. It can also create conflicts by modifying .bashrc.\n\nFor this workshop, since we all need the same packages, I already created a virtual environment that we will all use. All you have to do is to activate it with:\n$ source ~/projects/def-sponsor00/env/bin/activate\nIf you want to exit the virtual environment, you can press Ctrl-D or run:\n(env) $ deactivate\n\nFor future reference, below is how you would install packages on a real Compute Canada cluster (but please don’t do it in the training cluster as it is unnecessary and would only slow it down).\nCreate a virtual environment:\n$ virtualenv --no-download ~/env\nActivate the virtual environment:\n$ source ~/env/bin/activate\nUpdate pip:\n(env) $ pip install --no-index --upgrade pip\nInstall the packages you need in the virtual environment:\n(env) $ pip install --no-cache-dir --no-index matplotlib torch torchvision tensorboard"
+  },
+  {
+    "objectID": "ml/mnist.html#write-a-python-script",
+    "href": "ml/mnist.html#write-a-python-script",
+    "title": "Classifying the MNIST dataset",
+    "section": "Write a Python script",
+    "text": "Write a Python script\nCreate a directory for this project and cd into it:\nmkdir mnist\ncd mnist\nStart a Python script with the text editor of your choice:\nnano nn.py\nIn it, copy-paste the code we played with in Jupyter, but this time have it run for 10 epochs:\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nimport torch.optim as optim\nfrom torch.utils.tensorboard import SummaryWriter\nfrom torchvision import datasets, transforms\nfrom torch.optim.lr_scheduler import StepLR\n\nwriter = SummaryWriter()\n\nclass Net(nn.Module):\n    def __init__(self):\n        super(Net, self).__init__()\n        self.fc1 = nn.Linear(784, 128)\n        self.fc2 = nn.Linear(128, 10)\n\n    def forward(self, x):\n        x = torch.flatten(x, 1)\n        x = self.fc1(x)\n        x = F.relu(x)\n        x = self.fc2(x)\n        output = F.log_softmax(x, dim=1)\n        return output\n\ndef train(model, device, train_loader, optimizer, epoch):\n    model.train()\n    for batch_idx, (data, target) in enumerate(train_loader):\n        data, target = data.to(device), target.to(device)\n        optimizer.zero_grad()\n        output = model(data)\n        loss = F.nll_loss(output, target)\n        writer.add_scalar(\"Loss/train\", loss, epoch)\n        loss.backward()\n        optimizer.step()\n        if batch_idx % 10 == 0:\n            print('Train Epoch: {} [{}/{} ({:.0f}%)]\\tLoss: {:.6f}'.format(\n                epoch, batch_idx * len(data), len(train_loader.dataset),\n                100. * batch_idx / len(train_loader), loss.item()))\n\ndef test(model, device, test_loader):\n    model.eval()\n    test_loss = 0\n    correct = 0\n    with torch.no_grad():\n        for data, target in test_loader:\n            data, target = data.to(device), target.to(device)\n            output = model(data)\n            test_loss += F.nll_loss(output, target, reduction='sum').item()\n            pred = output.argmax(dim=1, keepdim=True)\n            correct += pred.eq(target.view_as(pred)).sum().item()\n\n    test_loss /= len(test_loader.dataset)\n\n    print('\\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\\n'.format(\n        test_loss, correct, len(test_loader.dataset),\n        100. * correct / len(test_loader.dataset)))\n\ndef main():\n    epochs = 10  # don't forget to change the number of epochs\n    torch.manual_seed(1)\n    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')\n\n    transform = transforms.Compose([\n        transforms.ToTensor(),\n        transforms.Normalize((0.1307,), (0.3081,))\n    ])\n\n    train_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=True, download=True, transform=transform)\n\n    test_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=False, transform=transform)\n\n    train_loader = torch.utils.data.DataLoader(train_data, batch_size=64)\n    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1000)\n    model = Net().to(device)\n    optimizer = optim.Adadelta(model.parameters(), lr=1.0)\n    scheduler = StepLR(optimizer, step_size=1, gamma=0.7)\n\n    for epoch in range(1, epochs + 1):\n        train(model, device, train_loader, optimizer, epoch)\n        test(model, device, test_loader)\n        scheduler.step()\n\nmain()\n\nwriter.flush()\nwriter.close()"
+  },
+  {
+    "objectID": "ml/mnist.html#write-a-slurm-script",
+    "href": "ml/mnist.html#write-a-slurm-script",
+    "title": "Classifying the MNIST dataset",
+    "section": "Write a Slurm script",
+    "text": "Write a Slurm script\nWrite a shell script with the text editor of your choice:\nnano nn.sh\nThis is what you want in that script:\n#!/bin/bash\n#SBATCH --time=5:0\n#SBATCH --cpus-per-task=1\n#SBATCH --gres=gpu:1\n#SBATCH --mem=4G\n#SBATCH --output=%x_%j.out\n#SBATCH --error=%x_%j.err\n\npython ~/mnist/nn.py\n\n--time accepts these formats: “min”, “min:s”, “h:min:s”, “d-h”, “d-h:min” & “d-h:min:s”\n%x will get replaced by the script name & %j by the job number"
+  },
+  {
+    "objectID": "ml/mnist.html#submit-a-job",
+    "href": "ml/mnist.html#submit-a-job",
+    "title": "Classifying the MNIST dataset",
+    "section": "Submit a job",
+    "text": "Submit a job\nFinally, you need to submit your job to Slurm:\n$ sbatch ~/mnist/nn.sh\nYou can check the status of your job with:\n$ sq\n\nPD = pending\nR = running\nCG = completing (Slurm is doing the closing processes)\nNo information = your job has finished running\n\nYou can cancel it with:\n$ scancel <jobid>\nOnce your job has finished running, you can display efficiency measures with:\n$ seff <jobid>"
+  },
+  {
+    "objectID": "ml/mnist.html#launch-tensorboard",
+    "href": "ml/mnist.html#launch-tensorboard",
+    "title": "Classifying the MNIST dataset",
+    "section": "Launch TensorBoard",
+    "text": "Launch TensorBoard\nTensorBoard requires too much processing power to be run on the login node. When you run long jobs, the best strategy is to launch it in the background as part of the job. This allows you to monitor your model as it is running (and cancel it if things don’t look right).\n\nExample:\n\n#!/bin/bash\n#SBATCH ...\n#SBATCH ...\n\ntensorboard --logdir=runs --host 0.0.0.0 &\npython ~/mnist/nn.py\nBecause we only have 1 GPU and are taking turns running our jobs, we need to keep our jobs very short here. So we will launch a separate job for TensorBoard. This time, we will launch an interactive job:\nsalloc --time=1:0:0 --mem=2000M\nTo launch TensorBoard, we need to activate our Python virtual environment (TensorBoard was installed by pip):\nsource ~/projects/def-sponsor00/env/bin/activate\nThen we can launch TensorBoard in the background:\ntensorboard --logdir=~/mnist/runs --host 0.0.0.0 &\nNow, we need to create a connection with SSH tunnelling between your computer and the compute note running your TensorBoard job."
+  },
+  {
+    "objectID": "ml/mnist.html#connect-to-tensorboard-from-your-computer",
+    "href": "ml/mnist.html#connect-to-tensorboard-from-your-computer",
+    "title": "Classifying the MNIST dataset",
+    "section": "Connect to TensorBoard from your computer",
+    "text": "Connect to TensorBoard from your computer\nFrom a new terminal on your computer, run:\nssh -NfL localhost:6006:<hostname>:6006 userxxx@uu.c3.ca\n\nReplace <hostname> by the name of the compute node running your salloc job. You can find it by looking at your prompt (your prompt shows <username>@<hostname>).\nReplace <userxxx> by your user name.\n\nNow, you can open a browser on your computer and access TensorBoard at http://localhost:6006."
+  },
+  {
+    "objectID": "ml/nn.html",
+    "href": "ml/nn.html",
+    "title": "Concepts:",
+    "section": "",
+    "text": "Artificial intelligence is a vast field: any system mimicking animal intelligence falls in its scope.\nMachine learning (ML) is a subfield of artificial intelligence that can be defined as computer programs whose performance at a task improves with experience.\nSince this experience comes in the form of data, ML consists of feeding vast amounts of data to algorithms to strengthen pathways.\n\n\nFrom xkcd.com\n\n\n\nCoding all the possible ways—pixel by pixel—that a picture can represent a certain object is an impossibly large task. By feeding examples of images of that object to a neural network however, we can train it to recognize that object in images that it has never seen (without explicitly programming how it does this!).\n\n\nFrom xkcd.com"
+  },
+  {
+    "objectID": "ml/nn.html#supervised-learning",
+    "href": "ml/nn.html#supervised-learning",
+    "title": "Concepts:",
+    "section": "Supervised learning",
+    "text": "Supervised learning\nYou have been doing supervised machine learning for years without looking at it in the framework of machine learning:\n\nRegression is a form of supervised learning with continuous outputs\nClassification is supervised learning with discrete outputs\n\nSupervised learning uses training data in the form of example input/output \\((x_i, y_i)\\) pairs.\nGoal:\nIf \\(X\\) is the space of inputs and \\(Y\\) the space of outputs, the goal is to find a function \\(h\\) so that\nfor each \\(x_i \\in X\\):\n\n\\(h_\\theta(x_i)\\) is a predictor for the corresponding value \\(y_i\\)\n\n(\\(\\theta\\) represents the set of parameters of \\(h_\\theta\\)).\n\n→ i.e. we want to find the relationship between inputs and outputs."
+  },
+  {
+    "objectID": "ml/nn.html#unsupervised-learning",
+    "href": "ml/nn.html#unsupervised-learning",
+    "title": "Concepts:",
+    "section": "Unsupervised learning",
+    "text": "Unsupervised learning\nHere too, you are familiar with some forms of unsupervised learning that you weren’t thinking about in such terms:\nClustering, social network analysis, market segmentation, PCA … are all forms of unsupervised learning.\nUnsupervised learning uses unlabelled data (training set of \\(x_i\\)).\nGoal:\nFind structure within the data.\n\n\nFrom xkcd.com"
+  },
+  {
+    "objectID": "ml/nn.html#types-of-ann",
+    "href": "ml/nn.html#types-of-ann",
+    "title": "Concepts:",
+    "section": "Types of ANN",
+    "text": "Types of ANN\n\nFully connected neural networks\n\n\nFrom Glosser.ca, Wikipedia\n\nEach neuron receives inputs from every neuron of the previous layer and passes its output to every neuron of the next layer.\n\n\nConvolutional neural networks\n\n\nFrom Programming Journeys by Rensu Theart\n\nConvolutional neural networks (CNN) are used for spatially structured data (e.g. in image recognition).\nImages have huge input sizes and would require a very large number of neurons in a fully connected neural net. In convolutional layers, neurons receive input from a subarea (called local receptive field) of the previous layer. This greatly reduces the number of parameters.\nOptionally, pooling (combining the outputs of neurons in a subarea) reduces the data dimensions. The stride then dictates how the subarea is moved across the image. Max-pooling is one of the forms of pooling which uses the maximum for each subarea.\n\n\nRecurrent neural networks\n\n\nFrom fdeloche, Wikipedia\n\nRecurrent neural networks (RNN) such as Long Short-Term Memory (LSTM) are used for chain structured data (e.g. in speech recognition).\nThey are not feedforward networks (i.e. networks for which the information moves only in the forward direction without any loop).\n\n\nTransformers\nA combination of two RNNs or sets of RNNs (the encoder and the decoder) is used in sequence to sequence models for translation or picture captioning. Such models were slow to process a lot of data.\nIn 2014 and 2015, the concept of attention (giving added weight to important words) was developed, greatly improving the ability of such models to process a lot of data.\nThis blog post by Jay Alammar—a blogger whose high-quality posts have been referenced in MIT and Stanford courses—explains this in a high-level visual fashion.\nThe problem with recurrence is that it is not easily to parallelize (and thus to run fast on GPUs).\nIn 2017, a new model—the transformer—was proposed: by using only attention mechanisms and no recurrence, the transformer achieves better results in an easily parallelizable fashion.\nJay Alammar has also a blog post on the transformer. The post includes a 30 min video.\nWith the addition of transfer learning, powerful transformers emerged in the field of NLP (Natural Language Processing). Examples include BERT (Bidirectional Encoder Representations from Transformers) from Google and GPT-3 (Generative Pre-trained Transformer-3) from OpenAI.\nJay Alammar has yet another great blog post on these advanced NLP models."
+  },
+  {
+    "objectID": "ml/nn.html#deep-learning",
+    "href": "ml/nn.html#deep-learning",
+    "title": "Concepts:",
+    "section": "Deep learning",
+    "text": "Deep learning\nThe first layer of a neural net is the input layer. The last one is the output layer. All the layers in-between are called hidden layers. Shallow neural networks have only one hidden layer and deep networks have two or more hidden layers. When an ANN is deep, we talk about Deep Learning (DL).\n\n\nFrom xkcd.com"
+  },
+  {
+    "objectID": "ml/nn_building.html",
+    "href": "ml/nn_building.html",
+    "title": "Building a neural network",
+    "section": "",
+    "text": "Key to creating neural networks in PyTorch is the torch.nn package which contains the nn.Module and a forward method which returns an output from some input.\nLet’s build a neural network to classify the MNIST."
+  },
+  {
+    "objectID": "ml/nn_building.html#load-packages",
+    "href": "ml/nn_building.html#load-packages",
+    "title": "Building a neural network",
+    "section": "Load packages",
+    "text": "Load packages\n\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F"
+  },
+  {
+    "objectID": "ml/nn_building.html#define-the-architecture-of-the-network",
+    "href": "ml/nn_building.html#define-the-architecture-of-the-network",
+    "title": "Building a neural network",
+    "section": "Define the architecture of the network",
+    "text": "Define the architecture of the network\nFirst, we need to define the architecture of the network.\nThere are many types of architectures. For images, CNN are well suited.\nIn Python, you can define a subclass of an existing class with:\nclass YourSubclass(BaseClass):\n    <definition of your subclass>        \nYour subclass is derived from the base class and inherits its properties.\nPyTorch contains the class torch.nn.Module which is used as the base class when defining a neural network.\n\nclass Net(nn.Module):\n    def __init__(self):\n      super(Net, self).__init__()\n      \n      # First 2D convolutional layer, taking in 1 input channel (image),\n      # outputting 32 convolutional features.\n      # Convolution adds each pixel of an image to its neighbours,\n      # weighted by the kernel (a small matrix).\n      # Here, the kernel is square and of size 3*3\n      # Convolution helps to extract features from the input\n      # (e.g. edge detection, blurriness, sharpeness...)\n      self.conv1 = nn.Conv2d(1, 32, 3)\n      # Second 2D convolutional layer, taking in the 32 input channels,\n      # outputting 64 convolutional features, with a kernel size of 3*3\n      self.conv2 = nn.Conv2d(32, 64, 3)\n\n      # Dropouts randomly blocks a fraction of the neurons during training\n      # This is a regularization technique which prevents overfitting\n      self.dropout1 = nn.Dropout2d(0.25)\n      self.dropout2 = nn.Dropout2d(0.5)\n\n      # First fully connected layer\n      self.fc1 = nn.Linear(9216, 128)\n      # Second fully connected layer that outputs our 10 labels\n      self.fc2 = nn.Linear(128, 10)"
+  },
+  {
+    "objectID": "ml/nn_building.html#set-the-flow-of-data-through-the-network",
+    "href": "ml/nn_building.html#set-the-flow-of-data-through-the-network",
+    "title": "Building a neural network",
+    "section": "Set the flow of data through the network",
+    "text": "Set the flow of data through the network\nThe feed-forward algorithm is defined by the forward function.\n\nclass Net(nn.Module):\n    def __init__(self):\n      super(Net, self).__init__()\n      self.conv1 = nn.Conv2d(1, 32, 3)\n      self.conv2 = nn.Conv2d(32, 64, 3)\n      self.dropout1 = nn.Dropout2d(0.25)\n      self.dropout2 = nn.Dropout2d(0.5)\n      self.fc1 = nn.Linear(9216, 128)\n      self.fc2 = nn.Linear(128, 10)\n\n    # x represents the data\n    def forward(self, x):\n      # Pass data through conv1\n      x = self.conv1(x)\n      # Use the rectified-linear activation function over x\n      x = F.relu(x)\n\n      x = self.conv2(x)\n      x = F.relu(x)\n\n      # Run max pooling over x\n      x = F.max_pool2d(x, 2)\n      # Pass data through dropout1\n      x = self.dropout1(x)\n      # Flatten x with start_dim=1\n      x = torch.flatten(x, 1)\n      # Pass data through fc1\n      x = self.fc1(x)\n      x = F.relu(x)\n      x = self.dropout2(x)\n      x = self.fc2(x)\n\n      # Apply softmax to x\n      output = F.log_softmax(x, dim=1)\n      return output\n\nLet’s create an instance of Net and print its structure:\n\nnet = Net()\nprint(net)\n\nNet(\n  (conv1): Conv2d(1, 32, kernel_size=(3, 3), stride=(1, 1))\n  (conv2): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1))\n  (dropout1): Dropout2d(p=0.25, inplace=False)\n  (dropout2): Dropout2d(p=0.5, inplace=False)\n  (fc1): Linear(in_features=9216, out_features=128, bias=True)\n  (fc2): Linear(in_features=128, out_features=10, bias=True)\n)"
+  },
+  {
+    "objectID": "ml/nn_training.html",
+    "href": "ml/nn_training.html",
+    "title": "Training a model",
+    "section": "",
+    "text": "Before we can train a model, we need to:\n\nload the needed packages,\nget the data,\ncreate data loaders for training and testing,\ndefine a model.\n\nLet’s do this for the FashionMNIST dataset:\nimport torch\nfrom torch import nn\nfrom torch.utils.data import DataLoader\nfrom torchvision import datasets\nfrom torchvision.transforms import ToTensor, Lambda\n\ntraining_data = datasets.FashionMNIST(\n    root=\"~/projects/def-sponsor00/data/\",\n    train=True,\n    download=True,\n    transform=ToTensor(),\n    target_transform=Lambda(lambda y: torch.zeros(10, dtype=torch.float).scatter_(0, torch.tensor(y), value=1))\n)\n\ntest_data = datasets.FashionMNIST(\n    root=\"~/projects/def-sponsor00/data/\",\n    train=False,\n    download=True,\n    transform=ToTensor(),\n    target_transform=Lambda(lambda y: torch.zeros(10, dtype=torch.float).scatter_(0, torch.tensor(y), value=1))\n)\n\ntrain_dataloader = DataLoader(training_data, batch_size=10)\ntest_dataloader = DataLoader(test_data, batch_size=10)\n\nclass Net(nn.Module):\n    def __init__(self):\n        super(Net, self).__init__()\n        self.flatten = nn.Flatten()\n        self.linear_relu_stack = nn.Sequential(\n            nn.Linear(28*28, 512),\n            nn.ReLU(),\n            nn.Linear(512, 512),\n            nn.ReLU(),\n            nn.Linear(512, 10),\n        )\n\n    def forward(self, x):\n        x = self.flatten(x)\n        logits = self.linear_relu_stack(x)\n        return logits\n\nmodel = Net()"
+  },
+  {
+    "objectID": "ml/nn_training.html#hyperparameters",
+    "href": "ml/nn_training.html#hyperparameters",
+    "title": "Training a model",
+    "section": "Hyperparameters",
+    "text": "Hyperparameters\nWhile the learning parameters of a model (weights and biases) are the values that get adjusted through training (and they will become part of the final program, along with the model architecture, once training is over), hyperparameters control the training process.\nThey include:\n\nbatch size: number of samples passed through the model before the parameters are updated,\nnumber of epochs: number iterations,\nlearning rate: size of the incremental changes to model parameters at each iteration. Smaller values yield slow learning speed, while large values may miss minima.\n\nLet’s define them here:\nlearning_rate = 1e-3\nbatch_size = 64\nepochs = 5"
+  },
+  {
+    "objectID": "ml/nn_training.html#define-the-loss-function",
+    "href": "ml/nn_training.html#define-the-loss-function",
+    "title": "Training a model",
+    "section": "Define the loss function",
+    "text": "Define the loss function\nTo assess the predicted outputs of our model against the true values from the labels, we also need a loss function (e.g. mean square error for regressions: nn.MSELoss or negative log likelihood for classification: nn.NLLLoss)\nThe machine learning literature is rich in information about various loss functions.\nHere is an example with nn.CrossEntropyLoss which combines nn.LogSoftmax and nn.NLLLoss:\nloss_fn = nn.CrossEntropyLoss()"
+  },
+  {
+    "objectID": "ml/nn_training.html#initialize-the-optimizer",
+    "href": "ml/nn_training.html#initialize-the-optimizer",
+    "title": "Training a model",
+    "section": "Initialize the optimizer",
+    "text": "Initialize the optimizer\nThe optimization algorithm determines how the model parameters get adjusted at each iteration.\nThere are many optimizers and you need to search in the literature which one performs best for your time of model and data.\nBelow is an example with stochastic gradient descent:\noptimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)\n\n\nlr is the learning rate\nmomentum is a method increasing convergence rate and reducing oscillation for SDG"
+  },
+  {
+    "objectID": "ml/nn_training.html#define-the-train-and-test-loops",
+    "href": "ml/nn_training.html#define-the-train-and-test-loops",
+    "title": "Training a model",
+    "section": "Define the train and test loops",
+    "text": "Define the train and test loops\nFinally, we need to define the train and test loops.\nThe train loop:\n\ngets a batch of training data from the DataLoader,\nresets the gradients of model parameters with optimizer.zero_grad(),\ncalculates predictions from the model for an input batch,\ncalculates the loss for that set of predictions vs. the labels on the dataset,\ncalculates the backward gradients over the learning parameters (that’s the backpropagation) with loss.backward(),\nadjusts the parameters by the gradients collected in the backward pass with optimizer.step().\n\nThe test loop evaluates the model’s performance against the test data.\ndef train(dataloader, model, loss_fn, optimizer):\n    size = len(dataloader.dataset)\n    for batch, (X, y) in enumerate(dataloader):\n        # Compute prediction and loss\n        pred = model(X)\n        loss = loss_fn(pred, y)\n\n        # Backpropagation\n        optimizer.zero_grad()\n        loss.backward()\n        optimizer.step()\n\n        if batch % 100 == 0:\n            loss, current = loss.item(), batch * len(X)\n            print(f\"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]\")\n\n\ndef test(dataloader, model, loss_fn):\n    size = len(dataloader.dataset)\n    num_batches = len(dataloader)\n    test_loss, correct = 0, 0\n\n    with torch.no_grad():\n        for X, y in dataloader:\n            pred = model(X)\n            test_loss += loss_fn(pred, y).item()\n            correct += (pred.argmax(1) == y).type(torch.float).sum().item()\n\n    test_loss /= num_batches\n    correct /= size\n    print(f\"Test Error: \\n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \\n\")"
+  },
+  {
+    "objectID": "ml/nn_training.html#train",
+    "href": "ml/nn_training.html#train",
+    "title": "Training a model",
+    "section": "Train",
+    "text": "Train\nTo train our model, we just run the loop over the epochs:\nfor t in range(epochs):\n    print(f\"Epoch {t+1}\\n-------------------------------\")\n    train(train_dataloader, model, loss_fn, optimizer)\n    test(test_dataloader, model, loss_fn)\nprint(\"Training completed\")"
   },
   {
     "objectID": "ml/pretrained_models.html",
@@ -574,11 +1050,39 @@
     "text": "Training models from scratch requires way too much data, time, and computing power (or money) to be a practical option. This is why transfer learning has become such a common practice: by starting with models trained on related problems, you are saving time and achieving good results with little data.\nNow, where do you find such models?\nIn this workshop, we will have a look at some of the most popular pre-trained models repositories and libraries (Model Zoo, PyTorch Hub, and Hugging Face); see how you can also search models in the literature and on GitHub; and finally learn how to import models into PyTorch.\n\n\nPrerequisites:\nIf you want to follow the hands-on part of this workshop, please make sure to have an up-to-date version of PyTorch on your laptop."
   },
   {
+    "objectID": "ml/resources.html",
+    "href": "ml/resources.html",
+    "title": "Resources",
+    "section": "",
+    "text": "Arxiv Sanity Preserver by Andrej Karpathy\nML papers in the computer science category on arXiv\nML papers in the stats category on arXiv\nDistill ML research online journal\n\n\n\nAdvice and sources from ML research student\n\n\n\nStack Overflow [machine-learning] tag\nStack Overflow [deep-learning] tag\nStack Overflow [supervised-learning] tag\nStack Overflow [unsupervised-learning] tag\nStack Overflow [semisupervised-learning] tag\nStack Overflow [reinforcement-learning] tag\nStack Overflow [transfer-learning] tag\nStack Overflow [machine-learning-model] tag\nStack Overflow [learning-rate] tag\nStack Overflow [bayesian-deep-learning] tag\n\n\n\ndeeplearning.ai\nfast.ai\nGoogle\n\n\n\nbenchmarks.ai\nAIBench\nkaggle\nWikipedia"
+  },
+  {
+    "objectID": "ml/resources.html#pytorch",
+    "href": "ml/resources.html#pytorch",
+    "title": "Resources",
+    "section": "PyTorch",
+    "text": "PyTorch\n\nDocumentation\nPyTorch website\nPyTorch documentation\nPyTorch tutorials\nPyTorch online courses\nPyTorch examples\n\n\nGetting help\nPyTorch Discourse forum\nStack Overflow [pytorch] tag\nStack Overflow [pytorch-dataloader] tag\nStack Overflow [pytorch-ignite] tag\n\n\nPre-trained models\nPyTorch Hub"
+  },
+  {
+    "objectID": "ml/resources.html#python",
+    "href": "ml/resources.html#python",
+    "title": "Resources",
+    "section": "Python",
+    "text": "Python\n\nIDE\nProject Jupyter\nList of IDEs with description\nComparison of IDEs\nEmacs Python IDE\n\n\nShell\nIPython\nbpython\nptpython\n\n\nGetting help\nStack Overflow [python] tag"
+  },
+  {
+    "objectID": "ml/resources.html#fastai",
+    "href": "ml/resources.html#fastai",
+    "title": "Resources",
+    "section": "fastai",
+    "text": "fastai\n\nDocumentation\nManual\nTutorials\nPeer-reviewed paper\n\n\nBook\nPaperback version\nFree MOOC version of part 1 of the book\nJupyter notebooks version of the book\n\n\nGetting help\nDiscourse forum"
+  },
+  {
     "objectID": "ml/torchtensors.html",
     "href": "ml/torchtensors.html",
     "title": "Everything you wanted to know (and more) about PyTorch tensors",
     "section": "",
-    "text": "Before information can be fed to artificial neural networks (ANNs), it needs to be converted to a form ANNs can process: floating point numbers. Indeed, you don’t pass a sentence or an image through an ANN; you input numbers representing a sequence of words or pixel values.\nAll these floating point numbers need to be stored in a data structure. The most suited structure is multidimensional (to hold several layers of information) and since all data is of the same type, it is an array.\nPython already has several multidimensional array structures—the most popular of which being NumPy’s ndarray—but the particularities of deep learning call for special characteristics: ability to run operations on GPUs and/or in a distributed fashion, as well as the ability to keep track of computation graphs for automatic differentiation.\nThe PyTorch tensor is a Python data structure with these characteristics that can also easily be converted to/from NumPy’s ndarray and integrates well with other Python libraries such as Pandas.\nIn this webinar, suitable for users of all levels, we will have a deep look at this data structure and go much beyond a basic introduction.\nIn particular, we will:\n\nsee how tensors are stored in memory,\nlook at the metadata which allows this efficient memory storage,\ncover the basics of working with tensors (indexing, vectorized operations…),\nmove tensors to/from GPUs,\nconvert tensors to/from NumPy ndarrays,\nsee how tensors work in distributed frameworks,\nsee how linear algebra can be done with PyTorch tensors.\n\n\nSlides"
+    "text": "Before information can be fed to artificial neural networks (ANNs), it needs to be converted to a form ANNs can process: floating point numbers. Indeed, you don’t pass a sentence or an image through an ANN; you input numbers representing a sequence of words or pixel values.\nAll these floating point numbers need to be stored in a data structure. The most suited structure is multidimensional (to hold several layers of information) and since all data is of the same type, it is an array.\nPython already has several multidimensional array structures—the most popular of which being NumPy’s ndarray—but the particularities of deep learning call for special characteristics: ability to run operations on GPUs and/or in a distributed fashion, as well as the ability to keep track of computation graphs for automatic differentiation.\nThe PyTorch tensor is a Python data structure with these characteristics that can also easily be converted to/from NumPy’s ndarray and integrates well with other Python libraries such as Pandas.\nIn this webinar, suitable for users of all levels, we will have a deep look at this data structure and go much beyond a basic introduction.\nIn particular, we will:\n\nsee how tensors are stored in memory,\nlook at the metadata which allows this efficient memory storage,\ncover the basics of working with tensors (indexing, vectorized operations…),\nmove tensors to/from GPUs,\nconvert tensors to/from NumPy ndarrays,\nsee how tensors work in distributed frameworks,\nsee how linear algebra can be done with PyTorch tensors.\n\n\nSlides (click and wait: my reveal.js presentations are heavy and take some time to load…)"
   },
   {
     "objectID": "ml/torchtensors_slides.html#acknowledgements",
@@ -1285,7 +1789,7 @@
     "href": "ml/upscaling.html",
     "title": "Image upscaling",
     "section": "",
-    "text": "Super-resolution—the process of (re)creating high resolution images from low resolution ones—is an old field, but deep neural networks have seen a sudden surge of new and very impressive methods over the past 10 years, from SRCCN to SRGAN to Transformers.\nIn this webinar, I will give a quick overview of these methods and show how the latest state-of-the-art model—SwinIR—performs on a few test images. We will use PyTorch as our framework.\n\nSlides"
+    "text": "Super-resolution—the process of (re)creating high resolution images from low resolution ones—is an old field, but deep neural networks have seen a sudden surge of new and very impressive methods over the past 10 years, from SRCCN to SRGAN to Transformers.\nIn this webinar, I will give a quick overview of these methods and show how the latest state-of-the-art model—SwinIR—performs on a few test images. We will use PyTorch as our framework.\n\nSlides (click and wait: my reveal.js presentations are heavy and take some time to load…)"
   },
   {
     "objectID": "ml/upscaling_slides.html#can-be-broken-down-into-2-main-periods",
@@ -1705,7 +2209,7 @@
     "href": "r/gis_mapping.html",
     "title": "GIS mapping in R",
     "section": "",
-    "text": "In this webinar, we will see how to create all sorts of GIS maps with the packages sf, tmap, raster, leaflet, ggplot2, grid (part of Base R), and mapview:\n\nsimple maps\ninset maps\nfaceted maps\nanimated maps\ninteractive maps\nraster maps\n\nFinally, we will learn how to add basemaps from OpenStreetMap and Google Maps.\n\nSlides"
+    "text": "In this webinar, we will see how to create all sorts of GIS maps with the packages sf, tmap, raster, leaflet, ggplot2, grid (part of Base R), and mapview:\n\nsimple maps\ninset maps\nfaceted maps\nanimated maps\ninteractive maps\nraster maps\n\nFinally, we will learn how to add basemaps from OpenStreetMap and Google Maps.\n\nSlides (click and wait: my reveal.js presentations are heavy and take some time to load…)"
   },
   {
     "objectID": "r/gis_mapping_slides.html#types-of-spatial-data",
@@ -2545,7 +3049,7 @@
     "href": "tools/help.html",
     "title": "So, you are stuck … now what?",
     "section": "",
-    "text": "Stack Overflow, Stack Exchange, Discourse forums, and other online platforms … the internet is a treasure trove of online communities where you can find solutions to your coding problems. To have a positive experience and get the answers you need however, you have to know where to ask, how to ask, and when not to ask: if countless people are willing to give you their time for free, they usually expect that you do your part.\nIn this workshop, I will present key online sites, their functioning, and their culture; then I will go over the magic trick to get answers to your questions: knowing how to create minimum reproducible examples. I will not focus on any particular language as the principles (how to create a minimal dataset, how to deal with private data, how to create self-sufficient code, how to reproduce the problem, etc.) can apply to any language.\n\nSlides"
+    "text": "Stack Overflow, Stack Exchange, Discourse forums, and other online platforms … the internet is a treasure trove of online communities where you can find solutions to your coding problems. To have a positive experience and get the answers you need however, you have to know where to ask, how to ask, and when not to ask: if countless people are willing to give you their time for free, they usually expect that you do your part.\nIn this workshop, I will present key online sites, their functioning, and their culture; then I will go over the magic trick to get answers to your questions: knowing how to create minimum reproducible examples. I will not focus on any particular language as the principles (how to create a minimal dataset, how to deal with private data, how to create self-sufficient code, how to reproduce the problem, etc.) can apply to any language.\n\nSlides (click and wait: my reveal.js presentations are heavy and take some time to load…)"
   },
   {
     "objectID": "tools/help_slides.html#when-you-are-stuck-1",
@@ -2763,236 +3267,5 @@
     "title": "Authoring scientific documents with Markdown and Quarto",
     "section": "Examples",
     "text": "Examples\nBelow are a few basic example files and their outputs.\n\nRevealjs presentation\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\ninstitute: \"Simon Fraser University\"\nformat:\n  revealjs:\n    highlight-style: monokai\n    code-line-numbers: false\n    embed-resources: true\n---\n\n## First section\n\nWhen exporting to revealjs, second level sections mark the start of new slides,\nwith a slide title.\n\nThis can be changed in options.\n\n---\n\nNew slides can be started without titles this way.\n\n# There are title slides\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Columns\n\n:::: {.columns}\n\n::: {.column width=\"30%\"}\n\nYou can create columns.\n\n:::\n\n::: {.column width=\"70%\"}\n\nAnd you can set their respective width.\n\n:::\n\n::::\n\n## Lists\n\n::: {.incremental}\n\n- List can happen one line at a time\n- like\n- this\n\n:::\n\n## Lists\n\n- Or all at the same time\n- like\n- that\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\n\npdf\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat:\n  pdf:\n    toc: true\n---\n\n# Header 1\n\nSome text.\n\n## Header 2\n\nMore text.\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Lists\n\n### Unordered\n\n- Item 1\n- Item 2\n- Item 3\n\n### Ordered\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\nIn order to export to pdf, you need a TeX distribution. You probably already have one installed on your machine, so you should first try to render or preview a document to pdf to see whether it works. If it doesn’t work, you can install the minimalist distribution TinyTex by running in your terminal:\n\nquarto install tool tinytex\n\n\nHTML with R code blocks\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\ninstitute: \"Simon Fraser University\"\nformat: html\n---\n\n# Header 1\n\n## Header 2\n\nSome text.\n\n## Formatting  {#sec-formatting}\n\n::: aside\n\nNote that each header automatically creates an anchor,\nmaking it easy to link to specific sections of your documents.\n\n:::\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Columns\n\n:::: {.columns}\n\n::: {.column width=\"30%\"}\n\nYou can create columns.\n\n:::\n\n::: {.column width=\"70%\"}\n\nAnd you can set their respective width.\n\n:::\n\n::::\n\n## Lists\n\n- Item 1\n- Item 2\n- Item 3\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n## Cross-references\n\nSee @sec-formatting.\n\n*Note that you can add bibliographies, flow charts, the equivalent of HTML \"div\",\nand just so much more. Remember that this is a tiny overview.*\n\n## Let's try some code blocks now\n\n```{r}\n# This is a block that runs\n2 + 3\n```\n\n::: aside\n\nDid you notice that the content of your code blocks can be copied with a click?\nOf course, this is customizable.\n\n:::\n\n```{.r}\n# This is a block that doesn't run\n2 + 3\n```\n\n```{r}\n#| echo: false\n# And this is a block showing only the output\ndata.frame(\n  country = c(\"Canada\", \"USA\", \"Mexico\"),\n  var = c(2.9, 3.1, 4.5)\n)\n```\n\n## Plots\n\n```{r}\nplot(cars)\n```\n\n<br>\nYou can play with options to add a title:\n\n```{r}\n#| fig-cap: \"Stopping distance as a function of speed in cars\"\n\nplot(cars)\n```\n\n<br>\nYou can have more complex multi-plot layouts:\n\n```{r}\n#| layout-ncol: 2\n#| fig-cap: \n#|   - \"Stopping distance as a function of speed in cars\"\n#|   - \"Vapor pressure of mercury as a function of temperature\"\n\nplot(cars)\nplot(pressure)\n```\n\nFor those who have `ggplot2`[^1], you can try that too:\n\n```{r}\nlibrary(ggplot2)\n\nggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + \n  geom_point(mapping = aes(color = class)) + \n  geom_smooth()\n```\n\n[^1]: You can install it with:\n    ```{.r}\n    install.packages(\"ggplot2\")\n    ```\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\n\nBeamer with Python code blocks\nBeamer is LaTeX presentation framework: a way to create beautiful pdf slides.\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"Some title\"\nauthor: \"Some name\"\nformat: beamer\njupyter: python3\n---\n\n## First slide\n\nWith some content\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n## Lists\n\n- Item 1\n- Item 2\n- Item 3\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n## Some basic code block\n\n```{python}\n#| echo: true\n\n2 + 3\n```\n\n## Some plot\n\n```{python}\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Data for plotting\nt = np.arange(0.0, 2.0, 0.01)\ns = 1 + np.sin(2 * np.pi * t)\n\nfig, ax = plt.subplots()\nax.plot(t, s)\n\nax.set(xlabel='time (s)', ylabel='voltage (mV)',\n       title='Here goes the title')\nax.grid()\n\nfig.savefig(\"test.png\")\nplt.show()\n```\n\n\n\nRendered document (click on it to open it in a new tab):"
-  },
-  {
-    "objectID": "ml/mnist.html",
-    "href": "ml/mnist.html",
-    "title": "Classifying the MNIST dataset",
-    "section": "",
-    "text": "In this workshop, we will classify the MNIST dataset—a classic of machine learning—with PyTorch."
-  },
-  {
-    "objectID": "ml/mnist.html#where-to-store-the-data-in-the-cluster",
-    "href": "ml/mnist.html#where-to-store-the-data-in-the-cluster",
-    "title": "Classifying the MNIST dataset",
-    "section": "Where to store the data in the cluster",
-    "text": "Where to store the data in the cluster\nIn Compute Canada clusters, a good place to store data shared amongst members of a project is in the /project file system.\nYou usually belong to /project/def-<group>, where <group> is the name of your PI. You can access it from your home directory through the symbolic link ~/projects/def-<group>.\nIn our training cluster, we are all part of the group def-sponsor00, accessible through ~/projects/def-sponsor00.\nIt would make little sense to all download the same MNIST data in different places…\nWe will thus all access the MNIST data in ~/projects/def-sponsor00/data."
-  },
-  {
-    "objectID": "ml/mnist.html#how-to-obtain-the-data",
-    "href": "ml/mnist.html#how-to-obtain-the-data",
-    "title": "Classifying the MNIST dataset",
-    "section": "How to obtain the data?",
-    "text": "How to obtain the data?\nThe dataset can be downloaded directly from the MNIST website, but the PyTorch package TorchVision has tools to download and transform several classic vision datasets, including the MNIST."
-  },
-  {
-    "objectID": "ml/mnist.html#transforming-the-data",
-    "href": "ml/mnist.html#transforming-the-data",
-    "title": "Classifying the MNIST dataset",
-    "section": "Transforming the data",
-    "text": "Transforming the data\nWe will transform the raw data to tensors and normalize it using the mean and standard deviation of the MNIST training data (0.1307 and 0.3081 respectively).\nFirst, let’s load the needed libraries:\nimport torch\nfrom torchvision import datasets, transforms\nfrom matplotlib import pyplot as plt\nThen, let’s define a transformation:\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])"
-  },
-  {
-    "objectID": "ml/mnist.html#downloading-the-data",
-    "href": "ml/mnist.html#downloading-the-data",
-    "title": "Classifying the MNIST dataset",
-    "section": "Downloading the data",
-    "text": "Downloading the data\nWe can now download and transform the data.\n\nTraining data\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\ntrain=True selects the training set of the MNIST.\n\n\nTest data\nEven though the mean and standard deviation of the test data are slightly different, it is important to normalize the test data in the same way.\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)\ntrain=False selects the test set."
-  },
-  {
-    "objectID": "ml/mnist.html#data-inspection",
-    "href": "ml/mnist.html#data-inspection",
-    "title": "Classifying the MNIST dataset",
-    "section": "Data inspection",
-    "text": "Data inspection\nFirst, let’s check the size of train_data:\nprint(len(train_data))\nOK, that makes sense since the MNIST’s training set has 60,000 pairs. train_data has 60,000 elements and we should expect each element to be of size 2 since it is a pair. Let’s double-check with the first element:\nprint(len(train_data[0]))\nOK. So far, so good. We can print that first pair:\nprint(train_data[0])\nAnd you can see that it is a tuple with:\nprint(type(train_data[0]))\nWhat is that tuple made of?\nprint(type(train_data[0][0]))\nprint(type(train_data[0][1]))\nIt is made of the tensor for the first image (remember that we transformed the images into tensors when we created the objects train_data and test_data) and the integer of the first label (which you can see is 5 when you print train_data[0][1]).\nSo since train_data[0][0] is the tensor representing the image of the first pair, let’s check its size:\nprint(train_data[0][0].size())\nThat makes sense: a color image would have 3 layers of RGB values (so the size in the first dimension would be 3), but because the MNIST has black and white images, there is a single layer of values—the values of each pixel on a gray scale—so the first dimension has a size of 1. The 2nd and 3rd dimensions correspond to the width and length of the image in pixels, hence 28 and 28.\n\n\nYour turn:\n\nRun the following:\nprint(train_data[0][0][0])\nprint(train_data[0][0][0][0])\nprint(train_data[0][0][0][0][0])\nAnd think about what each of them represents.\nThen explore the test_data object."
-  },
-  {
-    "objectID": "ml/mnist.html#plotting-an-image-from-the-data",
-    "href": "ml/mnist.html#plotting-an-image-from-the-data",
-    "title": "Classifying the MNIST dataset",
-    "section": "Plotting an image from the data",
-    "text": "Plotting an image from the data\nFor this, we will use pyplot from matplotlib.\nFirst, we select the image of the first pair and we resize it from 3 to 2 dimensions by removing its dimension of size 1 with torch.squeeze:\nimg = torch.squeeze(train_data[0][0])\nThen, we plot it with pyplot, but since we are in a cluster, instead of showing it to screen with plt.show(), we save it to file:\nplt.imshow(img, cmap='gray')\nThis is what that first image looks like:\n\nAnd indeed, it matches the first label we explored earlier (train_data[0][1])."
-  },
-  {
-    "objectID": "ml/mnist.html#plotting-an-image-with-its-pixel-values",
-    "href": "ml/mnist.html#plotting-an-image-with-its-pixel-values",
-    "title": "Classifying the MNIST dataset",
-    "section": "Plotting an image with its pixel values",
-    "text": "Plotting an image with its pixel values\nWe can plot it with more details by showing the value of each pixel in the image. One little twist is that we need to pick a threshold value below which we print the pixel values in white otherwise they would not be visible (black on near black background). We also round the pixel values to one decimal digit so as not to clutter the result.\nimgplot = plt.figure(figsize = (12, 12))\nsub = imgplot.add_subplot(111)\nsub.imshow(img, cmap='gray')\nwidth, height = img.shape\nthresh = img.max() / 2.5\nfor x in range(width):\n    for y in range(height):\n        val = round(img[x][y].item(), 1)\n        sub.annotate(str(val), xy=(y, x),\n                     horizontalalignment='center',\n                     verticalalignment='center',\n                     color='white' if img[x][y].item() < thresh else 'black')"
-  },
-  {
-    "objectID": "ml/mnist.html#training-data-1",
-    "href": "ml/mnist.html#training-data-1",
-    "title": "Classifying the MNIST dataset",
-    "section": "Training data",
-    "text": "Training data\ntrain_loader = torch.utils.data.DataLoader(\n    train_data, batch_size=20, shuffle=True)"
-  },
-  {
-    "objectID": "ml/mnist.html#test-data-1",
-    "href": "ml/mnist.html#test-data-1",
-    "title": "Classifying the MNIST dataset",
-    "section": "Test data",
-    "text": "Test data\ntest_loader = torch.utils.data.DataLoader(\n    test_data, batch_size=20, shuffle=False)"
-  },
-  {
-    "objectID": "ml/mnist.html#plot-a-full-batch-of-images-with-their-labels",
-    "href": "ml/mnist.html#plot-a-full-batch-of-images-with-their-labels",
-    "title": "Classifying the MNIST dataset",
-    "section": "Plot a full batch of images with their labels",
-    "text": "Plot a full batch of images with their labels\nNow that we have passed our data through DataLoader, it is easy to select one batch from it. Let’s plot an entire batch of images with their labels.\nFirst, we need to get one batch of training images and their labels:\ndataiter = iter(train_loader)\nbatchimg, batchlabel = dataiter.next()\nThen, we can plot them:\nbatchplot = plt.figure(figsize=(20, 5))\nfor i in torch.arange(20):\n    sub = batchplot.add_subplot(2, 10, i+1, xticks=[], yticks=[])\n    sub.imshow(torch.squeeze(batchimg[i]), cmap='gray')\n    sub.set_title(str(batchlabel[i].item()), fontsize=25)"
-  },
-  {
-    "objectID": "ml/mnist.html#load-packages",
-    "href": "ml/mnist.html#load-packages",
-    "title": "Classifying the MNIST dataset",
-    "section": "Load packages",
-    "text": "Load packages\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nimport torch.optim as optim\nfrom torch.utils.tensorboard import SummaryWriter\nfrom torchvision import datasets, transforms\nfrom torch.optim.lr_scheduler import StepLR\nThe torch.nn.functional module contains all the functions of the torch.nn package.\nThese functions include loss functions, activation functions, pooling functions…"
-  },
-  {
-    "objectID": "ml/mnist.html#create-a-summarywriter-instance-for-tensorboard",
-    "href": "ml/mnist.html#create-a-summarywriter-instance-for-tensorboard",
-    "title": "Classifying the MNIST dataset",
-    "section": "Create a SummaryWriter instance for TensorBoard",
-    "text": "Create a SummaryWriter instance for TensorBoard\nwriter = SummaryWriter()"
-  },
-  {
-    "objectID": "ml/mnist.html#define-the-architecture-of-the-network",
-    "href": "ml/mnist.html#define-the-architecture-of-the-network",
-    "title": "Classifying the MNIST dataset",
-    "section": "Define the architecture of the network",
-    "text": "Define the architecture of the network\n# To build a model, create a subclass of torch.nn.Module:\nclass Net(nn.Module):\n    def __init__(self):\n        super(Net, self).__init__()\n        self.fc1 = nn.Linear(784, 128)\n        self.fc2 = nn.Linear(128, 10)\n\n    # Method for the forward pass:\n    def forward(self, x):\n        x = torch.flatten(x, 1)\n        x = self.fc1(x)\n        x = F.relu(x)\n        x = self.fc2(x)\n        output = F.log_softmax(x, dim=1)\n        return output\nPython’s class inheritance gives our subclass all the functionality of torch.nn.Module while allowing us to customize it."
-  },
-  {
-    "objectID": "ml/mnist.html#define-a-testing-function",
-    "href": "ml/mnist.html#define-a-testing-function",
-    "title": "Classifying the MNIST dataset",
-    "section": "Define a testing function",
-    "text": "Define a testing function\ndef test(model, device, test_loader):\n    model.eval()\n    test_loss = 0\n    correct = 0\n    with torch.no_grad():\n        for data, target in test_loader:\n            data, target = data.to(device), target.to(device)\n            output = model(data)\n            # Sum up batch loss:\n            test_loss += F.nll_loss(output, target, reduction='sum').item()\n            # Get the index of the max log-probability:\n            pred = output.argmax(dim=1, keepdim=True)\n            correct += pred.eq(target.view_as(pred)).sum().item()\n\n    test_loss /= len(test_loader.dataset)\n\n    # Print a summary\n    print('\\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\\n'.format(\n        test_loss, correct, len(test_loader.dataset),\n        100. * correct / len(test_loader.dataset)))"
-  },
-  {
-    "objectID": "ml/mnist.html#define-a-function-main-which-runs-our-network",
-    "href": "ml/mnist.html#define-a-function-main-which-runs-our-network",
-    "title": "Classifying the MNIST dataset",
-    "section": "Define a function main() which runs our network",
-    "text": "Define a function main() which runs our network\ndef main():\n    epochs = 1\n    torch.manual_seed(1)\n    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')\n\n    transform = transforms.Compose([\n        transforms.ToTensor(),\n        transforms.Normalize((0.1307,), (0.3081,))\n    ])\n\n    train_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=True, download=True, transform=transform)\n\n    test_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=False, transform=transform)\n\n    train_loader = torch.utils.data.DataLoader(train_data, batch_size=64)\n    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1000)\n    model = Net().to(device)  # create instance of our network and send it to device\n    optimizer = optim.Adadelta(model.parameters(), lr=1.0)\n    scheduler = StepLR(optimizer, step_size=1, gamma=0.7)\n\n    for epoch in range(1, epochs + 1):\n        train(model, device, train_loader, optimizer, epoch)\n        test(model, device, test_loader)\n        scheduler.step()"
-  },
-  {
-    "objectID": "ml/mnist.html#run-the-network",
-    "href": "ml/mnist.html#run-the-network",
-    "title": "Classifying the MNIST dataset",
-    "section": "Run the network",
-    "text": "Run the network\nmain()"
-  },
-  {
-    "objectID": "ml/mnist.html#write-pending-events-to-disk-and-close-the-tensorboard",
-    "href": "ml/mnist.html#write-pending-events-to-disk-and-close-the-tensorboard",
-    "title": "Classifying the MNIST dataset",
-    "section": "Write pending events to disk and close the TensorBoard",
-    "text": "Write pending events to disk and close the TensorBoard\nwriter.flush()\nwriter.close()\nThe code is working. Time to actually train our model!\nJupyter is a fantastic tool. It has a major downside however: when you launch a Jupyter server, you are running a job on a compute node. If you want to play for 8 hours in Jupyter, you are requesting an 8 hour job. Now, most of the time you spend on Jupyter is spent typing, running bits and pieces of code, or doing nothing at all. If you ask for GPUs, many CPUs, and lots of RAM, all of it will remain idle almost all of the time. It is a really suboptimal use of Compute Canada resources.\nIn addition, if you ask for lots of resources for a long time, you will have to wait a long time in the queue before they get allocated to you.\nLastly, you will go through your allocation quickly.\nA much better strategy is to develop and test your code (with very little data, few epochs, etc.) in an interactive job (with salloc) or in Jupyter, then, launch an sbatch job to actually train your model. This ensures that heavy duty resources such as GPU(s) are only allocated to you when you are actually needing and using them.\n\nConcrete example with our training cluster: this cluster only has 1 GPU. If you want to use it in Jupyter, you have to request it for your Jupyter session. This means that the entire time your Jupyter session is active, nobody else can use that GPU. While you let your session idle or do tasks that do not require a GPU, this is not a good use of resources."
-  },
-  {
-    "objectID": "ml/mnist.html#log-in-the-training-cluster",
-    "href": "ml/mnist.html#log-in-the-training-cluster",
-    "title": "Classifying the MNIST dataset",
-    "section": "Log in the training cluster",
-    "text": "Log in the training cluster\nOpen a terminal and SSH to our training cluster as we saw in the first lesson."
-  },
-  {
-    "objectID": "ml/mnist.html#load-necessary-modules",
-    "href": "ml/mnist.html#load-necessary-modules",
-    "title": "Classifying the MNIST dataset",
-    "section": "Load necessary modules",
-    "text": "Load necessary modules\nFirst, we need to load the Python and CUDA modules. This is done with the Lmod tool through the module command. Here are some key Lmod commands:\n# Get help on the module command\n$ module help\n\n# List modules that are already loaded\n$ module list\n\n# See which modules are available for a tool\n$ module avail <tool>\n\n# Load a module\n$ module load <module>[/<version>]\nHere are the modules we need:\n$ module load nixpkgs/16.09 gcc/7.3.0 cuda/10.0.130 cudnn/7.6 python/3.8.2"
-  },
-  {
-    "objectID": "ml/mnist.html#install-python-packages",
-    "href": "ml/mnist.html#install-python-packages",
-    "title": "Classifying the MNIST dataset",
-    "section": "Install Python packages",
-    "text": "Install Python packages\nYou also need the Python packages matplotlib, torch, torchvision, and tensorboard.\nOn Compute Canada clusters, you need to create a virtual environment in which you install packages with pip.\n\nDo not use Anaconda.\nWhile Anaconda is a great tool on personal computers, it is not an appropriate tool when working on the Compute Canada clusters: binaries are unoptimized for those clusters and library paths are inconsistent with their architecture. Anaconda installs packages in $HOME where it creates a very large number of small files. It can also create conflicts by modifying .bashrc.\n\nFor this workshop, since we all need the same packages, I already created a virtual environment that we will all use. All you have to do is to activate it with:\n$ source ~/projects/def-sponsor00/env/bin/activate\nIf you want to exit the virtual environment, you can press Ctrl-D or run:\n(env) $ deactivate\n\nFor future reference, below is how you would install packages on a real Compute Canada cluster (but please don’t do it in the training cluster as it is unnecessary and would only slow it down).\nCreate a virtual environment:\n$ virtualenv --no-download ~/env\nActivate the virtual environment:\n$ source ~/env/bin/activate\nUpdate pip:\n(env) $ pip install --no-index --upgrade pip\nInstall the packages you need in the virtual environment:\n(env) $ pip install --no-cache-dir --no-index matplotlib torch torchvision tensorboard"
-  },
-  {
-    "objectID": "ml/mnist.html#write-a-python-script",
-    "href": "ml/mnist.html#write-a-python-script",
-    "title": "Classifying the MNIST dataset",
-    "section": "Write a Python script",
-    "text": "Write a Python script\nCreate a directory for this project and cd into it:\nmkdir mnist\ncd mnist\nStart a Python script with the text editor of your choice:\nnano nn.py\nIn it, copy-paste the code we played with in Jupyter, but this time have it run for 10 epochs:\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nimport torch.optim as optim\nfrom torch.utils.tensorboard import SummaryWriter\nfrom torchvision import datasets, transforms\nfrom torch.optim.lr_scheduler import StepLR\n\nwriter = SummaryWriter()\n\nclass Net(nn.Module):\n    def __init__(self):\n        super(Net, self).__init__()\n        self.fc1 = nn.Linear(784, 128)\n        self.fc2 = nn.Linear(128, 10)\n\n    def forward(self, x):\n        x = torch.flatten(x, 1)\n        x = self.fc1(x)\n        x = F.relu(x)\n        x = self.fc2(x)\n        output = F.log_softmax(x, dim=1)\n        return output\n\ndef train(model, device, train_loader, optimizer, epoch):\n    model.train()\n    for batch_idx, (data, target) in enumerate(train_loader):\n        data, target = data.to(device), target.to(device)\n        optimizer.zero_grad()\n        output = model(data)\n        loss = F.nll_loss(output, target)\n        writer.add_scalar(\"Loss/train\", loss, epoch)\n        loss.backward()\n        optimizer.step()\n        if batch_idx % 10 == 0:\n            print('Train Epoch: {} [{}/{} ({:.0f}%)]\\tLoss: {:.6f}'.format(\n                epoch, batch_idx * len(data), len(train_loader.dataset),\n                100. * batch_idx / len(train_loader), loss.item()))\n\ndef test(model, device, test_loader):\n    model.eval()\n    test_loss = 0\n    correct = 0\n    with torch.no_grad():\n        for data, target in test_loader:\n            data, target = data.to(device), target.to(device)\n            output = model(data)\n            test_loss += F.nll_loss(output, target, reduction='sum').item()\n            pred = output.argmax(dim=1, keepdim=True)\n            correct += pred.eq(target.view_as(pred)).sum().item()\n\n    test_loss /= len(test_loader.dataset)\n\n    print('\\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\\n'.format(\n        test_loss, correct, len(test_loader.dataset),\n        100. * correct / len(test_loader.dataset)))\n\ndef main():\n    epochs = 10  # don't forget to change the number of epochs\n    torch.manual_seed(1)\n    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')\n\n    transform = transforms.Compose([\n        transforms.ToTensor(),\n        transforms.Normalize((0.1307,), (0.3081,))\n    ])\n\n    train_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=True, download=True, transform=transform)\n\n    test_data = datasets.MNIST(\n        '~/projects/def-sponsor00/data',\n        train=False, transform=transform)\n\n    train_loader = torch.utils.data.DataLoader(train_data, batch_size=64)\n    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1000)\n    model = Net().to(device)\n    optimizer = optim.Adadelta(model.parameters(), lr=1.0)\n    scheduler = StepLR(optimizer, step_size=1, gamma=0.7)\n\n    for epoch in range(1, epochs + 1):\n        train(model, device, train_loader, optimizer, epoch)\n        test(model, device, test_loader)\n        scheduler.step()\n\nmain()\n\nwriter.flush()\nwriter.close()"
-  },
-  {
-    "objectID": "ml/mnist.html#write-a-slurm-script",
-    "href": "ml/mnist.html#write-a-slurm-script",
-    "title": "Classifying the MNIST dataset",
-    "section": "Write a Slurm script",
-    "text": "Write a Slurm script\nWrite a shell script with the text editor of your choice:\nnano nn.sh\nThis is what you want in that script:\n#!/bin/bash\n#SBATCH --time=5:0\n#SBATCH --cpus-per-task=1\n#SBATCH --gres=gpu:1\n#SBATCH --mem=4G\n#SBATCH --output=%x_%j.out\n#SBATCH --error=%x_%j.err\n\npython ~/mnist/nn.py\n\n--time accepts these formats: “min”, “min:s”, “h:min:s”, “d-h”, “d-h:min” & “d-h:min:s”\n%x will get replaced by the script name & %j by the job number"
-  },
-  {
-    "objectID": "ml/mnist.html#submit-a-job",
-    "href": "ml/mnist.html#submit-a-job",
-    "title": "Classifying the MNIST dataset",
-    "section": "Submit a job",
-    "text": "Submit a job\nFinally, you need to submit your job to Slurm:\n$ sbatch ~/mnist/nn.sh\nYou can check the status of your job with:\n$ sq\n\nPD = pending\nR = running\nCG = completing (Slurm is doing the closing processes)\nNo information = your job has finished running\n\nYou can cancel it with:\n$ scancel <jobid>\nOnce your job has finished running, you can display efficiency measures with:\n$ seff <jobid>"
-  },
-  {
-    "objectID": "ml/mnist.html#launch-tensorboard",
-    "href": "ml/mnist.html#launch-tensorboard",
-    "title": "Classifying the MNIST dataset",
-    "section": "Launch TensorBoard",
-    "text": "Launch TensorBoard\nTensorBoard requires too much processing power to be run on the login node. When you run long jobs, the best strategy is to launch it in the background as part of the job. This allows you to monitor your model as it is running (and cancel it if things don’t look right).\n\nExample:\n\n#!/bin/bash\n#SBATCH ...\n#SBATCH ...\n\ntensorboard --logdir=runs --host 0.0.0.0 &\npython ~/mnist/nn.py\nBecause we only have 1 GPU and are taking turns running our jobs, we need to keep our jobs very short here. So we will launch a separate job for TensorBoard. This time, we will launch an interactive job:\nsalloc --time=1:0:0 --mem=2000M\nTo launch TensorBoard, we need to activate our Python virtual environment (TensorBoard was installed by pip):\nsource ~/projects/def-sponsor00/env/bin/activate\nThen we can launch TensorBoard in the background:\ntensorboard --logdir=~/mnist/runs --host 0.0.0.0 &\nNow, we need to create a connection with SSH tunnelling between your computer and the compute note running your TensorBoard job."
-  },
-  {
-    "objectID": "ml/mnist.html#connect-to-tensorboard-from-your-computer",
-    "href": "ml/mnist.html#connect-to-tensorboard-from-your-computer",
-    "title": "Classifying the MNIST dataset",
-    "section": "Connect to TensorBoard from your computer",
-    "text": "Connect to TensorBoard from your computer\nFrom a new terminal on your computer, run:\nssh -NfL localhost:6006:<hostname>:6006 userxxx@uu.c3.ca\n\nReplace <hostname> by the name of the compute node running your salloc job. You can find it by looking at your prompt (your prompt shows <username>@<hostname>).\nReplace <userxxx> by your user name.\n\nNow, you can open a browser on your computer and access TensorBoard at http://localhost:6006."
-  },
-  {
-    "objectID": "ml/mnist.html#define-a-training-function",
-    "href": "ml/mnist.html#define-a-training-function",
-    "title": "Classifying the MNIST dataset",
-    "section": "Define a training function",
-    "text": "Define a training function\ndef train(model, device, train_loader, optimizer, epoch):\n    model.train()\n    for batch_idx, (data, target) in enumerate(train_loader):\n        data, target = data.to(device), target.to(device)\n        optimizer.zero_grad()  # reset the gradients to 0\n        output = model(data)\n        loss = F.nll_loss(output, target)  # negative log likelihood\n        writer.add_scalar(\"Loss/train\", loss, epoch)\n        loss.backward()\n        optimizer.step()\n        if batch_idx % 10 == 0:\n            print('Train Epoch: {} [{}/{} ({:.0f}%)]\\tLoss: {:.6f}'.format(\n                epoch, batch_idx * len(data), len(train_loader.dataset),\n                100. * batch_idx / len(train_loader), loss.item()))"
-  },
-  {
-    "objectID": "ml/autograd.html",
-    "href": "ml/autograd.html",
-    "title": "Automatic differentiation",
-    "section": "",
-    "text": "Imagine how hard it would be to write the chain rules of neural networks (with so many derivatives!) in backpropagation manually.\nPyTorch has automatic differentiation abilities—meaning that it can track all the operations conducted on tensors and do the backprop for you—thanks to its package torch.autograd."
-  },
-  {
-    "objectID": "ml/autograd.html#the-grad_fun-attribute",
-    "href": "ml/autograd.html#the-grad_fun-attribute",
-    "title": "Automatic differentiation",
-    "section": "The grad_fun attribute",
-    "text": "The grad_fun attribute\nWhenever a tensor is created by an operation involving a tracked tensor, it has a grad_fun attribute:\nx = torch.ones(2, 4, requires_grad=True)\nprint(x)\ny = x + 1\nprint(y)\nprint(y.grad_fn)"
-  },
-  {
-    "objectID": "ml/autograd.html#judicious-tracking",
-    "href": "ml/autograd.html#judicious-tracking",
-    "title": "Automatic differentiation",
-    "section": "Judicious tracking",
-    "text": "Judicious tracking\nYou don’t want to track more than is necessary. There are multiple ways to avoid tracking what you don’t want to.\nYou can simply stop tracking computations on a tensor with the method detach:\nx = torch.rand(4, 3, requires_grad=True)\nprint(x)\nprint(x.detach_())\nYou can change its requires_grad flag:\nx = torch.rand(4, 3, requires_grad=True)\nprint(x)\nprint(x.requires_grad_(False))\nAlternatively, you can wrap any code you don’t want to track with with torch.no_grad():\nwith torch.no_grad():\n    <some code>"
-  },
-  {
-    "objectID": "ml/autograd.html#manual-derivative-calculation",
-    "href": "ml/autograd.html#manual-derivative-calculation",
-    "title": "Automatic differentiation",
-    "section": "Manual derivative calculation",
-    "text": "Manual derivative calculation\nThe formula for this first derivative, with the loss function we used, is:\n\\[\\text{gradient}_\\text{predicted}=2(\\text{predicted} - \\text{real})\\]\nThere is no point in adding this operation to predicted’s computation history, so we will exclude it with with torch.no_grad():\nwith torch.no_grad():\n    manual_gradient_predicted = 2.0 * (predicted - real)\n\nprint(manual_gradient_predicted)"
-  },
-  {
-    "objectID": "ml/autograd.html#automatic-derivative-calculation",
-    "href": "ml/autograd.html#automatic-derivative-calculation",
-    "title": "Automatic differentiation",
-    "section": "Automatic derivative calculation",
-    "text": "Automatic derivative calculation\nNow, with torch.autograd:\nloss.backward()\nSince we tracked computations on predicted, we can calculate its gradient with:\nauto_gradient_predicted = predicted.grad\nprint(auto_gradient_predicted)"
-  },
-  {
-    "objectID": "ml/autograd.html#comparison",
-    "href": "ml/autograd.html#comparison",
-    "title": "Automatic differentiation",
-    "section": "Comparison",
-    "text": "Comparison\nThe result is the same, as can be tested with:\nprint(manual_gradient_predicted.eq(auto_gradient_predicted).all())\nThe calculation of this first derivative of backpropagation was simple enough. But to propagate all the derivatives calculations backward through the chain rule would quickly turn into a deep calculus problem.\nWith torch.autograd, calculating the gradients of all the other elements of the network is as simple as calling them with the attribute grad once the function torch.Tensor.backward() has been run."
   }
 ]
