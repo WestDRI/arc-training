@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>WestDRI - Automatic differentiation</title>
+<title>WestDRI - Saving/loading models and checkpointing</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -93,8 +93,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../ml/choosing_frameworks.html" rel="next">
-<link href="../ml/audio_dataloader.html" rel="prev">
+<link href="../ml/pretrained_models.html" rel="prev">
 <link href="..//img/sfu_favicon.png" rel="icon" type="image/png">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -125,7 +124,6 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   }
 }</script>
 
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <link rel="stylesheet" href="../styles.css">
 </head>
@@ -187,7 +185,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
     </nav>
   <nav class="quarto-secondary-nav" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
     <div class="container-fluid d-flex justify-content-between">
-      <h1 class="quarto-secondary-nav-title">Automatic differentiation</h1>
+      <h1 class="quarto-secondary-nav-title">Saving/loading models and checkpointing</h1>
       <button type="button" class="quarto-btn-toggle btn" aria-label="Show secondary navigation">
         <i class="bi bi-chevron-right"></i>
       </button>
@@ -240,7 +238,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../ml/autograd.html" class="sidebar-item-text sidebar-link active">Automatic differentiation</a>
+  <a href="../ml/autograd.html" class="sidebar-item-text sidebar-link">Automatic differentiation</a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -280,7 +278,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../ml/checkpoints.html" class="sidebar-item-text sidebar-link">Creating checkpoints</a>
+  <a href="../ml/checkpoints.html" class="sidebar-item-text sidebar-link active">Creating checkpoints</a>
   </div>
 </li>
       </ul>
@@ -325,18 +323,10 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
     <h2 id="toc-title">Workshop sections</h2>
    
   <ul>
-  <li><a href="#tracking-computations" id="toc-tracking-computations" class="nav-link active" data-scroll-target="#tracking-computations">Tracking computations</a>
-  <ul class="collapse">
-  <li><a href="#the-grad_fun-attribute" id="toc-the-grad_fun-attribute" class="nav-link" data-scroll-target="#the-grad_fun-attribute">The <code>grad_fun</code> attribute</a></li>
-  <li><a href="#judicious-tracking" id="toc-judicious-tracking" class="nav-link" data-scroll-target="#judicious-tracking">Judicious tracking</a></li>
-  </ul></li>
-  <li><a href="#calculating-gradients" id="toc-calculating-gradients" class="nav-link" data-scroll-target="#calculating-gradients">Calculating gradients</a></li>
-  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a>
-  <ul class="collapse">
-  <li><a href="#manual-derivative-calculation" id="toc-manual-derivative-calculation" class="nav-link" data-scroll-target="#manual-derivative-calculation">Manual derivative calculation</a></li>
-  <li><a href="#automatic-derivative-calculation" id="toc-automatic-derivative-calculation" class="nav-link" data-scroll-target="#automatic-derivative-calculation">Automatic derivative calculation</a></li>
-  <li><a href="#comparison" id="toc-comparison" class="nav-link" data-scroll-target="#comparison">Comparison</a></li>
-  </ul></li>
+  <li><a href="#saving-models" id="toc-saving-models" class="nav-link active" data-scroll-target="#saving-models">Saving models</a></li>
+  <li><a href="#loading-models" id="toc-loading-models" class="nav-link" data-scroll-target="#loading-models">Loading models</a></li>
+  <li><a href="#create-a-checkpoint" id="toc-create-a-checkpoint" class="nav-link" data-scroll-target="#create-a-checkpoint">Create a checkpoint</a></li>
+  <li><a href="#resume-training-from-a-checkpoint" id="toc-resume-training-from-a-checkpoint" class="nav-link" data-scroll-target="#resume-training-from-a-checkpoint">Resume training from a checkpoint</a></li>
   </ul>
 </nav>
     </div>
@@ -345,7 +335,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title d-none d-lg-block">Automatic differentiation</h1>
+<h1 class="title d-none d-lg-block">Saving/loading models and checkpointing</h1>
 </div>
 
 
@@ -360,92 +350,42 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 
 </header>
 
-<p>Imagine how hard it would be to write the chain rules of neural networks (with so many derivatives!) in backpropagation manually.</p>
-<p>PyTorch has <a href="https://en.wikipedia.org/wiki/Automatic_differentiation">automatic differentiation</a> abilities—meaning that it can track all the operations conducted on tensors and do the backprop for you—thanks to its package <code>torch.autograd</code>.</p>
-<section id="tracking-computations" class="level1">
-<h1>Tracking computations</h1>
-<p>PyTorch does not track all the computations on all the tensors (this would be extremely memory intensive!). To start tracking computations on a vector, set the <code>.requires_grad</code> attribute to <code>True</code>:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.rand(<span class="dv">3</span>, <span class="dv">7</span>, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="the-grad_fun-attribute" class="level2">
-<h2 class="anchored" data-anchor-id="the-grad_fun-attribute">The <code>grad_fun</code> attribute</h2>
-<p>Whenever a tensor is created by an operation involving a tracked tensor, it has a <code>grad_fun</code> attribute:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.ones(<span class="dv">2</span>, <span class="dv">4</span>, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> x <span class="op">+</span> <span class="dv">1</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(y)</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(y.grad_fn)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="saving-models" class="level2">
+<h2 class="anchored" data-anchor-id="saving-models">Saving models</h2>
+<p>You can save a model by <a href="https://en.wikipedia.org/wiki/Serialization">serializing</a> its internal state dictionary. The state dictionary is a Python dictionary that contains the parameters of your model.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>torch.save(model.state_dict(), <span class="st">"model.pth"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="judicious-tracking" class="level2">
-<h2 class="anchored" data-anchor-id="judicious-tracking">Judicious tracking</h2>
-<p>You don’t want to track more than is necessary. There are multiple ways to avoid tracking what you don’t want to.</p>
-<p>You can simply stop tracking computations on a tensor with the method <code>detach</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.rand(<span class="dv">4</span>, <span class="dv">3</span>, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x)</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x.detach_())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can change its <code>requires_grad</code> flag:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.rand(<span class="dv">4</span>, <span class="dv">3</span>, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x)</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x.requires_grad_(<span class="va">False</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Alternatively, you can wrap any code you don’t want to track with <code>with torch.no_grad():</code></p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">&lt;</span>some code<span class="op">&gt;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="loading-models" class="level2">
+<h2 class="anchored" data-anchor-id="loading-models">Loading models</h2>
+<p>To recreate your model, you first need to recreate its structure:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Net()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Then you can load the state dictionary containing the parameters values into it:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>model.load_state_dict(torch.load(<span class="st">"model.pth"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
+<section id="create-a-checkpoint" class="level2">
+<h2 class="anchored" data-anchor-id="create-a-checkpoint">Create a checkpoint</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>torch.save({</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>            <span class="st">'epoch'</span>: epoch,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>            <span class="st">'model_state_dict'</span>: model.state_dict(),</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>            <span class="st">'optimizer_state_dict'</span>: optimizer.state_dict(),</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>            <span class="st">'loss'</span>: loss,</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>            ...</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>            }, PATH)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="calculating-gradients" class="level1">
-<h1>Calculating gradients</h1>
-<p>After you have performed a number of operations on <code>x</code> and obtained a final object (let’s call it <code>loss</code> since in the context of neural networks, the output of the loss function is the starting place of the backpropagation process), you can get the gradient of any object <code>y</code> with:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(y.grad)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="example" class="level1">
-<h1>Example</h1>
-<p>Let’s go over a simple example:</p>
-<ul>
-<li>let <code>real</code> be the tensor of some real values</li>
-<li>let <code>predicted</code> be the tensor given by some model trying to predict these real values after an iteration</li>
-</ul>
-<p>We will calculate the first derivative (first step of the backpropagation) manually and with the <code>torch.autograd</code> package to really understand what that package does.</p>
-<p>Let’s fill <code>real</code> and <code>predicted</code> with random values since we don’t have a real situation with a real network (but let’s make sure to start recording the history of computations performed on <code>predicted</code>):</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>real <span class="op">=</span> torch.rand(<span class="dv">3</span>, <span class="dv">8</span>)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(real)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>predicted <span class="op">=</span> torch.rand(<span class="dv">3</span>, <span class="dv">8</span>, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(predicted)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Several loss functions can be used in machine learning, let’s use:</p>
-<p><span class="math display">\[\text{loss}=\sum_{}^{} (\text{predicted} - \text{real})^2\]</span></p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> (predicted <span class="op">-</span> real).<span class="bu">pow</span>(<span class="dv">2</span>).<span class="bu">sum</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Now, to train a model, after each forward-pass, we need to go through the backpropagation to adjust the weights and biases of the model. That means, we need to calculate all the derivatives, starting from the derivative of the predicted values up to the derivatives of the weights and biases.</p>
-<p>Here, we will only do the very first step: calculate the derivative of <code>predicted</code>.</p>
-<section id="manual-derivative-calculation" class="level2">
-<h2 class="anchored" data-anchor-id="manual-derivative-calculation">Manual derivative calculation</h2>
-<p>The formula for this first derivative, with the loss function we used, is:</p>
-<p><span class="math display">\[\text{gradient}_\text{predicted}=2(\text{predicted} - \text{real})\]</span></p>
-<p>There is no point in adding this operation to <code>predicted</code>’s computation history, so we will exclude it with <code>with torch.no_grad():</code></p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    manual_gradient_predicted <span class="op">=</span> <span class="fl">2.0</span> <span class="op">*</span> (predicted <span class="op">-</span> real)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(manual_gradient_predicted)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="automatic-derivative-calculation" class="level2">
-<h2 class="anchored" data-anchor-id="automatic-derivative-calculation">Automatic derivative calculation</h2>
-<p>Now, with <code>torch.autograd</code>:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>loss.backward()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Since we tracked computations on <code>predicted</code>, we can calculate its gradient with:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>auto_gradient_predicted <span class="op">=</span> predicted.grad</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(auto_gradient_predicted)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="comparison" class="level2">
-<h2 class="anchored" data-anchor-id="comparison">Comparison</h2>
-<p>The result is the same, as can be tested with:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(manual_gradient_predicted.eq(auto_gradient_predicted).<span class="bu">all</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The calculation of this first derivative of backpropagation was simple enough. But to propagate all the derivatives calculations backward through the chain rule would quickly turn into a deep calculus problem.</p>
-<p>With <code>torch.autograd</code>, calculating the gradients of all the other elements of the network is as simple as calling them with the attribute <code>grad</code> once the function <code>torch.Tensor.backward()</code> has been run.</p>
+<section id="resume-training-from-a-checkpoint" class="level2">
+<h2 class="anchored" data-anchor-id="resume-training-from-a-checkpoint">Resume training from a checkpoint</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> TheModelClass(<span class="op">*</span>args, <span class="op">**</span>kwargs)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> TheOptimizerClass(<span class="op">*</span>args, <span class="op">**</span>kwargs)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>checkpoint <span class="op">=</span> torch.load(PATH)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>model.load_state_dict(checkpoint[<span class="st">'model_state_dict'</span>])</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>optimizer.load_state_dict(checkpoint[<span class="st">'optimizer_state_dict'</span>])</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>epoch <span class="op">=</span> checkpoint[<span class="st">'epoch'</span>]</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> checkpoint[<span class="st">'loss'</span>]</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>model.train()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->
@@ -598,14 +538,11 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../ml/audio_dataloader.html" class="pagination-link">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Audio DataLoader</span>
+      <a href="../ml/pretrained_models.html" class="pagination-link">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Finding pre-trained models</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../ml/choosing_frameworks.html" class="pagination-link">
-        <span class="nav-page-text">Which framework to choose?</span> <i class="bi bi-arrow-right-short"></i>
-      </a>
   </div>
 </nav>
 </div> <!-- /content -->

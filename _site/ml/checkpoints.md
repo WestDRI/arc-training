@@ -58,5 +58,3 @@ loss = checkpoint['loss']
 
 model.train()
 ```
-
-## Comments & questions
