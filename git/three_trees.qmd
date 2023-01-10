@@ -1,0 +1,146 @@
+---
+title: The three trees of Git
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+How does Git really work?
+
+One useful mental representation of the functioning of Git is to imagine [three file trees](https://git-scm.com/book/en/v2/Git-Tools-Reset-Demystified).
+
+:::
+
+## The three trees of Git
+
+### Working directory
+
+Let's imagine that you are starting to work on a project.
+
+First, you create a directory. \
+In it, you create several sub-directories. \
+In those, you create a number of files.
+
+You can open these files, read them, edit them, etc. This is something you are very familiar with.
+
+In the Git world, this is the [working directory]{.emph} or [working tree]{.emph} of the project. \
+That is: an uncompressed version of your files that you can access and edit.\
+You can think of it as a sandbox because this is where you can experiment with the project. This is where the project gets developed.
+
+Now, Git has two other important pieces in its architecture.
+
+### Index
+
+If you want the project history to be useful to future you, it has to be nice and tidy. You don't want to record snapshots haphazardly or you will never be able to find anything back.
+
+Before you record a snapshot, you carefully select the elements of the project as it is now that would be useful to write to the project history together. The [index]{.emph} or [staging area]{.emph} is what allows to do that: it contains the suggested future snapshot.
+
+### HEAD
+
+Finally, the last tree in Git architecture is one snapshot in the project history that serves as a reference version of the project: if you want to see what you have been experimenting on in your "sandbox", you need to compare the state of the working directory with some snapshot.
+
+Remember that HEAD is a pointer pointing at a branch, that a branch is itself a pointer pointing at a commit, and finally that a commit is a Git object pointing at a snapshot. When the HEAD pointer moves around, whatever snapshot it points to populates the [HEAD]{.emph} tree.
+
+As we saw earlier, when you create a commit, HEAD automatically points to the new commit. So the HEAD tree is often filled with the last snapshot you created. But—as we will see later—we can move the HEAD pointer around through other ways. So the HEAD tree can be populated by any snapshot in your project history.
+
+### Status of the three trees
+
+To display the status of these trees, you run:
+
+```{.bash}
+git status
+```
+
+## Workflow
+
+Let's see what happens as you work on a project under version control with Git.
+
+After you have created a snapshot, the three trees are in the same state (we say that the working tree is "clean").
+
+:::{.note}
+
+Here is an example for a project with a single file called `File` after the first snapshot was created. Let's say that it is at version `v1`:
+
+:::
+
+![](img/diagrams/12.png)
+
+### Making changes to the working tree
+
+When you edit files in your project, you make changes in the *working directory* or *working tree*.
+
+:::{.note}
+
+For instance, you make a change to `File`. Let's say that it is now at version `v2`:
+
+:::
+
+![](img/diagrams/15.png)
+
+The other two trees remain at version `v1`.
+
+If you run `git status`, this is what you get:
+
+```
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   File
+
+no changes added to commit (use "git add" and/or "git commit -a")
+```
+
+### Staging changes
+
+You /stage/ that file (meaning that you will include the changes of that file in the next snapshot) with:
+
+```{.bash}
+git add File
+```
+
+After which, your Git trees look like this:
+
+![](img/diagrams/16.png)
+
+Now, the index also has `File` at version `v2` and `git status` returns:
+
+```
+On branch main
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+        modified:   File
+```
+
+### Committing changes
+
+Finally, you create a snapshot and the commit pointing to it—recording the staged changes to history—with:
+
+```{.bash}
+git commit -m "Added File"
+```
+
+`-m` is a flag that allows to provide the commit message directly in the command line. If you don't use it, Git will open a text editor so that you can type the message. Without a message, there can be no commit.
+
+Now your trees look like this:
+
+![](img/diagrams/17.png)
+
+We are back where we were at the start of this section, except that we have created an additional snapshot.
+
+Our working tree is clean again and `git status` returns:
+
+```
+On branch main
+nothing to commit, working tree clean
+```
+
+This means that there are no uncommitted changes in the working tree or the staging area: all the changes have been written to history.
+
+:::{.note}
+
+You don't have to stage *all* the changes in the working directory before making a commit; that is actually the whole point of the staging area.
+
+This means that the working directory is not necessarily clean after you have created a new commit.
+
+:::
