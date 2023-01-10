@@ -1,0 +1,291 @@
+---
+title: Multi-threading
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+Julia, which was built with efficiency in mind, aimed from the start to have parallel programming abilities. These however came gradually: first, there were coroutines, which is not parallel programming, but allows independent executions of elements of code; then there was a macro allowing for loops to run on several cores, but this would not work on nested loops and it did not integrate with the coroutines or I/O. With version 1.3 however multi-threading capabilities were born.
+
+What is great about Julia's new task parallelism is that it is incredibly easy to use: no need to write low-level code as with MPI to set where tasks are run. Everything is automatic.
+
+:::
+
+## Launching Julia on multiple threads
+
+To use Julia with multiple threads, we need to launch `julia` with the `JULIA_NUM_THREADS` environment variable or with the flag `--threads`/`-t`:
+
+```{.bash}
+$ JULIA_NUM_THREADS=n julia
+```
+
+or
+
+```{.bash}
+$ julia -t n
+```
+
+First, we need to know how many threads we actually have on our machine.\
+There are many Linux tools for this, but here are two particularly convenient options:
+
+```{.bash}
+# To get the total number of available processes
+$ nproc
+
+# For more information (# of sockets, cores per socket, threads per core)
+$ lscpu | grep -E '(S|s)ocket|Thread|^CPU\(s\)'
+```
+
+Since I have 4 available processes (2 cores with 2 threads each), I can launch Julia on 4 threads:
+
+```{.bash}
+$ JULIA_NUM_THREADS=4 julia
+```
+
+This can also be done from within the Juno IDE.
+
+To see how many threads we are using, as well as the ID of the current thread, you can run:
+
+```{.julia}
+Threads.nthreads()
+Threads.threadid()
+```
+
+## For loops on multiple threads
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Launch Julia on 1 thread and run the function below. Then run Julia on the maximum number of threads you have on your machine and run the same function.
+
+:::
+
+```{.julia}
+Threads.@threads for i = 1:10
+    println("i = $i on thread $(Threads.threadid())")
+end
+```
+
+Utilities such as [htop](https://github.com/hishamhm/htop) allow you to visualize the working threads.
+
+## Generalization of multi-threading
+
+Let's consider the example presented in a [Julia blog post](https://julialang.org/blog/2019/07/multithreading/) in July 2019.\
+Both scripts sort a one dimensional array of 20,000,000 floats between 0 and 1, one with parallelism and one without.
+
+*Script 1, without parallelism:* `sort.jl`.
+
+```{.julia}
+# Create one dimensional array of 20,000,000 floats between 0 and 1
+a = rand(20000000);
+
+# Use the MergeSort algorithm of the sort function
+# (in the standard Julia Base library)
+b = copy(a); @time sort!(b, alg = MergeSort);
+
+# Let's run the function a second time to remove the effect
+# of the initial compilation
+b = copy(a); @time sort!(b, alg = MergeSort);
+```
+
+*Script 2, with parallelism:* `psort.jl`.
+
+```{.julia}
+import Base.Threads.@spawn
+
+# The psort function is the same as the MergeSort algorithm
+# of the Base sort function with the addition of
+# the @spawn macro on one of the recursive calls
+
+# Sort the elements of `v` in place, from indices `lo` to `hi` inclusive
+
+function psort!(v, lo::Int=1, hi::Int = length(v))
+    
+    # 1 or 0 elements: nothing to do
+    if lo >= hi
+        return v
+    end
+    
+    # Below some cutoff: run in serial
+    if hi - lo < 100000
+        sort!(view(v, lo:hi), alg = MergeSort)
+        return v
+    end
+    
+    # Find the midpoint
+    mid = (lo + hi) >>> 1
+    
+    # Task to sort the lower half
+    # will run in parallel with the current call sorting the upper half
+    half = @spawn psort!(v, lo, mid)
+    psort!(v, mid + 1, hi)
+    # Wait for the lower half to finish
+    wait(half)
+
+    # Workspace for merging
+    temp = v[lo:mid]
+    
+    # Merge the two sorted sub-arrays
+    i, k, j = 1, lo, mid + 1
+    @inbounds while k < j <= hi
+        if v[j] < temp[i]
+            v[k] = v[j]
+            j += 1
+        else
+            v[k] = temp[i]
+            i += 1
+        end
+        k += 1
+    end
+    @inbounds while k < j
+        v[k] = temp[i]
+        k += 1
+        i += 1
+    end
+    
+    return v
+end
+
+a = rand(20000000);
+
+# Now, let's use our function
+b = copy(a); @time psort!(b);
+
+# And running it a second time to remove
+# the effect of the initial compilation
+b = copy(a); @time psort!(b);
+```
+
+Now, we can test both scripts with one or multiple threads.
+
+:::{.example}
+
+Single thread, non-parallel script:
+
+:::
+
+```{.bash}
+$ julia /path/to/sort.jl
+```
+
+```
+2.234024 seconds (111.88 k allocations: 82.489 MiB, 0.21% gc time)
+2.158333 seconds (11 allocations: 76.294 MiB, 0.51% gc time)
+```
+
+:::{.note}
+
+Note the lower time for the 2nd run due to pre-compilation.
+
+:::
+
+:::{.example}
+
+Single thread, parallel script:
+
+:::
+
+```{.bash}
+$ julia /path/to/psort.jl
+```
+
+```
+2.748138 seconds (336.77 k allocations: 703.200 MiB, 2.24% gc time)
+2.438032 seconds (3.58 k allocations: 686.932 MiB, 0.27% gc time)
+```
+
+:::{.note}
+
+Even longer time: normal, there was more to run (import package, read function).
+
+:::
+
+:::{.example}
+
+2 threads, non-parallel script:
+
+:::
+
+```{.bash}
+$ JULIA_NUM_THREADS=2 julia /path/to/sort.jl
+```
+
+```
+2.233720 seconds (111.87 k allocations: 82.145 MiB, 0.21% gc time)
+2.155232 seconds (11 allocations: 76.294 MiB, 0.54% gc time)
+```
+
+:::{.note}
+
+Remarkably similar to the single thread: the addition of a thread did not change anything.
+
+:::
+
+:::{.example}
+
+2 threads, parallel script:
+
+:::
+
+```{.bash}
+$ JULIA_NUM_THREADS=2 julia /path/to/psort.jl
+```
+
+```
+1.773643 seconds (336.99 k allocations: 703.171 MiB, 4.08% gc time)
+1.460539 seconds (3.79 k allocations: 686.935 MiB, 0.47% gc time)
+```
+
+:::{.note}
+
+33% faster. \
+Not twice as fast as one could have hoped since processes have to wait for each other. But that's a good improvement.
+
+:::
+
+:::{.example}
+
+4 threads, non-parallel script:
+
+:::
+
+```{.bash}
+$ JULIA_NUM_THREADS=4 julia /path/to/sort.jl
+```
+
+```
+2.231717 seconds (111.87 k allocations: 82.145 MiB, 0.21% gc time)
+2.153509 seconds (11 allocations: 76.294 MiB, 0.53% gc time)
+```
+
+:::{.note}
+
+Again: same result as the single thread.
+
+:::
+
+:::{.example}
+
+4 threads, parallel script:
+
+:::
+
+```{.bash}
+$ JULIA_NUM_THREADS=4 julia /path/to/psort.jl
+```
+
+```
+1.291714 seconds (336.98 k allocations: 703.171 MiB, 3.48% gc time)
+1.194282 seconds (3.78 k allocations: 686.935 MiB, 5.19% gc time)
+```
+
+:::{.note}
+
+Even though we only split our code in 2 tasks, there is still an improvement over the 2 thread run.
+
+:::
