@@ -3,141 +3,60 @@ title: Branches
 author: Marie-Hélène Burle
 ---
 
+:::{.def}
+
+One of the reasons Git has become so popular is its branching system: unlike in other version control tools in which creating branches is a lengthy and expensive process involving heavy copies, a branch in Git is just a lightweight pointer to a commit. This makes creating branches extremely quick and cheap.
+
+:::
+
 ## What is a branch?
 
 A branch is a pointer to a commit (under the hood, it is a small file containing the 40 character hash checksum of the commit it points to).
 
-This is what `On branch main` means in the output of `git status`.
+When you run `git status` and get "`On branch main`" in the output, or when you run `git log` and see "`(HEAD -> main)`" in the log, it means that the `HEAD` pointer (your position in the Git history) points to the branch `main` (which itself points to a commit).
 
-This is also what `(HEAD -> main)` means when you run `git log`.
+I know that is a lot of pointers ... but this is really what makes Git so nimble, powerful, and fantastic. Because these pointers are very cheap (tiny files) and so useful.
 
 ## Why use multiple branches?
 
+Branches are useful in so many situations:
+
 - If your changes break code, you still have a fully functional branch to go back to if needed.
+- If you develop a tool being used, this allows you to experiment with new features until they are ready without messing up with the working project.
 - You can create a branch for each alternative approach. This allows you to jump back and forth between various alternatives.
 - You can work on different aspects of the project on different branches. This prevents having messy incomplete work all over the place on the same branch.
+- If you want to revisit an old commit, you can create a branch there and switch to it instead of moving `HEAD` (creating a detached HEAD situation). This way, if you decide to create new commits from that old one, you don't risk loosing them.
+- Branches are great for collaboration: each person can work on their own branch and merge it back to the main branch when they are done with one section of a project.
 
-Mostly, branches are great for collaboration: each person can work on their own branch and merge it back to the main branch when they are done with one section of a project.
+And since branches are so cheap to create, there is no downside to their creation.
 
-## Branches
+## Creating branches and switching between branches
 
-One of the reasons Git has become so popular is its branch system.
-
-Remember that little pointer called `main`? That's our main branch: the one Git creates automatically when we create our first commit.
-
-A branch in Git is just that: a little pointer. This makes creating branches extremely quick and cheap. But they are extremely convenient.
-
-Instead of checking out a commit as we just saw (which creates a detached HEAD state), we can instead create a new branch on that commit with:
+You can create a new branch with:
 
 ```{.bash}
-git switch -c newbranch 7f94f8e  # Replace the hash by the hash of your first commit
+git branch <new-branch-name>
 ```
 
-````
-Switched to a new branch 'newbranch'
-````
-
-This creates a new branch called `newbranch` on our first commit and switches `HEAD` to it. If you do this instead of entering a detached HEAD state, it is totally safe to make chang
-es and create commits from there. You can easily switch `HEAD` back and forth between the two branches with:
+and you can then switch to it with:
 
 ```{.bash}
-git switch main        # Moves HEAD back to the branch main
+git switch <new-branch-name>
 ```
 
-````
-Switched to branch 'main'
-````
+Alternatively, you can do both at once with the convenient:
 
 ```{.bash}
-git switch newbranch
+git switch -c <new-branch-name>
 ```
 
-````
-Switched to branch 'newbranch'
-````
+:::{.note}
 
-```{.bash}
-git status
-```
-
-````
-On branch newbranch
-nothing to commit, working tree clean
-````
-
-If you already checked out the commit `7f94f8e` with `git checkout 7f94f8e`, you can create the new branch `newbranch` on that commit and switch to it with:
-
-```{.bash}
-git switch -c newbranch
-```
-
-````
-Switched to a new branch 'newbranch'
-````
-
-Those are equivalent workflows. Just don't forget never to work from a detached HEAD state. You can look around in that state, but that's it. Why? Because commits that are not part of a branch get automatically deleted on a regular basis when Git runs its garbage collection. So any commits you make from a detached HEAD will eventually be lost. And that's probably not what you want.
-
-In short, `git switch` allows you to switch `HEAD` from one branch to another. With the `-c` flag, you can create a new branch before switching to it. And by adding some starting point such as a commit, the new branch gets created on that commit rather than on the position of `HEAD`.
-
-Now, have a look at what happens if you run git log from `newbranch`:
-
-```{.bash}
-git log
-```
-
-````
-commit 7f94f8ed631a7390a910fa13cd4954cf9e8a3061 (HEAD -> newbranch)
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Mon Oct 3 18:19:28 2022 -0700
-
-    Initial commit
-````
-
-Horror! It looks like all our commits except for the first one are gone!
-
-In fact, they still exist, but by default, `git log` only shows what is on the current branch. To see all the commits that are on any branch in your project, you need to add the `--all` flag:
-
-```{.bash}
-git log --all
-```
-
-````
-commit 863afd650ecaeab85da2f8ed0d3c88a778754727 (main)
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Tue Oct 4 10:32:39 2022 -0700
-
-    Add .gitignore file with data and results
-
-commit dc780c75c76220a39f7c89a76bebb670dad25b8e
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Tue Oct 4 10:32:12 2022 -0700
-
-    Define the variable a in R script
-
-commit 5ba96b254b505f7d04f59f988a621a746a0c6896
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Tue Oct 4 10:28:51 2022 -0700
-
-    Add conclusion to the manuscript
-
-commit 451c47b386895b8b0b5bdd1a8734ef1d51f9ccc9
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Mon Oct 3 18:35:51 2022 -0700
-
-    Add result section to manuscript
-
-commit 7f94f8ed631a7390a910fa13cd4954cf9e8a3061 (HEAD -> newbranch)
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Mon Oct 3 18:19:28 2022 -0700
-
-    Initial commit
-````
-
-:::{.example}
-
-In this log, we can now see `main`, but that `HEAD` points to `newbranch`.
+`-c` flag for "create". So you create a branch and switch to it directly.
 
 :::
+
+I find this last command most useful as it is all too easy otherwise to create a new branch, forget to switch to it, and create commits on the wrong branch ...
 
 ## Listing branches
 
@@ -146,123 +65,45 @@ git branch
 ```
 
 ````
-  main
-* newbranch
+* main
+  experimental
 ````
 
-The `*` shows the branch you are currently on (i.e. the branch to which `HEAD` points to).
+The `*` shows the branch you are currently on (i.e. the branch to which `HEAD` points to). In the example above, your project has two branches and you are on the branch `main`.
 
 ## Comparing branches
 
 You can use `git diff` to compare branches:
 
 ```{.bash}
-git diff newbranch main
+git diff experimental main
 ```
-
-````
-diff --git a/.gitignore b/.gitignore
-index 0000000..e85f44a
---- /dev/null
-+++ b/.gitignore
-@@ -0,0 +1,2 @@
-+/data/
-+/results/
-diff --git a/ms/chapter3.md b/ms/chapter3.md
-index b88424b..80d2c5c 100644
---- a/ms/chapter3.md
-+++ b/ms/chapter3.md
-@@ -7,3 +7,11 @@ Bla bla bla bla bla.
- ## Methods
-
- Bla bla bla.
-+
-+## Results
-+
-+We now have a bunch of results in our markdown manuscript.
-+
-+## Conclusion
-+
-+And finally, the great conclusion of our paper.
-diff --git a/src/chapter3.R b/src/chapter3.R
-index 95f1592..2bf030d 100644
---- a/src/chapter3.R
-+++ b/src/chapter3.R
-@@ -7,3 +7,5 @@ df <- data.frame(
- )
-
- ggplot(df, aes(x, y)) + geom_point()
-+
-+a = 23
-````
 
 This shows all the lines that have been modified (added or deleted) between the commits both branches point to.
 
 ## Merging branches
 
-If you want to merge branches, switch to the branch you want to merge into the other one, then run `git merge`.
+If you want to merge branches, first switch to the branch you want to merge into the other one, then run `git merge`.
 
-For instance, if we want to merge `newbranch` onto `main`, we would first switch to `newbranch` (we are already on it, so nothing to do here), then:
+For instance, if you want to merge `experimental` onto `main` (what you would do once you are satisfied with your changes on `experimental`), you would first switch to `experimental`:
+
+```{.bash}
+git switch experimental
+```
+
+then:
 
 ```{.bash}
 git merge main
 ```
 
-````
-Updating 7f94f8e..863afd6
-Fast-forward
- .gitignore     | 2 ++
- ms/chapter3.md | 8 ++++++++
- src/chapter3.R | 2 ++
- 3 files changed, 12 insertions(+)
- create mode 100644 .gitignore
-````
-
-This merge is called a "fast-forward" merge because `main` and `newbranch` had not diverged. It was simply a question of having `newbranch` catch up to `main`.
-
-If you run `git log` again, you will see that `newbrach` has now caught up with `main`:
-
-```{.bash}
-git log
-```
-
-````
-commit 863afd650ecaeab85da2f8ed0d3c88a778754727 (HEAD -> newbranch, main)
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Tue Oct 4 10:32:39 2022 -0700
-
-    Add .gitignore file with data and results
-
-commit dc780c75c76220a39f7c89a76bebb670dad25b8e
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Tue Oct 4 10:32:12 2022 -0700
-
-    Define the variable a in R script
-
-commit 5ba96b254b505f7d04f59f988a621a746a0c6896
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Tue Oct 4 10:28:51 2022 -0700
-
-    Add conclusion to the manuscript
-
-commit 451c47b386895b8b0b5bdd1a8734ef1d51f9ccc9
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Mon Oct 3 18:35:51 2022 -0700
-
-    Add result section to manuscript
-
-commit 7f94f8ed631a7390a910fa13cd4954cf9e8a3061
-Author: Marie-Helene Burle <xxx@xxx>
-Date:   Mon Oct 3 18:19:28 2022 -0700
-
-    Initial commit
-````
+If you have only created new commits on `experimental`, the merge is called a "fast-forward merge" because `main` and `experimental` have not diverged. It is simply a question of having `experimental` catch up to `main`.
 
 :::{.info}
 
 **Here is a classic situation of fast-forward merge.**
 
-Instead of working on your branch `main`, you create a test branch and work on it (so `HEAD` is on the branch `test` and both move along as you create commits):
+Instead of working on your branch `main`, you create a test branch called `test` and work on it (so `HEAD` is on the branch `test` and both move along as you create commits):
 
 ![](img/17.png)
 
@@ -276,14 +117,14 @@ Then you do the fast-forward merge from `main` onto `test` (so `main` catches up
 
 ![](img/19.png)
 
-Then, usually, you delete the branch `test` as it has served its purpose (with `git branch -d test`). Alternatively, you can switch back to it and do the next bit of experimental work in it.
-This allows to keep `main` free of possible mishaps and bad developments (if you aren't happy with the work you did on your test branch, you can simply delete it and Git will clean the commits that are on it but not on `main` during the next garbage collection.
+Then, usually, you delete the branch `test` as it has served its purpose (with `git branch -d test`). Alternatively, you can switch back to it and do the next bit of experimental work on it.
+This allows to keep `main` free of possible mishaps and bad developments (if you aren't happy with the work you did on your test branch, you can simply delete it and Git will clean the commits that are on it but not on `main` during the next garbage collection).
 
 ![](img/20.png)
 
 :::
 
-If both branches have diverged (you created commits from both `main` and `newbranch`), the merge would require the creation of an additional commit called a "merge commit".
+If both branches have diverged (you created commits from both `main` and `experimental`), the merge would require the creation of an additional commit called a "merge commit".
 
 :::{.info}
 
@@ -291,9 +132,11 @@ If both branches have diverged (you created commits from both `main` and `newbra
 
 ![](img/21.png)
 
-You create a test branch and switch to it:
+You create a test branch called `test2`:
 
 ![](img/22.png)
+
+and you switch to it:
 
 ![](img/23.png)
 
