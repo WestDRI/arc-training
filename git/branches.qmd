@@ -1,0 +1,340 @@
+---
+title: Branches
+author: Marie-Hélène Burle
+---
+
+## What is a branch?
+
+A branch is a pointer to a commit (under the hood, it is a small file containing the 40 character hash checksum of the commit it points to).
+
+This is what `On branch main` means in the output of `git status`.
+
+This is also what `(HEAD -> main)` means when you run `git log`.
+
+## Why use multiple branches?
+
+- If your changes break code, you still have a fully functional branch to go back to if needed.
+- You can create a branch for each alternative approach. This allows you to jump back and forth between various alternatives.
+- You can work on different aspects of the project on different branches. This prevents having messy incomplete work all over the place on the same branch.
+
+Mostly, branches are great for collaboration: each person can work on their own branch and merge it back to the main branch when they are done with one section of a project.
+
+## Branches
+
+One of the reasons Git has become so popular is its branch system.
+
+Remember that little pointer called `main`? That's our main branch: the one Git creates automatically when we create our first commit.
+
+A branch in Git is just that: a little pointer. This makes creating branches extremely quick and cheap. But they are extremely convenient.
+
+Instead of checking out a commit as we just saw (which creates a detached HEAD state), we can instead create a new branch on that commit with:
+
+```{.bash}
+git switch -c newbranch 7f94f8e  # Replace the hash by the hash of your first commit
+```
+
+````
+Switched to a new branch 'newbranch'
+````
+
+This creates a new branch called `newbranch` on our first commit and switches `HEAD` to it. If you do this instead of entering a detached HEAD state, it is totally safe to make chang
+es and create commits from there. You can easily switch `HEAD` back and forth between the two branches with:
+
+```{.bash}
+git switch main        # Moves HEAD back to the branch main
+```
+
+````
+Switched to branch 'main'
+````
+
+```{.bash}
+git switch newbranch
+```
+
+````
+Switched to branch 'newbranch'
+````
+
+```{.bash}
+git status
+```
+
+````
+On branch newbranch
+nothing to commit, working tree clean
+````
+
+If you already checked out the commit `7f94f8e` with `git checkout 7f94f8e`, you can create the new branch `newbranch` on that commit and switch to it with:
+
+```{.bash}
+git switch -c newbranch
+```
+
+````
+Switched to a new branch 'newbranch'
+````
+
+Those are equivalent workflows. Just don't forget never to work from a detached HEAD state. You can look around in that state, but that's it. Why? Because commits that are not part of a branch get automatically deleted on a regular basis when Git runs its garbage collection. So any commits you make from a detached HEAD will eventually be lost. And that's probably not what you want.
+
+In short, `git switch` allows you to switch `HEAD` from one branch to another. With the `-c` flag, you can create a new branch before switching to it. And by adding some starting point such as a commit, the new branch gets created on that commit rather than on the position of `HEAD`.
+
+Now, have a look at what happens if you run git log from `newbranch`:
+
+```{.bash}
+git log
+```
+
+````
+commit 7f94f8ed631a7390a910fa13cd4954cf9e8a3061 (HEAD -> newbranch)
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Mon Oct 3 18:19:28 2022 -0700
+
+    Initial commit
+````
+
+Horror! It looks like all our commits except for the first one are gone!
+
+In fact, they still exist, but by default, `git log` only shows what is on the current branch. To see all the commits that are on any branch in your project, you need to add the `--all` flag:
+
+```{.bash}
+git log --all
+```
+
+````
+commit 863afd650ecaeab85da2f8ed0d3c88a778754727 (main)
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Tue Oct 4 10:32:39 2022 -0700
+
+    Add .gitignore file with data and results
+
+commit dc780c75c76220a39f7c89a76bebb670dad25b8e
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Tue Oct 4 10:32:12 2022 -0700
+
+    Define the variable a in R script
+
+commit 5ba96b254b505f7d04f59f988a621a746a0c6896
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Tue Oct 4 10:28:51 2022 -0700
+
+    Add conclusion to the manuscript
+
+commit 451c47b386895b8b0b5bdd1a8734ef1d51f9ccc9
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Mon Oct 3 18:35:51 2022 -0700
+
+    Add result section to manuscript
+
+commit 7f94f8ed631a7390a910fa13cd4954cf9e8a3061 (HEAD -> newbranch)
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Mon Oct 3 18:19:28 2022 -0700
+
+    Initial commit
+````
+
+:::{.example}
+
+In this log, we can now see `main`, but that `HEAD` points to `newbranch`.
+
+:::
+
+## Listing branches
+
+```{.bash}
+git branch
+```
+
+````
+  main
+* newbranch
+````
+
+The `*` shows the branch you are currently on (i.e. the branch to which `HEAD` points to).
+
+## Comparing branches
+
+You can use `git diff` to compare branches:
+
+```{.bash}
+git diff newbranch main
+```
+
+````
+diff --git a/.gitignore b/.gitignore
+index 0000000..e85f44a
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,2 @@
++/data/
++/results/
+diff --git a/ms/chapter3.md b/ms/chapter3.md
+index b88424b..80d2c5c 100644
+--- a/ms/chapter3.md
++++ b/ms/chapter3.md
+@@ -7,3 +7,11 @@ Bla bla bla bla bla.
+ ## Methods
+
+ Bla bla bla.
++
++## Results
++
++We now have a bunch of results in our markdown manuscript.
++
++## Conclusion
++
++And finally, the great conclusion of our paper.
+diff --git a/src/chapter3.R b/src/chapter3.R
+index 95f1592..2bf030d 100644
+--- a/src/chapter3.R
++++ b/src/chapter3.R
+@@ -7,3 +7,5 @@ df <- data.frame(
+ )
+
+ ggplot(df, aes(x, y)) + geom_point()
++
++a = 23
+````
+
+This shows all the lines that have been modified (added or deleted) between the commits both branches point to.
+
+## Merging branches
+
+If you want to merge branches, switch to the branch you want to merge into the other one, then run `git merge`.
+
+For instance, if we want to merge `newbranch` onto `main`, we would first switch to `newbranch` (we are already on it, so nothing to do here), then:
+
+```{.bash}
+git merge main
+```
+
+````
+Updating 7f94f8e..863afd6
+Fast-forward
+ .gitignore     | 2 ++
+ ms/chapter3.md | 8 ++++++++
+ src/chapter3.R | 2 ++
+ 3 files changed, 12 insertions(+)
+ create mode 100644 .gitignore
+````
+
+This merge is called a "fast-forward" merge because `main` and `newbranch` had not diverged. It was simply a question of having `newbranch` catch up to `main`.
+
+If you run `git log` again, you will see that `newbrach` has now caught up with `main`:
+
+```{.bash}
+git log
+```
+
+````
+commit 863afd650ecaeab85da2f8ed0d3c88a778754727 (HEAD -> newbranch, main)
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Tue Oct 4 10:32:39 2022 -0700
+
+    Add .gitignore file with data and results
+
+commit dc780c75c76220a39f7c89a76bebb670dad25b8e
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Tue Oct 4 10:32:12 2022 -0700
+
+    Define the variable a in R script
+
+commit 5ba96b254b505f7d04f59f988a621a746a0c6896
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Tue Oct 4 10:28:51 2022 -0700
+
+    Add conclusion to the manuscript
+
+commit 451c47b386895b8b0b5bdd1a8734ef1d51f9ccc9
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Mon Oct 3 18:35:51 2022 -0700
+
+    Add result section to manuscript
+
+commit 7f94f8ed631a7390a910fa13cd4954cf9e8a3061
+Author: Marie-Helene Burle <xxx@xxx>
+Date:   Mon Oct 3 18:19:28 2022 -0700
+
+    Initial commit
+````
+
+:::{.info}
+
+**Here is a classic situation of fast-forward merge.**
+
+Instead of working on your branch `main`, you create a test branch and work on it (so `HEAD` is on the branch `test` and both move along as you create commits):
+
+![](img/17.png)
+
+When you are happy with the changes you made on your test branch, you decide to merge `main` onto it.
+
+First, you switch to `main`:
+
+![](img/18.png)
+
+Then you do the fast-forward merge from `main` onto `test` (so `main` catches up to `test`):
+
+![](img/19.png)
+
+Then, usually, you delete the branch `test` as it has served its purpose (with `git branch -d test`). Alternatively, you can switch back to it and do the next bit of experimental work in it.
+This allows to keep `main` free of possible mishaps and bad developments (if you aren't happy with the work you did on your test branch, you can simply delete it and Git will clean the commits that are on it but not on `main` during the next garbage collection.
+
+![](img/20.png)
+
+:::
+
+If both branches have diverged (you created commits from both `main` and `newbranch`), the merge would require the creation of an additional commit called a "merge commit".
+
+:::{.info}
+
+**Here is a classic situation of merge with a commit.**
+
+![](img/21.png)
+
+You create a test branch and switch to it:
+
+![](img/22.png)
+
+![](img/23.png)
+
+Then you create some commits:
+
+![](img/24.png)
+
+![](img/25.png)
+
+Now you switch back to `main`:
+
+![](img/26.png)
+
+And you create commits from `main` too:
+
+![](img/27.png)
+
+![](img/28.png)
+
+To merge your main branch and your test branch, a new commit is now required (note that the command is the same as in the case of a fast-forward merge: `git merge`. Git will create the new commit automatically. As long as there is no conflict, it is just as easy as a fast-forward merge. We will talk later about resolving conflicts).
+
+![](img/29.png)
+
+After which, you can delete the (now useless) test branch (with `git branch -d test2`):
+
+![](img/30.png)
+
+:::
+
+## Resolving conflicts
+
+Git works line by line. As long as you aren't working on the same line(s) of the same file(s) on different branches, there will not be any merging difficulty. If however you modified one or more of the same line(s) of the same file(s) on different branches, Git has no way to decide which version should be kept and will thus not be able to complete the merge. It will then ask you to resolve the conflict(s). Conveniently, it will list the file(s) containing the conflict(s).
+
+There are fancy tools to resolve conflicts, but you can do it in any text editor: simply open the file(s) listed by Git as having conflicts and look for the following markers:
+
+````
+<<<<<<< HEAD
+This is your version.
+=======
+This is the alternative version of the same section of the file.
+>>>>>>> alternative version
+````
+
+These markers are added by Git to signal the areas of conflict. It is up to you to choose between the two versions (or create a third one) and remove the conflict markers. After that, you can stage the file(s) which contained the conflicts to finish the merge (and then you can commit).
