@@ -15,6 +15,8 @@ A branch is a pointer to a commit (under the hood, it is a small file containing
 
 When you run `git status` and get "`On branch main`" in the output, or when you run `git log` and see "`(HEAD -> main)`" in the log, it means that the `HEAD` pointer (your position in the Git history) points to the branch `main` (which itself points to a commit).
 
+![](img/06.png){fig-alt="noshadow"}
+
 I know that is a lot of pointers ... but this is really what makes Git so nimble, powerful, and fantastic. Because these pointers are very cheap (tiny files) and so useful.
 
 ## Why use multiple branches?
@@ -38,11 +40,35 @@ You can create a new branch with:
 git branch <new-branch-name>
 ```
 
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+git branch test
+```
+
+![](img/13.png){fig-alt="noshadow"}
+
 and you can then switch to it with:
 
 ```{.bash}
 git switch <new-branch-name>
 ```
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+git switch test
+```
+
+![](img/14.png){fig-alt="noshadow"}
 
 Alternatively, you can do both at once with the convenient:
 
@@ -65,106 +91,101 @@ git branch
 ```
 
 ````
-* main
-  experimental
+  main
+* test
 ````
 
-The `*` shows the branch you are currently on (i.e. the branch to which `HEAD` points to). In the example above, your project has two branches and you are on the branch `main`.
+The `*` shows the branch you are currently on (i.e. the branch to which `HEAD` points to). In our example, the project has two branches and we are on the branch `test`.
 
 ## Comparing branches
 
 You can use `git diff` to compare branches:
 
 ```{.bash}
-git diff experimental main
+git diff main test
 ```
 
 This shows all the lines that have been modified (added or deleted) between the commits both branches point to.
 
 ## Merging branches
 
-If you want to merge branches, first switch to the branch you want to merge into the other one, then run `git merge`.
+When you are happy with the changes you made on your test branch, you can merge it into `main`.
 
-For instance, if you want to merge `experimental` onto `main` (what you would do once you are satisfied with your changes on `experimental`), you would first switch to `experimental`:
+### Fast-forward merge
 
-```{.bash}
-git switch experimental
-```
+If you have only created new commits on the branch `test`, the merge is called a "fast-forward merge" because `main` and `test` have not diverged: it is simply a question of having `main` catch up to `test`.
 
-then:
-
-```{.bash}
-git merge main
-```
-
-If you have only created new commits on `experimental`, the merge is called a "fast-forward merge" because `main` and `experimental` have not diverged. It is simply a question of having `experimental` catch up to `main`.
-
-:::{.info}
-
-**Here is a classic situation of fast-forward merge.**
-
-Instead of working on your branch `main`, you create a test branch called `test` and work on it (so `HEAD` is on the branch `test` and both move along as you create commits):
-
-![](img/17.png)
-
-When you are happy with the changes you made on your test branch, you decide to merge `main` onto it.
+![](img/16.png){fig-alt="noshadow"}
 
 First, you switch to `main`:
 
-![](img/18.png)
+```{.bash}
+git switch main
+```
 
-Then you do the fast-forward merge from `main` onto `test` (so `main` catches up to `test`):
+![](img/17.png){fig-alt="noshadow"}
 
-![](img/19.png)
+Then you do the fast-forward merge:
 
-Then, usually, you delete the branch `test` as it has served its purpose (with `git branch -d test`). Alternatively, you can switch back to it and do the next bit of experimental work on it.
-This allows to keep `main` free of possible mishaps and bad developments (if you aren't happy with the work you did on your test branch, you can simply delete it and Git will clean the commits that are on it but not on `main` during the next garbage collection).
+```{.bash}
+git merge test
+```
 
-![](img/20.png)
+![](img/18.png){fig-alt="noshadow"}
 
-:::
+Then, usually, you delete the branch `test` as it has served its purpose:
 
-If both branches have diverged (you created commits from both `main` and `experimental`), the merge would require the creation of an additional commit called a "merge commit".
+```{.bash}
+git branch -d test
+```
 
-:::{.info}
+![](img/19.png){fig-alt="noshadow"}
 
-**Here is a classic situation of merge with a commit.**
+Alternatively, you can switch back to `test` and do the next bit of experimental work on it. This allows to keep `main` free of mishaps and bad developments.
 
-![](img/21.png)
+### Three-way merge
 
-You create a test branch called `test2`:
+If the branches have diverged (you created commits on both branches), the merge requires the creation of an additional commit called a "merge commit".
 
-![](img/22.png)
+Let's go back to our situation before we created the branch `test`:
+
+![](img/06.png){fig-alt="noshadow"}
+
+This time, you create a branch called `test2`:
+
+![](img/20.png){fig-alt="noshadow"}
 
 and you switch to it:
 
-![](img/23.png)
+![](img/21.png){fig-alt="noshadow"}
 
 Then you create some commits:
 
-![](img/24.png)
+![](img/22.png){fig-alt="noshadow"}
 
-![](img/25.png)
+![](img/23.png){fig-alt="noshadow"}
 
 Now you switch back to `main`:
 
-![](img/26.png)
+![](img/24.png){fig-alt="noshadow"}
 
 And you create commits from `main` too:
 
-![](img/27.png)
+![](img/25.png){fig-alt="noshadow"}
 
-![](img/28.png)
+![](img/26.png){fig-alt="noshadow"}
 
-To merge your main branch and your test branch, a new commit is now required (note that the command is the same as in the case of a fast-forward merge: `git merge`. Git will create the new commit automatically. As long as there is no conflict, it is just as easy as a fast-forward merge. We will talk later about resolving conflicts).
+To merge your branch `test2` into `main`, a new commit is now required. Git will create this new commit automatically. As long as there is no conflict, it is just as easy as a fast-forward merge:
 
-![](img/29.png)
+```{.bash}
+git merge test2
+```
+
+![](img/27.png){fig-alt="noshadow"}
 
 After which, you can delete the (now useless) test branch (with `git branch -d test2`):
 
-![](img/30.png)
-
-:::
+![](img/28.png){fig-alt="noshadow"}
 
 ## Resolving conflicts
 
@@ -178,6 +199,16 @@ This is your version.
 =======
 This is the alternative version of the same section of the file.
 >>>>>>> alternative version
+````
+
+In our case, it could look something like:
+
+````
+<<<<<<< HEAD
+Great sentence.
+=======
+Great sentence with some variations.
+>>>>>>> test2
 ````
 
 These markers are added by Git to signal the areas of conflict. It is up to you to choose between the two versions (or create a third one) and remove the conflict markers. After that, you can stage the file(s) which contained the conflicts to finish the merge (and then you can commit).
