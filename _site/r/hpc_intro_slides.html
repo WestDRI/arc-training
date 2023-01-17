@@ -394,89 +394,164 @@
   <h1 class="title">Introduction to high-performance research computing in R</h1>
   <p class="author">Marie-Hélène Burle</p>
   <p class="date">January 31, 2023</p>
+  <img src="../img/sfudrac.png" alt="frontlogo">
 </section>
 <section>
-<section id="running-r-on-the-alliance-clusters" class="title-slide slide level1 center">
-<h1>Running R on the Alliance clusters</h1>
+<section id="running-r-on-alliance-clusters" class="title-slide slide level1 center">
+<h1>Running R on Alliance clusters</h1>
 
 </section>
-<section id="loading-the-r-module" class="slide level2">
-<h2>Loading the R module</h2>
-<p><em>In this webinar, I am using a virtual training cluster mimicking the Alliance clusters. The only differences reside in the loading of modules and I will make clear what they are.</em></p>
+<section id="loading-modules-intel-vs-gcc-compilers" class="slide level2">
+<h2>Loading modules: Intel vs GCC compilers</h2>
+<p>To compile R packages, you need a C compiler.</p>
+<p>In theory, you could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can even be compiled with Clang and LLVM, but the default GCC compiler is the best way to avoid headaches).</p>
+<p>It is thus much simpler to always load a <code>gcc</code> module before loading an <code>r</code> module.</p>
+</section>
+<section id="loading-modules-r-module" class="slide level2">
+<h2>Loading modules: R module</h2>
 <p>To see what versions of R are available on a cluster, run:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> module spider r</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>For this webinar, I will load version <code>4.2.1</code>.</p>
-<p>On the Alliance clusters, <code>StdEnv/2020</code> is automatically loaded, so you don’t have to include it in the line below (although it doesn’t hurt to have it). On our training cluster, this is the first module I need to run.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> module load StdEnv/2020 gcc/11.3.0 r/4.2.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>To see the dependencies of a particular version (e.g.&nbsp;<code>r/4.2.1</code>), run:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> module spider r/4.2.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="note">
-<p>Note that, in theory, you could run R using the proprietary Intel module which is loaded by default on the Alliance clusters, but it is recommended to replace it by the <code>gcc</code> module to compile R packages as some packages will need tweaking before they can be compiled by the Intel compiler (R packages can even be compiled with clang and LLVM, but the default GCC compiler is the best way to avoid headaches).</p>
-<p>It is thus much simpler to always load the <code>gcc</code> module before loading the R module.</p>
+<p><code>StdEnv/2020</code> is a required module.</p>
+<p>On most Alliance clusters, it is automatically loaded, so you don’t need to include it. You can double-check with <code>module list</code> or you can include it just to be sure.</p>
 </div>
+<p>Finally, load your modules:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> module load StdEnv/2020 gcc/11.3.0 r/4.2.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="installing-r-packages" class="slide level2">
 <h2>Installing R packages</h2>
 <p>To install a package, launch the interactive R console with:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Then, in the R console, run:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">'&lt;package_name&gt;'</span>, <span class="at">repos=</span><span class="st">'https://mirror.rcg.sfu.ca/mirror/CRAN/'</span>)  <span class="co"># Best CRAN mirror for Cedar</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>{{<notes>}} You have to select a CRAN mirror from <a href="https://cran.r-project.org/mirrors.html" target="_blank">this list</a>. Ideally, use a mirror close to the location of the cluster you are using or use <a href="https://cloud.r-project.org/" class="uri">https://cloud.r-project.org/</a>. {{</notes>}}</p>
-<p>{{<notes>}} The first time you install a package, R will ask you whether you want to create a personal library in your home directory. Answer <code>yes</code> to both questions. All your packages will now install under <code>~/</code>. {{</notes>}}</p>
-<p>{{<notes>}} A handful of packages require additional modules to be loaded before they can be installed. This will be indicated in the error messages you will get when you try to install them. {{</notes>}}</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In the R console, run:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">'&lt;package_name&gt;'</span>, <span class="at">repos=</span><span class="st">'&lt;url-cran-mirror&gt;'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="note">
+<p>You have to select a CRAN mirror from <a href="https://cran.r-project.org/mirrors.html" target="_blank">this list</a>. Ideally, use a mirror close to the location of the cluster you are using or use <a href="https://cloud.r-project.org/" class="uri">https://cloud.r-project.org/</a>.<br>
+<a href="https://mirror.rcg.sfu.ca/mirror/CRAN/" class="uri">https://mirror.rcg.sfu.ca/mirror/CRAN/</a> is the closest mirror for Cedar.</p>
+</div>
+<div class="note">
+<p>The first time you install a package, R will ask you whether you want to create a personal library in your home directory. Answer <code>yes</code> to both questions. Your packages will now install under <code>~/</code>.</p>
+</div>
+<div class="note">
+<p>A handful of packages require additional modules to be loaded before they can be installed. This will be indicated in the error messages you will get when you try to install them.</p>
+</div>
 </section>
 <section id="running-r-jobs" class="slide level2">
 <h2>Running R jobs</h2>
+<div class="note">
 <p>While it is totally fine to run R on the login node when you install packages, you <strong>must start a SLURM job before any heavy computation</strong>.</p>
+</div>
 <h3 id="interactive-jobs">Interactive jobs</h3>
 <p>To run R interactively, you should launch an <code>salloc</code> session before launching R:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> salloc <span class="at">--time</span><span class="op">=</span>1:00:00 <span class="at">--mem-per-cpu</span><span class="op">=</span>3000M <span class="at">--cpus-per-task</span><span class="op">=</span>4</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> salloc <span class="at">--time</span><span class="op">=</span>1:00:00 <span class="at">--mem-per-cpu</span><span class="op">=</span>3000M <span class="at">--cpus-per-task</span><span class="op">=</span>4</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section class="slide level2">
+
 <h3 id="scripts">Scripts</h3>
-<p>To run an R script called <code>&lt;your_script&gt;.R</code>, first, you need to write a job file.</p>
-<p>{{<ex>}} Example of sbatch job file called <code>&lt;your_job&gt;.sh</code> (note that R scripts are run with the command <code>Rscript</code>): {{</ex>}}</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --account=def-&lt;your_account&gt;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --time=15</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --mem-per-cpu=3000M</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --cpus-per-task=4</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --job-name="&lt;your_job&gt;"</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load StdEnv/2020 gcc/11.3.0 r/4.2.1</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>your_script<span class="op">&gt;</span>.R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>To run an R script called <code>&lt;your_script&gt;.R</code>, you first need to write a job script.</p>
+<div class="example">
+<p>Example:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>&lt;your_job&gt;.sh</strong></pre>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --account=def-&lt;your_account&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --time=15</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --mem-per-cpu=3000M</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --cpus-per-task=4</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --job-name="&lt;your_job&gt;"</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load StdEnv/2020 gcc/11.3.0 r/4.2.1</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> <span class="op">&lt;</span>your_script<span class="op">&gt;</span>.R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="note">
+<p>Note that R scripts are run with the command <code>Rscript</code>.</p>
+</div>
+</div>
 <p>Then launch your job with:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> sbatch <span class="op">&lt;</span>your_job<span class="op">&gt;</span>.sh</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can monitor your job with <code>sq</code>.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> sbatch <span class="op">&lt;</span>your_job<span class="op">&gt;</span>.sh</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can monitor your job with <code>sq</code> (an alias for <code>squeue -u $USER $@</code>).</p>
 </section></section>
 <section>
-<section id="high-performance-r" class="title-slide slide level1 center">
-<h1>High-performance R</h1>
+<section id="performance" class="title-slide slide level1 center">
+<h1>Performance</h1>
 
-</section>
-<section id="benchmarking" class="slide level2">
-<h2>Benchmarking</h2>
 </section>
 <section id="profiling" class="slide level2">
 <h2>Profiling</h2>
+<p>The first thing to do if you want to improve your code efficiency is to identify bottlenecks.</p>
+<p>We will use the package <a href="https://cran.r-project.org/web/packages/profvis/index.html">profvis</a>:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(profvis)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="parallel-r" class="slide level2">
-<h2>Parallel R</h2>
-<p>https://towardsdatascience.com/getting-started-with-parallel-programming-in-r-d5f801d43745 https://nceas.github.io/oss-lessons/parallel-computing-in-r/parallel-computing-in-r.html https://yxue-me.com/post/2019-05-12-a-glossary-of-parallel-computing-packages-in-r-2019/ https://subscription.packtpub.com/book/big-data-and-business-intelligence/9781784394004/1/ch01lvl1sec09/the-r-parallel-package https://www.r-bloggers.com/2017/08/implementing-parallel-processing-in-r/ https://www.stat.umn.edu/geyer/3701/notes/parallel.html https://www.stat.umn.edu/geyer/8054/notes/parallel.html https://blog.esciencecenter.nl/parallel-r-in-a-nutshell-4391d45b5461 https://dept.stat.lsa.umich.edu/~jerrick/courses/stat701/notes/parallel.html https://bookdown.org/rdpeng/rprogdatascience/parallel-computation.html https://docs.alliancecan.ca/wiki/R#doParallel_and_foreach https://www.r-bloggers.com/2016/01/strategies-to-speedup-r-code/ https://www.datacamp.com/tutorial/r-tutorial-apply-family https://bookdown.org/rdpeng/rprogdatascience/profiling-r-code.html</p>
-<p>Start large (4GB) on a test script. Then: While the script is running, check how much memory is used in real time by typing: sstat yourjobID.batch –format=“JobID,MaxRSS” Or When the script is done running, check how much was used by typing: sacct -o MaxRSS -j yourjobID If you check the slurm.out file and you’re getting “oom-kill” errors, you need to request more memory If you’re using less than you asked for, it’s beneficial to reduce the memory in –mem or –mem-per-cpu (this way your job will get scheduled sooner) Resubmit your job with your new estimate.</p>
-<h3 id="independent-repeats-of-computations-e.g.-bootstrapping">Independent repeats of computations (e.g.&nbsp;bootstrapping)</h3>
-<p>No communication needed between computations.</p>
-<h3 id="parallel-package">Parallel package</h3>
-<ol type="a">
-<li>Start up M ‘worker’ processes, and do any initialization needed on the workers.</li>
-<li>Send any data required for each task to the workers.</li>
-<li>Split the task into M roughly equally-sized chunks, and send the chunks (including the R code needed) to the workers.</li>
-<li>Wait for all the workers to complete their tasks, and ask them for their results.</li>
-<li>Repeat steps (b–d) for any further tasks.</li>
-<li>Shut down the worker processes.</li>
-</ol>
+<section id="benchmarking" class="slide level2">
+<h2>Benchmarking</h2>
+<p>We will use the <a href="https://cran.r-project.org/web/packages/bench/index.html">bench</a> package described by Jim Hester in a <a href="https://www.tidyverse.org/blog/2018/06/bench-1.0.1/">Tidyverse blog</a>:</p>
+<div class="cell" data-hash="hpc_intro_slides_cache/revealjs/unnamed-chunk-1_b7e689ba69d4399037ce0dd2ca91352b">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bench)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section></section>
+<section>
+<section id="parallel-r" class="title-slide slide level1 center">
+<h1>Parallel R</h1>
+<!-- https://towardsdatascience.com/getting-started-with-parallel-programming-in-r-d5f801d43745 -->
+<!-- https://nceas.github.io/oss-lessons/parallel-computing-in-r/parallel-computing-in-r.html -->
+<!-- https://yxue-me.com/post/2019-05-12-a-glossary-of-parallel-computing-packages-in-r-2019/ -->
+<!-- https://subscription.packtpub.com/book/big-data-and-business-intelligence/9781784394004/1/ch01lvl1sec09/the-r-parallel-package -->
+<!-- https://www.r-bloggers.com/2017/08/implementing-parallel-processing-in-r/ -->
+<!-- https://www.stat.umn.edu/geyer/3701/notes/parallel.html -->
+<!-- https://www.stat.umn.edu/geyer/8054/notes/parallel.html -->
+<!-- https://blog.esciencecenter.nl/parallel-r-in-a-nutshell-4391d45b5461 -->
+<!-- https://dept.stat.lsa.umich.edu/~jerrick/courses/stat701/notes/parallel.html -->
+<!-- https://bookdown.org/rdpeng/rprogdatascience/parallel-computation.html -->
+<!-- https://docs.alliancecan.ca/wiki/R#doParallel_and_foreach -->
+<!-- https://www.r-bloggers.com/2016/01/strategies-to-speedup-r-code/ -->
+<!-- https://www.datacamp.com/tutorial/r-tutorial-apply-family -->
+<!-- https://bookdown.org/rdpeng/rprogdatascience/profiling-r-code.html -->
+<!-- Start large (4GB) on a test script. Then: -->
+<!-- While the script is running, check how much memory is used in real time by typing: sstat yourjobID.batch --format="JobID,MaxRSS" -->
+<!-- Or -->
+<!-- When the script is done running, check how much was used by typing: sacct -o MaxRSS -j yourjobID -->
+<!-- If you check the slurm.out file and you’re getting “oom-kill” errors, you need to request more memory -->
+<!-- If you’re using less than you asked for, it’s beneficial to reduce the memory in --mem or --mem-per-cpu (this way your job will get scheduled sooner) -->
+<!-- Resubmit your job with your new estimate. -->
+<!-- Independent repeats of computations (e.g. bootstrapping) -->
+<!-- No communication needed between computations. -->
+</section>
+<section id="built-in-parallel-package" class="slide level2">
+<h2>Built-in parallel package</h2>
+<!-- (a) Start up M ‘worker’ processes, and do any initialization needed on the workers. -->
+<!-- (b) Send any data required for each task to the workers. -->
+<!-- (c) Split the task into M roughly equally-sized chunks, and send the chunks (including the R -->
+<!-- code needed) to the workers. -->
+<!-- (d) Wait for all the workers to complete their tasks, and ask them for their results. -->
+<!-- (e) Repeat steps (b–d) for any further tasks. -->
+<!-- (f) Shut down the worker processes. -->
+</section>
+<section id="furrr-package" class="slide level2">
+<h2>furrr package</h2>
+</section>
+<section id="doparallel-package" class="slide level2">
+<h2>doParallel package</h2>
+<p>and foreach package</p>
+</section>
+<section id="boot-package" class="slide level2">
+<h2>boot package</h2>
+</section></section>
+<section id="using-c" class="title-slide slide level1 center">
+<h1>Using C++</h1>
+
+</section>
+
+<section id="questions" class="title-slide slide level1 center">
+<h1>Questions?</h1>
 
 
 <img src="../img/sfudrac_logo.png" class="slide-logo r-stretch"><div class="footer footer-default">
 <p><a href="hpc_intro.html"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="rgb(153, 153, 153)" class="bi bi-arrow-90deg-up" viewbox="0 0 16 16"><path fill-rule="evenodd" d="M4.854 1.146a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L4 2.707V12.5A2.5 2.5 0 0 0 6.5 15h8a.5.5 0 0 0 0-1h-8A1.5 1.5 0 0 1 5 12.5V2.707l3.146 3.147a.5.5 0 1 0 .708-.708l-4-4z"></path></svg>&nbsp;Back to workshop page</a></p>
 </div>
-</section></section>
+</section>
     </div>
   </div>
 
@@ -690,6 +765,44 @@
         ]
       });
     </script>
+    
+    <script>
+      // htmlwidgets need to know to resize themselves when slides are shown/hidden.
+      // Fire the "slideenter" event (handled by htmlwidgets.js) when the current
+      // slide changes (different for each slide format).
+      (function () {
+        // dispatch for htmlwidgets
+        function fireSlideEnter() {
+          const event = window.document.createEvent("Event");
+          event.initEvent("slideenter", true, true);
+          window.document.dispatchEvent(event);
+        }
+
+        function fireSlideChanged(previousSlide, currentSlide) {
+          fireSlideEnter();
+
+          // dispatch for shiny
+          if (window.jQuery) {
+            if (previousSlide) {
+              window.jQuery(previousSlide).trigger("hidden");
+            }
+            if (currentSlide) {
+              window.jQuery(currentSlide).trigger("shown");
+            }
+          }
+        }
+
+        // hookup for slidy
+        if (window.w3c_slidy) {
+          window.w3c_slidy.add_observer(function (slide_num) {
+            // slide_num starts at position 1
+            fireSlideChanged(null, w3c_slidy.slides[slide_num - 1]);
+          });
+        }
+
+      })();
+    </script>
+
     <script id="quarto-html-after-body" type="application/javascript">
     window.document.addEventListener("DOMContentLoaded", function (event) {
       const toggleBodyColorMode = (bsSheetEl) => {
