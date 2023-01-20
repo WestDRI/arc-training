@@ -10,7 +10,7 @@ What is the point of creating all these commits if you are unable to make use of
 In this workshop, we will learn how to search:
 
 - your files (at any of their versions) and
-- your commits logs.
+- your commit logs.
 
 By the end of the workshop, you should be able to retrieve anything you need from your versioned project.
 
@@ -78,19 +78,13 @@ git clone https://github.com/prosoitos/practice_repo.git
 cd practice_repo
 ```
 
-### Get info about the repo
-
-```{bash}
-git status
-```
-
 ## Searching files
 
-The first situation is that you are looking for some pattern somewhere in your files.
+The first thing that can happen is that you are looking for a certain pattern somewhere in your project (for instance a certain function or a certain word).
 
 ### git grep
 
-The main command to look through files is `git grep`.
+The main command to look through versioned files is `git grep`.
 
 You might be familiar with the command-line utility [grep](https://en.wikipedia.org/wiki/Grep) which allows to search for lines matching a certain pattern in files. `git grep` does a similar job with these differences:
 
@@ -98,23 +92,17 @@ You might be familiar with the command-line utility [grep](https://en.wikipedia.
 - you can easily search any commit without having to check it out,
 - it has features lacking in `grep` such as, for instance, [pattern arithmetic or tree search using globs](https://stackoverflow.com/a/17558295/9210961).
 
-:::{.example}
-
-For instance, if you want to search for a certain pattern in all your files at a certain commit, you don't have to checkout that commit and then run the traditional `grep`. You can search that commit directly thanks to `git grep`.
-
-:::
-
 ### Let's try it
 
-By default, `git grep` searches recursively through the tracked files in the working directory, that is, the current version of the tracked files.
+By default, `git grep` searches recursively through the tracked files in the working directory (that is, the current version of the tracked files).
 
-First, let's look for the word `test` in the current version of the tracked files:
+First, let's look for the word `test` in the current version of the tracked files in the test repo:
 
 ```{bash}
 git grep test
 ```
 
-This is not very easy to read. Let's add blank lines between the results of each file:
+Let's add blank lines between the results of each file for better readability:
 
 ```{bash}
 git grep --break test
@@ -126,13 +114,13 @@ Let's also put the file names on separate lines:
 git grep --break --heading test
 ```
 
-We can display the line numbers for the results:
+We can display the line numbers for the results with the `-n` flag:
 
 ```{bash}
 git grep --break --heading -n test
 ```
 
-Notice how the results for the file `test_manuel.py` involve functions. It would be very convenient to have the names of the functions in which `test` appears.
+Notice how the results for the file `src/test_manuel.py` involve functions. It would be very convenient to have the names of the functions in which `test` appears.
 
 We can do this with the `-p` flag:
 
@@ -156,7 +144,7 @@ git grep -c test
 
 ### More complex patterns
 
-`git grep` in fact searches regular expressions. `test` is a regular expression matching `test`, but we can look for much more complex patterns.
+`git grep` in fact searches for regular expressions. `test` is a regular expression matching `test`, but we can look for more complex patterns.
 
 Let's look for `image`:
 
@@ -202,11 +190,31 @@ Let's print the first 3 results per file:
 git grep -m 3 ".*_.*"
 ```
 
+As you can see, our results also include `__init__` which is not what we were looking for. So let's exclude `__`:
+
+```{bash}
+git grep -m 3 -e ".*_.*" --and --not -e "__"
+```
+
 :::{.note}
 
-For extended regular expressions, use the flag `-E`.
+For simple searches, you don't have to use the `-e` flag before the pattern you are searching for. Here however, our command has gotten complex enough that we have to use it before each pattern.
 
 :::
+
+Let's make sure this worked as expected:
+
+```{bash}
+git grep -c ".*_.*"
+echo "---"
+git grep -c "__"
+echo "---"
+git grep -ce ".*_.*" --and --not -e "__"
+```
+
+There were 2 lines matching `__` in `src/test_manuel.py` and we have indeed excluded them from our search.
+
+Extended regular expressions are also covered with the flag `-E`.
 
 ### Searching other trees
 
@@ -258,9 +266,9 @@ Let's see what the `.gitignore` file contains:
 cat .gitignore
 ```
 
-The directory `data` is in `.gitignore`, but it actually doesn't exist in our repo. Let's create it:
+The directory `data` is in `.gitignore`. This means that it is not under version control and it thus doesn't exist in our repo (since we cloned our repo, we only have the version-controlled files). Let's create it:
 
-```{bash}
+```{.bash}
 mkdir data
 ```
 
@@ -298,7 +306,7 @@ We saw that `git grep <pattern> <commit>` can search a pattern in any commit. No
 
 For this, we pass the expression `$(git rev-list --all)` in lieu of `<commit>`.
 
-`git rev-list --all` creates a list of all the commits in a way that can be used as an argument to other functions. The `$()` allows to run the expression inside it and pass the result as the argument to another function.
+`git rev-list --all` creates a list of all the commits in a way that can be used as an argument to other functions. The `$()` allows to run the expression inside it and pass the result as and argument.
 
 To search for `test` in all the commits, we thus run:
 
@@ -314,9 +322,9 @@ git grep "test" $(git rev-list --all -2)
 
 :::{.info}
 
-In combination with the fuzzy finder tool [fzf](https://github.com/junegunn/fzf), this can be extremely powerful to find a particular commit.
+In combination with the fuzzy finder tool [fzf](https://github.com/junegunn/fzf), this can make finding a particular commit extremely easy.
 
-For instance, the code below allows you to dynamically search in the long result through incremental completion:
+For instance, the code below allows you to dynamically search in the result through incremental completion:
 
 ```{.bash}
 git grep "test" $(git rev-list --all) | fzf --cycle -i -e
@@ -388,13 +396,13 @@ grep_all_commits_preview () {
 
 This last function allows you to search through all the results in an incremental fashion while displaying a preview of the selected diff (the changes made at that particular commit). If you want to see more of the diff than the preview displays, press `<enter>` (then `q` to quit the pager), if you want to copy the hash of a commit, press `C-c` (Control + c).
 
-With this function, you can now instantly get a preview of the changes made to any line containing an expression for any file, at any commit and copy the hash of the commit you have identified as relevant so that you can make use of the information. This is actually really powerful.
+With this function, you can now instantly get a preview of the changes made to any line containing an expression for any file, at any commit, and copy the hash of the selected commit. This is really powerful.
 
 :::
 
 ## Searching logs
 
-The second situation is that you are looking for some pattern somewhere in your version control logs.
+The second thing that can happen is that you are looking for some pattern in your version control logs.
 
 ### git log
 
@@ -402,45 +410,67 @@ The second situation is that you are looking for some pattern somewhere in your 
 
 By default, it outputs all the commits of the current branch.
 
-Let's show the logs for the last 3 commits:
+Let's show the logs of the last 3 commits:
 
 ```{bash}
 git log -3
 ```
 
-The logs of our commits can be customized thanks to a plethora of options.
+The output can be customized thanks to a plethora of options.
 
-Logs of the last 15 commits for all branches, in a graph, with one line per commit:
+For instance, here are the logs of the last 15 commits, in a graph, with one line per commit:
 
 ```{bash}
-git log --all --graph --oneline -n 15
+git log --graph --oneline -n 15
 ```
 
-But `git log` also has flags that allow to search commit logs to find a particular commit.
+But `git log` has also flags that allow to search for patterns.
 
 ### Searching commit messages
 
-One of the reasons it is so important to write informative commit messages is that they are key to finding commits.
+One of the reasons it is so important to write informative commit messages is that they are key to finding commits later on.
 
 To look for a pattern in all your commit messages, use `git log --grep=<pattern>`.
 
-Let's look for `test` in the commit messages and limit the output to 5 commits:
+Let's look for `test` in the commit messages and limit the output to 3 commits:
 
 ```{bash}
-git log --grep=test -5
+git log --grep=test -3
 ```
 
 For a more compact output:
 
 ```{bash}
-git log --grep="test" -5 --oneline
+git log --grep="test" -3 --oneline
 ```
+
+:::{.info}
+
+Here too you can use this in combination to [fzf](https://github.com/junegunn/fzf) with for instance:
+
+```{.bash}
+git log --grep="test" | fzf --cycle -i -e
+```
+
+Or:
+
+```{.bash}
+git log --grep="test" --oneline |
+	fzf --cycle -i -e --no-multi \
+        --ansi --preview="$_viewGitLogLine" \
+        --header "enter: view, C-c: copy hash" \
+        --bind "enter:execute:$_viewGitLogLine | less -R" \
+		--bind "ctrl-c:execute:$_gitLogLineToHash |
+        xclip -r -selection clipboard"
+```
+
+:::
 
 ### Changes made to a pattern
 
 Remember that `test` was present in the file `src/test_manuel.py`. If we want to see when the pattern was first created and then each time it was modified, we use the `-L` flag in this fashion:
 
-```
+```{.bash}
 git log -L :<pattern>:file
 ```
 
@@ -459,6 +489,8 @@ Now, if we want to list all commits that created a change in the number of occur
 ```{bash}
 git log -S test --oneline
 ```
+
+This can be useful to identify the commit you need.
 
 ## TLDL
 
@@ -488,3 +520,4 @@ git grep <pattern> $(git rev-list --all)
 git log --grep=<pattern>
 ```
 
+Now you should be able to find pretty much anything in your project and its history.
