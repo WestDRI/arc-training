@@ -312,6 +312,86 @@ I am not running this command has it has a huge output. Instead, I will limit th
 git grep "test" $(git rev-list --all -2)
 ```
 
+:::{.info}
+
+In combination with the fuzzy finder tool [fzf](https://github.com/junegunn/fzf), this can be extremely powerful to find a particular commit.
+
+For instance, the code below allows you to dynamically search in the long result through incremental completion:
+
+```{.bash}
+git grep "test" $(git rev-list --all) | fzf --cycle -i -e
+```
+
+Or even better, you can automatically copy the short form of the hash of the selected commit to clipboard so that you can use it with `git show`, `git checkout`, etc.:
+
+```{.bash}
+git grep "test" $(git rev-list --all) |
+	fzf --cycle -i -e |
+	cut -c 1-7 |
+	xclip -r -selection clipboard
+```
+
+:::{.note}
+
+Here, I am using [xclip](https://github.com/astrand/xclip) to copy to the clipboard as I am on Linux. Depending on your OS you might need to use a different tool.
+
+:::
+
+Of course, you can create a function in your `.bashrc` file with such code so that you wouldn't have to type it each time:
+
+```{.bash}
+grep_all_commits () {
+	git grep "$1" $(git rev-list --all) |
+		fzf --cycle -i -e |
+		cut -c 1-7 |
+		xclip -r -selection clipboard
+}
+```
+
+Alternatively, you can pass the result directly into whatever git command you want to use that commit for.
+
+Here is an example with `git show`:
+
+```{.bash}
+git grep "test" $(git rev-list --all) |
+	fzf --cycle -i -e |
+	cut -c 1-7 |
+	git show
+```
+
+And if you wanted to get really fancy, you could go with:
+
+```{.bash}
+git grep "test" $(git rev-list --all) |
+	fzf --cycle -i -e --no-multi \
+		--ansi --preview="$_viewGitLogLine" \
+		--header "enter: view, C-c: copy hash" \
+		--bind "enter:execute:$_viewGitLogLine | less -R" \
+		--bind "ctrl-c:execute:$_gitLogLineToHash |
+		xclip -r -selection clipboard"
+```
+
+Wrapped in a function:
+
+```{.bash}
+grep_all_commits_preview () {
+	git grep "$1" $(git rev-list --all) |
+		fzf --cycle -i -e --no-multi \
+			--ansi --preview="$_viewGitLogLine" \
+			--header "enter: view, C-c: copy hash" \
+			--bind "enter:execute:$_viewGitLogLine |
+              less -R" \
+			--bind "ctrl-c:execute:$_gitLogLineToHash |
+		xclip -r -selection clipboard"
+}
+```
+
+This last function allows you to search through all the results in an incremental fashion while displaying a preview of the selected diff (the changes made at that particular commit). If you want to see more of the diff than the preview displays, press `<enter>` (then `q` to quit the pager), if you want to copy the hash of a commit, press `C-c` (Control + c).
+
+With this function, you can now instantly get a preview of the changes made to any line containing an expression for any file, at any commit and copy the hash of the commit you have identified as relevant so that you can make use of the information. This is actually really powerful.
+
+:::
+
 ## Searching logs
 
 The second situation is that you are looking for some pattern somewhere in your version control logs.
