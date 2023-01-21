@@ -1,0 +1,142 @@
+---
+title: Web scraping with Python
+author: Marie-Hélène Burle
+---
+
+<!-- Site to use as a better example: -->
+<!-- https://trace.tennessee.edu/utk_graddiss/index.html -->
+<!-- 1. Scrape all the links of that page into a list -->
+<!-- 2. Use each link to extract the information "Date of Award", "Degree Type", etc. through a big loop -->
+
+## Load packages
+
+```{python}
+import requests                 # To download the html data from a site
+from bs4 import BeautifulSoup   # To parse the html data
+import pandas as pd             # To store our data in a DataFrame
+```
+
+## Get the data
+
+```{python}
+url = "https://www.scrapethissite.com/pages/simple/"
+page = requests.get(url)
+```
+
+## Explore the raw data
+
+```{python}
+print(page.text[:70])
+```
+
+## Parse the data
+
+```{python}
+soup = BeautifulSoup(page.content, "html.parser")
+```
+
+## Extract the relevant section of the html
+
+```{python}
+test =  soup.find('div', attrs={'class' : 'col-md-4 country'})
+print(test.prettify())
+```
+
+## Extract information for one country
+
+```{python}
+test_name = test.find('h3', class_="country-name")
+test_cap = test.find('span', class_="country-capital")
+test_pop = test.find('span', class_="country-population")
+test_area = test.find('span', class_="country-area")
+```
+
+Let's look at our test data:
+
+```{python}
+print(test_name, test_cap, test_pop, test_area)
+```
+
+This is quite ugly ...
+
+Let's remove the html formatting by extract only the text:
+
+```{python}
+print(test_name.text, test_cap.text, test_pop.text, test_area.text)
+```
+
+This is better, but let's also remove all those spaces:
+
+```{python}
+print(test_name.text.strip(), test_cap.text.strip(), test_pop.text.strip(), test_area.text.strip())
+```
+
+This is much more readable.
+
+## Extract information for all countries
+
+Let's create a set with the information for all countries:
+
+```{python}
+data = soup.find_all('div', class_="col-md-4 country")
+```
+
+`data` is a ResultSet object created by Beautiful Soup. It is an [iterable](https://docs.python.org/3/glossary.html#term-iterable), meaning that it can be used in a loop.
+
+```{python}
+type(data)
+```
+
+For each element of `data` (so for each country), we can now get our information:
+
+```{python}
+for country in data[:5]:
+    name = country.find('h3', class_="country-name")
+    cap = country.find('span', class_="country-capital")
+    pop = country.find('span', class_="country-population")
+    area = country.find('span', class_="country-area")
+    print(name.text.strip(), cap.text.strip(), pop.text.strip(), area.text.strip())
+```
+
+## Store results in a DataFrame
+
+Fist, we store the results in a list:
+
+```{python}
+ls = []
+
+for country in data:
+    name = country.find('h3', class_="country-name")
+    cap = country.find('span', class_="country-capital")
+    pop = country.find('span', class_="country-population")
+    area = country.find('span', class_="country-area")
+    ls.append((name.text.strip(), cap.text.strip(), pop.text.strip(), area.text.strip()))
+```
+
+```{python}
+type(ls)
+```
+
+```{python}
+print(ls)
+```
+
+Then, we create a list with the column names for our DataFrame:
+
+```{python}
+cols = ["Name", "Capital", "Population", "Area"]
+```
+
+Finally, we can create our DataFrame:
+
+```{python}
+df = pd.DataFrame(ls, columns=cols)
+```
+
+```{python}
+type(df)
+```
+
+```{python}
+print(df)
+```
