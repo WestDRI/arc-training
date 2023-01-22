@@ -1,0 +1,154 @@
+---
+title: Introduction to Pandas
+author: Marie-Hélène Burle
+---
+
+[pandas](https://pandas.pydata.org/) is a Python library built to manipulate data frames and time series.
+
+For this section, we will use the Covid-19 data from the [Johns Hopkins University CSSE repository.](https://github.com/CSSEGISandData/COVID-19) I last accessed this database on Saturday, so the last day of data we will use is June 12, 2021.
+
+You can visualize this data in [a dashboard](https://www.arcgis.com/apps/dashboards/bda7594740fd40299423467b48e9ecf6) created by the Johns Hopkins University Center for Systems Science and Engineering.
+
+I already uploaded the two files we will use onto our JupyterHub. They are at: ~/project/def-sponsor00/dhsi/covid_confirmed.csv~ and ~/project/def-sponsor00/dhsi/covid_dead.csv~.
+
+For those who want to work on their own machine, those files are also in [our GoogleDrive](https://drive.google.com/drive/u/1/folders/1A-geyO7vQ6gND61zHBukTJeWMr9-pBMy). You can download them from there, but you will have to make sure to change the code to match the paths of the files on your machine when you read them into Python.
+
+For reference, [here](https://pandas.pydata.org/docs/user_guide/index.html) is a User Guide to pandas and [here](https://pandas.pydata.org/pandas-docs/stable/reference/index.html) is the full documentation.
+
+## Setup
+
+First, we need to load the pandas library and read in the data:
+
+```{python}
+# Load the pandas library and create a shorter name for it
+import pandas as pd
+
+# Read in data from a csv file
+cases = pd.read_csv('/project/def-sponsor00/dhsi/covid_confirmed.csv')
+```
+
+## First look at the data
+
+What does our data look like?
+
+```{python}
+# Print the data
+cases   # When not using Jupyter, you must use: print(cases)
+
+# Look at the first rows
+cases.head()
+cases.head(25)
+
+# And the last rows
+cases.tail()
+
+# Names of rows and columns
+cases.index
+cases.columns
+
+# Quick summary of the data
+cases.describe()
+
+# Data types of the various columns
+cases.dtypes
+```
+
+## Number of cases per country by decreasing order for any date
+
+Let's see what the numbers were for each country on June 12, 2021. To make it easier to read, let's also order those numbers by decreasing order:
+
+```{python}
+# Let's get rid of the latitude and longitude to simplify our data
+simple = cases.drop(columns=['Lat', 'Long'])
+simple
+
+# Some countries are split between several provinces or states (e.g. Australia)
+# Let's select only the data for Australia to show this
+# → We want all the rows for which the Country/Region column is equal to Australia
+
+# First, we want to select the Country/Region column
+# There are several ways to index in pandas. This is one option
+simple['Country/Region']
+
+# This is another way to index a column in pandas
+simple.loc[:, 'Country/Region']
+
+# Then we need a conditional (that variable is equal to Australia)
+simple.loc[:, 'Country/Region'] == 'Australia'
+
+# Finally, we index, out of our entire data frame,
+# the rows for which that condition returns true
+simple[simple.loc[:, 'Country/Region'] == 'Australia']
+
+# Let's make the sum per countries for all the dates
+# We need to group the rows by countries, then make the sum
+totals = simple.groupby('Country/Region').sum()
+totals
+
+# Now, we can look at the totals for any date
+totals['6/12/21']
+
+# And with an alternative indexing method
+totals.loc[:, '6/12/21']
+
+# And we can order them by decreasing values
+totals.loc[:, '6/12/21'].sort_values(ascending=False)
+```
+
+## Number of cases for one country at all the dates
+
+Now, let's focus on a single country and extract the time series of confirmed cases for that country.
+
+```{python}
+# Our variable totals can be used directly for this too
+# Here, we index a row instead of a column
+totals.loc['Albania']
+```
+
+## Global totals
+
+Now, what if we want to have the world totals for each day?
+
+```{python}
+# Calculate the columns totals
+totals.sum()
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Try to work together to answer the following question. \
+Help each other out and make it a team effort!</em>
+
+How many people had **died** from Covid-19 in Venezuela by March 10, 2021? \
+(according to the available data)
+
+:::
+
+Solution:
+
+```{python}
+# First, you need to load the proper data file
+dead = pd.read_csv('/project/def-sponsor00/dhsi/covid_dead.csv')
+dead
+
+# Then, you need to select the data for Venezuela
+# You can index in one of two methods
+venez = dead[dead['Country/Region'] == 'Venezuela']
+venez = dead[dead.loc[:, 'Country/Region'] == 'Venezuela']
+venez
+
+# If you knew the index for Venezuela,
+# you could also index this way
+dead.loc[270]
+
+# Finally, you need to select for the proper date
+answer = venez['3/10/21']
+answer = venez.loc[:, '3/10/21']
+answer
+```
