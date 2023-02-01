@@ -1,5 +1,7 @@
 ---
 title: Introduction to high-performance research computing in R
+aliases:
+  - hpc_intro_slides.html
 frontlogo: /img/sfudrac.png
 author: Marie-Hélène Burle
 date: 2023-01-31
@@ -9,7 +11,7 @@ execute:
   echo: true
 format:
   revealjs:
-    embed-resources: true
+    # embed-resources: true
     theme: [default, ../revealjs.scss]
     logo: /img/sfudrac_logo.png
     highlight-style: monokai
@@ -106,7 +108,7 @@ Let's install the packages needed for this webinar:
 
 ```{.r}
 install.packages(
-  c("tidyverse", "microbenchmark", "bench", "doFuture", "doRNG", "randomForest", "Rcpp"),
+  c("tidyverse", "bench", "doFuture", "doRNG", "randomForest", "Rcpp"),
   repos="https://mirror.rcg.sfu.ca/mirror/CRAN/"  # closest mirror from Cedar
 )
 ```
@@ -193,9 +195,7 @@ The [microbenchmark](https://cran.r-project.org/web/packages/microbenchmark/inde
 
 It gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.
 
-The newer [bench](https://cran.r-project.org/web/packages/bench/index.html) package has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections.
-
-I will demo both today.
+The newer [bench](https://cran.r-project.org/web/packages/bench/index.html) package has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections. This is the package I will use today.
 
 # Parallel programming
 
@@ -355,7 +355,6 @@ library(doFuture)
 library(doRNG)
 library(randomForest)
 library(bench)
-library(microbenchmark)
 ```
 
 ```
@@ -364,7 +363,9 @@ Loading required package: future
 Loading required package: rngtools
 ```
 
-## The code to parallelize <br><br>
+## The code to parallelize
+
+The goal is to create a classifier based on some data (here a matrix of random numbers for simplicity) and a response variable (as factor). This model could then be passed in the `predict()` function with novel data to generate predictions of classification. But here we are only interested in the creation of the model as this is the part that is computationally intensive. We aren't interested in actually using it.
 
 ```{.r}
 set.seed(11)
@@ -586,39 +587,34 @@ Yet another option to run distributed R code is to use the [sparklyr](https://cr
 
 The [boot](https://cran.r-project.org/web/packages/boot/index.html) package provides functions and datasets specifically for bootstrapping in parallel.
 
-## Non-parallelizable code
+# Write C++ with [Rcpp](https://cran.r-project.org/web/packages/Rcpp/index.html)
 
-Sometimes, code cannot be parallelized.
+---
 
-:::{.example}
+### When?
 
-An example would be a loop for which iterations aren't independent from each other:
+- Code that cannot easily be parallelized (e.g. multiple recursive function calls)
+- Large number of function calls
+- Need for data structures missing in R
+- Creation of efficient packages
+<br><br>
 
-:::
+### How?
 
-```{.r}
-n <- 1e8
-total <- 0
+Rcpp provides C++ classes with mappings to R's `.Call()`. C++ functions can be declared in source files or directly in R scripts.
 
-for(i in 1:n) {
-  total <- total + i
-}
-```
+<!-- ## Example -->
 
-The best solution in such cases is to re-write the slowest sections of your code in C++ with the [Rcpp](https://cran.r-project.org/web/packages/Rcpp/index.html) package.
+<!-- get the 3 next numbers from the [Fibonacci sequence](https://en.wikipedia.org/wiki/Fibonacci_number): -->
 
-## Rcpp
+<!-- ```{r} -->
+<!-- start <- n -->
+<!-- i <- 2 -->
+<!-- while (fib[i] < 10) { -->
+<!--   fib <- c(fib, fib[i-1] + fib[i]) -->
+<!--   i <- i + 1 -->
+<!-- } -->
+<!-- print(fib) -->
+<!-- ``` -->
 
-This is also a good approach when you:
-
-- have large number of function calls
-- need data structures missing in R
-- want to create efficient packages
-
-Rcpp creates mappings so that you can write C++ functions from within R and in a more R-like syntax. This is extremely useful if you aren't familiar with C or C++.
-
-# Upcoming online course
-
-For more on this topic, come to our online course on parallel R on **Thursdays March 9, 16, and 23**.
-
-Registration [here](https://docs.google.com/forms/d/e/1FAIpQLScak0rRbCelfFTF1NNrO55u0Mv_YDSlGhGGIWNSscnf6-xRMQ/viewform).
+<!-- ## Timing -->
