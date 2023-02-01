@@ -378,11 +378,11 @@
     "text": "Searching logs\nThe second thing that can happen is that you are looking for some pattern in your version control logs.\n\ngit log\ngit log allows to get information on commit logs.\nBy default, it outputs all the commits of the current branch.\nLet’s show the logs of the last 3 commits:\n\ngit log -3\n\ncommit e3cfb2ebbcb77e52851c32fbba1f6b8b0c788a29\nAuthor: Marie-Helene Burle <marie.burle@westdri.ca>\nDate:   Sat Jan 7 22:32:23 2023 -0800\n\n    Update gitignore with Quarto files\n\ncommit 15fdec6afb552e4ba2ec5f7a0b371543c9966c27\nAuthor: Marie-Helene Burle <marie.burle@westgrid.ca>\nDate:   Fri Jan 6 10:18:28 2023 -0800\n\n    Update README.org\n\ncommit 15d4ee937db18fb26f84d17ec4be3f0c81614a1c\nAuthor: Marie-Helene Burle <marie.burle@westgrid.ca>\nDate:   Wed Mar 16 10:55:28 2022 -0700\n\n    change values training\n\n\nThe output can be customized thanks to a plethora of options.\nFor instance, here are the logs of the last 15 commits, in a graph, with one line per commit:\n\ngit log --graph --oneline -n 15\n\n* e3cfb2e Update gitignore with Quarto files\n* 15fdec6 Update README.org\n* 15d4ee9 change values training\n* 06efa34 add lots of code\n* 1457143 remove stupid line\n* 711e1dc add real py content to test_manual.py\n* 90016aa adding new python file\n*   2c0f612 Merge branch 'main' of github.com:prosoitos/git_workshop_collab\n|\\  \n| *   6f7d03d Merge branch 'main' of https://github.com/prosoitos/git_workshop_collab into main\n| |\\  \n| * \\   3c53269 Merge branch 'main' of https://github.com/prosoitos/git_workshop_collab into main\n| |\\ \\  \n| * \\ \\   eef5b78 Merge branch 'main' of https://github.com/prosoitos/git_workshop_collab into main\n| |\\ \\ \\  \n| * | | | a55ca0d new comment add just as test\n* | | | |   dedc94f Merge branch 'main' of github.com:prosoitos/git_workshop_collab\n|\\ \\ \\ \\ \\  \n| | |_|_|/  \n| |/| | |   \n| * | | |   b861a65 Merge branch 'main' of https://github.com/prosoitos/git_workshop_collab\n| |\\ \\ \\ \\  \n| | | |_|/  \n| | |/| |   \n| | * | |   35e8d5a Merge branch 'main' of github.com:prosoitos/git_workshop_collab\n| | |\\ \\ \\  \n| | | | |/  \n| | | |/|   \n\n\nBut git log has also flags that allow to search for patterns.\n\n\nSearching commit messages\nOne of the reasons it is so important to write informative commit messages is that they are key to finding commits later on.\nTo look for a pattern in all your commit messages, use git log --grep=<pattern>.\nLet’s look for test in the commit messages and limit the output to 3 commits:\n\ngit log --grep=test -3\n\ncommit 711e1dc53011e5071b17dc7c35b516f6e066f396\nAuthor: Marie-Helene Burle <marie.burle@westgrid.ca>\nDate:   Tue Mar 15 11:52:48 2022 -0700\n\n    add real py content to test_manual.py\n\ncommit a55ca0d60d82578c94bd49fc4ca987727b851216\nAuthor: Manuelhrokr <zl.manuel@protonmail.com>\nDate:   Thu Feb 17 15:19:42 2022 -0700\n\n    new comment add just as test\n\ncommit ea74e46f487fba09c31524a110fdf060796e3cf8\nAuthor: mpkin <mikin@physics.ubc.ca>\nDate:   Thu Sep 23 14:51:24 2021 -0700\n\n    Add test_mk.txt\n\n\nFor a more compact output:\n\ngit log --grep=\"test\" -3 --oneline\n\n711e1dc add real py content to test_manual.py\na55ca0d new comment add just as test\nea74e46 Add test_mk.txt\n\n\n\nHere too you can use this in combination to fzf with for instance:\ngit log --grep=\"test\" | fzf --cycle -i -e\nOr:\ngit log --grep=\"test\" --oneline |\n    fzf --cycle -i -e --no-multi \\\n        --ansi --preview=\"$_viewGitLogLine\" \\\n        --header \"enter: view, C-c: copy hash\" \\\n        --bind \"enter:execute:$_viewGitLogLine | less -R\" \\\n        --bind \"ctrl-c:execute:$_gitLogLineToHash |\n        xclip -r -selection clipboard\"\n\n\n\nChanges made to a pattern\nRemember that test was present in the file src/test_manuel.py. If we want to see when the pattern was first created and then each time it was modified, we use the -L flag in this fashion:\ngit log -L :<pattern>:file\nIn our case:\n\ngit log -L :test:src/test_manuel.py\n\ncommit 711e1dc53011e5071b17dc7c35b516f6e066f396\nAuthor: Marie-Helene Burle <marie.burle@westgrid.ca>\nDate:   Tue Mar 15 11:52:48 2022 -0700\n\n    add real py content to test_manual.py\n\ndiff --git a/src/test_manuel.py b/src/test_manuel.py\n--- a/src/test_manuel.py\n+++ b/src/test_manuel.py\n@@ -1,1 +50,19 @@\n-test\n+def test(model, device, test_loader):\n+    model.eval()\n+    test_loss = 0\n+    correct = 0\n+    with torch.no_grad():\n+        for data, target in test_loader:\n+            data, target = data.to(device), target.to(device)\n+            output = model(data)\n+            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss\n+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability\n+            correct += pred.eq(target.view_as(pred)).sum().item()\n+\n+    test_loss /= len(test_loader.dataset)\n+\n+    print('\\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\\n'.format(\n+        test_loss, correct, len(test_loader.dataset),\n+        100. * correct / len(test_loader.dataset)))\n+\n+\n\ncommit 90016aa3ed3a6cf71e206392bbf10adfe1a14c17\nAuthor: Manuelhrokr <zl.manuel@protonmail.com>\nDate:   Thu Feb 17 15:33:03 2022 -0700\n\n    adding new python file\n\ndiff --git a/src/test_manuel.py b/src/test_manuel.py\n--- /dev/null\n+++ b/src/test_manuel.py\n@@ -0,0 +1,1 @@\n+test\n\n\nThis is very useful if you want to see, for instance, changes made to a function in a script.\n\n\nChanges in number of occurrences of a pattern\nNow, if we want to list all commits that created a change in the number of occurrences of test in our project, we run:\n\ngit log -S test --oneline\n\n711e1dc add real py content to test_manual.py\n90016aa adding new python file\n652faa5 delete my file\nb684eac Deleted file\n6717236 For collab\nca1845d delete alex.txt\n6b56198 editing adrians text file\n01a7358 test dtrad\ne44a454 Create testAV1.txt\n5ee88e6 For collab\ncf3d4ea Collab-test\n13faa1e test, test\n0366115 Adrian's test file\n9ebd3ce This is my test\n6dfefa8 create redone17.txt\ne43163c added alex.txt\n\n\nThis can be useful to identify the commit you need."
   },
   {
-    "objectID": "git/practice_repo/search.html#tldl",
-    "href": "git/practice_repo/search.html#tldl",
+    "objectID": "git/practice_repo/search.html#tldr",
+    "href": "git/practice_repo/search.html#tldr",
     "title": "Searching a version-controlled project",
-    "section": "TLDL",
-    "text": "TLDL\nHere are the search functions you are the most likely to use:\n\nSearch for a pattern in the current version of your tracked files:\n\ngit grep <pattern>\n\nSearch for a pattern in your files at a certain commit:\n\ngit grep <pattern> <commit>\n\nSearch for a pattern in your files in all the commits:\n\ngit grep <pattern> $(git rev-list --all)\n\nSearch for a pattern in your commit messages:\n\ngit log --grep=<pattern>\nNow you should be able to find pretty much anything in your projects and their histories."
+    "section": "TL;DR",
+    "text": "TL;DR\nHere are the search functions you are the most likely to use:\n\nSearch for a pattern in the current version of your tracked files:\n\ngit grep <pattern>\n\nSearch for a pattern in your files at a certain commit:\n\ngit grep <pattern> <commit>\n\nSearch for a pattern in your files in all the commits:\n\ngit grep <pattern> $(git rev-list --all)\n\nSearch for a pattern in your commit messages:\n\ngit log --grep=<pattern>\nNow you should be able to find pretty much anything in your projects and their histories."
   },
   {
     "objectID": "git/remotes.html",
@@ -3290,6 +3290,27 @@
     "text": "Control flow\n\nConditionals\n\ntest_sign <- function(x) {\n  if (x > 0) {\n    \"x is positif\"\n  } else if (x < 0) {\n    \"x is negatif\"\n  } else {\n    \"x is equal to zero\"\n  }\n}\n\n\ntest_sign(3)\n\n[1] \"x is positif\"\n\ntest_sign(-2)\n\n[1] \"x is negatif\"\n\ntest_sign(0)\n\n[1] \"x is equal to zero\"\n\n\n\n\nLoops\n\nfor (i in 1:10) {\n  print(i)\n}\n\n[1] 1\n[1] 2\n[1] 3\n[1] 4\n[1] 5\n[1] 6\n[1] 7\n[1] 8\n[1] 9\n[1] 10\n\n\nNotice that here we need to use the print() function."
   },
   {
+    "objectID": "r/clusters.html",
+    "href": "r/clusters.html",
+    "title": "Running R on HPC clusters",
+    "section": "",
+    "text": "To compile R packages, you need a C compiler.\nIn theory, you could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can even be compiled with Clang and LLVM, but the default GCC compiler is the best way to avoid headaches).\nIt is thus much simpler to always load a gcc module before loading an r module.\n\n\n\nTo see what versions of R are available on a cluster, run:\nmodule spider r\nTo see the dependencies of a particular version (e.g. r/4.2.1), run:\nmodule spider r/4.2.1\n\nStdEnv/2020 is a required module for this version.\nOn most Alliance clusters, it is automatically loaded, so you don’t need to include it. You can double-check with module list or you can include it (before r/4.2.1) just to be sure.\n\nFinally, load your modules:\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1"
+  },
+  {
+    "objectID": "r/clusters.html#installing-r-packages",
+    "href": "r/clusters.html#installing-r-packages",
+    "title": "Running R on HPC clusters",
+    "section": "Installing R packages",
+    "text": "Installing R packages\n\nTo install a package, launch the interactive R console with:\nR\nIn the R console, run:\ninstall.packages(\"<package_name>\", repos=\"<url-cran-mirror>\")\n\nrepos argument: chose a CRAN mirror close to the location of your cluster or use https://cloud.r-project.org/.\n\n\nThe first time you install a package, R will ask you whether you want to create a personal library in your home directory. Answer yes to both questions. Your packages will now install under ~/.\n\n\nSome packages require additional modules to be loaded before they can be installed. Other packages need additional R packages as dependencies. In either case, you will get explicit error messages. Adding the argument dependencies = T helps in the second case, but you will still have to add packages manually from time to time.\n\nTo leave the R console, press <Ctrl+D>."
+  },
+  {
+    "objectID": "r/clusters.html#running-r-jobs",
+    "href": "r/clusters.html#running-r-jobs",
+    "title": "Running R on HPC clusters",
+    "section": "Running R jobs",
+    "text": "Running R jobs\n\nScripts\nTo run an R script called <your_script>.R, you first need to write a job script:\n\nExample:\n\n\n<your_job>.sh\n\n#!/bin/bash\n#SBATCH --account=def-<your_account>\n#SBATCH --time=15\n#SBATCH --mem-per-cpu=3000M\n#SBATCH --cpus-per-task=4\n#SBATCH --job-name=\"<your_job>\"\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1\nRscript <your_script>.R   # Note that R scripts are run with the command `Rscript`\n\n\nThen launch your job with:\nsbatch <your_job>.sh\nYou can monitor your job with sq (an alias for squeue -u $USER $@).\n\n\nInteractive jobs\n\nWhile it is fine to run R on the login node when you install packages, you must start a SLURM job before any heavy computation.\n\nTo run R interactively, you should launch an salloc session.\n\nExample:\n\nsalloc --time=1:10:00 --mem-per-cpu=7000M --ntasks=8\nThis takes you to a compute node where you can now launch R to run computations:\nR"
+  },
+  {
     "objectID": "r/gis_mapping.html",
     "href": "r/gis_mapping.html",
     "title": "GIS mapping in R",
@@ -3969,195 +3990,6 @@
     "text": "Resources\n\nHere are some resources on the topic to get started.\n\nR companion to Geographic Information Analysis\nSpatial data analysis"
   },
   {
-    "objectID": "r/hpc_intro_slides.html#intel-vs-gcc-compilers",
-    "href": "r/hpc_intro_slides.html#intel-vs-gcc-compilers",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Intel vs GCC compilers",
-    "text": "Intel vs GCC compilers\nTo compile R packages, you need a C compiler.\nIn theory, you could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can even be compiled with Clang and LLVM, but the default GCC compiler is the best way to avoid headaches).\nIt is thus much simpler to always load a gcc module before loading an r module."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#r-module",
-    "href": "r/hpc_intro_slides.html#r-module",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "R module",
-    "text": "R module\nTo see what versions of R are available on a cluster, run:\nmodule spider r\nTo see the dependencies of a particular version (e.g. r/4.2.1), run:\nmodule spider r/4.2.1\n\nStdEnv/2020 is a required module for this version.\nOn most Alliance clusters, it is automatically loaded, so you don’t need to include it. You can double-check with module list or you can include it (before r/4.2.1) just to be sure.\n\nFinally, load your modules:\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#scripts",
-    "href": "r/hpc_intro_slides.html#scripts",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Scripts",
-    "text": "Scripts\nTo run an R script called <your_script>.R, you first need to write a job script:\n\nExample:\n\n\n<your_job>.sh\n\n#!/bin/bash\n#SBATCH --account=def-<your_account>\n#SBATCH --time=15\n#SBATCH --mem-per-cpu=3000M\n#SBATCH --cpus-per-task=4\n#SBATCH --job-name=\"<your_job>\"\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1\nRscript <your_script>.R   # Note that R scripts are run with the command `Rscript`\n\n\nThen launch your job with:\nsbatch <your_job>.sh\nYou can monitor your job with sq (an alias for squeue -u $USER $@)."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#interactive-jobs",
-    "href": "r/hpc_intro_slides.html#interactive-jobs",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Interactive jobs",
-    "text": "Interactive jobs\n\nWhile it is fine to run R on the login node when you install packages, you must start a SLURM job before any heavy computation.\n\nTo run R interactively, you should launch an salloc session.\nHere is what I will use for this webinar:\nsalloc --time=1:10:00 --mem-per-cpu=7000M --ntasks=8\nThis takes me to a compute node where I can launch R to run computations:\nR"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#profiling",
-    "href": "r/hpc_intro_slides.html#profiling",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Profiling",
-    "text": "Profiling\nThe first thing to do if you want to improve your code efficiency is to identify bottlenecks in your code. Common tools are:\n\nthe base R function Rprof()\nthe package profvis\n\nprofvis is a newer tool, built by posit (formerly RStudio). Under the hood, it runs Rprof() to collect data, then produces an interactive html widget with a flame graph that allows for an easy visual identification of slow sections of code. While this tool integrates well within the RStudio IDE or the RPubs ecosystem, it is not very well suited for remote work on a cluster. One option is to profile your code with small data on your own machine. Another option is to use the base profiler with Rprof() directly as in this example."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#benchmarking",
-    "href": "r/hpc_intro_slides.html#benchmarking",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Benchmarking",
-    "text": "Benchmarking\nOnce you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.\nIn the most basic fashion, you can use system.time(), but this is limited and imprecise.\nThe microbenchmark package is a popular option.\nIt gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.\nThe newer bench package has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections.\nI will demo both today."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#multi-threading",
-    "href": "r/hpc_intro_slides.html#multi-threading",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Multi-threading",
-    "text": "Multi-threading\nWe talk about multi-threading when a single process (with its own memory) runs multiple threads.\nThe execution can happen in parallel—if each thread has access to a CPU core—or by alternating some of the threads on some CPU cores.\nBecause all threads in a process write to the same memory addresses, multi-threading can lead to race conditions.\nMulti-threading does not seem to be a common approach to parallelizing R code."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#multi-processing-in-shared-memory",
-    "href": "r/hpc_intro_slides.html#multi-processing-in-shared-memory",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Multi-processing in shared memory",
-    "text": "Multi-processing in shared memory\nMulti-processing in shared memory happens when multiple processes execute code on multiple CPU cores of a single node (or a single machine).\nThe different processes need to communicate with each other, but because they are all running on the CPU cores of a single node, messages can pass via shared memory."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#multi-processing-in-distributed-memory",
-    "href": "r/hpc_intro_slides.html#multi-processing-in-distributed-memory",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Multi-processing in distributed memory",
-    "text": "Multi-processing in distributed memory\nWhen processes involved in the execution of some code run on multiple nodes of a cluster, messages between them need to travel over the cluster interconnect. In that case, we talk about distributed memory."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#package-parallel-base-r",
-    "href": "r/hpc_intro_slides.html#package-parallel-base-r",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Package parallel (base R)",
-    "text": "Package parallel (base R)\nThe parallel package has been part of the “base” package group since version 2.14.0.\nThis means that it is comes with R.\nMost parallel approaches in R build on this package.\nWe will make use of it to create and close an ad-hoc cluster.\n\nThe parallelly package adds functionality to the parallel package."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#package-foreach",
-    "href": "r/hpc_intro_slides.html#package-foreach",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Package foreach",
-    "text": "Package foreach\nThe foreach package implements a looping construct without an explicit counter. It doesn’t require the preallocation of an output container, it brings to R an equivalent of the Python or Julia list comprehensions, and mostly, it allows for an easy execution of loops in parallel. Unlike loops, it creates variables (loops are used for their side-effect).\nLet’s look at an example to calculate the sum of 1e4 random vectors of length 3.\nWe will use foreach and iterators (which creates convenient iterators for foreach):\n\nlibrary(foreach)\nlibrary(iterators)"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#package-future",
-    "href": "r/hpc_intro_slides.html#package-future",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Package future",
-    "text": "Package future\nA future is an object that acts as an abstract representation for a value in the future. A future can be resolved (if the value has been computed) or unresolved. If the value is queried while the future is unresolved, the process is blocked until the future is resolved.\nFutures allow for asynchronous and parallel evaluations. The future package provides a simple and unified API to evaluate futures."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#plans",
-    "href": "r/hpc_intro_slides.html#plans",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Plans",
-    "text": "Plans\nThe future package does this thanks to the plan function:\n\nplan(sequential): futures are evaluated sequentially in the current R session\nplan(multisession): futures are evaluated by new R sessions spawned in the background (multi-processing in shared memory)\nplan(multicore): futures are evaluated in processes forked from the existing process (multi-processing in shared memory)\nplan(cluster): futures are evaluated on an ad-hoc cluster (allows for distributed parallelism across multiple nodes)"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#consistency",
-    "href": "r/hpc_intro_slides.html#consistency",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Consistency",
-    "text": "Consistency\nTo ensure a consistent behaviour across plans, all evaluations are done in a local environment:\n\nlibrary(future)\n\na <- 1\n\nb %<-% {\n  a <- 2\n}\n\na\n\n[1] 1"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#lets-return-to-our-example",
-    "href": "r/hpc_intro_slides.html#lets-return-to-our-example",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Let’s return to our example",
-    "text": "Let’s return to our example\nWe had:\nset.seed(2)\nresult2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)\nWe can replace %do% with %dopar%:\nset.seed(2)\nresult3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)\nBecause we haven’t set any parallel backend to foreach, this won’t make any difference. To run this in parallel using future and doFuture, we first need to load doFuture and set a parallel plan (e.g. plan(multicore)).\nBecause of the overhead of parallelization, it wouldn’t make sense to to parallelize such a short code. Let’s go over a better toy example and time it."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#load-packages",
-    "href": "r/hpc_intro_slides.html#load-packages",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Load packages",
-    "text": "Load packages\nI will use the randomForest package to create a classification algorithm based on a forest of decision trees.\nBecause the code includes randomly generated numbers, I will also use the doRNG package which replaces %dopar% with %dorng% to follow the recommendations of L’Ecuyer, P. (1999)1 and ensure reproducibility.\nlibrary(doFuture)\nlibrary(doRNG)\nlibrary(randomForest)\nlibrary(bench)\nlibrary(microbenchmark)\nLoading required package: foreach\nLoading required package: future\nLoading required package: rngtools\nL’Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#the-code-to-parallelize",
-    "href": "r/hpc_intro_slides.html#the-code-to-parallelize",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "The code to parallelize ",
-    "text": "The code to parallelize \nset.seed(11)\n\ntraindata <- matrix(runif(1e5), 100)\nfac <- gl(2, 50)\n\nrf <- foreach(ntree = rep(250, 8), .combine = combine) %do%\n  randomForest(x = traindata, y = fac, ntree = ntree)\n\nrf\nCall:\n randomForest(x = traindata, y = fac, ntree = ntree)\n               Type of random forest: classification\n                     Number of trees: 2000\nNo. of variables tried at each split: 31"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#reference-timing",
-    "href": "r/hpc_intro_slides.html#reference-timing",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Reference timing",
-    "text": "Reference timing\nThis is the non parallelizable code with %do%:\ntref <- mark(\n  rf1 <- foreach(ntree = rep(250, 8), .combine = combine) %do%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntref$median\n[1] 5.66s"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#plan-sequential",
-    "href": "r/hpc_intro_slides.html#plan-sequential",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Plan sequential",
-    "text": "Plan sequential\nThis is the parallelizable foreach code, but run sequentially:\nregisterDoFuture()\n\nplan(sequential)\n\n# Using bench::mark()\ntseq <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntseq$median\n[1] 5.78s\n\nNo surprise: those are similar."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#multi-processing-in-shared-memory-1",
-    "href": "r/hpc_intro_slides.html#multi-processing-in-shared-memory-1",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Multi-processing in shared memory",
-    "text": "Multi-processing in shared memory\nfuture provides availableCores() to detect the number of available cores:\navailableCores()\nsystem\n     4\n\nThis is the same as parallel::detectCores().\n\nThis detects the number of CPU cores available to me on the current compute node, that is, what I can use for shared memory multi-processing."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#plan-multisession",
-    "href": "r/hpc_intro_slides.html#plan-multisession",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Plan multisession",
-    "text": "Plan multisession\nShared memory multi-processing can be run with plan(multisession) that will spawn new R sessions in the background to evaluate futures:\nplan(multisession)\n\ntms <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntms$median\n[1] 2s\n\nWe got a speedup of 5.78 / 2 = 2.9."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#plan-multicore",
-    "href": "r/hpc_intro_slides.html#plan-multicore",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Plan multicore",
-    "text": "Plan multicore\nShared memory multi-processing can also be run with plan(multicore) (except on Windows) that will fork the current R process to evaluate futures:\nplan(multicore)\n\ntmc <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntmc$median\n[1] 1.9s\n\nWe got a very similar speedup of 5.78 / 1.9 = 3.0."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#multi-processing-in-distributed-memory-1",
-    "href": "r/hpc_intro_slides.html#multi-processing-in-distributed-memory-1",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Multi-processing in distributed memory",
-    "text": "Multi-processing in distributed memory\nI did request 8 tasks however. But because the training cluster I built for this webinar only has nodes of the c4-30gb flavour, those tasks use 2 nodes.\nLet’s verify that I did get 8 tasks:\nas.numeric(Sys.getenv(\"SLURM_NTASKS\"))\n[1] 8\nI can create a character vector with the name of the node each worker is on:\n(hosts <- system(\"srun hostname | cut -f 1 -d '.'\", intern = T))\nchr [1:8] \"node1\" \"node1\" \"node1\" \"node1\" \"node2\" \"node2\" \"node2\" \"node2\"\nThis allows me to create the cluster of workers:\n(cl <- parallel::makeCluster(hosts))      # defaults to type=\"PSOCK\" which is good\nsocket cluster with 8 nodes on hosts ‘node1’, ‘node2’"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#plan-cluster",
-    "href": "r/hpc_intro_slides.html#plan-cluster",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Plan cluster",
-    "text": "Plan cluster\nI can now try the code with distributed parallelism using all 8 CPU cores across both nodes:\nplan(cluster, workers = cl)\n\ntdis <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntdis$median\n[1] 1.14s\n\nSpeedup: 5.78 / 1.14 = 5.1.\n\nThe cluster of workers can be stopped with:\nparallel::stopCluster(cl)"
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#alternative-approaches",
-    "href": "r/hpc_intro_slides.html#alternative-approaches",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Alternative approaches",
-    "text": "Alternative approaches\nThe multidplyr package partitions data frames across worker processes, allows you to run the usual tidyverse functions on each partition, then collects the processed data.\nThe furrr package is a parallel equivalent to the purrr package from the tidyverse.\nIf you work with genomic data, you might want to have a look at the BiocParallel package from Bioconductor.\nYet another option to run distributed R code is to use the sparklyr package (an R interface to Spark).\nRmpi is a wrapper to MPI (Message-Passing Interface). It has proved slow and problematic on Cedar though.\nThe boot package provides functions and datasets specifically for bootstrapping in parallel."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#non-parallelizable-code",
-    "href": "r/hpc_intro_slides.html#non-parallelizable-code",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Non-parallelizable code",
-    "text": "Non-parallelizable code\nSometimes, code cannot be parallelized.\n\nAn example would be a loop for which iterations aren’t independent from each other:\n\nn <- 1e8\ntotal <- 0\n\nfor(i in 1:n) {\n  total <- total + i\n}\nThe best solution in such cases is to re-write the slowest sections of your code in C++ with the Rcpp package."
-  },
-  {
-    "objectID": "r/hpc_intro_slides.html#rcpp",
-    "href": "r/hpc_intro_slides.html#rcpp",
-    "title": "Introduction to high-performance research computing in R",
-    "section": "Rcpp",
-    "text": "Rcpp\nThis is also a good approach when you:\n\nhave large number of function calls\nneed data structures missing in R\nwant to create efficient packages\n\nRcpp creates mappings so that you can write C++ functions from within R and in a more R-like syntax. This is extremely useful if you aren’t familiar with C or C++."
-  },
-  {
     "objectID": "r/intro_gis.html",
     "href": "r/intro_gis.html",
     "title": "Introduction to GIS in R",
@@ -4263,6 +4095,181 @@
     "text": "R is not known for its speed. However, with some code optimization, it can be used for relatively heavy computations. Additional speedup can be achieved through various parallel techniques, both with multi-threading and distributed computing.\nThis workshop will introduce you to working with R from the command line on the Alliance clusters with a focus on performance. We will discuss code profiling and benchmarking, various packages for parallelization, as well as using C++ from inside R to speed up your calculations.\n\nSlides (click and wait: my reveal.js presentations are heavy and take some time to load…)"
   },
   {
+    "objectID": "r/intro_hpc_slides.html#intel-vs-gcc-compilers",
+    "href": "r/intro_hpc_slides.html#intel-vs-gcc-compilers",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Intel vs GCC compilers",
+    "text": "Intel vs GCC compilers\nTo compile R packages, you need a C compiler.\nIn theory, you could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can even be compiled with Clang and LLVM, but the default GCC compiler is the best way to avoid headaches).\nIt is thus much simpler to always load a gcc module before loading an r module."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#r-module",
+    "href": "r/intro_hpc_slides.html#r-module",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "R module",
+    "text": "R module\nTo see what versions of R are available on a cluster, run:\nmodule spider r\nTo see the dependencies of a particular version (e.g. r/4.2.1), run:\nmodule spider r/4.2.1\n\nStdEnv/2020 is a required module for this version.\nOn most Alliance clusters, it is automatically loaded, so you don’t need to include it. You can double-check with module list or you can include it (before r/4.2.1) just to be sure.\n\nFinally, load your modules:\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#scripts",
+    "href": "r/intro_hpc_slides.html#scripts",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Scripts",
+    "text": "Scripts\nTo run an R script called <your_script>.R, you first need to write a job script:\n\nExample:\n\n\n<your_job>.sh\n\n#!/bin/bash\n#SBATCH --account=def-<your_account>\n#SBATCH --time=15\n#SBATCH --mem-per-cpu=3000M\n#SBATCH --cpus-per-task=4\n#SBATCH --job-name=\"<your_job>\"\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1\nRscript <your_script>.R   # Note that R scripts are run with the command `Rscript`\n\n\nThen launch your job with:\nsbatch <your_job>.sh\nYou can monitor your job with sq (an alias for squeue -u $USER $@)."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#interactive-jobs",
+    "href": "r/intro_hpc_slides.html#interactive-jobs",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Interactive jobs",
+    "text": "Interactive jobs\n\nWhile it is fine to run R on the login node when you install packages, you must start a SLURM job before any heavy computation.\n\nTo run R interactively, you should launch an salloc session.\nHere is what I will use for this webinar:\nsalloc --time=1:10:00 --mem-per-cpu=7000M --ntasks=8\nThis takes me to a compute node where I can launch R to run computations:\nR"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#profiling",
+    "href": "r/intro_hpc_slides.html#profiling",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Profiling",
+    "text": "Profiling\nThe first thing to do if you want to improve your code efficiency is to identify bottlenecks in your code. Common tools are:\n\nthe base R function Rprof()\nthe package profvis\n\nprofvis is a newer tool, built by posit (formerly RStudio). Under the hood, it runs Rprof() to collect data, then produces an interactive html widget with a flame graph that allows for an easy visual identification of slow sections of code. While this tool integrates well within the RStudio IDE or the RPubs ecosystem, it is not very well suited for remote work on a cluster. One option is to profile your code with small data on your own machine. Another option is to use the base profiler with Rprof() directly as in this example."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#benchmarking",
+    "href": "r/intro_hpc_slides.html#benchmarking",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Benchmarking",
+    "text": "Benchmarking\nOnce you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.\nIn the most basic fashion, you can use system.time(), but this is limited and imprecise.\nThe microbenchmark package is a popular option.\nIt gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.\nThe newer bench package has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections. This is the package I will use today."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#multi-threading",
+    "href": "r/intro_hpc_slides.html#multi-threading",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Multi-threading",
+    "text": "Multi-threading\nWe talk about multi-threading when a single process (with its own memory) runs multiple threads.\nThe execution can happen in parallel—if each thread has access to a CPU core—or by alternating some of the threads on some CPU cores.\nBecause all threads in a process write to the same memory addresses, multi-threading can lead to race conditions.\nMulti-threading does not seem to be a common approach to parallelizing R code."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#multi-processing-in-shared-memory",
+    "href": "r/intro_hpc_slides.html#multi-processing-in-shared-memory",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Multi-processing in shared memory",
+    "text": "Multi-processing in shared memory\nMulti-processing in shared memory happens when multiple processes execute code on multiple CPU cores of a single node (or a single machine).\nThe different processes need to communicate with each other, but because they are all running on the CPU cores of a single node, messages can pass via shared memory."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#multi-processing-in-distributed-memory",
+    "href": "r/intro_hpc_slides.html#multi-processing-in-distributed-memory",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Multi-processing in distributed memory",
+    "text": "Multi-processing in distributed memory\nWhen processes involved in the execution of some code run on multiple nodes of a cluster, messages between them need to travel over the cluster interconnect. In that case, we talk about distributed memory."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#package-parallel-base-r",
+    "href": "r/intro_hpc_slides.html#package-parallel-base-r",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Package parallel (base R)",
+    "text": "Package parallel (base R)\nThe parallel package has been part of the “base” package group since version 2.14.0.\nThis means that it is comes with R.\nMost parallel approaches in R build on this package.\nWe will make use of it to create and close an ad-hoc cluster.\n\nThe parallelly package adds functionality to the parallel package."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#package-foreach",
+    "href": "r/intro_hpc_slides.html#package-foreach",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Package foreach",
+    "text": "Package foreach\nThe foreach package implements a looping construct without an explicit counter. It doesn’t require the preallocation of an output container, it brings to R an equivalent of the Python or Julia list comprehensions, and mostly, it allows for an easy execution of loops in parallel. Unlike loops, it creates variables (loops are used for their side-effect).\nLet’s look at an example to calculate the sum of 1e4 random vectors of length 3.\nWe will use foreach and iterators (which creates convenient iterators for foreach):\n\nlibrary(foreach)\nlibrary(iterators)"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#package-future",
+    "href": "r/intro_hpc_slides.html#package-future",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Package future",
+    "text": "Package future\nA future is an object that acts as an abstract representation for a value in the future. A future can be resolved (if the value has been computed) or unresolved. If the value is queried while the future is unresolved, the process is blocked until the future is resolved.\nFutures allow for asynchronous and parallel evaluations. The future package provides a simple and unified API to evaluate futures."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#plans",
+    "href": "r/intro_hpc_slides.html#plans",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Plans",
+    "text": "Plans\nThe future package does this thanks to the plan function:\n\nplan(sequential): futures are evaluated sequentially in the current R session\nplan(multisession): futures are evaluated by new R sessions spawned in the background (multi-processing in shared memory)\nplan(multicore): futures are evaluated in processes forked from the existing process (multi-processing in shared memory)\nplan(cluster): futures are evaluated on an ad-hoc cluster (allows for distributed parallelism across multiple nodes)"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#consistency",
+    "href": "r/intro_hpc_slides.html#consistency",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Consistency",
+    "text": "Consistency\nTo ensure a consistent behaviour across plans, all evaluations are done in a local environment:\n\nlibrary(future)\n\na <- 1\n\nb %<-% {\n  a <- 2\n}\n\na\n\n[1] 1"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#lets-return-to-our-example",
+    "href": "r/intro_hpc_slides.html#lets-return-to-our-example",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Let’s return to our example",
+    "text": "Let’s return to our example\nWe had:\nset.seed(2)\nresult2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)\nWe can replace %do% with %dopar%:\nset.seed(2)\nresult3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)\nBecause we haven’t set any parallel backend to foreach, this won’t make any difference. To run this in parallel using future and doFuture, we first need to load doFuture and set a parallel plan (e.g. plan(multicore)).\nBecause of the overhead of parallelization, it wouldn’t make sense to to parallelize such a short code. Let’s go over a better toy example and time it."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#load-packages",
+    "href": "r/intro_hpc_slides.html#load-packages",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Load packages",
+    "text": "Load packages\nI will use the randomForest package to create a classification algorithm based on a forest of decision trees.\nBecause the code includes randomly generated numbers, I will also use the doRNG package which replaces %dopar% with %dorng% to follow the recommendations of L’Ecuyer, P. (1999)1 and ensure reproducibility.\nlibrary(doFuture)\nlibrary(doRNG)\nlibrary(randomForest)\nlibrary(bench)\nLoading required package: foreach\nLoading required package: future\nLoading required package: rngtools\nL’Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#the-code-to-parallelize",
+    "href": "r/intro_hpc_slides.html#the-code-to-parallelize",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "The code to parallelize",
+    "text": "The code to parallelize\nThe goal is to create a classifier based on some data (here a matrix of random numbers for simplicity) and a response variable (as factor). This model could then be passed in the predict() function with novel data to generate predictions of classification. But here we are only interested in the creation of the model as this is the part that is computationally intensive. We aren’t interested in actually using it.\nset.seed(11)\n\ntraindata <- matrix(runif(1e5), 100)\nfac <- gl(2, 50)\n\nrf <- foreach(ntree = rep(250, 8), .combine = combine) %do%\n  randomForest(x = traindata, y = fac, ntree = ntree)\n\nrf\nCall:\n randomForest(x = traindata, y = fac, ntree = ntree)\n               Type of random forest: classification\n                     Number of trees: 2000\nNo. of variables tried at each split: 31"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#reference-timing",
+    "href": "r/intro_hpc_slides.html#reference-timing",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Reference timing",
+    "text": "Reference timing\nThis is the non parallelizable code with %do%:\ntref <- mark(\n  rf1 <- foreach(ntree = rep(250, 8), .combine = combine) %do%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntref$median\n[1] 5.66s"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#plan-sequential",
+    "href": "r/intro_hpc_slides.html#plan-sequential",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Plan sequential",
+    "text": "Plan sequential\nThis is the parallelizable foreach code, but run sequentially:\nregisterDoFuture()\n\nplan(sequential)\n\n# Using bench::mark()\ntseq <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntseq$median\n[1] 5.78s\n\nNo surprise: those are similar."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#multi-processing-in-shared-memory-1",
+    "href": "r/intro_hpc_slides.html#multi-processing-in-shared-memory-1",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Multi-processing in shared memory",
+    "text": "Multi-processing in shared memory\nfuture provides availableCores() to detect the number of available cores:\navailableCores()\nsystem\n     4\n\nThis is the same as parallel::detectCores().\n\nThis detects the number of CPU cores available to me on the current compute node, that is, what I can use for shared memory multi-processing."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#plan-multisession",
+    "href": "r/intro_hpc_slides.html#plan-multisession",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Plan multisession",
+    "text": "Plan multisession\nShared memory multi-processing can be run with plan(multisession) that will spawn new R sessions in the background to evaluate futures:\nplan(multisession)\n\ntms <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntms$median\n[1] 2s\n\nWe got a speedup of 5.78 / 2 = 2.9."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#plan-multicore",
+    "href": "r/intro_hpc_slides.html#plan-multicore",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Plan multicore",
+    "text": "Plan multicore\nShared memory multi-processing can also be run with plan(multicore) (except on Windows) that will fork the current R process to evaluate futures:\nplan(multicore)\n\ntmc <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntmc$median\n[1] 1.9s\n\nWe got a very similar speedup of 5.78 / 1.9 = 3.0."
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#multi-processing-in-distributed-memory-1",
+    "href": "r/intro_hpc_slides.html#multi-processing-in-distributed-memory-1",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Multi-processing in distributed memory",
+    "text": "Multi-processing in distributed memory\nI did request 8 tasks however. But because the training cluster I built for this webinar only has nodes of the c4-30gb flavour, those tasks use 2 nodes.\nLet’s verify that I did get 8 tasks:\nas.numeric(Sys.getenv(\"SLURM_NTASKS\"))\n[1] 8\nI can create a character vector with the name of the node each worker is on:\n(hosts <- system(\"srun hostname | cut -f 1 -d '.'\", intern = T))\nchr [1:8] \"node1\" \"node1\" \"node1\" \"node1\" \"node2\" \"node2\" \"node2\" \"node2\"\nThis allows me to create the cluster of workers:\n(cl <- parallel::makeCluster(hosts))      # defaults to type=\"PSOCK\" which is good\nsocket cluster with 8 nodes on hosts ‘node1’, ‘node2’"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#plan-cluster",
+    "href": "r/intro_hpc_slides.html#plan-cluster",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Plan cluster",
+    "text": "Plan cluster\nI can now try the code with distributed parallelism using all 8 CPU cores across both nodes:\nplan(cluster, workers = cl)\n\ntdis <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntdis$median\n[1] 1.14s\n\nSpeedup: 5.78 / 1.14 = 5.1.\n\nThe cluster of workers can be stopped with:\nparallel::stopCluster(cl)"
+  },
+  {
+    "objectID": "r/intro_hpc_slides.html#alternative-approaches",
+    "href": "r/intro_hpc_slides.html#alternative-approaches",
+    "title": "Introduction to high-performance research computing in R",
+    "section": "Alternative approaches",
+    "text": "Alternative approaches\nThe multidplyr package partitions data frames across worker processes, allows you to run the usual tidyverse functions on each partition, then collects the processed data.\nThe furrr package is a parallel equivalent to the purrr package from the tidyverse.\nIf you work with genomic data, you might want to have a look at the BiocParallel package from Bioconductor.\nYet another option to run distributed R code is to use the sparklyr package (an R interface to Spark).\nRmpi is a wrapper to MPI (Message-Passing Interface). It has proved slow and problematic on Cedar though.\nThe boot package provides functions and datasets specifically for bootstrapping in parallel."
+  },
+  {
     "objectID": "r/intro_hss.html",
     "href": "r/intro_hss.html",
     "title": "Introduction to R for the humanities",
@@ -4310,6 +4317,41 @@
     "title": "Packages",
     "section": "Loading packages",
     "text": "Loading packages\nTo make a package available in an R session, you load it with the library() function.\n\nExample:\n\nlibrary(readxl)\nAlternatively, you can access a function from a package without loading it with the syntax: package::function().\n\nExample:\n\nreadxl::read_excel(\"file.xlsx\")"
+  },
+  {
+    "objectID": "r/parallel_loops.html",
+    "href": "r/parallel_loops.html",
+    "title": "Parallel loops with foreach & doFuture",
+    "section": "",
+    "text": "We talk about multi-threading when a single process (with its own memory) runs multiple threads.\nThe execution can happen in parallel—if each thread has access to a CPU core—or by alternating some of the threads on some CPU cores.\nBecause all threads in a process write to the same memory addresses, multi-threading can lead to race conditions.\nMulti-threading does not seem to be a common approach to parallelizing R code.\n\n\n\nMulti-processing in shared memory happens when multiple processes execute code on multiple CPU cores of a single node (or a single machine).\nThe different processes need to communicate with each other, but because they are all running on the CPU cores of a single node, messages can pass via shared memory.\n\n\n\nWhen processes involved in the execution of some code run on multiple nodes of a cluster, messages between them need to travel over the cluster interconnect. In that case, we talk about distributed memory."
+  },
+  {
+    "objectID": "r/parallel_loops.html#running-r-code-in-parallel",
+    "href": "r/parallel_loops.html#running-r-code-in-parallel",
+    "title": "Parallel loops with foreach & doFuture",
+    "section": "Running R code in parallel",
+    "text": "Running R code in parallel\n\nPackage parallel (base R)\nThe parallel package has been part of the “base” package group since version 2.14.0.\nThis means that it is comes with R.\nMost parallel approaches in R build on this package.\nWe will make use of it to create and close an ad-hoc cluster.\n\nThe parallelly package adds functionality to the parallel package.\n\n\n\nPackage foreach\nThe foreach package implements a looping construct without an explicit counter. It doesn’t require the preallocation of an output container, it brings to R an equivalent of the Python or Julia list comprehensions, and mostly, it allows for an easy execution of loops in parallel. Unlike loops, it creates variables (loops are used for their side-effect).\nLet’s look at an example to calculate the sum of 1e4 random vectors of length 3.\nWe will use foreach and iterators (which creates convenient iterators for foreach):\n\nlibrary(foreach)\nlibrary(iterators)\n\n\nClassic while loop:\n\n\nset.seed(2)\n\nresult1 <- numeric(3)  # First we need to preallocate an output container\ni <- 0                 # Then we need to initialise a counter variable\n\nwhile(i < 1e4) {                 # Finally we run the loop\n  result1 <- result1 + runif(3)  # calculate the sum\n  i <- i + 1                     # update the counter\n}\n\n\nWith foreach:\n\n\nset.seed(2)\n\nresult2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)\n\nWe can verify that both expressions returned the same result:\n\nall.equal(result1, result2)\n\n[1] TRUE\n\n\nThe best part of foreach is that it makes for easy parallelization of loops if you replace %do% with %dopar%.\nFor this reason, many parallelization backends use foreach: doFuture, doMC, doMPI, doFuture, doParallel, doRedis, doRNG, doSNOW, and doAzureParallel.\nIn this webinar, I will use doFuture which makes foreach::%dopar% work on any type of future thanks to the future package.\nSo first, what is the future package?\n\n\nPackage future\nA future is an object that acts as an abstract representation for a value in the future. A future can be resolved (if the value has been computed) or unresolved. If the value is queried while the future is unresolved, the process is blocked until the future is resolved.\nFutures allow for asynchronous and parallel evaluations. The future package provides a simple and unified API to evaluate futures.\n\n\nPlans\nThe future package does this thanks to the plan function:\n\nplan(sequential): futures are evaluated sequentially in the current R session\nplan(multisession): futures are evaluated by new R sessions spawned in the background (multi-processing in shared memory)\nplan(multicore): futures are evaluated in processes forked from the existing process (multi-processing in shared memory)\nplan(cluster): futures are evaluated on an ad-hoc cluster (allows for distributed parallelism across multiple nodes)\n\n\n\nConsistency\nTo ensure a consistent behaviour across plans, all evaluations are done in a local environment:\n\nlibrary(future)\n\na <- 1\n\nb %<-% {\n  a <- 2\n}\n\na\n\n[1] 1\n\n\n\n\nLet’s return to our example\nWe had:\nset.seed(2)\nresult2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)\nWe can replace %do% with %dopar%:\nset.seed(2)\nresult3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)\nBecause we haven’t set any parallel backend to foreach, this won’t make any difference. To run this in parallel using future and doFuture, we first need to load doFuture and set a parallel plan (e.g. plan(multicore)).\nBecause of the overhead of parallelization, it wouldn’t make sense to to parallelize such a short code. Let’s go over a better toy example and time it."
+  },
+  {
+    "objectID": "r/parallel_loops.html#toy-example",
+    "href": "r/parallel_loops.html#toy-example",
+    "title": "Parallel loops with foreach & doFuture",
+    "section": "Toy example",
+    "text": "Toy example\n\nLoad packages\nI will use the randomForest package to create a classification algorithm based on a forest of decision trees.\nBecause the code includes randomly generated numbers, I will also use the doRNG package which replaces %dopar% with %dorng% to follow the recommendations of L’Ecuyer, P. (1999)1 and ensure reproducibility.1 L’Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164.\nlibrary(doFuture)\nlibrary(doRNG)\nlibrary(randomForest)\nlibrary(bench)\nLoading required package: foreach\nLoading required package: future\nLoading required package: rngtools\n\n\nThe code to parallelize\nThe goal is to create a classifier based on some data (here a matrix of random numbers for simplicity) and a response variable (as factor). This model could then be passed in the predict() function with novel data to generate predictions of classification. But here we are only interested in the creation of the model as this is the part that is computationally intensive. We aren’t interested in actually using it.\nset.seed(11)\n\ntraindata <- matrix(runif(1e5), 100)\nfac <- gl(2, 50)\n\nrf <- foreach(ntree = rep(250, 8), .combine = combine) %do%\n  randomForest(x = traindata, y = fac, ntree = ntree)\n\nrf\nCall:\n randomForest(x = traindata, y = fac, ntree = ntree)\n               Type of random forest: classification\n                     Number of trees: 2000\nNo. of variables tried at each split: 31\n\n\nReference timing\nThis is the non parallelizable code with %do%:\ntref <- mark(\n  rf1 <- foreach(ntree = rep(250, 8), .combine = combine) %do%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntref$median\n[1] 5.66s\n\n\nPlan sequential\nThis is the parallelizable foreach code, but run sequentially:\nregisterDoFuture()\n\nplan(sequential)\n\n# Using bench::mark()\ntseq <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntseq$median\n[1] 5.78s\n\nNo surprise: those are similar.\n\n\n\nMulti-processing in shared memory\nfuture provides availableCores() to detect the number of available cores:\navailableCores()\nsystem\n     4\n\nThis is the same as parallel::detectCores().\n\nThis detects the number of CPU cores available to me on the current compute node, that is, what I can use for shared memory multi-processing.\n\n\nPlan multisession\nShared memory multi-processing can be run with plan(multisession) that will spawn new R sessions in the background to evaluate futures:\nplan(multisession)\n\ntms <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntms$median\n[1] 2s\n\nWe got a speedup of 5.78 / 2 = 2.9. Not bad considering that we have 4 CPU cores (the ideal speedup would be 4, but there is always some overhead to parallelization).\n\n\n\nPlan multicore\nShared memory multi-processing can also be run with plan(multicore) (except on Windows) that will fork the current R process to evaluate futures:\nplan(multicore)\n\ntmc <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntmc$median\n[1] 1.9s\n\nWe got a very similar speedup of 5.78 / 1.9 = 3.0.\n\n\n\nMulti-processing in distributed memory\nI did request 8 tasks however. But because the training cluster I built for this webinar only has nodes of the c4-30gb flavour, those tasks use 2 nodes.\nLet’s verify that I did get 8 tasks:\nas.numeric(Sys.getenv(\"SLURM_NTASKS\"))\n[1] 8\nI can create a character vector with the name of the node each worker is on:\n(hosts <- system(\"srun hostname | cut -f 1 -d '.'\", intern = T))\nchr [1:8] \"node1\" \"node1\" \"node1\" \"node1\" \"node2\" \"node2\" \"node2\" \"node2\"\nThis allows me to create the cluster of workers:\n(cl <- parallel::makeCluster(hosts))      # defaults to type=\"PSOCK\" which is good\nsocket cluster with 8 nodes on hosts ‘node1’, ‘node2’\n\n\nPlan cluster\nI can now try the code with distributed parallelism using all 8 CPU cores across both nodes:\nplan(cluster, workers = cl)\n\ntdis <- mark(\n  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%\n    randomForest(x = traindata, y = fac, ntree = ntree),\n  memory=F\n)\n\ntdis$median\n[1] 1.14s\n\nSpeedup: 5.78 / 1.14 = 5.1. Here again, this is not bad with 8 CPU cores, considering the added overhead of message passing between both nodes.\n\nThe cluster of workers can be stopped with:\nparallel::stopCluster(cl)"
+  },
+  {
+    "objectID": "r/performance.html",
+    "href": "r/performance.html",
+    "title": "Measuring performance:",
+    "section": "",
+    "text": "The first thing to do if you want to improve your code efficiency is to identify bottlenecks in your code.\nCommon tools include:\n\nthe base R function Rprof(),\nthe package profvis.\n\nprofvis is a newer tool, built by posit (formerly RStudio). Under the hood, it runs Rprof() to collect data, then produces an interactive html widget with a flame graph that allows for an easy visual identification of slow sections of code.\nWhile this tool integrates well within the RStudio IDE or the RPubs ecosystem, it is not very well suited for remote work on a cluster. One option is to profile your code with small data on your own machine. Another option is to use the base profiler with Rprof() directly as in this example."
+  },
+  {
+    "objectID": "r/performance.html#benchmarking",
+    "href": "r/performance.html#benchmarking",
+    "title": "Measuring performance:",
+    "section": "Benchmarking",
+    "text": "Benchmarking\nOnce you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.\nIn the most basic fashion, you can use system.time(), but this is limited and imprecise.\nThe microbenchmark package is a popular option.\nIt gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.\nThe newer bench package has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections."
   },
   {
     "objectID": "r/resources.html",
@@ -4610,7 +4652,7 @@
     "href": "tools/quarto.html#quarto",
     "title": "Authoring scientific documents with Markdown and Quarto",
     "section": "Quarto",
-    "text": "Quarto\n\nHow it works\nQuarto files are transformed into Pandoc’s extended Markdown by Jupyter (when used with Python or Julia) or by knitr (when used with R), then pandoc turns the Markdown document into the output of your choice.\n\nJulia and Python make use of the Jupyter engine:\n\n From Quarto documentation\n\nR uses the knitr engine:\n\n From Quarto documentation\nQuarto files use the extension .qmd.\nWhen using R, you can use Quarto directly from RStudio: if you are used to R Markdown, Quarto is the new and better R Markdown.\nWhen using Python or Julia, you can use Quarto directly from a Jupyter notebook (with .ipynb extension).\n\nUsing Quarto directly from a Jupyter notebook:\n\n From Quarto documentation\nIn this workshop, we will see the most general workflow: simply using a text editor.\n\n\n\n\n\n\nSupported languages\n\n\n\n\n\nQuarto renders highlighting in countless languages and generates dynamic output for code blocks in:\n\nPython\nR\nJulia\nObservable JS\n\nYou can render documents in a wide variety of formats:\n\nHTML\nPDF\nMS Word\nOpenOffice\nePub\nRevealjs\nPowerPoint\nBeamer\nGitHub Markdown\nCommonMark\nHugo\nDocusaurus\nMarkua\nMediaWiki\nDokuWiki\nZimWiki\nJira Wiki\nXWiki\nJATS\nJupyter\nConTeXt\nRTF\nreST\nAsciiDoc\nOrg-Mode\nMuse\nGNU\nGroff\n\nThis training website is actually built with Quarto!\n\n\n\n\n\nInstallation\n\nDownload Quarto here.\nDownload the language(s) (R, Python, or Julia) you will want to use with Quarto as well as their corresponding engine (knitr for R; Jupyter for Python and Julia):\n\nIf you want to use Quarto with R, you will need:\n\nR (download here if you don’t have R already on your system),\nthe rmarkdown package. For this, launch R and run:\n\ninstall.packages(\"rmarkdown\")\nIf you want to use it with Python, you will need:\n\nPython 3 (download here if don’t have it on your system),\nJupyterLab. For this, open a terminal and run:\n\npython3 -m pip install jupyterlab  # if you are on MacOS or Linux\npy -m pip install jupyterlab       # if you are on Windows\nFinally, if you want to use Quarto with Julia, you will need:\n\nJulia (download here if you don’t have Julia),\nthe IJulia and Revise packages. For this, launch Julia and run:\n\n] add IJulia Revise\n# <Backspace>\nusing IJulia\nnotebook()      # to install a minimal Python+Jupyter distribution\nRunning notebook() allows you to install Jupyter if you don’t already have it.\n\n\nDocument structure and syntax\n\nFront matter\nWritten in YAML. Sets the options for the document. Let’s see a few examples.\n\nHTML output:\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat: html\n---\n\nHTML output with a few options:\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat:\n  html:\n    toc: true\n    css: <my_file>.css\n---\nThe above examples would work if you don’t use any code blocks or if you use R code blocks. If you use Python or Julia however, you need to add a jupyter entry with the name of the language that should run in Jupyter.\n\nMS Word output with Python code blocks:\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat: docx\njupyter: python3\n---\n\nrevealjs output with some options and Julia code blocks:\n\n---\ntitle: \"Some title\"\nsubtitle: \"Some subtitle\"\ninstitute: \"Simon Fraser University\"\ndate: \"2022-11-24\"\nexecute:\n  error: true\n  echo: true\nformat:\n  revealjs:\n    theme: [default, custom.scss]\n    highlight-style: monokai\n    code-line-numbers: false\n    embed-resources: true\njupyter: julia-1.8\n---\nSee the Quarto documentation for an exhaustive list of options for all formats.\n\n\nWritten sections\nWritten sections are written in Pandoc’s extended Markdown.\n\n\nCode blocks\nIf all you want is syntax highlighting of the code blocks, use this syntax:\n```{.language}\n<some code>\n```\nIf you want syntax highlighting of the blocks and for the code to run, use instead:\n```{language}\n<some code>\n```\nIn addition, options can be added to individual code blocks:\n```{language}\n#| <some option>: <some option value>\n\n<some code>\n```\n\n\n\nRendering\nUsing Quarto is very simple: there are only two commands you need to know.\nIn a terminal, simply run either of:\nquarto render <file>.qmd     # this will render the document\nquarto preview <file>.qmd    # this will display live preview as you work on your document"
+    "text": "Quarto\n\nHow it works\nQuarto files are transformed into Pandoc’s extended Markdown by Jupyter (when used with Python or Julia) or by knitr (when used with R), then pandoc turns the Markdown document into the output of your choice.\n\nJulia and Python make use of the Jupyter engine:\n\n From Quarto documentation\n\nR uses the knitr engine:\n\n From Quarto documentation\nQuarto files use the extension .qmd.\nWhen using R, you can use Quarto directly from RStudio: if you are used to R Markdown, Quarto is the new and better R Markdown.\nWhen using Python or Julia, you can use Quarto directly from a Jupyter notebook (with .ipynb extension).\n\nUsing Quarto directly from a Jupyter notebook:\n\n From Quarto documentation\nIn this workshop, we will see the most general workflow: simply using a text editor.\n\n\n\n\n\n\nSupported languages\n\n\n\n\n\nQuarto renders highlighting in countless languages and generates dynamic output for code blocks in:\n\nPython\nR\nJulia\nObservable JS\n\nYou can render documents in a wide variety of formats:\n\nHTML\nPDF\nMS Word\nOpenOffice\nePub\nRevealjs\nPowerPoint\nBeamer\nGitHub Markdown\nCommonMark\nHugo\nDocusaurus\nMarkua\nMediaWiki\nDokuWiki\nZimWiki\nJira Wiki\nXWiki\nJATS\nJupyter\nConTeXt\nRTF\nreST\nAsciiDoc\nOrg-Mode\nMuse\nGNU\nGroff\n\nThis training website is actually built with Quarto!\n\n\n\n\n\nInstallation\n\nDownload Quarto here.\nDownload the language(s) (R, Python, or Julia) you will want to use with Quarto as well as their corresponding engine (knitr for R; Jupyter for Python and Julia):\n\nIf you want to use Quarto with R, you will need:\n\nR (download here if you don’t have R already on your system),\nthe rmarkdown package. For this, launch R and run:\n\ninstall.packages(\"rmarkdown\")\nIf you want to use it with Python, you will need:\n\nPython 3 (download here if don’t have it on your system),\nJupyterLab. For this, open a terminal and run:\n\npython3 -m pip install jupyter  # if you are on MacOS or Linux\npython -m pip install jupyter   # if you are on Windows\nFinally, if you want to use Quarto with Julia, you will need:\n\nJulia (download here if you don’t have Julia),\nthe IJulia and Revise packages. For this, launch Julia and run:\n\n] add IJulia Revise\n# <Backspace>\nusing IJulia\nnotebook()      # to install a minimal Python+Jupyter distribution\nRunning notebook() allows you to install Jupyter if you don’t already have it.\n\n\nDocument structure and syntax\n\nFront matter\nWritten in YAML. Sets the options for the document. Let’s see a few examples.\n\nHTML output:\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat: html\n---\n\nHTML output with a few options:\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat:\n  html:\n    toc: true\n    css: <my_file>.css\n---\nThe above examples would work if you don’t use any code blocks or if you use R code blocks. If you use Python or Julia however, you need to add a jupyter entry with the name of the language that should run in Jupyter.\n\nMS Word output with Python code blocks:\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat: docx\njupyter: python3\n---\n\nrevealjs output with some options and Julia code blocks:\n\n---\ntitle: \"Some title\"\nsubtitle: \"Some subtitle\"\ninstitute: \"Simon Fraser University\"\ndate: \"2022-11-24\"\nexecute:\n  error: true\n  echo: true\nformat:\n  revealjs:\n    theme: [default, custom.scss]\n    highlight-style: monokai\n    code-line-numbers: false\n    embed-resources: true\njupyter: julia-1.8\n---\nSee the Quarto documentation for an exhaustive list of options for all formats.\n\n\nWritten sections\nWritten sections are written in Pandoc’s extended Markdown.\n\n\nCode blocks\nIf all you want is syntax highlighting of the code blocks, use this syntax:\n```{.language}\n<some code>\n```\nIf you want syntax highlighting of the blocks and for the code to run, use instead:\n```{language}\n<some code>\n```\nIn addition, options can be added to individual code blocks:\n```{language}\n#| <some option>: <some option value>\n\n<some code>\n```\n\n\n\nRendering\nUsing Quarto is very simple: there are only two commands you need to know.\nIn a terminal, simply run either of:\nquarto render <file>.qmd     # this will render the document\nquarto preview <file>.qmd    # this will display live preview as you work on your document"
   },
   {
     "objectID": "tools/quarto.html#lets-give-this-a-try",
@@ -4624,6 +4666,6 @@
     "href": "tools/quarto.html#examples",
     "title": "Authoring scientific documents with Markdown and Quarto",
     "section": "Examples",
-    "text": "Examples\nBelow are a few basic example files and their outputs.\n\nRevealjs presentation\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\ninstitute: \"Simon Fraser University\"\nformat:\n  revealjs:\n    highlight-style: monokai\n    code-line-numbers: false\n    embed-resources: true\n---\n\n## First section\n\nWhen exporting to revealjs, second level sections mark the start of new slides,\nwith a slide title.\n\nThis can be changed in options.\n\n---\n\nNew slides can be started without titles this way.\n\n# There are title slides\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Columns\n\n:::: {.columns}\n\n::: {.column width=\"30%\"}\n\nYou can create columns.\n\n:::\n\n::: {.column width=\"70%\"}\n\nAnd you can set their respective width.\n\n:::\n\n::::\n\n## Lists\n\n::: {.incremental}\n\n- List can happen one line at a time\n- like\n- this\n\n:::\n\n## Lists\n\n- Or all at the same time\n- like\n- that\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\n\npdf\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat:\n  pdf:\n    toc: true\n---\n\n# Header 1\n\nSome text.\n\n## Header 2\n\nMore text.\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Lists\n\n### Unordered\n\n- Item 1\n- Item 2\n- Item 3\n\n### Ordered\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\nIn order to export to pdf, you need a TeX distribution. You probably already have one installed on your machine, so you should first try to render or preview a document to pdf to see whether it works. If it doesn’t work, you can install the minimalist distribution TinyTex by running in your terminal:\n\nquarto install tool tinytex\n\n\nHTML with R code blocks\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\ninstitute: \"Simon Fraser University\"\nformat: html\n---\n\n# Header 1\n\n## Header 2\n\nSome text.\n\n## Formatting  {#sec-formatting}\n\n::: aside\n\nNote that each header automatically creates an anchor,\nmaking it easy to link to specific sections of your documents.\n\n:::\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Columns\n\n:::: {.columns}\n\n::: {.column width=\"30%\"}\n\nYou can create columns.\n\n:::\n\n::: {.column width=\"70%\"}\n\nAnd you can set their respective width.\n\n:::\n\n::::\n\n## Lists\n\n- Item 1\n- Item 2\n- Item 3\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n## Cross-references\n\nSee @sec-formatting.\n\n*Note that you can add bibliographies, flow charts, the equivalent of HTML \"div\",\nand just so much more. Remember that this is a tiny overview.*\n\n## Let's try some code blocks now\n\n```{r}\n# This is a block that runs\n2 + 3\n```\n\n::: aside\n\nDid you notice that the content of your code blocks can be copied with a click?\nOf course, this is customizable.\n\n:::\n\n```{.r}\n# This is a block that doesn't run\n2 + 3\n```\n\n```{r}\n#| echo: false\n# And this is a block showing only the output\ndata.frame(\n  country = c(\"Canada\", \"USA\", \"Mexico\"),\n  var = c(2.9, 3.1, 4.5)\n)\n```\n\n## Plots\n\n```{r}\nplot(cars)\n```\n\n<br>\nYou can play with options to add a title:\n\n```{r}\n#| fig-cap: \"Stopping distance as a function of speed in cars\"\n\nplot(cars)\n```\n\n<br>\nYou can have more complex multi-plot layouts:\n\n```{r}\n#| layout-ncol: 2\n#| fig-cap: \n#|   - \"Stopping distance as a function of speed in cars\"\n#|   - \"Vapor pressure of mercury as a function of temperature\"\n\nplot(cars)\nplot(pressure)\n```\n\nFor those who have `ggplot2`[^1], you can try that too:\n\n```{r}\nlibrary(ggplot2)\n\nggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + \n  geom_point(mapping = aes(color = class)) + \n  geom_smooth()\n```\n\n[^1]: You can install it with:\n    ```{.r}\n    install.packages(\"ggplot2\")\n    ```\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\n\nBeamer with Python code blocks\nBeamer is LaTeX presentation framework: a way to create beautiful pdf slides.\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"Some title\"\nauthor: \"Some name\"\nformat: beamer\njupyter: python3\n---\n\n## First slide\n\nWith some content\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n## Lists\n\n- Item 1\n- Item 2\n- Item 3\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|------ |-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n## Some basic code block\n\n```{python}\n#| echo: true\n\n2 + 3\n```\n\n## Some plot\n\n```{python}\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Data for plotting\nt = np.arange(0.0, 2.0, 0.01)\ns = 1 + np.sin(2 * np.pi * t)\n\nfig, ax = plt.subplots()\nax.plot(t, s)\n\nax.set(xlabel='time (s)', ylabel='voltage (mV)',\n       title='Here goes the title')\nax.grid()\n\nfig.savefig(\"test.png\")\nplt.show()\n```\n\n\n\nRendered document (click on it to open it in a new tab):"
+    "text": "Examples\nBelow are a few basic example files and their outputs.\n\nRevealjs presentation\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\ninstitute: \"Simon Fraser University\"\nformat:\n  revealjs:\n    highlight-style: monokai\n    code-line-numbers: false\n    embed-resources: true\n---\n\n## First section\n\nWhen exporting to revealjs, second level sections mark the start of new slides,\nwith a slide title.\n\nThis can be changed in options.\n\n---\n\nNew slides can be started without titles this way.\n\n# There are title slides\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Columns\n\n:::: {.columns}\n\n::: {.column width=\"30%\"}\n\nYou can create columns.\n\n:::\n\n::: {.column width=\"70%\"}\n\nAnd you can set their respective width.\n\n:::\n\n::::\n\n## Lists\n\n::: {.incremental}\n\n- List can happen one line at a time\n- like\n- this\n\n:::\n\n## Lists\n\n- Or all at the same time\n- like\n- that\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|-------|-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\n\npdf\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\nformat:\n  pdf:\n    toc: true\n---\n\n# Header 1\n\nSome text.\n\n## Header 2\n\nMore text.\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Lists\n\n### Unordered\n\n- Item 1\n- Item 2\n- Item 3\n\n### Ordered\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|-------|-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\nIn order to export to pdf, you need a TeX distribution. You probably already have one installed on your machine, so you should first try to render or preview a document to pdf to see whether it works. If it doesn’t work, you can install the minimalist distribution TinyTex by running in your terminal:\n\nquarto install tool tinytex\n\n\nHTML with R code blocks\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"My title\"\nauthor: \"My name\"\ninstitute: \"Simon Fraser University\"\nformat: html\n---\n\n# Header 1\n\n## Header 2\n\nSome text.\n\n## Formatting  {#sec-formatting}\n\n::: aside\n\nNote that each header automatically creates an anchor,\nmaking it easy to link to specific sections of your documents.\n\n:::\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n> This is a quote.\n\n## Columns\n\n:::: {.columns}\n\n::: {.column width=\"30%\"}\n\nYou can create columns.\n\n:::\n\n::: {.column width=\"70%\"}\n\nAnd you can set their respective width.\n\n:::\n\n::::\n\n## Lists\n\n- Item 1\n- Item 2\n- Item 3\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|-------|-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n## Cross-references\n\nSee @sec-formatting.\n\n*Note that you can add bibliographies, flow charts, the equivalent of HTML \"div\",\nand just so much more. Remember that this is a tiny overview.*\n\n## Let's try some code blocks now\n\n```{r}\n# This is a block that runs\n2 + 3\n```\n\n::: aside\n\nDid you notice that the content of your code blocks can be copied with a click?\nOf course, this is customizable.\n\n:::\n\n```{.r}\n# This is a block that doesn't run\n2 + 3\n```\n\n```{r}\n#| echo: false\n# And this is a block showing only the output\ndata.frame(\n  country = c(\"Canada\", \"USA\", \"Mexico\"),\n  var = c(2.9, 3.1, 4.5)\n)\n```\n\n## Plots\n\n```{r}\nplot(cars)\n```\n\n<br>\nYou can play with options to add a title:\n\n```{r}\n#| fig-cap: \"Stopping distance as a function of speed in cars\"\n\nplot(cars)\n```\n\n<br>\nYou can have more complex multi-plot layouts:\n\n```{r}\n#| layout-ncol: 2\n#| fig-cap: \n#|   - \"Stopping distance as a function of speed in cars\"\n#|   - \"Vapor pressure of mercury as a function of temperature\"\n\nplot(cars)\nplot(pressure)\n```\n\nFor those who have `ggplot2`[^1], you can try that too:\n\n```{r}\nlibrary(ggplot2)\n\nggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + \n  geom_point(mapping = aes(color = class)) + \n  geom_smooth()\n```\n\n[^1]: You can install it with:\n    ```{.r}\n    install.packages(\"ggplot2\")\n    ```\n\n\n\nRendered document (click on it to open it in a new tab):\n\n\n\n\n\n\n\nBeamer with Python code blocks\nBeamer is LaTeX presentation framework: a way to create beautiful pdf slides.\n\n\n\n\n\n\nCode\n\n\n\n\n\n---\ntitle: \"Some title\"\nauthor: \"Some name\"\nformat: beamer\njupyter: python3\n---\n\n## First slide\n\nWith some content\n\n## Formatting\n\nText can be rendered *in italic* or **in bold** as well as [underlined]{.underline}.\n\nYou can use superscripts^2^, subscripts~test~, ~~strikethrough~~, and `inline code`.\n\n## Lists\n\n- Item 1\n- Item 2\n- Item 3\n\n## Ordered lists\n\n1. Item 1\n2. Item 2\n3. Item 3\n\n## Images\n\n![Example image](qmd_jupyter.png)\n\n## Tables\n\n| Col 1 | Col 2 | Col 3  |\n|-------|-------|--------|\n| a     | 1     | red    |\n| b     | 2     | orange | \n| c     | 3     | yellow |\n\n:::{.callout-note}\n\nTables can be fully customized (or you could use raw html).\n\n:::\n\n## Equations\n\n$$\n\\frac{\\partial \\mathrm C}{ \\partial \\mathrm t } + \\frac{1}{2}\\sigma^{2} \\mathrm S^{2}\n\\frac{\\partial^{2} \\mathrm C}{\\partial \\mathrm C^2}\n  + \\mathrm r \\mathrm S \\frac{\\partial \\mathrm C}{\\partial \\mathrm S}\\ =\n  \\mathrm r \\mathrm C \n$$\n\n## Some basic code block\n\n```{python}\n#| echo: true\n\n2 + 3\n```\n\n## Some plot\n\n```{python}\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Data for plotting\nt = np.arange(0.0, 2.0, 0.01)\ns = 1 + np.sin(2 * np.pi * t)\n\nfig, ax = plt.subplots()\nax.plot(t, s)\n\nax.set(xlabel='time (s)', ylabel='voltage (mV)',\n       title='Here goes the title')\nax.grid()\n\nfig.savefig(\"test.png\")\nplt.show()\n```\n\n\n\nRendered document (click on it to open it in a new tab):"
   }
 ]

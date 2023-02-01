@@ -8,7 +8,7 @@
 
 <meta name="author" content="Marie-Hélène Burle">
 
-<title>WestDRI - Speeding up computations with parallel R</title>
+<title>WestDRI - Measuring performance:</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -31,8 +31,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../r/resources.html" rel="next">
-<link href="../r/tidyverse.html" rel="prev">
+<link href="../r/parallel_loops.html" rel="next">
+<link href="../r/clusters.html" rel="prev">
 <link href="..//img/sfu_favicon.png" rel="icon" type="image/png">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -128,7 +128,7 @@ ul.task-list li input[type="checkbox"] {
     </nav>
   <nav class="quarto-secondary-nav" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
     <div class="container-fluid d-flex justify-content-between">
-      <h1 class="quarto-secondary-nav-title">Speeding up computations with parallel R</h1>
+      <h1 class="quarto-secondary-nav-title">Measuring performance:</h1>
       <button type="button" class="quarto-btn-toggle btn" aria-label="Show secondary navigation">
         <i class="bi bi-chevron-right"></i>
       </button>
@@ -176,12 +176,33 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../r/parallel.html" class="sidebar-item-text sidebar-link active">Parallel R</a>
+  <a href="../r/resources.html" class="sidebar-item-text sidebar-link">Resources</a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/clusters.html" class="sidebar-item-text sidebar-link">Running R on HPC clusters</a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../r/resources.html" class="sidebar-item-text sidebar-link">Resources</a>
+  <a href="../r/performance.html" class="sidebar-item-text sidebar-link active">Measuring performance</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/parallel_loops.html" class="sidebar-item-text sidebar-link">Parallel loops</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/partition.html" class="sidebar-item-text sidebar-link">Partitioning data</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/rcpp.html" class="sidebar-item-text sidebar-link">Writing C++ in R with Rcpp</a>
   </div>
 </li>
           <li class="px-0"><hr class="sidebar-divider hi "></li>
@@ -225,14 +246,22 @@ ul.task-list li input[type="checkbox"] {
 </nav>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Workshop sections</h2>
+   
+  <ul>
+  <li><a href="#profiling" id="toc-profiling" class="nav-link active" data-scroll-target="#profiling">Profiling</a></li>
+  <li><a href="#benchmarking" id="toc-benchmarking" class="nav-link" data-scroll-target="#benchmarking">Benchmarking</a></li>
+  </ul>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title d-none d-lg-block">Speeding up computations with parallel R</h1>
+<h1 class="title d-none d-lg-block">Measuring performance:</h1>
+<p class="subtitle lead">profiling &amp; benchmarking</p>
 </div>
 
 
@@ -253,8 +282,27 @@ ul.task-list li input[type="checkbox"] {
 
 </header>
 
+<section id="profiling" class="level2">
+<h2 class="anchored" data-anchor-id="profiling">Profiling</h2>
+<p>The first thing to do if you want to improve your code efficiency is to identify bottlenecks in your code.</p>
+<p>Common tools include:</p>
+<ul>
+<li>the base R function <code>Rprof()</code>,</li>
+<li>the package <a href="https://cran.r-project.org/web/packages/profvis/index.html">profvis</a>.</li>
+</ul>
+<p><a href="https://cran.r-project.org/web/packages/profvis/index.html">profvis</a> is a newer tool, built by <a href="https://posit.co/">posit</a> (formerly RStudio). Under the hood, it runs <code>Rprof()</code> to collect data, then produces an interactive html widget with a flame graph that allows for an easy visual identification of slow sections of code.</p>
+<p>While this tool integrates well within the RStudio IDE or the <a href="https://rpubs.com/wch/178493">RPubs ecosystem</a>, it is not very well suited for remote work on a cluster. One option is to profile your code with small data on your own machine. Another option is to use the base profiler with <code>Rprof()</code> directly as in <a href="https://rstudio.github.io/r-manuals/r-exts/Tidying-and-profiling-R-code.html#profiling-r-code-for-speed">this example</a>.</p>
+</section>
+<section id="benchmarking" class="level2">
+<h2 class="anchored" data-anchor-id="benchmarking">Benchmarking</h2>
+<p>Once you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.</p>
+<p>In the most basic fashion, you can use <code>system.time()</code>, but this is limited and imprecise.</p>
+<p>The <a href="https://cran.r-project.org/web/packages/microbenchmark/index.html">microbenchmark</a> package is a popular option.</p>
+<p>It gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.</p>
+<p>The newer <a href="https://cran.r-project.org/web/packages/bench/index.html">bench</a> package has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections.</p>
 
 
+</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
@@ -406,13 +454,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../r/tidyverse.html" class="pagination-link">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Glimpse at the tidyverse</span>
+      <a href="../r/clusters.html" class="pagination-link">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Running R on HPC clusters</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../r/resources.html" class="pagination-link">
-        <span class="nav-page-text">Resources</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../r/parallel_loops.html" class="pagination-link">
+        <span class="nav-page-text">Parallel loops</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
