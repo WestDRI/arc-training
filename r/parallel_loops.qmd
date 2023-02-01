@@ -1,0 +1,376 @@
+---
+title: Parallel loops with foreach & doFuture
+author: Marie-Hélène Burle
+---
+
+## Parallel programming
+
+### Multi-threading
+
+We talk about **multi-threading** when a single process (with its own memory) runs multiple threads.
+
+The execution can happen in parallel—if each thread has access to a CPU core—or by alternating some of the threads on some CPU cores.
+
+Because all threads in a process write to the same memory addresses, multi-threading can lead to [race conditions](https://en.wikipedia.org/wiki/Race_condition).
+
+Multi-threading does not seem to be a common approach to parallelizing R code.
+
+### Multi-processing in shared memory
+
+**Multi-processing in shared memory** happens when multiple processes execute code on multiple CPU cores of a single node (or a single machine).
+
+The different processes need to communicate with each other, but because they are all running on the CPU cores of a single node, messages can pass via shared memory.
+
+### Multi-processing in distributed memory
+
+When processes involved in the execution of some code run on multiple nodes of a cluster, messages between them need to travel over the cluster interconnect. In that case, we talk about **distributed memory**.
+
+## Running R code in parallel
+
+### Package parallel (base R)
+
+The `parallel` package has been part of the "base" package group since version 2.14.0. \
+This means that it is comes with R.
+
+Most parallel approaches in R build on this package.
+
+We will make use of it to create and close an ad-hoc cluster.
+
+:::{.note}
+
+The [parallelly](https://parallelly.futureverse.org/) package adds functionality to the `parallel` package.
+
+:::
+
+### Package foreach
+
+The [foreach](https://cran.r-project.org/web/packages/foreach/index.html) package implements a looping construct without an explicit counter. It doesn't require the preallocation of an output container, it brings to R an equivalent of the Python or Julia list comprehensions, and mostly, it allows for an easy execution of loops in parallel. Unlike loops, it creates variables (loops are used for their side-effect).
+
+Let's look at an example to calculate the sum of 1e4 random vectors of length 3.
+
+We will use `foreach` and `iterators` (which creates convenient iterators for `foreach`):
+
+```{r}
+library(foreach)
+library(iterators)
+```
+
+- Classic while loop:
+
+```{r}
+set.seed(2)
+
+result1 <- numeric(3)  # First we need to preallocate an output container
+i <- 0                 # Then we need to initialise a counter variable
+
+while(i < 1e4) {                 # Finally we run the loop
+  result1 <- result1 + runif(3)  # calculate the sum
+  i <- i + 1                     # update the counter
+}
+```
+
+- With foreach:
+
+```{r}
+set.seed(2)
+
+result2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)
+```
+
+We can verify that both expressions returned the same result:
+
+```{r}
+all.equal(result1, result2)
+```
+
+The best part of `foreach` is that it makes for easy parallelization of loops if you replace `%do%` with `%dopar%`.
+
+For this reason, many parallelization backends use `foreach`: `doFuture`, `doMC`, `doMPI`, `doFuture`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
+
+In this webinar, I will use [doFuture](https://cran.r-project.org/web/packages/doFuture/index.html) which makes `foreach::%dopar%` work on any type of future thanks to the [future](https://cran.r-project.org/web/packages/future/index.html) package.
+
+So first, what is the `future` package?
+
+### Package future
+
+A [future](https://en.wikipedia.org/wiki/Futures_and_promises) is an object that acts as an abstract representation for a value in the future. A future can be *resolved* (if the value has been computed) or *unresolved*. If the value is queried while the future is unresolved, the process is blocked until the future is resolved.
+
+Futures allow for asynchronous and parallel evaluations. The `future` package provides a simple and unified API to evaluate futures.
+
+### Plans
+
+The `future` package does this thanks to the `plan` function:
+
+- `plan(sequential)`: futures are evaluated sequentially in the current R session
+- `plan(multisession)`: futures are evaluated by new R sessions spawned in the background (*multi-processing in shared memory*)
+- `plan(multicore)`: futures are evaluated in processes forked from the existing process (*multi-processing in shared memory*)
+- `plan(cluster)`: futures are evaluated on an ad-hoc cluster (allows for *distributed parallelism* across multiple nodes)
+
+### Consistency
+
+To ensure a consistent behaviour across plans, all evaluations are done in a local environment:
+
+```{r}
+library(future)
+
+a <- 1
+
+b %<-% {
+  a <- 2
+}
+
+a
+```
+
+### Let's return to our example
+
+We had:
+
+```{.r}
+set.seed(2)
+result2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)
+```
+
+We can replace `%do%` with `%dopar%`:
+
+```{.r}
+set.seed(2)
+result3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)
+```
+
+Because we haven't set any parallel backend to `foreach`, this won't make any difference. To run this in parallel using `future` and `doFuture`, we first need to load `doFuture` and set a parallel plan (e.g. `plan(multicore)`).
+
+Because of the overhead of parallelization, it wouldn't make sense to to parallelize such a short code. Let's go over a better toy example and time it.
+
+## Toy example
+
+### Load packages
+
+I will use the [randomForest](https://cran.r-project.org/web/packages/randomForest/index.html) package to create a classification algorithm based on a forest of decision trees.
+
+Because the code includes randomly generated numbers, I will also use the [doRNG](https://cran.r-project.org/web/packages/doRNG/index.html) package which replaces `%dopar%` with `%dorng%` to follow the recommendations of [L'Ecuyer, P. (1999)](https://pubsonline.informs.org/doi/10.1287/opre.47.1.159)[^1] and ensure reproducibility.
+
+[^1]: L'Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164.
+
+```{.r}
+library(doFuture)
+library(doRNG)
+library(randomForest)
+library(bench)
+```
+
+```
+Loading required package: foreach
+Loading required package: future
+Loading required package: rngtools
+```
+
+### The code to parallelize
+
+The goal is to create a classifier based on some data (here a matrix of random numbers for simplicity) and a response variable (as factor). This model could then be passed in the `predict()` function with novel data to generate predictions of classification. But here we are only interested in the creation of the model as this is the part that is computationally intensive. We aren't interested in actually using it.
+
+```{.r}
+set.seed(11)
+
+traindata <- matrix(runif(1e5), 100)
+fac <- gl(2, 50)
+
+rf <- foreach(ntree = rep(250, 8), .combine = combine) %do%
+  randomForest(x = traindata, y = fac, ntree = ntree)
+
+rf
+```
+
+```
+Call:
+ randomForest(x = traindata, y = fac, ntree = ntree)
+               Type of random forest: classification
+                     Number of trees: 2000
+No. of variables tried at each split: 31
+```
+
+### Reference timing
+
+This is the non parallelizable code with `%do%`:
+
+```{.r}
+tref <- mark(
+  rf1 <- foreach(ntree = rep(250, 8), .combine = combine) %do%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory=F
+)
+
+tref$median
+```
+
+```
+[1] 5.66s
+```
+
+### Plan sequential
+
+This is the parallelizable `foreach` code, but run sequentially:
+
+```{.r}
+registerDoFuture()
+
+plan(sequential)
+
+# Using bench::mark()
+tseq <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory=F
+)
+
+tseq$median
+```
+
+```
+[1] 5.78s
+```
+
+:::{.note}
+
+No surprise: those are similar.
+
+:::
+
+### Multi-processing in shared memory
+
+`future` provides `availableCores()` to detect the number of available cores:
+
+```{.r}
+availableCores()
+```
+
+```
+system
+     4
+```
+
+:::{.note}
+
+This is the same as `parallel::detectCores()`.
+
+:::
+
+This detects the number of CPU cores available to me on the current compute node, that is, what I can use for shared memory multi-processing.
+
+### Plan multisession
+
+Shared memory multi-processing can be run with `plan(multisession)` that will spawn new R sessions in the background to evaluate futures:
+
+```{.r}
+plan(multisession)
+
+tms <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory=F
+)
+
+tms$median
+```
+
+```
+[1] 2s
+```
+
+:::{.note}
+
+We got a speedup of `5.78 / 2 = 2.9`. Not bad considering that we have 4 CPU cores (the ideal speedup would be 4, but there is always some overhead to parallelization).
+
+:::
+
+### Plan multicore
+
+Shared memory multi-processing can also be run with `plan(multicore)` (except on Windows) that will fork the current R process to evaluate futures:
+
+```{.r}
+plan(multicore)
+
+tmc <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory=F
+)
+
+tmc$median
+```
+
+```
+[1] 1.9s
+```
+
+:::{.note}
+
+We got a very similar speedup of `5.78 / 1.9 = 3.0`.
+
+:::
+
+### Multi-processing in distributed memory
+
+I did request 8 tasks however. But because the training cluster I built for this webinar only has nodes of the `c4-30gb` flavour, those tasks use 2 nodes.
+
+Let's verify that I did get 8 tasks:
+
+```{.r}
+as.numeric(Sys.getenv("SLURM_NTASKS"))
+```
+
+```
+[1] 8
+```
+
+I can create a character vector with the name of the node each worker is on:
+
+```{.r}
+(hosts <- system("srun hostname | cut -f 1 -d '.'", intern = T))
+```
+
+```
+chr [1:8] "node1" "node1" "node1" "node1" "node2" "node2" "node2" "node2"
+```
+
+This allows me to create the cluster of workers:
+
+```{.r}
+(cl <- parallel::makeCluster(hosts))      # defaults to type="PSOCK" which is good
+```
+
+```
+socket cluster with 8 nodes on hosts ‘node1’, ‘node2’
+```
+
+### Plan cluster
+
+I can now try the code with distributed parallelism using all 8 CPU cores across both nodes:
+
+```{.r}
+plan(cluster, workers = cl)
+
+tdis <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory=F
+)
+
+tdis$median
+```
+
+```
+[1] 1.14s
+```
+
+:::{.note}
+
+Speedup: `5.78 / 1.14 = 5.1`. Here again, this is not bad with 8 CPU cores, considering the added overhead of message passing between both nodes.
+
+:::
+
+The cluster of workers can be stopped with:
+
+```{.r}
+parallel::stopCluster(cl)
+```
