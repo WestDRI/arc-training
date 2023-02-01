@@ -1,0 +1,135 @@
+---
+title: Running R on HPC clusters
+author: Marie-Hélène Burle
+---
+
+## Loading modules
+
+### Intel vs GCC compilers
+
+To compile R packages, you need a C compiler.
+
+In theory, you could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can even be compiled with Clang and LLVM, but the default GCC compiler is the best way to avoid headaches).
+
+It is thus much simpler to always load a `gcc` module before loading an `r` module.
+
+### R module
+
+To see what versions of R are available on a cluster, run:
+
+```{.bash}
+module spider r
+```
+
+To see the dependencies of a particular version (e.g. `r/4.2.1`), run:
+
+```{.bash}
+module spider r/4.2.1
+```
+
+:::{.note}
+
+`StdEnv/2020` is a required module for this version.
+
+On most Alliance clusters, it is automatically loaded, so you don't need to include it. You can double-check with `module list` or you can include it (before `r/4.2.1`) just to be sure.
+
+:::
+
+Finally, load your modules:
+
+```{.bash}
+module load StdEnv/2020 gcc/11.3.0 r/4.2.1
+```
+
+## Installing R packages
+
+---
+
+To install a package, launch the interactive R console with:
+
+```{.bash}
+R
+```
+
+In the R console, run:
+
+```{.r}
+install.packages("<package_name>", repos="<url-cran-mirror>")
+```
+
+:::{.note}
+
+`repos` argument: chose a [CRAN mirror close to the location of your cluster](https://cran.r-project.org/mirrors.html) or use <https://cloud.r-project.org/>.
+
+:::
+
+:::{.note}
+
+The first time you install a package, R will ask you whether you want to create a personal library in your home directory. Answer `yes` to both questions. Your packages will now install under `~/`.
+
+:::
+
+:::{.note}
+
+Some packages require additional modules to be loaded before they can be installed. Other packages need additional R packages as dependencies. In either case, you will get explicit error messages. Adding the argument `dependencies = T` helps in the second case, but you will still have to add packages manually from time to time.
+
+:::
+
+To leave the R console, press `<Ctrl+D>`.
+
+## Running R jobs
+
+### Scripts
+
+To run an R script called `<your_script>.R`, you first need to write a job script:
+
+:::{.example}
+
+Example:
+
+```{.bash filename="<your_job>.sh"}
+#!/bin/bash
+#SBATCH --account=def-<your_account>
+#SBATCH --time=15
+#SBATCH --mem-per-cpu=3000M
+#SBATCH --cpus-per-task=4
+#SBATCH --job-name="<your_job>"
+module load StdEnv/2020 gcc/11.3.0 r/4.2.1
+Rscript <your_script>.R	  # Note that R scripts are run with the command `Rscript`
+```
+
+:::
+
+Then launch your job with:
+
+```{.bash}
+sbatch <your_job>.sh
+```
+
+You can monitor your job with `sq` (an alias for `squeue -u $USER $@`).
+
+### Interactive jobs
+
+:::{.note}
+
+While it is fine to run R on the login node when you install packages, you **must start a SLURM job before any heavy computation**.
+
+:::
+
+To run R interactively, you should launch an `salloc` session.
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+salloc --time=1:10:00 --mem-per-cpu=7000M --ntasks=8
+```
+
+This takes you to a compute node where you can now launch R to run computations:
+
+```{.bash}
+R
+```
