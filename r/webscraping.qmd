@@ -68,7 +68,7 @@ We will use the package [rvest](https://cran.r-project.org/web/packages/rvest/in
 
 Let's load it:
 
-```{.r}
+```{r}
 library(rvest)
 ```
 
@@ -78,27 +78,20 @@ As mentioned above, our site is the [database of PhD dissertations of the Univer
 
 Let's create a character vector with the url:
 
-```{.r}
+```{r}
 url <- "https://trace.tennessee.edu/utk_graddiss/index.html"
 ```
 
 First, we read in the html data from that page:
 
-```{.r}
+```{r}
 html <- read_html(url)
 ```
 
 Let's have a look at the raw data:
 
-```{.r}
+```{r}
 html
-```
-
-```
-{html_document}
-<html lang="en">
-[1] <head>\n<meta http-equiv="Content-Type" content="text/html; charset=UTF-8 ...
-[2] <body>\n<!-- FILE /srv/sequoia/main/data/trace.tennessee.edu/assets/heade ...
 ```
 
 ### Extracting relevant data
@@ -111,68 +104,43 @@ To find the relevant CSS element, you can use a web inspector or, even easier, t
 
 First, let's try to extract a single link:
 
-```{.r}
+```{r}
 test <- html %>% html_element(".article-listing")
 test
 ```
 
 ```
-{html_node}
-<p class="article-listing">
-[1] <a href="https://trace.tennessee.edu/utk_graddiss/7600">The Novel Chlorin ...
-```
 
 The link is in there, but we need to do more extracting.
 
-```{.r}
 str(test)
+```{r}
 ```
 
-```
-List of 2
- $ node:<externalptr> 
- $ doc :<externalptr> 
- - attr(*, "class")= chr "xml_node"
-```
 
-```{.r}
 a_test <- test %>% html_element("a")
 a_test
+```{r}
 ```
 
 Much better, but we now need to extract the `href` attribute:
 
-```
-{xml_nodeset (1)}
-[1] <a href="https://trace.tennessee.edu/utk_graddiss/7600">The Novel Chlorin ...
-```
 
-```{.r}
 a_test %>% html_attrs()
+```{r}
 ```
 
-```
-[[1]]
-                                           href 
-"https://trace.tennessee.edu/utk_graddiss/7600" 
-```
 
-```{.r}
+```{r}
 link_test <- a_test %>% html_attr("href")
 link_test
 ```
 
-```
-[1] "https://trace.tennessee.edu/utk_graddiss/7600"
-```
 
-```{.r}
+```{r}
 str(link_test)
 ```
 
-```
-chr "https://trace.tennessee.edu/utk_graddiss/7600"
-```
 
 #### Getting data from our test link
 
@@ -180,59 +148,36 @@ chr "https://trace.tennessee.edu/utk_graddiss/7600"
 
 First, as we did earlier with the database site, we need to read in the html data:
 
-```{.r}
+```{r}
 html_test <- read_html(link_test)
 html_test
-```
-
-```
-<html lang="en">
-[1] <head>\n<meta http-equiv="Content-Type" content="text/html; charset=UTF-8 ...
-[2] <body>\n<!-- FILE /srv/sequoia/main/data/trace.tennessee.edu/assets/heade ...
 ```
 
 Now, we want to extract the publication date. Let's use the [SelectorGadget](https://selectorgadget.com/) again.
 
 We need the element `#publication_date p`. Let's extract it:
 
-```{.r}
+```{r}
 date <- html_test %>% html_element("#publication_date p") %>% html_text2()
 date
 ```
 
-```
-[1] "5-2023"
-```
-
 We also want the major for this thesis. The [SelectorGadget](https://selectorgadget.com/) allows us to find that this time, it is the `#department p` element that we need. Let's extract it:
 
-```{.r}
+```{r}
 major <- html_test %>% html_element("#department p") %>% html_text2()
 major
 ```
 
-```
-[1] "Chemistry"
-```
-
 And for the PI, we need the `#advisor1 p` element:
 
-```{.r}
+```{r}
 pi <- html_test %>% html_element("#advisor1 p") %>% html_text2()
 pi
 ```
 
-```
-[1] "Craig E. Barnes"
-```
-
-```{.r}
+```{r}
 cbind(date, major, pi)
-```
-
-```
-     date     major       pi               
-[1,] "5-2023" "Chemistry" "Craig E. Barnes"
 ```
 
 :::{.exo}
@@ -253,59 +198,15 @@ Now, write the code to extract it.
 
 Instead of using `html_element()`, this time we will use `html_elements()` which extracts *all* matching elements (instead of just the first one):
 
-```{.r}
+```{r}
 dat <- html %>% html_elements(".article-listing")
 dat
 ```
 
-```
-{xml_nodeset (100)}
- [1] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [2] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [3] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [4] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [5] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [6] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [7] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [8] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
- [9] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[10] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[11] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[12] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[13] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[14] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[15] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[16] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[17] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[18] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[19] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-[20] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
-...
-```
-
-```{.r}
 str(dat)
 ```
 
-```
-List of 100
- $ :List of 2
-  ..$ node:<externalptr> 
-  ..$ doc :<externalptr> 
-  ..- attr(*, "class")= chr "xml_node"
- $ :List of 2
-  ..$ node:<externalptr> 
-  ..$ doc :<externalptr> 
-  ..- attr(*, "class")= chr "xml_node"
- $ :List of 2
-  ..$ node:<externalptr> 
-  ..$ doc :<externalptr> 
-  ..- attr(*, "class")= chr "xml_node"
- $ :List of 2
-  ..$ node:<externalptr> 
-  ..$ doc :<externalptr> 
-  ..- attr(*, "class")= chr "xml_node"
-...
+```{r}
 ```
 
 We now have a list of lists.
@@ -316,23 +217,19 @@ Before running for loops, it is important to initialize empty loops. It is much 
 
 So let's initialize an empty list:
 
-```{.r}
+```{r}
 list_links <- vector("list", length(dat))
 ```
 
 Let's have a look at one element of our list (the second one for instance):
 
-```{.r}
+```{r}
 list_links[[2]]
-```
-
-```
-NULL
 ```
 
 We now have an empty list of the appropriate size. We can run our loop:
 
-```{.r}
+```{r}
 for (i in seq_along(dat)) {
   list_links[[i]] <- dat[[i]] %>%
     html_element("a") %>%
@@ -342,12 +239,8 @@ for (i in seq_along(dat)) {
 
 Let's print again the second element of our list to make sure all looks good:
 
-```{.r}
+```{r}
 list_links[[2]]
-```
-
-```
-[1] "https://trace.tennessee.edu/utk_graddiss/7714"
 ```
 
 We have a character vector with one link. That's great! `list_links` is a list of links (in the form of character vectors) as we wanted.
@@ -358,13 +251,13 @@ We will now extract the data (date, major, and PI) for all links in our list.
 
 Again, before running a for loop, we need to allocate memory first by creating an empty container:
 
-```{.r}
+```{r}
 list_data <- vector("list", length(list_links))
 ```
 
 And here is our big loop to get the data from our list of links:
 
-```{.r}
+```{r}
 for (i in seq_along(list_links)) {
   html <- read_html(list_links[[i]])
   date <- html %>%
@@ -382,18 +275,13 @@ for (i in seq_along(list_links)) {
 
 Let's make sure all looks good by printing the second element of `list_data`:
 
-```{.r}
+```{r}
 list_data[[2]]
-```
-
-```
-[,1]      [,2]        [,3]                 
-[1,] "12-2022" "Chemistry" "Dr. Ampofo K. Darko"
 ```
 
 All looking good, so let's turn this big list into a tibble:
 
-```{.r}
+```{r}
 result <- do.call(rbind.data.frame, list_data) %>%
   tibble::as_tibble()
 ```
@@ -406,54 +294,18 @@ The notation `tibble::as_tibble()` means that we are using the function `as_tibb
 
 Here is our result:
 
-```{.r}
+```{r}
 result
-```
-
-```
-# A tibble: 100 × 3
-   date    major                                      pi                   
-   <chr>   <chr>                                      <chr>                
- 1 5-2023  Chemistry                                  Craig E. Barnes      
- 2 12-2022 Chemistry                                  Dr. Ampofo K. Darko  
- 3 12-2022 Industrial Engineering                     James Ostrowski      
- 4 5-2022  Entomology, Plant Pathology and Nematology Heather Kelly        
- 5 5-2022  Mechanical Engineering                     Caleb D. Rucker      
- 6 12-2022 Electrical Engineering                     Yilu Liu             
- 7 5-2022  Comparative and Experimental Medicine      Brian K. Whitlock    
- 8 5-2022  History                                    Jay Rubenstein       
- 9 12-2022 Anthropology                               Dawnie W. Steadman   
-10 12-2022 Mechanical Engineering                     Stephanie C. TerMaath
-# … with 90 more rows
-# ℹ Use `print(n = ...)` to see more rows
 ```
 
 We can rename the headers:
 
-```{.r}
+```{r}
 names(result) <- c("Date", "Major", "PI")
 ```
 
 This is what our final result looks like:
 
-```{.r}
+```{r}
 result
-```
-
-```
-# A tibble: 100 × 3
-   Date    Major                                      PI                   
-   <chr>   <chr>                                      <chr>                
- 1 5-2023  Chemistry                                  Craig E. Barnes      
- 2 12-2022 Chemistry                                  Dr. Ampofo K. Darko  
- 3 12-2022 Industrial Engineering                     James Ostrowski      
- 4 5-2022  Entomology, Plant Pathology and Nematology Heather Kelly        
- 5 5-2022  Mechanical Engineering                     Caleb D. Rucker      
- 6 12-2022 Electrical Engineering                     Yilu Liu             
- 7 5-2022  Comparative and Experimental Medicine      Brian K. Whitlock    
- 8 5-2022  History                                    Jay Rubenstein       
- 9 12-2022 Anthropology                               Dawnie W. Steadman   
-10 12-2022 Mechanical Engineering                     Stephanie C. TerMaath
-# … with 90 more rows
-# ℹ Use `print(n = ...)` to see more rows
 ```
