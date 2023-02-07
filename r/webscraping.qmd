@@ -11,66 +11,348 @@ In this workshop, we will guide you through a simple example using the package [
 
 :::
 
-<!-- https://trace.tennessee.edu/utk_graddiss/index.html -->
 <!-- 1. Scrape all the links of that page into a list -->
 <!-- 2. Use each link to extract the information "Date of Award", "Degree Type", etc. through a big loop -->
 
-For this workshop, we will use the package [rvest](https://cran.r-project.org/web/packages/rvest/index.html), part of the [tidyverse](https://www.tidyverse.org/)—a modern set of R packages.
+## HTML and CSS
 
-Load the required packages:
 
-```{r}
+
+## Web scrapping
+
+
+
+## Example
+
+### Goal
+
+We will use [a website](https://trace.tennessee.edu/utk_graddiss/index.html) from the [University of Tennessee](https://www.utk.edu/) containing a database of PhD theses from that university.
+
+Our goal is to scrape data from this site to produce a dataframe with the date, major, and principal investigator (PI) for each dissertation.
+
+:::{.note}
+
+We will only do this for the first page which contains the links for the 100 most recent theses. If you really wanted to gather all the data, you would have to do this for all pages.
+
+:::
+
+### Package
+
+We will use the package [rvest](https://cran.r-project.org/web/packages/rvest/index.html), part of the [tidyverse](https://www.tidyverse.org/)—a modern set of R packages.
+
+Let's load it:
+
+```{.r}
 library(rvest)
 ```
 
-Our site:
+### Read in HTML data
 
-```{r}
+As mentioned above, our site is the [database of PhD dissertations of the University of Tennessee](https://trace.tennessee.edu/utk_graddiss/index.html).
+
+Let's create a character vector with the url:
+
+```{.r}
 url <- "https://trace.tennessee.edu/utk_graddiss/index.html"
 ```
 
-Read in the data from our URL:
-
-```{r}
-diss_html <- read_html(url)
-```
-
-Explore the raw data:
-
-```{r}
-diss_html
-```
-
-```{r}
-diss <- diss_html %>% html_elements("p.article-listing")
-diss
-```
-```{.r}
-# Then find elements that match a css selector or XPath expression
-# using html_elements(). In this example, each <section> corresponds
-# to a different film
-
-
-# Then use html_element() to extract one element per film. Here
-# we the title is given by the text inside <h2>
-title <- films %>% 
-  html_element("h2") %>% 
-  html_text2()
-title
-
-# Or use html_attr() to get data out of attributes. html_attr() always
-# returns a string so we convert it to an integer using a readr function
-episode <- films %>% 
-  html_element("h2") %>% 
-  html_attr("data-id") %>% 
-  readr::parse_integer()
-episode
-```
+First, we read in the html data from that page:
 
 ```{.r}
-html <- read_html("https://en.wikipedia.org/w/index.php?title=The_Lego_Movie&oldid=998422565")
+html <- read_html(url)
+```
 
-html %>% 
-  html_element(".tracklist") %>% 
-  html_table()
+Let's have a look at the raw data:
+
+```{.r}
+html
+```
+
+```
+{html_document}
+<html lang="en">
+[1] <head>\n<meta http-equiv="Content-Type" content="text/html; charset=UTF-8 ...
+[2] <body>\n<!-- FILE /srv/sequoia/main/data/trace.tennessee.edu/assets/heade ...
+```
+
+### Extracting relevant data
+
+#### Method
+
+To find the relevant CSS element, you can use a web inspector or, even easier, the [SelectorGadget](https://selectorgadget.com/)—a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
+
+#### Extracting a single link
+
+First, let's try to extract a single link:
+
+```{.r}
+test <- html %>% html_element(".article-listing")
+test
+```
+
+```
+{html_node}
+<p class="article-listing">
+[1] <a href="https://trace.tennessee.edu/utk_graddiss/7600">The Novel Chlorin ...
+```
+
+The link is in there, but we need to do more extracting.
+
+```{.r}
+str(test)
+```
+
+```
+List of 2
+ $ node:<externalptr> 
+ $ doc :<externalptr> 
+ - attr(*, "class")= chr "xml_node"
+```
+
+```{.r}
+a_test <- test %>% html_elements("a")
+a_test
+```
+
+Much better, but we now need to extract the `href` attribute:
+
+```
+{xml_nodeset (1)}
+[1] <a href="https://trace.tennessee.edu/utk_graddiss/7600">The Novel Chlorin ...
+```
+
+```{.r}
+a_test %>% html_attrs()
+```
+
+```
+[[1]]
+                                           href 
+"https://trace.tennessee.edu/utk_graddiss/7600" 
+```
+
+```{.r}
+link_test <- a_test %>% html_attr("href")
+link_test
+```
+
+```
+[1] "https://trace.tennessee.edu/utk_graddiss/7600"
+```
+
+```{.r}
+str(link_test)
+```
+
+```
+chr "https://trace.tennessee.edu/utk_graddiss/7600"
+```
+
+#### Getting data from our test link
+
+```{.r}
+html_test <- read_html(link_test)
+html_test
+```
+
+```
+<html lang="en">
+[1] <head>\n<meta http-equiv="Content-Type" content="text/html; charset=UTF-8 ...
+[2] <body>\n<!-- FILE /srv/sequoia/main/data/trace.tennessee.edu/assets/heade ...
+```
+
+```{.r}
+date <- html_test %>% html_elements("#publication_date p") %>% html_text2()
+date
+```
+
+```
+[1] "5-2023"
+```
+
+```{.r}
+major <- html_test %>% html_elements("#department p") %>% html_text2()
+major
+```
+
+```
+[1] "Chemistry"
+```
+
+```{.r}
+pi <- html_test %>% html_elements("#advisor1 p") %>% html_text2()
+pi
+```
+
+```
+[1] "Craig E. Barnes"
+```
+
+```{.r}
+cbind(date, major, pi)
+```
+
+```
+     date     major       pi               
+[1,] "5-2023" "Chemistry" "Craig E. Barnes"
+```
+
+#### Extracting all links
+
+```{.r}
+dat <- html %>% html_elements(".article-listing")
+dat
+```
+
+```
+{xml_nodeset (100)}
+ [1] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [2] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [3] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [4] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [5] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [6] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [7] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [8] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+ [9] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[10] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[11] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[12] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[13] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[14] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[15] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[16] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[17] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[18] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[19] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+[20] <p class="article-listing"><a href="https://trace.tennessee.edu/utk_grad ...
+...
+```
+
+```{.r}
+str(dat)
+```
+
+```
+List of 100
+ $ :List of 2
+  ..$ node:<externalptr> 
+  ..$ doc :<externalptr> 
+  ..- attr(*, "class")= chr "xml_node"
+ $ :List of 2
+  ..$ node:<externalptr> 
+  ..$ doc :<externalptr> 
+  ..- attr(*, "class")= chr "xml_node"
+ $ :List of 2
+  ..$ node:<externalptr> 
+  ..$ doc :<externalptr> 
+  ..- attr(*, "class")= chr "xml_node"
+ $ :List of 2
+  ..$ node:<externalptr> 
+  ..$ doc :<externalptr> 
+  ..- attr(*, "class")= chr "xml_node"
+...
+```
+
+Initialize an empty list:
+
+```{.r}
+list_links <- vector("list", length(dat))
+list_links[[2]]
+```
+
+```
+NULL
+```
+
+```{.r}
+for (i in seq_along(dat)) {
+  list_links[[i]] <- dat[[i]] %>%
+    html_elements("a") %>%
+    html_attr("href")
+}
+list_links[[2]]
+```
+
+```
+[1] "https://trace.tennessee.edu/utk_graddiss/7714"
+```
+
+#### Getting the data from the list of links
+
+Initialize empty lists:
+
+```{.r}
+list_data <- vector("list", length(list_links))
+html <- vector("list", length(list_links))
+```
+
+```{.r}
+for (i in seq_along(list_links)) {
+  html[[i]] <- read_html(list_links[[i]])
+  date <- html[[i]] %>%
+    html_elements("#publication_date p") %>%
+    html_text2()
+  major <- html[[i]] %>%
+    html_elements("#department p") %>%
+    html_text2()
+  pi <- html[[i]] %>%
+    html_elements("#advisor1 p") %>%
+    html_text2()
+  list_data[[i]] <- cbind(date, major, pi)
+}
+list_data[[2]]
+```
+
+```{.r}
+result <- do.call(rbind.data.frame, list_data) %>%
+  tibble::as_tibble()
+```
+
+```{.r}
+result
+```
+
+```
+# A tibble: 100 × 3
+   date    major                                      pi                   
+   <chr>   <chr>                                      <chr>                
+ 1 5-2023  Chemistry                                  Craig E. Barnes      
+ 2 12-2022 Chemistry                                  Dr. Ampofo K. Darko  
+ 3 12-2022 Industrial Engineering                     James Ostrowski      
+ 4 5-2022  Entomology, Plant Pathology and Nematology Heather Kelly        
+ 5 5-2022  Mechanical Engineering                     Caleb D. Rucker      
+ 6 12-2022 Electrical Engineering                     Yilu Liu             
+ 7 5-2022  Comparative and Experimental Medicine      Brian K. Whitlock    
+ 8 5-2022  History                                    Jay Rubenstein       
+ 9 12-2022 Anthropology                               Dawnie W. Steadman   
+10 12-2022 Mechanical Engineering                     Stephanie C. TerMaath
+# … with 90 more rows
+# ℹ Use `print(n = ...)` to see more rows
+```
+
+```{.r}
+names(result) <- c("Date", "Major", "PI")
+```
+
+```{.r}
+result
+```
+
+```
+# A tibble: 100 × 3
+   Date    Major                                      PI                   
+   <chr>   <chr>                                      <chr>                
+ 1 5-2023  Chemistry                                  Craig E. Barnes      
+ 2 12-2022 Chemistry                                  Dr. Ampofo K. Darko  
+ 3 12-2022 Industrial Engineering                     James Ostrowski      
+ 4 5-2022  Entomology, Plant Pathology and Nematology Heather Kelly        
+ 5 5-2022  Mechanical Engineering                     Caleb D. Rucker      
+ 6 12-2022 Electrical Engineering                     Yilu Liu             
+ 7 5-2022  Comparative and Experimental Medicine      Brian K. Whitlock    
+ 8 5-2022  History                                    Jay Rubenstein       
+ 9 12-2022 Anthropology                               Dawnie W. Steadman   
+10 12-2022 Mechanical Engineering                     Stephanie C. TerMaath
+# … with 90 more rows
+# ℹ Use `print(n = ...)` to see more rows
 ```
