@@ -11,9 +11,6 @@ In this workshop, we will guide you through a simple example using the package [
 
 :::
 
-<!-- 1. Scrape all the links of that page into a list -->
-<!-- 2. Use each link to extract the information "Date of Award", "Degree Type", etc. through a big loop -->
-
 ## HTML and CSS
 
 
@@ -110,7 +107,7 @@ List of 2
 ```
 
 ```{.r}
-a_test <- test %>% html_elements("a")
+a_test <- test %>% html_element("a")
 a_test
 ```
 
@@ -150,6 +147,10 @@ chr "https://trace.tennessee.edu/utk_graddiss/7600"
 
 #### Getting data from our test link
 
+`link_test` is a character vector representing a URL. We know how to deal with this!
+
+First, as we did earlier with the database site, we need to read in the html data:
+
 ```{.r}
 html_test <- read_html(link_test)
 html_test
@@ -161,8 +162,12 @@ html_test
 [2] <body>\n<!-- FILE /srv/sequoia/main/data/trace.tennessee.edu/assets/heade ...
 ```
 
+Now, we want to extract the publication date. Let's use the [SelectorGadget](https://selectorgadget.com/) again.
+
+We need the element `#publication_date p`. Let's extract it:
+
 ```{.r}
-date <- html_test %>% html_elements("#publication_date p") %>% html_text2()
+date <- html_test %>% html_element("#publication_date p") %>% html_text2()
 date
 ```
 
@@ -170,8 +175,10 @@ date
 [1] "5-2023"
 ```
 
+We also want the major for this thesis. The [SelectorGadget](https://selectorgadget.com/) allows us to find that this time, it is the `#department p` element that we need. Let's extract it:
+
 ```{.r}
-major <- html_test %>% html_elements("#department p") %>% html_text2()
+major <- html_test %>% html_element("#department p") %>% html_text2()
 major
 ```
 
@@ -179,8 +186,10 @@ major
 [1] "Chemistry"
 ```
 
+And for the PI, we need the `#advisor1 p` element:
+
 ```{.r}
-pi <- html_test %>% html_elements("#advisor1 p") %>% html_text2()
+pi <- html_test %>% html_element("#advisor1 p") %>% html_text2()
 pi
 ```
 
@@ -198,6 +207,8 @@ cbind(date, major, pi)
 ```
 
 #### Extracting all links
+
+Instead of using `html_element()`, this time we will use `html_elements()` which extracts *all* matching elements (instead of just the first one):
 
 ```{.r}
 dat <- html %>% html_elements(".article-listing")
@@ -254,10 +265,21 @@ List of 100
 ...
 ```
 
-Initialize an empty list:
+We now have a list of lists.
+
+As we did for a single link, we want to extract all the links to have a list of links.
+
+Before running for loops, it is important to initialize empty loops. It is much more efficient than growing the result at each iteration.
+
+So let's initialize an empty list:
 
 ```{.r}
 list_links <- vector("list", length(dat))
+```
+
+Let's have a look at one element of our list (the second one for instance):
+
+```{.r}
 list_links[[2]]
 ```
 
@@ -265,12 +287,19 @@ list_links[[2]]
 NULL
 ```
 
+We now have an empty list of the appropriate size. We can run our loop:
+
 ```{.r}
 for (i in seq_along(dat)) {
   list_links[[i]] <- dat[[i]] %>%
-    html_elements("a") %>%
+    html_element("a") %>%
     html_attr("href")
 }
+```
+
+Let's print again the second element of our list to make sure all looks good:
+
+```{.r}
 list_links[[2]]
 ```
 
@@ -278,36 +307,59 @@ list_links[[2]]
 [1] "https://trace.tennessee.edu/utk_graddiss/7714"
 ```
 
+We have a character vector with one link. That's great! `list_links` is a list of links (in the form of character vectors) as we wanted.
+
 #### Getting the data from the list of links
 
-Initialize empty lists:
+We will now extract the data (date, major, and PI) for all links in our list.
+
+Again, before running a for loops, we need to initialize empty lists:
 
 ```{.r}
 list_data <- vector("list", length(list_links))
 html <- vector("list", length(list_links))
+date <- vector("list", length(list_links))
+major <- vector("list", length(list_links))
+pi <- vector("list", length(list_links))
 ```
+
+And here is our big loop to get the data from our list of links:
 
 ```{.r}
 for (i in seq_along(list_links)) {
   html[[i]] <- read_html(list_links[[i]])
-  date <- html[[i]] %>%
-    html_elements("#publication_date p") %>%
+  date[[i]] <- html[[i]] %>%
+    html_element("#publication_date p") %>%
     html_text2()
-  major <- html[[i]] %>%
-    html_elements("#department p") %>%
+  major[[i]] <- html[[i]] %>%
+    html_element("#department p") %>%
     html_text2()
-  pi <- html[[i]] %>%
-    html_elements("#advisor1 p") %>%
+  pi[[i]] <- html[[i]] %>%
+    html_element("#advisor1 p") %>%
     html_text2()
-  list_data[[i]] <- cbind(date, major, pi)
+  list_data[[i]] <- cbind(date[[i]], major[[i]], pi[[i]])
 }
+```
+
+Let's make sure all looks good by printing the second element of `list_data`:
+
+```{.r}
 list_data[[2]]
 ```
+
+```
+[,1]      [,2]        [,3]                 
+[1,] "12-2022" "Chemistry" "Dr. Ampofo K. Darko"
+```
+
+All looking good, so let's turn this big list into a tibble (a [tidyverse](https://www.tidyverse.org/) dataframe):
 
 ```{.r}
 result <- do.call(rbind.data.frame, list_data) %>%
   tibble::as_tibble()
 ```
+
+Here is our result:
 
 ```{.r}
 result
@@ -331,9 +383,13 @@ result
 # ℹ Use `print(n = ...)` to see more rows
 ```
 
+We can rename the headers:
+
 ```{.r}
 names(result) <- c("Date", "Major", "PI")
 ```
+
+And this is our final result:
 
 ```{.r}
 result
