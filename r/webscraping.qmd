@@ -62,9 +62,19 @@ We will only do this for the first page which contains the links for the 100 mos
 
 :::
 
+### Let's look at the sites
+
+First of all, let's have a close look at the websites we want to scrape to think carefully about what we want to do. Before starting to write code, it is always a good idea to think about what you are trying to achieve with your code.
+
+To create a dataframe with the data for all the dissertations on that first page, we need to do two things:
+
+- Step 1: from the [dissertations database first page](https://trace.tennessee.edu/utk_graddiss/index.html), we want to scrape the list of URLs for the dissertation pages.
+
+- Step 2: once we have the links, we want to scrape those pages too to get the date, major, and principal investigator (PI) for each dissertation.
+
 ### Package
 
-We will use the package [rvest](https://cran.r-project.org/web/packages/rvest/index.html), part of the [tidyverse](https://www.tidyverse.org/)—a modern set of R packages.
+To do all this, we will use the package [rvest](https://cran.r-project.org/web/packages/rvest/index.html), part of the [tidyverse](https://www.tidyverse.org/) (a modern set of R packages). It is a package influenced by the popular Python package [Beautiful Soup](https://en.wikipedia.org/wiki/Beautiful_Soup_(HTML_parser)) and it makes scraping websites with R really easy.
 
 Let's load it:
 
@@ -98,55 +108,63 @@ html
 
 #### Method
 
-To find the relevant CSS element, you can use a web inspector or, even easier, the [SelectorGadget](https://selectorgadget.com/)—a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
+The html code for this webpage contains the data we are interested in, but it is mixed in with a lot of HTML formatting information and data we aren't interested in. We need to extract it and turn it into a workable format.
+
+The first step is to find the CSS elements that contain the data we want. For this, you can use a web inspector or—even easier—the [SelectorGadget](https://selectorgadget.com/), a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
+
+This bookmarklet allows us to see that the elements we want (the links to the dissertation information) are under the CSS class `.article-listing`.
 
 #### Extracting a single link
 
-First, let's try to extract a single link:
+Let's try to extract the first link. The function `html_element()` from the package `rvest` does exactly this. Let's assign the result to an object that we will call `test`:
 
 ```{r}
 test <- html %>% html_element(".article-listing")
+```
+
+Our new object is a list:
+
+```{r}
+typeof(test)
+```
+
+Let's print it:
+
+```{r}
 test
 ```
 
-```
+The link is in there, so we successfully extracted the correct element, but we need to do more cleaning.
 
-The link is in there, but we need to do more extracting.
+As you can see from printing `test`, the link is in an `a` anchor element. Let's extract it with the function `html_element()` we already used:
 
-str(test)
 ```{r}
-```
-
-
 a_test <- test %>% html_element("a")
 a_test
-```{r}
 ```
 
-Much better, but we now need to extract the `href` attribute:
-
-
-a_test %>% html_attrs()
-```{r}
-```
-
+This is much better, but we now need to extract the `href` attribute:
 
 ```{r}
 link_test <- a_test %>% html_attr("href")
 link_test
 ```
 
+This is our link.
 
 ```{r}
 str(link_test)
 ```
 
+It is saved in a character vector, which is perfect.
 
 #### Getting data from our test link
 
-`link_test` is a character vector representing a URL. We know how to deal with this!
+Now that we have the URL of the first dissertation, we want to extract the date, major, and principal investigator (PI) for that dissertation.
 
-First, as we did earlier with the database site, we need to read in the html data:
+`link_test` is a character vector representing a URL. We know how to deal with this.
+
+The first thing to do—as we did earlier with the database site—is to read in the html data. Let's assign it to a new object that we will call `html_test`:
 
 ```{r}
 html_test <- read_html(link_test)
@@ -203,10 +221,10 @@ dat <- html %>% html_elements(".article-listing")
 dat
 ```
 
-str(dat)
-```
-
 ```{r}
+typeof(dat)
+length(dat)
+typeof(dat[[1]])
 ```
 
 We now have a list of lists.
