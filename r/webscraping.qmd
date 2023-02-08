@@ -84,7 +84,7 @@ library(rvest)
 
 ### Read in HTML data
 
-As mentioned above, our site is the [database of PhD dissertations of the University of Tennessee](https://trace.tennessee.edu/utk_graddiss/index.html).
+As mentioned above, our site is the [database of PhD dissertations from the University of Tennessee](https://trace.tennessee.edu/utk_graddiss/index.html).
 
 Let's create a character vector with the url:
 
@@ -112,15 +112,27 @@ The html code for this webpage contains the data we are interested in, but it is
 
 The first step is to find the CSS elements that contain the data we want. For this, you can use a web inspector or—even easier—the [SelectorGadget](https://selectorgadget.com/), a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
 
-This bookmarklet allows us to see that the elements we want (the links to the dissertation information) are under the CSS class `.article-listing`.
+This bookmarklet allows us to see that the elements we want (the links to the dissertation information pages) are under the CSS class `.article-listing`.
 
 #### Extracting a single link
 
-Let's try to extract the first link. The function `html_element()` from the package `rvest` does exactly this. Let's assign the result to an object that we will call `test`:
+It is a good idea to test things out on a single element before doing a massive batch scraping of a site, so let's test our method on the first dissertation.
+
+First, we need to extract the first URL. The function `html_element()` from the package `rvest` does exactly this. Let's assign the result to an object that we will call `test`:
 
 ```{r}
 test <- html %>% html_element(".article-listing")
 ```
+
+:::{.note}
+
+`%>%` is a pipe from the [magrittr](https://magrittr.tidyverse.org/) tidyverse package. It passes the output from the left-hand side expression as the first argument of the right-hand side expression. We could have written this as:
+
+```{.r}
+test <- html_element(html, ".article-listing")
+```
+
+:::
 
 Our new object is a list:
 
@@ -136,14 +148,14 @@ test
 
 The link is in there, so we successfully extracted the correct element, but we need to do more cleaning.
 
-As you can see from printing `test`, the link is in an `a` anchor element. Let's extract it with the function `html_element()` we already used:
+As you can see from printing `test`, the link is in an `a` anchor element. Let's extract it by running the function `html_element()` again:
 
 ```{r}
 a_test <- test %>% html_element("a")
 a_test
 ```
 
-This is much better, but we now need to extract the `href` attribute:
+This is much better, but we still need to extract the `href` attribute:
 
 ```{r}
 link_test <- a_test %>% html_attr("href")
@@ -160,9 +172,9 @@ It is saved in a character vector, which is perfect.
 
 #### Getting data from our test link
 
-Now that we have the URL of the first dissertation, we want to extract the date, major, and principal investigator (PI) for that dissertation.
+Now that we have the URL for the first dissertation information page, we want to extract the date, major, and principal investigator (PI) for that dissertation.
 
-`link_test` is a character vector representing a URL. We know how to deal with this.
+We just saw that `link_test` is a character vector representing a URL. We know how to deal with this.
 
 The first thing to do—as we did earlier with the database site—is to read in the html data. Let's assign it to a new object that we will call `html_test`:
 
@@ -171,31 +183,44 @@ html_test <- read_html(link_test)
 html_test
 ```
 
-Now, we want to extract the publication date. Let's use the [SelectorGadget](https://selectorgadget.com/) again.
-
-We need the element `#publication_date p`. Let's extract it:
+Now, we want to extract the publication date. Thanks to the [SelectorGadget](https://selectorgadget.com/), we can see that it is in the element `#publication_date p`. While earlier we wanted a link (i.e. part of the CSS formatting data), here we just want the text. In this case, we extract the element with `html_element()` (as before) and pass the result to `html_text2()`:
 
 ```{r}
-date <- html_test %>% html_element("#publication_date p") %>% html_text2()
-date
+date_test <- html_test %>%
+  html_element("#publication_date p") %>%
+  html_text2()
 ```
 
-We also want the major for this thesis. The [SelectorGadget](https://selectorgadget.com/) allows us to find that this time, it is the `#department p` element that we need. Let's extract it:
+:::{.note}
+
+`html_text2()` extracts the text part of an element and formats it nicely.
+
+Note the difference with what we did earlier to extract the link: if we had used `html_text2()` then we would have gotten the text part of the link—that is "The Novel Chlorination of Zirconium Metal and Its Application to a Recycling Protocol for Zircaloy Cladding from Spent Nuclear Fuel Rods"—rather than the link itself.
+
+:::
+
+Let's verify that our `date` object indeed contains the date:
 
 ```{r}
-major <- html_test %>% html_element("#department p") %>% html_text2()
-major
+date_test
+```
+
+We also want the major for this thesis. The [SelectorGadget](https://selectorgadget.com/) allows us to find that this time, it is the `#department p` element that we need. Let's extract it in the same fashion:
+
+```{r}
+major_test <- html_test %>%
+  html_element("#department p") %>%
+  html_text2()
+major_test
 ```
 
 And for the PI, we need the `#advisor1 p` element:
 
 ```{r}
-pi <- html_test %>% html_element("#advisor1 p") %>% html_text2()
-pi
-```
-
-```{r}
-cbind(date, major, pi)
+pi_test <- html_test %>%
+  html_element("#advisor1 p") %>%
+  html_text2()
+pi_test
 ```
 
 :::{.exo}
@@ -212,7 +237,16 @@ Now, write the code to extract it.
 
 :::
 
+We now have the date, major, and PI for the first dissertation. We could create a matrix with them by passing them as arguments to `cbind()`:
+
+```{r}
+result_test <- cbind(date_test, major_test, pi_test)
+result_test
+```
+
 #### Extracting all links
+
+Now that we have tested our code on the first dissertation, we can apply it on all 100 dissertations of the first page of the database.
 
 Instead of using `html_element()`, this time we will use `html_elements()` which extracts *all* matching elements (instead of just the first one):
 
@@ -229,7 +263,7 @@ typeof(dat[[1]])
 
 We now have a list of lists.
 
-As we did for a single link, we want to extract all the links to have a list of links.
+As we did for a single link, we want to extract all the links to have a list of links. We will do this using a loop.
 
 Before running for loops, it is important to initialize empty loops. It is much more efficient than growing the result at each iteration.
 
@@ -297,24 +331,33 @@ Let's make sure all looks good by printing the second element of `list_data`:
 list_data[[2]]
 ```
 
-All looking good, so let's turn this big list into a tibble:
+All looking good, so let's turn this big list into a dataframe:
 
 ```{r}
-result <- do.call(rbind.data.frame, list_data) %>%
-  tibble::as_tibble()
+result <- do.call(rbind.data.frame, list_data)
+```
+
+`result` is a long dataframe, so we will only print the first few elements:
+
+```{r}
+head(result)
+```
+
+If you like the tidyverse, you can turn it into a tibble:
+
+```{r}
+result <- result %>% tibble::as_tibble()
 ```
 
 :::{.note}
 
-The notation `tibble::as_tibble()` means that we are using the function `as_tibble()` from the package [tibble](https://tibble.tidyverse.org/). A tibble is the [tidyverse](https://www.tidyverse.org/) version of a dataframe. One advantage is that it will only print the first 10 rows by default instead of printing the whole dataframe.
-
-:::
-
-Here is our result:
+The notation `tibble::as_tibble()` means that we are using the function `as_tibble()` from the package [tibble](https://tibble.tidyverse.org/). A tibble is the [tidyverse](https://www.tidyverse.org/) version of a dataframe. One advantage is that it will only print the first 10 rows by default instead of printing the whole dataframe, so you don't have to use `head()` when printing long dataframes:
 
 ```{r}
 result
 ```
+
+:::
 
 We can rename the headers:
 
