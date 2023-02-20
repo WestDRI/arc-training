@@ -28,7 +28,7 @@ revealjs-plugins:
   - pointer
 ---
 
-# Running R on Alliance clusters
+# Running R on HPC clusters
 
 # Loading modules
 
@@ -255,13 +255,12 @@ Classic while loop:
 
 ```{r}
 set.seed(2)
-
-result1 <- numeric(3)  # First we need to preallocate an output container
-i <- 0                 # Then we need to initialise a counter variable
+result1 <- numeric(3)            # Preallocate output container
+i <- 0                           # Initialise counter variable
 
 while(i < 1e4) {                 # Finally we run the loop
-  result1 <- result1 + runif(3)  # calculate the sum
-  i <- i + 1                     # update the counter
+  result1 <- result1 + runif(3)  # Calculate the sum
+  i <- i + 1                     # Update the counter
 }
 ```
 
@@ -269,7 +268,6 @@ With foreach:
 
 ```{r}
 set.seed(2)
-
 result2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)
 ```
 
@@ -281,13 +279,13 @@ all.equal(result1, result2)
 
 ---
 
-The best part of `foreach` is that it makes for easy parallelization of loops if you replace `%do%` with `%dopar%`.
+The best part of `foreach` is that you can turn sequential loops into parallel ones by registering a parallel backend and replacing `%do%` with `%dopar%`.
 
-For this reason, many parallelization backends use `foreach`: `doFuture`, `doMC`, `doMPI`, `doFuture`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
+There are many parallelization backends available: `doFuture`, `doMC`, `doMPI`, `doFuture`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
 
-In this webinar, I will use [doFuture](https://cran.r-project.org/web/packages/doFuture/index.html) which makes `foreach::%dopar%` work on any type of future thanks to the [future](https://cran.r-project.org/web/packages/future/index.html) package.
+In this webinar, I will use [`doFuture`](https://cran.r-project.org/web/packages/doFuture/index.html) which allows to evaluate `foreach` expressions following any of the strategies of the [`future`](https://cran.r-project.org/web/packages/future/index.html) package.
 
-So first, what is the `future` package?
+So first, what is the [`future`](https://cran.r-project.org/web/packages/future/index.html) package?
 
 ## Package future
 
@@ -336,25 +334,46 @@ set.seed(2)
 result3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)
 ```
 
-Because we haven't set any parallel backend to `foreach`, this won't make any difference. To run this in parallel using `future` and `doFuture`, we first need to load `doFuture` and set a parallel plan (e.g. `plan(multicore)`).
+Since we haven't registered any parallel backend, the expression will still be evaluated sequentially.
 
-Because of the overhead of parallelization, it wouldn't make sense to parallelize such a short code. Let's go over a better toy example and time it.
+---
+
+To run this in parallel, we need to load `doFuture`, register it as a backend (with `registerDoFuture()`), and choose a parallel strategy (e.g. `plan(multicore)`):
+
+```{.r}
+library(foreach)
+library(doFuture)
+
+registerDoFuture()
+plan(multicore)
+
+set.seed(2)
+result3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)
+```
+
+:::{.note}
+
+With the overhead of parallelization, it actually doesn't make sense to parallelize such a short code, so let's go over a toy example and do some benchmarking.
+
+:::
 
 # Toy example
 
 ## Load packages
 
-I will use the [randomForest](https://cran.r-project.org/web/packages/randomForest/index.html) package to create a classification algorithm based on a forest of decision trees.
+For this toy example, I will use a modified version of one of the examples in the [foreach vignette](https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html): I will b
+uild a classification model made of a forest of decision trees thanks to the [`randomForest`](https://cran.r-project.org/web/packages/randomForest/index.html) package.
 
-Because the code includes randomly generated numbers, I will also use the [doRNG](https://cran.r-project.org/web/packages/doRNG/index.html) package which replaces `%dopar%` with `%dorng%` to follow the recommendations of [L'Ecuyer, P. (1999)](https://pubsonline.informs.org/doi/10.1287/opre.47.1.159)[^1] and ensure reproducibility.
+Because the code includes randomly generated numbers, I will use the [`doRNG`](https://cran.r-project.org/web/packages/doRNG/index.html) package which replaces `foreach::%dopar%` wit
+h `doRNG::%dorng%`. This follows the recommendations of Pierre L'Ecuyer (1999)[^1] and ensures reproducibility.
 
-[^1]: L'Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164.
+[^1]: [L'Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164.](https://pubsonline.informs.org/doi/abs/10.1287/opre.47.1.159)
 
 ```{.r}
-library(doFuture)
-library(doRNG)
+library(doFuture)       # This will also load the `future` package
+library(doRNG)          # This will also load the `foreach` package
 library(randomForest)
-library(bench)
+library(bench)          # To do some benchmarking
 ```
 
 ```
@@ -369,7 +388,6 @@ The goal is to create a classifier based on some data (here a matrix of random n
 
 ```{.r}
 set.seed(11)
-
 traindata <- matrix(runif(1e5), 100)
 fac <- gl(2, 50)
 
@@ -410,9 +428,8 @@ tref$median
 This is the parallelizable `foreach` code, but run sequentially:
 
 ```{.r}
-registerDoFuture()
-
-plan(sequential)
+registerDoFuture()   # Set the parallel backend
+plan(sequential)     # Set the evaluation strategy
 
 # Using bench::mark()
 tseq <- mark(
@@ -449,7 +466,7 @@ system
 
 :::{.note}
 
-This is the same as `parallel::detectCores()`.
+Similar to `parallel::detectCores()`.
 
 :::
 
@@ -509,9 +526,7 @@ We got a very similar speedup of `5.78 / 1.9 = 3.0`.
 
 ## Multi-processing in distributed memory
 
-I did request 8 tasks however. But because the training cluster I built for this webinar only has nodes of the `c4-30gb` flavour, those tasks use 2 nodes.
-
-Let's verify that I did get 8 tasks:
+I requested 8 tasks from [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager) on a training cluster made of nodes with 4 CPU cores each. Let's verify that I got them by accessing the `SLURM_NTASKS` environment variable from within R:
 
 ```{.r}
 as.numeric(Sys.getenv("SLURM_NTASKS"))
@@ -521,7 +536,7 @@ as.numeric(Sys.getenv("SLURM_NTASKS"))
 [1] 8
 ```
 
-I can create a character vector with the name of the node each worker is on:
+I can create a character vector with the name of the node each task is running on:
 
 ```{.r}
 (hosts <- system("srun hostname | cut -f 1 -d '.'", intern = T))
@@ -531,10 +546,10 @@ I can create a character vector with the name of the node each worker is on:
 chr [1:8] "node1" "node1" "node1" "node1" "node2" "node2" "node2" "node2"
 ```
 
-This allows me to create the cluster of workers:
+This allows me to create a cluster of workers:
 
 ```{.r}
-(cl <- parallel::makeCluster(hosts))      # defaults to type="PSOCK" which is good
+(cl <- parallel::makeCluster(hosts))      # Defaults to type="PSOCK"
 ```
 
 ```
