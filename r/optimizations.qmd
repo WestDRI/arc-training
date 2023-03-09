@@ -1,0 +1,178 @@
+---
+title: Optimizations
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+A lot of hardware is not the answer to poorly written code. Before considering parallelization, you should think about ways to optimize your code sequentially.
+
+Why?
+
+- Not all code can be parallelized.
+- Parallelization is costly (waiting time to access a cluster or money).
+- The optimization of the sequential code will also benefit the parallel code.
+
+In many cases, writing better code will save you more computing time than parallelization.
+
+We already saw in the last section that we should use vectorization whenever possible. In this section, we will cover several additional principles by playing with the programmatic implementation of the [fizz buzz](https://en.wikipedia.org/wiki/Fizz_buzz#:~:text=Fizz%20buzz%20is%20a%20group,with%20the%20word%20%22fizzbuzz%22) game.
+
+:::
+
+## The problem
+
+[Fizz buzz](https://en.wikipedia.org/wiki/Fizz_buzz#:~:text=Fizz%20buzz%20is%20a%20group,with%20the%20word%20%22fizzbuzz%22) is a children game to practice divisions. Players take turn counting out loud while replacing:
+
+- any number divisible by 3 with the word "Fizz",
+- any number divisible by 5 with the word "Buzz",
+- any number divisible by both 3 and 5 with the word "FizzBuzz".
+
+Let's write functions to solve the game and time them to draw some general principles about more efficient code.
+
+We will use `bench::mark()` to benchmark our solutions, so let's load the package `bench`:
+
+```{r}
+library(bench)
+```
+
+## Pre-allocate memory
+
+In this first function, we create an empty object `z` of class integer and of length `0` that will hold the result of a loop, then we run the loop and at each iteration, we add a new value to `z`:
+
+```{r}
+f1 <- function(n) {
+  z <- integer()
+  for(i in 1:n) {
+    if(i %% 3 == 0 && i %% 5 == 0) {
+      z[i] <- "FizzBuzz"
+    } else if(i %% 3 == 0) {
+      z[i] <- "Fizz"
+    } else if(i %% 5 == 0) {
+      z[i] <- "Buzz"
+    } else {
+      z[i] <- i
+    }
+  }
+  z
+}
+```
+
+The second function is very similar, but this time, we create an empty object `z` of class integer and of length matching the final length `z` will have after running the loop. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:
+
+```{r}
+f2 <- function(n) {
+  z <- integer(n)
+  for(i in 1:n) {
+    if(i %% 3 == 0 && i %% 5 == 0) {
+      z[i] <- "FizzBuzz"
+    } else if(i %% 3 == 0) {
+      z[i] <- "Fizz"
+    } else if(i %% 5 == 0) {
+      z[i] <- "Buzz"
+    } else {
+      z[i] <- i
+    }
+  }
+  z
+}
+```
+
+Let's make sure that our functions work by testing it on a small number:
+
+```{r}
+f1(20)
+f2(20)
+```
+
+Now, let's time them:
+
+```{r}
+mark(f1(1e5), f2(1e5))
+```
+
+`f2` is consistently faster. While in this example the difference is very slight, pre-allocating the object that will hold the result of a loop before running the loop can make a huge difference.
+
+## Avoid type conversions
+
+Let's think about object types in our problem.
+
+We start with integers (since we are counting incrementally), so it might have made sense to initialize `z` as an integer. "Fizz", "Buzz", and "FizzBuzz" however are characters:
+
+```{r}
+class("Fizz")
+```
+
+A vector being a homogeneous collection, when you create a vector with integers and characters R will convert the integers into characters:
+
+```{r}
+class(c(2L, "test"))
+str(c(2L, "test"))
+```
+
+`z` at the end is thus a character vector. To save time, why not directly create it as a character vector?
+
+```{r}
+
+f3 <- function(n) {
+  z <- vector("character", n)
+  for(i in 1:n) {
+    if(i %% 3 == 0 && i %% 5 == 0) {
+      z[i] <- "FizzBuzz"
+    } else if(i %% 3 == 0) {
+      z[i] <- "Fizz"
+    } else if(i %% 5 == 0) {
+      z[i] <- "Buzz"
+    } else {
+      z[i] <- i
+    }
+  }
+  z
+}
+```
+
+Let's now benchmark it against `f2`:
+
+```{r}
+mark(f2(1e5), f3(1e5))
+```
+
+Again, in this simple example, the time saving is marginal, but we did shave a little time.
+
+Now, `i` in the loop will take the values of integers. So even though we aren't changing the type of `z` anymore, the values of `i` that aren't replaced by a word still need to be converted into characters. Why not keep them as integers? For this, we need a collection that can hold both integers and characters: a list.
+
+```{r}
+f4 <- function(n) {
+  z <- vector("list", n)
+  for(i in 1:n) {
+    if(i %% 3 == 0 && i %% 5 == 0) {
+      z[i] <- "FizzBuzz"
+    } else if(i %% 3 == 0) {
+      z[i] <- "Fizz"
+    } else if(i %% 5 == 0) {
+      z[i] <- "Buzz"
+    } else {
+      z[i] <- i
+    }
+  }
+  z
+}
+```
+
+Let's see whether we have saved a little more time:
+
+```{r}
+mark(f3(1e5), f4(1e5), check = FALSE)
+```
+
+:::{.note}
+
+We need to add `check = FALSE` because the result of both functions is not the same anymore (`f3` returns a vector and `f4` returns a list).
+
+:::
+
+## Avoid unnecessary operations
+
+
+
+## Avoid repetitions
+
