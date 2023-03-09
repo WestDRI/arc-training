@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.2.335">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Marie-Hélène Burle">
+
+<title>WestDRI - Optimizations</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1.6em;
+  vertical-align: middle;
+}
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { color: #008000; } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { color: #008000; font-weight: bold; } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../r/memory.html" rel="next">
+<link href="../r/performance.html" rel="prev">
+<link href="..//img/sfu_favicon.png" rel="icon" type="image/png">
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark ">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container">
+    <a href="../index.html" class="navbar-brand navbar-brand-logo">
+    <img src="../img/sfudrac_logo.png" alt="SFU &amp; DRAC logos" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">WestDRI</span>
+    </a>
+  </div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../git/index.html">
+ <span class="menu-text">Git</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="../r/index.html" aria-current="page">
+ <span class="menu-text">R</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../julia/index.html">
+ <span class="menu-text">Julia</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../python/index.html">
+ <span class="menu-text">Python</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../ml/index.html">
+ <span class="menu-text">ML</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../bash/index.html">
+ <span class="menu-text">Bash</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../tools/index.html">
+ <span class="menu-text">Research tools</span></a>
+  </li>  
+</ul>
+              <div class="quarto-toggle-container">
+                  <a href="" class="quarto-reader-toggle nav-link" onclick="window.quartoToggleReader(); return false;" title="Toggle reader mode">
+  <div class="quarto-reader-toggle-btn">
+  <i class="bi"></i>
+  </div>
+</a>
+              </div>
+              <div id="quarto-search" class="" title="Search"></div>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+    <div class="container-fluid d-flex justify-content-between">
+      <h1 class="quarto-secondary-nav-title">Optimizations</h1>
+      <button type="button" class="quarto-btn-toggle btn" aria-label="Show secondary navigation">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/index.html" class="sidebar-item-text sidebar-link"><em>All R pages:</em></a>
+  </div>
+</li>
+        <li class="px-0"><hr class="sidebar-divider hi "></li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../r/top_intro.html" class="sidebar-item-text sidebar-link"><em><b>Getting started with R</b></em></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-expanded="true">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/run_r_intro.html" class="sidebar-item-text sidebar-link">Running R for this course</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/why.html" class="sidebar-item-text sidebar-link">R: why and for whom?</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/basics.html" class="sidebar-item-text sidebar-link">R: the basics</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/packages.html" class="sidebar-item-text sidebar-link">Packages</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/tidyverse.html" class="sidebar-item-text sidebar-link">Glimpse at the tidyverse</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/resources.html" class="sidebar-item-text sidebar-link">Resources</a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="px-0"><hr class="sidebar-divider hi "></li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../r/top_hpc.html" class="sidebar-item-text sidebar-link"><b><em>High-performance R</em></b></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-expanded="true">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/run_r_hpc.html" class="sidebar-item-text sidebar-link">Running R for this course</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/performance.html" class="sidebar-item-text sidebar-link">Measuring performance</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/optimizations.html" class="sidebar-item-text sidebar-link active">Optimizations</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/memory.html" class="sidebar-item-text sidebar-link">Memory management</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/clusters.html" class="sidebar-item-text sidebar-link">Running R on HPC clusters</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/parallel_types.html" class="sidebar-item-text sidebar-link">Types of parallelism</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/parallel_loops.html" class="sidebar-item-text sidebar-link">Parallel loops</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/partition.html" class="sidebar-item-text sidebar-link">Partitioning data</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/rcpp.html" class="sidebar-item-text sidebar-link">Writing C++ in R with Rcpp</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/resources_hpc.html" class="sidebar-item-text sidebar-link">Resources for HPC in R</a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="px-0"><hr class="sidebar-divider hi "></li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../r/webscraping.html" class="sidebar-item-text sidebar-link"><b><em>R workshops</em></b></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-expanded="true">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/webscraping.html" class="sidebar-item-text sidebar-link">Web scraping with R</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/intro_gis.html" class="sidebar-item-text sidebar-link">GIS with R</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/intro_hss.html" class="sidebar-item-text sidebar-link">Intro R for the humanities</a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="px-0"><hr class="sidebar-divider hi "></li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../r/gis_mapping.html" class="sidebar-item-text sidebar-link"><em><b>R webinars</b></em></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-expanded="true">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/gis_mapping.html" class="sidebar-item-text sidebar-link">GIS mapping with R</a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../r/intro_hpc.html" class="sidebar-item-text sidebar-link">HPC in R</a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title"><em>On this page:</em></h2>
+   
+  <ul>
+  <li><a href="#toy-example" id="toc-toy-example" class="nav-link active" data-scroll-target="#toy-example">Toy example</a></li>
+  <li><a href="#pre-allocate-memory" id="toc-pre-allocate-memory" class="nav-link" data-scroll-target="#pre-allocate-memory">Pre-allocate memory</a>
+  <ul>
+  <li><a href="#wait-arent-loops-a-big-no-no-in-r" id="toc-wait-arent-loops-a-big-no-no-in-r" class="nav-link" data-scroll-target="#wait-arent-loops-a-big-no-no-in-r">Wait… aren’t loops a big ‘no no’ in R?</a></li>
+  </ul></li>
+  <li><a href="#avoid-unnecessary-operations" id="toc-avoid-unnecessary-operations" class="nav-link" data-scroll-target="#avoid-unnecessary-operations">Avoid unnecessary operations</a></li>
+  <li><a href="#replace-costly-operations-where-possible" id="toc-replace-costly-operations-where-possible" class="nav-link" data-scroll-target="#replace-costly-operations-where-possible">Replace costly operations where possible</a></li>
+  <li><a href="#avoid-repetitions-of-costly-operations" id="toc-avoid-repetitions-of-costly-operations" class="nav-link" data-scroll-target="#avoid-repetitions-of-costly-operations">Avoid repetitions of costly operations</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title d-none d-lg-block">Optimizations</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Marie-Hélène Burle </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<div class="def">
+<p>A lot of hardware is not the answer to poorly written code. Before considering parallelization, you should think about ways to optimize your code sequentially.</p>
+<p>Why?</p>
+<ul>
+<li>Not all code can be parallelized.</li>
+<li>Parallelization is costly (waiting time to access a cluster or money).</li>
+<li>The optimization of the sequential code will also benefit the parallel code.</li>
+</ul>
+<p>In many cases, writing better code will save you more computing time than parallelization.</p>
+<p>In this section, we will cover several principles by playing with the programmatic implementation of the <a href="https://en.wikipedia.org/wiki/Fizz_buzz#:~:text=Fizz%20buzz%20is%20a%20group,with%20the%20word%20%22fizzbuzz%22">fizz buzz</a> game.</p>
+</div>
+<section id="toy-example" class="level2">
+<h2 class="anchored" data-anchor-id="toy-example">Toy example</h2>
+<p><a href="https://en.wikipedia.org/wiki/Fizz_buzz#:~:text=Fizz%20buzz%20is%20a%20group,with%20the%20word%20%22fizzbuzz%22">Fizz buzz</a> is a children game to practice divisions. Players take turn counting out loud while replacing:</p>
+<ul>
+<li>any number divisible by 3 with the word “Fizz”,</li>
+<li>any number divisible by 5 with the word “Buzz”,</li>
+<li>any number divisible by both 3 and 5 with the word “FizzBuzz”.</li>
+</ul>
+<p>Let’s write functions to solve the game and time them to draw some general principles about more efficient code.</p>
+<p>We will use <code>bench::mark()</code> to benchmark our solutions.</p>
+<div class="info">
+<p>To have access to the packages that have been pre-installed on the training cluster, you need to change the location of the R library by running in the R console:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">.libPaths</span>(<span class="st">"/project/def-sponsor00/R/lib"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You only need to run this once per session.</p>
+</div>
+<p>Once you have run the line above, you can load the <code>bench</code> package:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-1_7d3d7e25a28318a54726d84c6d19c3d5">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bench)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="pre-allocate-memory" class="level2">
+<h2 class="anchored" data-anchor-id="pre-allocate-memory">Pre-allocate memory</h2>
+<p>In this first function, we create an empty object <code>z</code> of class integer and of length <code>0</code> that will hold the result of a loop, then we run the loop and at each iteration, we add a new value to <code>z</code>:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-2_91f5cc0c98bf3b469cd09e08c8617b23">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>f1 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>()</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>n) {</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> i</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>  z</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The second function is very similar, but this time, we create an empty object <code>z</code> of class integer and of length matching the final length <code>z</code> will have after running the loop. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-3_dfd80df804d5c0fdede977a3bbcd7ad1">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>f2 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(n)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>n) {</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> i</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  z</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s make sure that our functions work by testing it on a small number:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-4_a56b508527d3e60776d18cfe86202c69">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">f1</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
+ [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
+[13] "13"       "14"       "FizzBuzz" "16"       "17"       "Fizz"    
+[19] "19"       "Buzz"    </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">f2</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
+ [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
+[13] "13"       "14"       "FizzBuzz" "16"       "17"       "Fizz"    
+[19] "19"       "Buzz"    </code></pre>
+</div>
+</div>
+<p>Now, let’s benchmark them for a large number:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-5_10273f39f05d623925cfe3f06f50a499">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="fl">1e5</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f1</span>(n), <span class="fu">f2</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
+disabled.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 6
+  expression      min   median `itr/sec` mem_alloc `gc/sec`
+  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+1 f1(n)         142ms    151ms      6.55   16.65MB     22.9
+2 f2(n)         134ms    136ms      7.32    1.24MB     29.3</code></pre>
+</div>
+</div>
+<p><code>f2()</code> is consistently faster. While in this example the difference is very slight, pre-allocating the object that will hold the result of a loop before running the loop can make a huge difference.</p>
+<section id="wait-arent-loops-a-big-no-no-in-r" class="level3">
+<h3 class="anchored" data-anchor-id="wait-arent-loops-a-big-no-no-in-r">Wait… aren’t loops a big ‘no no’ in R?</h3>
+<p>By now, you might be thinking: “Wait… aren’t loops a big ‘no no’ in R? I’ve always been told that they are slow and that one should always use functional programming! We are talking about optimization in this course and we are using loops?!?”</p>
+<p>There are a lot of misconceptions around R loops. They can be very slow if you don’t pre-allocate memory. Otherwise they are almost always faster than functions (the <code>apply()</code> family or the <a href="https://www.tidyverse.org/">tidyverse</a> equivalent of the <code>purrr::map()</code> family). You can choose to use a functional programming approach for style and readability, but not for speed.</p>
+<p>Let’s test it.</p>
+<p>First we create a function:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-6_8a2e78af0c2994dedf9a473f82a000da">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>fb <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(n <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> n <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FizzBuzz"</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span>(n <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Fizz"</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span>(n <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Buzz"</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    n</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Then we pass it through <code>sapply()</code>. We can test that it works on a small number:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-7_4008756055ac10f680d258d99c458f80">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">20</span>, fb)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
+ [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
+[13] "13"       "14"       "FizzBuzz" "16"       "17"       "Fizz"    
+[19] "19"       "Buzz"    </code></pre>
+</div>
+</div>
+<p>Finally, we compare the timing with that of <code>f2()</code>:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-8_44ae1e210fb605ed6b5532087a0bfa0b">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span>n, fb))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
+disabled.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 6
+  expression           min   median `itr/sec` mem_alloc `gc/sec`
+  &lt;bch:expr&gt;      &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+1 f2(n)              148ms    153ms      6.52    1.15MB     29.3
+2 sapply(1:n, fb)    188ms    197ms      4.90    3.35MB     26.1</code></pre>
+</div>
+</div>
+<p>As you can see, the loop is faster.</p>
+</section>
+</section>
+<section id="avoid-unnecessary-operations" class="level2">
+<h2 class="anchored" data-anchor-id="avoid-unnecessary-operations">Avoid unnecessary operations</h2>
+<p>Calling <code>z</code> as the last command in our function is the same as calling <code>return(z)</code>.</p>
+<p>From the R documentation:</p>
+<blockquote class="blockquote">
+<p>If the end of a function is reached without calling return, the value of the last evaluated expression is returned.</p>
+</blockquote>
+<p>Now, what about using <code>print()</code> instead?</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-9_c36d2dbec45b286f352837837371d578">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>f3 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(n)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>n) {</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> i</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(z)</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s benchmark it against <code>f2()</code>:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">f3</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
+ [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
+[13] "13"       "14"       "FizzBuzz" "16"       "17"       "Fizz"    
+[19] "19"       "Buzz"     "Fizz"     "22"       "23"       "Fizz"    
+[25] "Buzz"     "26"       "Fizz"     "28"       "29"       "FizzBuzz"
+[31] "31"       "32"       "Fizz"     "34"       "Buzz"     "Fizz"    
+[37] "37"       "38"       "Fizz"     "Buzz"     "41"       "Fizz"
+...
+
+Warning: Some expressions had a GC in every iteration; so filtering is
+disabled.
+# A tibble: 2 × 6
+  expression      min   median `itr/sec` mem_alloc `gc/sec`
+  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+1 f2(1e+05)  151.88ms 157.65ms     6.30     1.25MB     29.9
+2 f3(1e+05)     3.25s    3.25s     0.308    1.04GB     26.8</code></pre>
+<p>What happened?</p>
+<p><code>print()</code> returns its argument, but it additionally prints it to the standard output. This is why the <code>mark()</code> function printed the output of <code>f3()</code> before printing the timings.</p>
+<p>As you can see, printing takes a long time.</p>
+<p>If you are evaluating <code>f2()</code> on its own (e.g.&nbsp;<code>f2(20)</code>), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and <code>f3()</code> would be a very bad option. <code>f3()</code> is thus not a good function.</p>
+<p>Here is an example in which <code>f3()</code> would perform a totally unnecessary operation that <code>f2()</code> avoids:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-10_334075eab3ec43e32a157ca471281631">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="fu">f2</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="note">
+<p>No unnecessary printing.</p>
+</div>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-11_92f79001dcaa7af5a9dff485f070c0c5">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="fu">f3</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
+ [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
+[13] "13"       "14"       "FizzBuzz" "16"       "17"       "Fizz"    
+[19] "19"       "Buzz"    </code></pre>
+</div>
+</div>
+<div class="note">
+<p>Unnecessary printing.</p>
+</div>
+<p>For 1e5, the difference in timing between running an unnecessary printing vs not is a factor of 21!</p>
+<p>Even worse would be to use:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-12_569bd10d56aa2e9bebd8164ef43e3b50">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>f4 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>n) {</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">print</span>(<span class="st">"FizzBuzz"</span>)</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>      <span class="fu">print</span>(<span class="st">"Fizz"</span>)</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>      <span class="fu">print</span>(<span class="st">"Buzz"</span>)</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>      <span class="fu">print</span>(i)</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Here the difference in timing is a factor of 50…</p>
+</section>
+<section id="replace-costly-operations-where-possible" class="level2">
+<h2 class="anchored" data-anchor-id="replace-costly-operations-where-possible">Replace costly operations where possible</h2>
+<p>Now imagine that we have a dataframe called <code>dat</code> with a first column called <code>datvar</code> filled with integers.</p>
+<p>We want to write a function that will accept our dataframe as argument and play the fizz buzz game on the column <code>datvar</code>.</p>
+<p>One could imagine the following function:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-13_5708bbfe9786d21ad03d091583b761ff">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>f5 <span class="ot">&lt;-</span> <span class="cf">function</span>(dat) {</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(<span class="fu">length</span>(dat[[<span class="dv">1</span>]]))</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="fu">seq_along</span>(dat[[<span class="dv">1</span>]])) {</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> i</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>  z</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Indexing a column from a dataframe in this fashion is a very costly operation. It is much more efficient to index with the name of the column:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-14_257c037127c5c954be5ba7c722ce9153">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>f6 <span class="ot">&lt;-</span> <span class="cf">function</span>(dat) {</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(<span class="fu">length</span>(dat<span class="sc">$</span>datvar))</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="fu">seq_along</span>(dat<span class="sc">$</span>datvar)) {</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> i</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>  z</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now, let’s create a random dataframe to benchmark <code>f5()</code> and <code>f6()</code>:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-15_02858a63ad48c5c97d7940355ea16359">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>dat <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">datvar =</span> <span class="fu">round</span>(<span class="fu">runif</span>(n, <span class="dv">1</span>, n)))</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f5</span>(dat), <span class="fu">f6</span>(dat))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
+disabled.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 6
+  expression      min   median `itr/sec` mem_alloc `gc/sec`
+  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+1 f5(dat)        1.5s     1.5s     0.668    1.28MB     26.7
+2 f6(dat)     255.2ms  299.3ms     3.34     1.26MB     26.7</code></pre>
+</div>
+</div>
+</section>
+<section id="avoid-repetitions-of-costly-operations" class="level2">
+<h2 class="anchored" data-anchor-id="avoid-repetitions-of-costly-operations">Avoid repetitions of costly operations</h2>
+<p>This made a big difference (speedup of 5), but notice that we are indexing the column 6 times in our function. Let’s remove the repetition of this operation:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-16_d98710ade6c4b75a233952317807eea5">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>f7 <span class="ot">&lt;-</span> <span class="cf">function</span>(dat) {</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  var <span class="ot">&lt;-</span> dat<span class="sc">$</span>datvar</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(<span class="fu">length</span>(var))</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="fu">seq_along</span>(var)) {</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(var[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> var[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(var[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(var[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> i</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>  z</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s benchmark all 3 versions:</p>
+<div class="cell" data-hash="optimizations_cache/html/unnamed-chunk-17_a5b60f1a01ac984b7bcc2ec9be81ba98">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f5</span>(dat), <span class="fu">f6</span>(dat), <span class="fu">f7</span>(dat))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
+disabled.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 3 × 6
+  expression      min   median `itr/sec` mem_alloc `gc/sec`
+  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+1 f5(dat)       1.51s    1.51s     0.663    1.15MB     32.5
+2 f6(dat)    299.96ms  305.2ms     3.28     1.15MB     31.1
+3 f7(dat)    110.42ms 113.02ms     8.83     1.25MB     28.3</code></pre>
+</div>
+</div>
+<p><code>f7()</code> gave us another speedup of 3 over <code>f6()</code>. <code>f7()</code> runs 15 times faster than our initial function!</p>
+<div class="note">
+<p>Indexing from a vector isn’t costly. There is thus no advantage at removing the repetition of that operation.</p>
+</div>
+<div class="exo">
+<div class="yourturn">
+<p>Your turn:</p>
+</div>
+<p>Show that this last statement is true.</p>
+</div>
+<!-- ```{r} -->
+<!-- f8 <- function(dat) { -->
+<!--   var <- dat$datvar -->
+<!--   z <- integer(length(var)) -->
+<!--   for(i in seq_along(var)) { -->
+<!--     num <- var[i] -->
+<!--     if(num %% 3 == 0 && num %% 5 == 0) { -->
+<!--       z[i] <- "FizzBuzz" -->
+<!--     } else if(num %% 3 == 0) { -->
+<!--       z[i] <- "Fizz" -->
+<!--     } else if(num %% 5 == 0) { -->
+<!--       z[i] <- "Buzz" -->
+<!--     } else { -->
+<!--       z[i] <- i -->
+<!--     } -->
+<!--   } -->
+<!--   z -->
+<!-- } -->
+<!-- mark(f7(dat), f8(dat)) -->
+<!-- ``` -->
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    target: function(trigger) {
+      return trigger.previousElementSibling;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var filterRegex = new RegExp(/https:\/\/mint\.westdri\.ca\//);
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+    var links = window.document.querySelectorAll('a:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+          // target, if specified
+          link.setAttribute("target", "_blank");
+      }
+    }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../r/performance.html" class="pagination-link">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Measuring performance</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../r/memory.html" class="pagination-link">
+        <span class="nav-page-text">Memory management</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">Please also visit our <strong><a href="https://training.westdri.ca/" target="_blank">main website</a></strong></div>   
+      <div class="nav-footer-center">
+        <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="../about.html">About</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="../calendar.html">Calendar</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="../newsletter.html">Newsletter</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="../contact.html">Contact</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://docs.alliancecan.ca/wiki/Technical_documentation">Wiki</a>
+  </li>  
+</ul>
+      </div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/WestDRI">
+      <i class="bi bi-github" role="img" aria-label="WestDRI GitHub">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://www.youtube.com/channel/UCfgds4Qf7VFOv4ORRvFFmhw">
+      <i class="bi bi-youtube" role="img" aria-label="WestDRI YouTube">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+</body></html>
