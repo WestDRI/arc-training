@@ -415,34 +415,48 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <h2 class="anchored" data-anchor-id="foreach-package"><code>foreach</code> package</h2>
 <p>The <a href="https://cran.r-project.org/web/packages/foreach/index.html"><code>foreach</code></a> package implements a looping construct without an explicit counter. It doesn’t require the preallocation of an output container, it brings to R an equivalent of the Python or Julia list comprehensions, and mostly, it allows for an easy execution of loops in parallel.</p>
 <p>Unlike loops, it creates variables (loops are used for their side-effect).</p>
-<p>Let’s look at an example to calculate the sum of 1e4 random vectors of length 3. We will use <code>foreach</code> and <code>iterators</code> (which creates convenient iterators for <code>foreach</code>):</p>
+<p>Let’s look at an example to calculate the sum of 1e4 random vectors of length 3.</p>
+<p>But first, what type of job shall we run here? This example is tiny and sequential. As the cluster for this course contains 10 nodes with 4 CPUs each, each of us can monopolize a CPU. We can thus use an interactive job:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">salloc</span> <span class="at">--time</span><span class="op">=</span>30 <span class="at">--mem-per-cpu</span><span class="op">=</span>7000M <span class="at">--ntasks</span><span class="op">=</span>1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="note">
+<p>Make sure to type this in the Bash terminal. We haven’t launched R yet!</p>
+</div>
+<div class="note">
+<p>You can see the full list of <code>salloc</code> options <a href="https://slurm.schedmd.com/salloc.html">here</a>.</p>
+</div>
+<p>Then we can launch R interactively:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">R</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="note">
+<p>We are now in the R terminal and can start typing R commands.</p>
+</div>
+<p>We will use <code>foreach</code> and <code>iterators</code> (which creates convenient iterators for <code>foreach</code>):</p>
 <div class="cell" data-hash="parallel_loops_cache/html/unnamed-chunk-1_87472469db7dff122cd21fca90187633">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(foreach)</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(iterators)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(foreach)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(iterators)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <ul>
 <li>Classic while loop:</li>
 </ul>
 <div class="cell" data-hash="parallel_loops_cache/html/unnamed-chunk-2_450c3d0d8486ccec2893acf0ed7987ed">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>result1 <span class="ot">&lt;-</span> <span class="fu">numeric</span>(<span class="dv">3</span>)            <span class="co"># Preallocate output container</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>i <span class="ot">&lt;-</span> <span class="dv">0</span>                           <span class="co"># Initialise counter variable</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span>(i <span class="sc">&lt;</span> <span class="fl">1e4</span>) {</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  result1 <span class="ot">&lt;-</span> result1 <span class="sc">+</span> <span class="fu">runif</span>(<span class="dv">3</span>)  <span class="co"># Calculate the sum</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  i <span class="ot">&lt;-</span> i <span class="sc">+</span> <span class="dv">1</span>                     <span class="co"># Update the counter</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>result1 <span class="ot">&lt;-</span> <span class="fu">numeric</span>(<span class="dv">3</span>)            <span class="co"># Preallocate output container</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>i <span class="ot">&lt;-</span> <span class="dv">0</span>                           <span class="co"># Initialise counter variable</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span>(i <span class="sc">&lt;</span> <span class="fl">1e4</span>) {</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  result1 <span class="ot">&lt;-</span> result1 <span class="sc">+</span> <span class="fu">runif</span>(<span class="dv">3</span>)  <span class="co"># Calculate the sum</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  i <span class="ot">&lt;-</span> i <span class="sc">+</span> <span class="dv">1</span>                     <span class="co"># Update the counter</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <ul>
 <li>With foreach:</li>
 </ul>
 <div class="cell" data-hash="parallel_loops_cache/html/unnamed-chunk-3_e6fd3f4c286dca2bbfe32a09836316c5">
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>result2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%do%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>result2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%do%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>We can verify that both expressions returned the same result:</p>
 <div class="cell" data-hash="parallel_loops_cache/html/unnamed-chunk-4_3ad0e9ee2006f5f5fa000bd779e23969">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">all.equal</span>(result1, result2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">all.equal</span>(result1, result2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] TRUE</code></pre>
 </div>
@@ -470,15 +484,15 @@ Futures are evaluated on an ad-hoc cluster (<em>distributed parallelism</em> acr
 <h6 class="anchored" data-anchor-id="consistency">Consistency</h6>
 <p>To ensure a consistent behaviour across plans, all evaluations are done in a local environment:</p>
 <div class="cell" data-hash="parallel_loops_cache/html/unnamed-chunk-5_fd799efc10a17a566e1580f48c493402">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(future)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="dv">1</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>b <span class="sc">%&lt;-%</span> {      <span class="co"># %&lt;-% is used instead of &lt;- to use futures</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  a <span class="ot">&lt;-</span> <span class="dv">2</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>a</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(future)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="dv">1</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>b <span class="sc">%&lt;-%</span> {      <span class="co"># %&lt;-% is used instead of &lt;- to use futures</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  a <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>a</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 1</code></pre>
 </div>
@@ -489,24 +503,24 @@ Futures are evaluated on an ad-hoc cluster (<em>distributed parallelism</em> acr
 <h2 class="anchored" data-anchor-id="dofuture-package"><code>doFuture</code> package</h2>
 <p>The <a href="https://cran.r-project.org/web/packages/doFuture/index.html"><code>doFuture</code></a> package allows to evaluate <code>foreach</code> expressions across the evaluation strategies of the <a href="https://cran.r-project.org/web/packages/future/index.html"><code>future</code></a> package.</p>
 <p>Let’s go back to our <code>foreach</code> example. We had:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(foreach)</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>result2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%do%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>We can replace <code>%do%</code> with <code>%dopar%</code>:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(foreach)</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>result3 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%dopar%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Since we haven’t registered any parallel backend, the expression will still be evaluated sequentially. To run this in parallel, we need to load <code>doFuture</code>, register it as a backend (with <code>registerDoFuture()</code>), and choose a parallel strategy (e.g.&nbsp;<code>plan(multicore)</code>):</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(foreach)</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doFuture)</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">registerDoFuture</span>()</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multicore)</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>result3 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%dopar%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>result2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%do%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We can replace <code>%do%</code> with <code>%dopar%</code>:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(foreach)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>result3 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%dopar%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Since we haven’t registered any parallel backend, the expression will still be evaluated sequentially. To run this in parallel, we need to load <code>doFuture</code>, register it as a backend (with <code>registerDoFuture()</code>), and choose a parallel strategy (e.g.&nbsp;<code>plan(multicore)</code>):</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(foreach)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doFuture)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">registerDoFuture</span>()</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multicore)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">2</span>)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>result3 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="fu">icount</span>(<span class="fl">1e4</span>), <span class="at">.combine =</span> <span class="st">'+'</span>) <span class="sc">%dopar%</span> <span class="fu">runif</span>(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>With the overhead of parallelization, it actually doesn’t make sense to parallelize such a short code, so let’s go over a toy example and do some benchmarking.</p>
 </section>
 <section id="toy-example" class="level2 page-columns page-full">
@@ -515,10 +529,10 @@ Futures are evaluated on an ad-hoc cluster (<em>distributed parallelism</em> acr
 <h3 class="anchored" data-anchor-id="load-packages">Load packages</h3>
 <p>For this toy example, we will use a modified version of one of the examples in the <a href="https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html">foreach vignette</a>: we will build a classification model made of a forest of decision trees thanks to the <a href="https://cran.r-project.org/web/packages/randomForest/index.html"><code>randomForest</code></a> package.</p>
 <div class="page-columns page-full"><p>Because the code includes randomly generated numbers, we will use the <a href="https://cran.r-project.org/web/packages/doRNG/index.html"><code>doRNG</code></a> package which replaces <code>foreach::%dopar%</code> with <code>doRNG::%dorng%</code>. This follows the recommendations of Pierre L’Ecuyer (1999)<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> and ensures reproducibility.</p><div class="no-row-height column-margin column-container"><li id="fn1"><p><sup>1</sup>&nbsp;<a href="https://pubsonline.informs.org/doi/10.1287/opre.47.1.159">L’Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164.</a></p></li></div></div>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doFuture)       <span class="co"># This will also load the `future` package</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doRNG)          <span class="co"># This will also load the `foreach` package</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bench)          <span class="co"># To do some benchmarking</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doFuture)       <span class="co"># This will also load the `future` package</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doRNG)          <span class="co"># This will also load the `foreach` package</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bench)          <span class="co"># To do some benchmarking</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>Loading required package: foreach
 Loading required package: future
 Loading required package: rngtools</code></pre>
@@ -526,14 +540,14 @@ Loading required package: rngtools</code></pre>
 <section id="the-code-to-parallelize" class="level3">
 <h3 class="anchored" data-anchor-id="the-code-to-parallelize">The code to parallelize</h3>
 <p>The goal is to create a classifier based on some data (here a matrix of random numbers for simplicity) and a response variable (as factor). This model could then be passed in the <code>predict()</code> function with novel data to generate predictions of classification. But here we are only interested in the creation of the model as this is the part that is computationally intensive. We aren’t interested in actually using it.</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">11</span>)</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>traindata <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">runif</span>(<span class="fl">1e5</span>), <span class="dv">100</span>)</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>fac <span class="ot">&lt;-</span> <span class="fu">gl</span>(<span class="dv">2</span>, <span class="dv">50</span>)</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>rf <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%do%</span></span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree)</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>rf</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">11</span>)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>traindata <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">runif</span>(<span class="fl">1e5</span>), <span class="dv">100</span>)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>fac <span class="ot">&lt;-</span> <span class="fu">gl</span>(<span class="dv">2</span>, <span class="dv">50</span>)</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>rf <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%do%</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>rf</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>Call:
  randomForest(x = traindata, y = fac, ntree = ntree)
                Type of random forest: classification
@@ -543,13 +557,13 @@ No. of variables tried at each split: 31</code></pre>
 <section id="reference-timing" class="level3">
 <h3 class="anchored" data-anchor-id="reference-timing">Reference timing</h3>
 <p>This is the non parallelizable code with <code>%do%</code>:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>tref <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  rf1 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%do%</span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>tref<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>tref <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  rf_do <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%do%</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>tref<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[1] 5.66s</code></pre>
 <div class="note">
 <p><code>bench::mark()</code> is currently unable to provide memory information for parallel code. While it could output memory usage for this sequential run, we won’t be able to compare it with parallel runs, so we might as well not ask for that information.</p>
@@ -558,17 +572,17 @@ No. of variables tried at each split: 31</code></pre>
 <section id="plan-sequential" class="level3">
 <h3 class="anchored" data-anchor-id="plan-sequential">Plan sequential</h3>
 <p>This is the parallelizable <code>foreach</code> code, but run sequentially:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">registerDoFuture</span>()   <span class="co"># Set the parallel backend</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(sequential)     <span class="co"># Set the evaluation strategy</span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Using bench::mark()</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>tseq <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  rf2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>tseq<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">registerDoFuture</span>()   <span class="co"># Set the parallel backend</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(sequential)     <span class="co"># Set the evaluation strategy</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Using bench::mark()</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>tseq <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>  rf_dorng <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>tseq<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[1] 5.78s</code></pre>
 <div class="note">
 <p>No surprise: those are similar.</p>
@@ -577,26 +591,83 @@ No. of variables tried at each split: 31</code></pre>
 <section id="multi-processing-in-shared-memory" class="level3">
 <h3 class="anchored" data-anchor-id="multi-processing-in-shared-memory">Multi-processing in shared memory</h3>
 <p><code>future</code> provides <code>availableCores()</code> to detect the number of available cores:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">availableCores</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>system
-     4</code></pre>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">availableCores</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>cgroups.cpuset
+             1</code></pre>
 <div class="note">
 <p>Similar to <code>parallel::detectCores()</code>.</p>
 </div>
-<p>This detects the number of CPU cores available to me on the current compute node, that is, what I can use for shared memory multi-processing.</p>
+<p>This detects the number of CPU cores available to us on the current compute node, that is, what we can use for shared memory multi-processing. Since we asked for a single task (<code>--ntasks=1</code>), we have a single CPU available.</p>
+<p>To be able to run our code in parallel, we need to have access to at least 2 CPUs each. So let’s quit the R session (with Ctrl+D or <code>quit()</code>), terminate our interactive job (also with Ctrl+D) and ask for a different job.</p>
+<div class="emph">
+<p>Don’t forget to relinquish your interactive job with Ctrl+D otherwise it will be running for the full 30 min, making the hardware it uses unavailable to all of us until the job expires.</p>
+</div>
+<p>Now what job should we run now? Remember that the cluster for this course is made of 10 nodes of 4 CPUs each. We are now testing shared memory parallelism, so our job needs to stay within one node. We can thus ask for a maximum of 4 CPUs and we want to ensure that we aren’t getting them on different nodes. If we all ask for 4 CPUs in an interactive session, the first 10 of us will get them and the job requests for the rest of us will remain pending, waiting for resources to become available, for as long as the lucky 10 are running their session. That’s the big downside of interactive sessions.</p>
+<p>A much better approach here is to write the code in a script and run it with <code>sbatch</code>. That way, everybody will get to run their code with minimal delay.</p>
+<p>Open a text file (let’s call it <code>rf.R</code> since it creates a random forest object) with the text editor of your choice, for instance <code>nano</code>:</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nano</span> rf.R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We will first play with it to see how many cores are available to us, so write in your script:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>rf.R</strong></pre>
+</div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(future)   <span class="co"># Don't forget to load the packages in your script</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">availableCores</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Save and close the text editor.</p>
+<p>Now, we want to create a shell script for Slurm. Let’s call it <code>rf.sh</code>:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nano</span> rf.sh</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In it lives the hardware request and the code that needs to run:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>rf.sh</strong></pre>
+</div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --time=3  # 3 min</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --mem-per-cpu=7000M</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --nodes=1</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --cpus-per-task=4</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> rf.R      <span class="co"># This is the code that we are running</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="note">
+<p>You can see the full list of <code>sbatch</code> options <a href="https://slurm.schedmd.com/sbatch.html">here</a>.</p>
+</div>
+<p>Save and close the text editor.</p>
+<p>We can now run the batch script:</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sbatch</span> rf.sh</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can monitor it with <code>sq</code>, but this should be quasi instant. The result will be written to a file called <code>slurm-xx.out</code> with <code>xx</code> being the number of the job that just ran.</p>
+<div class="note">
+<p>You can specify the output file name in the options of your sbatch script.</p>
+</div>
+<p>To see the result, we can simply print the content of that file to screen:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> slurm-xx.out    <span class="co"># Replace xx by the job number</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>system
+     4</code></pre>
+<p>We now have 4 CPUs available on one node, so we can test shared memory parallelism.</p>
 </section>
 <section id="plan-multisession" class="level3">
 <h3 class="anchored" data-anchor-id="plan-multisession">Plan multisession</h3>
-<p>Shared memory multi-processing can be run with <code>plan(multisession)</code> that will spawn new R sessions in the background to evaluate futures:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multisession)</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>tms <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  rf2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>tms<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Shared memory multi-processing can be run with <code>plan(multisession)</code> that will spawn new R sessions in the background to evaluate futures.</p>
+<p>Write a new R script with:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doFuture)</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(doRNG)</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bench)</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multisession)</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">11</span>)</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>traindata <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">runif</span>(<span class="fl">1e5</span>), <span class="dv">100</span>)</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>fac <span class="ot">&lt;-</span> <span class="fu">gl</span>(<span class="dv">2</span>, <span class="dv">50</span>)</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>tms <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>  rf_dorng <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>tms<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[1] 2s</code></pre>
 <div class="note">
 <p>We got a speedup of <code>5.78 / 2 = 2.9</code>. Not bad considering that we have 4 CPU cores (the ideal speedup would be 4, but there is always some overhead to parallelization).</p>
@@ -605,15 +676,15 @@ No. of variables tried at each split: 31</code></pre>
 <section id="plan-multicore" class="level3">
 <h3 class="anchored" data-anchor-id="plan-multicore">Plan multicore</h3>
 <p>Shared memory multi-processing can also be run with <code>plan(multicore)</code> (except on Windows) that will fork the current R process to evaluate futures:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multicore)</span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>tmc <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  rf2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>tmc<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multicore)</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>tmc <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  rf_dorng <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>tmc<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[1] 1.9s</code></pre>
 <div class="note">
 <p>We got a very similar speedup of <code>5.78 / 1.9 = 3.0</code>.</p>
@@ -623,38 +694,38 @@ No. of variables tried at each split: 31</code></pre>
 <h3 class="anchored" data-anchor-id="multi-processing-in-distributed-memory">Multi-processing in distributed memory</h3>
 <p>For this lesson, I requested 8 tasks from <a href="https://en.wikipedia.org/wiki/Slurm_Workload_Manager">Slurm</a> on a training cluster made of nodes with 4 CPU cores each.</p>
 <p>Let’s verify that I did get 8 tasks by accessing the <code>SLURM_NTASKS</code> environment variable from within R:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">as.numeric</span>(<span class="fu">Sys.getenv</span>(<span class="st">"SLURM_NTASKS"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">as.numeric</span>(<span class="fu">Sys.getenv</span>(<span class="st">"SLURM_NTASKS"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[1] 8</code></pre>
 <p>I can create a character vector with the name of the node each task is running on:</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>(hosts <span class="ot">&lt;-</span> <span class="fu">system</span>(<span class="st">"srun hostname | cut -f 1 -d '.'"</span>, <span class="at">intern =</span> T))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>(hosts <span class="ot">&lt;-</span> <span class="fu">system</span>(<span class="st">"srun hostname | cut -f 1 -d '.'"</span>, <span class="at">intern =</span> T))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>chr [1:8] "node1" "node1" "node1" "node1" "node2" "node2" "node2" "node2"</code></pre>
 <p>This allows me to create a cluster of workers:</p>
-<div class="sourceCode" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>(cl <span class="ot">&lt;-</span> parallel<span class="sc">::</span><span class="fu">makeCluster</span>(hosts))      <span class="co"># Defaults to type="PSOCK"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>(cl <span class="ot">&lt;-</span> parallel<span class="sc">::</span><span class="fu">makeCluster</span>(hosts))      <span class="co"># Defaults to type="PSOCK"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>socket cluster with 8 nodes on hosts ‘node1’, ‘node2’</code></pre>
 <div class="note">
 <p>The notation used in the last two expressions (running an assignment inside a set of parentheses) allows to print to standard output the assigned value. It is equivalent to running:</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>cl <span class="ot">&lt;-</span> parallel<span class="sc">::</span><span class="fu">makeCluster</span>(hosts)</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>cl</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>cl <span class="ot">&lt;-</span> parallel<span class="sc">::</span><span class="fu">makeCluster</span>(hosts)</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>cl</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="plan-cluster" class="level3">
 <h3 class="anchored" data-anchor-id="plan-cluster">Plan cluster</h3>
 <p>I can now try the code with distributed parallelism using all 8 CPU cores across both nodes:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(cluster, <span class="at">workers =</span> cl)</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>tdis <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  rf2 <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
-<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
-<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>tdis<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(cluster, <span class="at">workers =</span> cl)</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>tdis <span class="ot">&lt;-</span> <span class="fu">mark</span>(</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  rf_dorng <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">ntree =</span> <span class="fu">rep</span>(<span class="dv">250</span>, <span class="dv">8</span>), <span class="at">.combine =</span> combine) <span class="sc">%dorng%</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">randomForest</span>(<span class="at">x =</span> traindata, <span class="at">y =</span> fac, <span class="at">ntree =</span> ntree),</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">memory =</span> <span class="cn">FALSE</span></span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>tdis<span class="sc">$</span>median</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[1] 1.14s</code></pre>
 <div class="note">
 <p>Speedup: <code>5.78 / 1.14 = 5.1</code>. Here again, this is not bad with 8 CPU cores, considering the added overhead of message passing between both nodes.</p>
 </div>
 <p>The cluster of workers can be stopped with:</p>
-<div class="sourceCode" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>parallel<span class="sc">::</span><span class="fu">stopCluster</span>(cl)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>parallel<span class="sc">::</span><span class="fu">stopCluster</span>(cl)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
