@@ -9,7 +9,39 @@ The [`foreach`](https://cran.r-project.org/web/packages/foreach/index.html) pack
 
 Unlike loops, it creates variables (loops are used for their side-effect).
 
-Let's look at an example to calculate the sum of 1e4 random vectors of length 3. We will use `foreach` and `iterators` (which creates convenient iterators for `foreach`):
+Let's look at an example to calculate the sum of 1e4 random vectors of length 3.
+
+But first, what type of job shall we run here? This example is tiny and sequential. As the cluster for this course contains 10 nodes with 4 CPUs each, each of us can monopolize a CPU. We can thus use an interactive job:
+
+```{.bash}
+salloc --time=30 --mem-per-cpu=7000M --ntasks=1
+```
+
+:::{.note}
+
+Make sure to type this in the Bash terminal. We haven't launched R yet!
+
+:::
+
+:::{.note}
+
+You can see the full list of `salloc` options [here](https://slurm.schedmd.com/salloc.html).
+
+:::
+
+Then we can launch R interactively:
+
+```{.bash}
+R
+```
+
+:::{.note}
+
+We are now in the R terminal and can start typing R commands.
+
+:::
+
+We will use `foreach` and `iterators` (which creates convenient iterators for `foreach`):
 
 ```{r}
 library(foreach)
@@ -44,7 +76,7 @@ all.equal(result1, result2)
 
 The best part of `foreach` is that you can turn sequential loops into parallel ones by registering a parallel backend and replacing `%do%` with `%dopar%`.
 
-There are many parallelization backends available: `doFuture`, `doMC`, `doMPI`, `doFuture`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
+There are many parallelization backends available: `doFuture`, `doMC`, `doMPI`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
 
 In this lesson, we will use [`doFuture`](https://cran.r-project.org/web/packages/doFuture/index.html) which allows to evaluate `foreach` expressions following any of the strategies of the [`future`](https://cran.r-project.org/web/packages/future/index.html) package.
 
@@ -101,7 +133,7 @@ set.seed(2)
 result2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)
 ```
 
-We can replace `%do%` with `%dopar%`:
+We could replace `%do%` with `%dopar%`:
 
 ```{.r}
 library(foreach)
@@ -110,7 +142,7 @@ set.seed(2)
 result3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)
 ```
 
-Since we haven't registered any parallel backend, the expression will still be evaluated sequentially. To run this in parallel, we need to load `doFuture`, register it as a backend (with `registerDoFuture()`), and choose a parallel strategy (e.g. `plan(multicore)`):
+Since we haven't registered any parallel backend, the expression would still be evaluated sequentially. To run this in parallel, we would need to load `doFuture`, register it as a backend (with `registerDoFuture()`), and choose a parallel strategy (e.g. `plan(multicore)`):
 
 ```{.r}
 library(foreach)
@@ -123,9 +155,25 @@ set.seed(2)
 result3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)
 ```
 
-With the overhead of parallelization, it actually doesn't make sense to parallelize such a short code, so let's go over a toy example and do some benchmarking.
+Of course, we would also need to run this in a Slurm job with multiple CPUs.
+
+With the overhead of parallelization however, it doesn't make sense to parallelize such a short code, so let's go over a proper toy example and do some benchmarking.
 
 ## Toy example
+
+:::{.note}
+
+Before getting started with this toy example, remember that you need to run the following:
+
+```{.bash}
+# Load necessary modules
+module load StdEnv/2020 gcc/11.3.0 r/4.2.1
+
+# Start interactive job with 1CPU
+salloc --time=30 --mem-per-cpu=7000M --ntasks=1
+```
+
+:::
 
 ### Load packages
 
@@ -176,13 +224,13 @@ No. of variables tried at each split: 31
 This is the non parallelizable code with `%do%`:
 
 ```{.r}
-tref <- mark(
-  rf1 <- foreach(ntree = rep(250, 8), .combine = combine) %do%
+bm <- mark(
+  rf <- foreach(ntree = rep(250, 8), .combine = combine) %do%
     randomForest(x = traindata, y = fac, ntree = ntree),
   memory = FALSE
 )
 
-tref$median
+bm$median
 ```
 
 ```
@@ -204,13 +252,13 @@ registerDoFuture()   # Set the parallel backend
 plan(sequential)     # Set the evaluation strategy
 
 # Using bench::mark()
-tseq <- mark(
-  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+bm <- mark(
+  rf <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
     randomForest(x = traindata, y = fac, ntree = ntree),
   memory = FALSE
 )
 
-tseq$median
+bm$median
 ```
 
 ```
@@ -225,6 +273,8 @@ No surprise: those are similar.
 
 ### Multi-processing in shared memory
 
+#### Number of cores
+
 `future` provides `availableCores()` to detect the number of available cores:
 
 ```{.r}
@@ -232,8 +282,8 @@ availableCores()
 ```
 
 ```
-system
-     4
+cgroups.cpuset
+             1
 ```
 
 :::{.note}
@@ -242,128 +292,323 @@ Similar to `parallel::detectCores()`.
 
 :::
 
-This detects the number of CPU cores available to me on the current compute node, that is, what I can use for shared memory multi-processing.
+This detects the number of CPU cores available to us on the current compute node, that is, what we can use for shared memory multi-processing. Since we asked for a single task (`--ntasks=1`) and since by default Slurm grants one CPU per task, we have a single CPU available.
 
-### Plan multisession
+To be able to run our code in parallel, we need to have access to at least 2 CPUs each. So let's quit the R session (with Ctrl+D or `quit()`—when asked whether to save a workspace image, answer `n`), terminate our interactive job (also with Ctrl+D) and ask for a different job.
 
-Shared memory multi-processing can be run with `plan(multisession)` that will spawn new R sessions in the background to evaluate futures:
+:::{.emph}
 
-```{.r}
-plan(multisession)
-
-tms <- mark(
-  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
-    randomForest(x = traindata, y = fac, ntree = ntree),
-  memory = FALSE
-)
-
-tms$median
-```
-
-```
-[1] 2s
-```
-
-:::{.note}
-
-We got a speedup of `5.78 / 2 = 2.9`. Not bad considering that we have 4 CPU cores (the ideal speedup would be 4, but there is always some overhead to parallelization).
+Don't forget to relinquish your interactive job with Ctrl+D otherwise it will be running for the full 30 min, making the hardware it uses unavailable to all of us until the job expires.
 
 :::
 
-### Plan multicore
+Now what job should we run?
 
-Shared memory multi-processing can also be run with `plan(multicore)` (except on Windows) that will fork the current R process to evaluate futures:
+Remember that the cluster for this course is made of 10 nodes of 4 CPUs each. We want to test shared memory parallelism, so our job needs to stay within one node. We can thus ask for a maximum of 4 CPUs and we want to ensure that we aren't getting them on different nodes. If we all ask for 4 CPUs in an interactive session, the first 10 of us will get them and the job requests for the rest of us will remain pending, waiting for resources to become available, for as long as the lucky 10 are running their session. That's the big downside of interactive sessions.
 
-```{.r}
-plan(multicore)
+A much better approach here is to write the code in a script and run it with `sbatch`. That way, everybody will get to run their code with minimal delay.
 
-tmc <- mark(
-  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
-    randomForest(x = traindata, y = fac, ntree = ntree),
-  memory = FALSE
-)
+Open a text file (let's call it `rf.R` since it creates a random forest object) with the text editor of your choice, for instance `nano`:
 
-tmc$median
+```{.bash}
+nano rf.R
 ```
 
+We will first play with it to see how many cores are available to us, so write in your script:
+
+```{.r filename="rf.R"}
+library(future)	  # Don't forget to load the packages in your script
+availableCores()
 ```
-[1] 1.9s
+
+Save and close the text editor.
+
+Now, we want to create a shell script for Slurm. Let's call it `rf.sh`:
+
+```{.bash}
+nano rf.sh
+```
+
+In it lives the hardware request and the code that needs to run:
+
+```{.bash filename="rf.sh"}
+#!/bin/bash
+#SBATCH --time=10             # 10 min
+#SBATCH --mem-per-cpu=7000M
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+
+Rscript rf.R                  # This is the code that we are running
 ```
 
 :::{.note}
 
-We got a very similar speedup of `5.78 / 1.9 = 3.0`.
+You can see the full list of `sbatch` options [here](https://slurm.schedmd.com/sbatch.html).
+
+:::
+
+Save and close the text editor.
+
+We can now run the batch script:
+
+```{.bash}
+sbatch rf.sh
+```
+
+You can monitor it with `sq`, but this should be quasi instant. The result will be written to a file called `slurm-xx.out` with `xx` being the number of the job that just ran.
+
+:::{.note}
+
+You can specify the output file name in the options of your sbatch script.
+
+:::
+
+To see the result, we can simply print the content of that file to screen (you can run `ls` to see the list of files in the current directory):
+
+```{.bash}
+cat slurm-xx.out    # Replace xx by the job number
+```
+
+```
+system
+     4
+```
+
+We now have 4 CPUs available on one node, so we can test shared memory parallelism.
+
+#### Plan multisession
+
+Shared memory multi-processing can be run with `plan(multisession)` that will spawn new R sessions in the background to evaluate futures.
+
+Edit the R script (with `nano rf.R`):
+
+```{.r filename="rf.R"}
+library(doFuture)
+library(doRNG)
+library(randomForest)
+library(bench)
+
+registerDoFuture()   # Set the parallel backend
+plan(multisession)
+
+set.seed(11)
+traindata <- matrix(runif(1e5), 100)
+fac <- gl(2, 50)
+
+bm <- mark(
+  rf <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory = FALSE
+)
+
+bm$median
+```
+
+Run the job with the new R script:
+
+```{.bash}
+sbatch rf.sh
+```
+
+We now get in the output file:
+
+```
+Loading required package: foreach
+Loading required package: future
+Loading required package: rngtools
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+Warning message:
+Some expressions had a GC in every iteration; so filtering is disabled.
+[1] 2.08s
+```
+
+:::{.note}
+
+We got a speedup of `5.78 / 2.08 = 2.8`. Not bad considering that we have 4 CPU cores (the ideal speedup would be 4, but there is always some overhead to parallelization).
+
+:::
+
+#### Plan multicore
+
+Shared memory multi-processing can also be run with `plan(multicore)` (except on Windows) that will fork the current R process to evaluate futures.
+
+Let's modify our R script again:
+
+```{.r filename="rf.R"}
+library(doFuture)
+library(doRNG)
+library(randomForest)
+library(bench)
+
+registerDoFuture()   # Set the parallel backend
+plan(multicore)
+
+set.seed(11)
+traindata <- matrix(runif(1e5), 100)
+fac <- gl(2, 50)
+
+bm <- mark(
+  rf <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory = FALSE
+)
+
+bm$median
+```
+
+Run the job:
+
+```{.bash}
+sbatch rf.sh
+```
+
+We get:
+
+```
+Loading required package: foreach
+Loading required package: future
+Loading required package: rngtools
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+Warning message:
+Some expressions had a GC in every iteration; so filtering is disabled.
+[1] 1.89s
+```
+
+:::{.note}
+
+We got a similar speedup of `5.78 / 1.89 = 3.1`.
 
 :::
 
 ### Multi-processing in distributed memory
 
-For this lesson, I requested 8 tasks from [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager) on a training cluster made of nodes with 4 CPU cores each.
+#### Create a cluster of workers
 
-Let's verify that I did get 8 tasks by accessing the `SLURM_NTASKS` environment variable from within R:
+To test parallel execution in distributed memory, let's ask [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager) for 8 tasks by editing our `rf.sh` script:
 
-```{.r}
+```{.bash filename="rf.sh"}
+#!/bin/bash
+#SBATCH --time=10
+#SBATCH --mem-per-cpu=7000M
+#SBATCH --ntasks=8
+
+Rscript rf.R      # This is the code that we are running
+```
+
+Let's verify that we do get 8 tasks by accessing the `SLURM_NTASKS` environment variable from within R.
+
+Edit `rf.R` to contain the following:
+
+```{.r filename="rf.R"}
 as.numeric(Sys.getenv("SLURM_NTASKS"))
 ```
+
+Run the job:
+
+```{.bash}
+sbatch rf.sh
+```
+
+We get:
 
 ```
 [1] 8
 ```
 
-I can create a character vector with the name of the node each task is running on:
+Let's see which nodes we are using:
+
+```{.r filename="rf.R"}
+system("srun hostname | cut -f 1 -d '.'", intern = T)
+```
+
+We get:
+
+```
+[1] "node1" "node1" "node1" "node1" "node2" "node2" "node2" "node2"
+```
+
+To run the RandomForest code with distributed parallelism using 8 CPU cores across both nodes, we will need to create a cluster of workers. We do this with the `makeCluster()` function from the base R `parallel` package: we create a character vector with the names of the nodes our tasks are running on and pass this vector to the `makeCluster()` function:
 
 ```{.r}
-(hosts <- system("srun hostname | cut -f 1 -d '.'", intern = T))
+## Create a character vector with the nodes names
+hosts <- system("srun hostname | cut -f 1 -d '.'", intern = T)
+
+## Create the cluster of workers
+cl <- parallel::makeCluster(hosts)
 ```
 
-```
-chr [1:8] "node1" "node1" "node1" "node1" "node2" "node2" "node2" "node2"
+Let's test it:
+
+```{.r filename="rf.R"}
+library(doFuture)
+
+hosts <- system("srun hostname | cut -f 1 -d '.'", intern = T)
+cl <- parallel::makeCluster(hosts)
+
+cl
 ```
 
-This allows me to create a cluster of workers:
-
-```{.r}
-(cl <- parallel::makeCluster(hosts))      # Defaults to type="PSOCK"
-```
+If we run this code, we get:
 
 ```
+Loading required package: foreach
+Loading required package: future
 socket cluster with 8 nodes on hosts ‘node1’, ‘node2’
 ```
 
 :::{.note}
 
-The notation used in the last two expressions (running an assignment inside a set of parentheses) allows to print to standard output the assigned value. It is equivalent to running:
-
-```{.r}
-cl <- parallel::makeCluster(hosts)
-cl
-```
+Make sure that your code has finished running before printing the output file. Remember that you can monitor the job with `sq`.
 
 :::
 
-### Plan cluster
+#### Plan cluster
 
-I can now try the code with distributed parallelism using all 8 CPU cores across both nodes:
+We can now run the code in distributed memory parallelism:
 
-```{.r}
+```{.r filename="rf.R"}
+library(doFuture)
+library(doRNG)
+library(randomForest)
+library(bench)
+
+registerDoFuture()   # Set the parallel backend
+
+hosts <- system("srun hostname | cut -f 1 -d '.'", intern = T)
+cl <- parallel::makeCluster(hosts)
 plan(cluster, workers = cl)
 
-tdis <- mark(
-  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+set.seed(11)
+traindata <- matrix(runif(1e5), 100)
+fac <- gl(2, 50)
+
+bm <- mark(
+  rf <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
     randomForest(x = traindata, y = fac, ntree = ntree),
   memory = FALSE
 )
 
-tdis$median
+bm$median
 ```
 
+We get:
+
 ```
-[1] 1.14s
+Loading required package: foreach
+Loading required package: future
+Loading required package: rngtools
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+Warning message:
+Some expressions had a GC in every iteration; so filtering is disabled.
+[1] 1.16s
 ```
 
 :::{.note}
 
-Speedup: `5.78 / 1.14 = 5.1`. Here again, this is not bad with 8 CPU cores, considering the added overhead of message passing between both nodes.
+Speedup: `5.78 / 1.16 = 5.0`. Here again, this is not bad with 8 CPU cores, considering the added overhead of message passing between both nodes.
 
 :::
 
@@ -372,3 +617,5 @@ The cluster of workers can be stopped with:
 ```{.r}
 parallel::stopCluster(cl)
 ```
+
+Here, this is not necessary since our job stops running as soon as the execution is complete.
