@@ -248,12 +248,14 @@ Here the difference in timing is a factor of 50...
 
 But is `f2()` really the fastest function?
 
-Louis Arsenault-Mahjoubi, who attended this workshop, found a way to get rid of one operation and get a speedup of 1.3: if we assign `1:n` to `z` instead of pre-allocating memory with an empty vector, we can omit the assignment of `i` to `z[i]` in the last else statement:
+Louis Arsenault-Mahjoubi—who attended this workshop—found ways to get rid of several operations and get a speedup of 1.7 over `f2()`.
+
+First, we can assign `1:n` to `z` instead of pre-allocating memory with an empty vector, thus rendering the assignment of `i` to `z[i]` unnecessary in the last else statement:
 
 ```{r}
-f_louis <- function(n) {
+f_louis1 <- function(n) {
   z <- 1:n
-  for(i in 1:n) {
+  for(i in z) {
     if(i %% 3 == 0 && i %% 5 == 0) {
       z[i] <- "FizzBuzz"
     } else if(i %% 3 == 0) {
@@ -269,13 +271,39 @@ f_louis <- function(n) {
 This function works:
 
 ```{r}
-f_louis(20)
+f_louis1(20)
 ```
 
-... and is faster:
+... and is faster (speedup of 1.4):
 
 ```{r}
-mark(f2(n), f_louis(n))
+mark(f2(n), f_louis1(n))
+```
+
+Then, we can prevent the repetitions of the modulo operations and equality tests by saving them to variables:
+
+```{r}
+f_louis2 <- function(n) {
+  z <- 1:n
+  for(i in z) {
+    div3 <- (i %% 3 == 0)
+    div5 <- (i %% 5 == 0)
+    if(div3 && div5) {
+      z[i] <- "FizzBuzz"
+    } else if(div3) {
+      z[i] <- "Fizz"
+    } else if(div5) {
+      z[i] <- "Buzz"
+    } 
+  }
+  z
+}
+```
+
+This gets us an even greater speedup of 1.7:
+
+```{r}
+mark(f2(n), f_louis2(n))
 ```
 
 ## Replace costly operations where possible
