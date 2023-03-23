@@ -5075,6 +5075,27 @@
     "text": "Benchmarking\nOnce you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.\nIn the most basic fashion, you can use system.time(), but this is limited and imprecise.\nThe microbenchmark package is a much better option. It gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.\nThe newer bench package is very similar, but it has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections. This is the package that we will use for this course.\nThe main function from this package is mark(). You can pass as argument(s) one or multiple expressions that you want to benchmark. By default, it ensures that all expressions output the same result. If you want to remove this test, add the argument check = FALSE.\nWhile mark() gives memory usage and garbage collection information for sequential code, this functionality is not yet implemented for parallel code. When benchmarking parallel expressions, we will have to use the argument memory = FALSE.\nYou will see many examples throughout this course."
   },
   {
+    "objectID": "r/rcpp.html",
+    "href": "r/rcpp.html",
+    "title": "Writing C++ in R with Rcpp",
+    "section": "",
+    "text": "Sometimes, parallelization is not an option, either because the code is hard to parallelize or because of lack of hardware. In such cases, one way to increase speed is to replace slow R code with C++. The package Rcpp makes this particularly easy by creating mappings between both languages."
+  },
+  {
+    "objectID": "r/rcpp.html#back-to-fibonacci",
+    "href": "r/rcpp.html#back-to-fibonacci",
+    "title": "Writing C++ in R with Rcpp",
+    "section": "Back to Fibonacci",
+    "text": "Back to Fibonacci\nDo you remember the Fibonacci numbers? Here was a naive implementation in R:\n\nfib <- function(n) {\n  if(n == 0) return(0)\n  if(n == 1) return(1)\n  Recall(n - 1) + Recall(n - 2)\n}\n\nThis function gives the nth number in the sequence.\n\nExample:\n\n\nfib(30)\n\n[1] 832040"
+  },
+  {
+    "objectID": "r/rcpp.html#rcpp",
+    "href": "r/rcpp.html#rcpp",
+    "title": "Writing C++ in R with Rcpp",
+    "section": "Rcpp",
+    "text": "Rcpp\nLet’s translate this function in C++ within R!\nFirst we need to load the Rcpp package:\n\nlibrary(Rcpp)\n\nWe then use the function cppFunction() to assign to an R function a function written in C++:\n\nfibRcpp <- cppFunction( '\nint fibonacci(const int x) {\n   if (x == 0) return(0);\n   if (x == 1) return(1);\n   return (fibonacci(x - 1)) + fibonacci(x - 2);\n}\n' )\n\nWe can call our function as any R function:\nfibRcpp(30)\n[1] 832040\nWe can compare both functions:\nlibrary(bench)\n\nn <- 30\nmark(fib(n), fibRcpp(n))\n# A tibble: 2 × 13\n  expression      min   median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc\n  <bch:expr> <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl> <int> <dbl>\n1 fib(n)        1.66s    1.66s     0.601    44.7KB     22.8     1    38\n2 fibRcpp(n)   1.08ms   1.08ms   901.       2.49KB      0     451     0\n  total_time result    memory                 time            \n    <bch:tm> <list>    <list>                 <list>          \n1      1.66s <dbl [1]> <Rprofmem [6,778 × 3]> <bench_tm [1]>  \n2   500.37ms <int [1]> <Rprofmem [1 × 3]>     <bench_tm [451]>\n  gc                \n  <list>            \n1 <tibble [1 × 3]>  \n2 <tibble [451 × 3]>\nWarning message:\nSome expressions had a GC in every iteration; so filtering is disabled.\nThe speedup is 1,537, which is amazing.\nIn this particular example, we saw that memoisation gives an even more incredible speedup (35,000!), but while memoisation will only work in very specific situations (e.g. recursive function calls), using C++ code is a general method to provide speedup. It is particularly useful when:\n\nthere are large numbers of function calls (R is particularly slow with function calls),\nyou need data structures that are missing in R,\nyou want to create efficient packages (fast R packages are written in C++ and many use Rcpp).\n\n\nIn this example, we declared the C++ function directly in R. It is possible to use source files instead."
+  },
+  {
     "objectID": "r/resources.html",
     "href": "r/resources.html",
     "title": "Resources",
