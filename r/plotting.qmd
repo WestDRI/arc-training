@@ -58,7 +58,9 @@ This was further refined by Hadley Wickham in his 2010 article [A Layered Gramma
 
 `ggplot2` has become the dominant graphing package in R. Let's see how to construct a plot with this package.
 
-## Plotting with ggplot2
+## Plotting with `ggplot2`
+
+### The Canvas
 
 The first component is the data:
 
@@ -84,6 +86,8 @@ This can be simplified into `ggplot(mpg, aes(x = displ, y = hwy))`.
 
 :::
 
+### Geometric representations of the data
+
 Onto this canvas, we can add "geoms" (geometrical objects) representing the data. The type of "geom" defines the type of representation (e.g. boxplot, histogram, bar chart).
 
 To represent the data as a scatterplot, we use the `geom_point()` function:
@@ -107,20 +111,11 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(aes(color = class))
 ```
 
-If we want to change the colour scale, we add another layer for this:
-
-```{r}
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(aes(color = class)) +
-  scale_color_brewer(palette = "Dark2")
-```
-
 Multiple "geoms" can be added on top of each other. For instance, we can add a smoothed conditional means function that aids at seeing patterns in the data with `geom_smooth()`:
 
 ```{r}
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(aes(color = class)) +
-  scale_color_brewer(palette = "Dark2") +
   geom_smooth()
 ```
 
@@ -131,7 +126,14 @@ The default smoothing function uses the LOESS (locally estimated scatterplot smo
 ```{r}
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(aes(color = class)) +
-  scale_color_brewer(palette = "Dark2") +
+  geom_smooth(method = lm)
+```
+
+Of course, we could apply the smoothing function to each class instead of the entire data. It creates a busy plot but shows that the downward trend remains true within each type of car:
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
+  geom_point(aes(color = class)) +
   geom_smooth(method = lm)
 ```
 
@@ -140,12 +142,27 @@ Other arguments to `geom_smooth()` can set the line width, color, or whether or 
 ```{r}
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(aes(color = class)) +
+  geom_smooth(method = lm, se = FALSE, color = "#999999", linewidth = 0.5)
+```
+
+### Colour scales
+
+If we want to change the colour scale, we add another layer for this:
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(aes(color = class)) +
   scale_color_brewer(palette = "Dark2") +
   geom_smooth(method = lm, se = FALSE, color = "#999999", linewidth = 0.5)
 ```
 
-We can keep on adding layers. For instance, the `labs()` function allows to set title, subtitle, captions, tags, axes labels, etc.
+`scale_color_brewer()`, based on [color brewer 2.0](https://colorbrewer2.org/#type=sequential&scheme=BuGn&n=3), is one of many methods to change the color scale. Here is the list of available scales for this particular method:
 
+![](img/color_scale.png){width="90%"}
+
+### Labels
+
+We can keep on adding layers. For instance, the `labs()` function allows to set title, subtitle, captions, tags, axes labels, etc.
 
 ```{r}
 ggplot(mpg, aes(x = displ, y = hwy)) +
@@ -160,6 +177,8 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
     caption = "EPA data from https://fueleconomy.gov/"
   )
 ```
+
+### Themes
 
 Another optional layer sets one of several preset themes.
 
@@ -203,7 +222,41 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 As you could see, the way `ggplot2` works is by adding a number of layers on top of each other, all following a standard set of rules, or "grammar". This way, a vast array of graphs can be created by organizing simple components.
 
-Thanks to its vast popularity, the `ggplot2` has seen [a proliferation of packages extending its capabilities](https://exts.ggplot2.tidyverse.org/gallery/):
+### Layout
+
+If you want to create multiple plots in the same frame, you simply add them to each other:
+
+```{r}
+plot1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(aes(color = class)) +
+  scale_color_brewer(palette = "Dark2") +
+  geom_smooth(method = lm, se = FALSE, color = "#999999", linewidth = 0.5) +
+  labs(
+    x = "Engine size (L)",
+    y = "Fuel economy (mpg) on highways",
+    color = "Type of car",
+    caption = "EPA data from https://fueleconomy.gov/"
+  ) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+plot2 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_smooth(se = FALSE, color = "#999999", linewidth = 0.5) +
+  labs(
+    x = "Engine size (L)",
+    y = "Fuel economy (mpg) on highways"
+  ) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+plot1 + plot2
+```
+
+More complex layouts can easily be built with the [`patchwork`](https://patchwork.data-imaginist.com/) package.
+
+## `ggplot2` extensions
+
+Thanks to its vast popularity, `ggplot2` has seen [a proliferation of packages extending its capabilities](https://exts.ggplot2.tidyverse.org/gallery/):
 
 ```{=html}
 <iframe width="780" height="1000" src="https://exts.ggplot2.tidyverse.org/gallery/"></iframe>
