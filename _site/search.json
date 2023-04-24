@@ -3896,7 +3896,7 @@
     "href": "r/clusters.html#loading-modules",
     "title": "Running R on HPC clusters",
     "section": "Loading modules",
-    "text": "Loading modules\nOnce in the cluster, we need to make the modules (software) we need available.\n\nC compiler\nTo compile R packages, we need a C compiler.\nIn theory, one could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can be compiled by any C compiler—also including Clang and LLVM—but the default GCC compiler is the best way to avoid headaches).\nIt is thus much simpler to always load a gcc module before loading an r module.\n\n\nR module\nTo see what versions of R are available on a cluster, run:\nmodule spider r\nTo see the dependencies of a particular version (e.g. r/4.2.1), run:\nmodule spider r/4.2.1\n\nStdEnv/2020 is a required module for this version.\nOn most Alliance clusters, it is automatically loaded, so you don’t need to include it. You can double-check with module list or you can include it (before r/4.2.1) just to be sure.\n\n\n\nLoad the modules\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1"
+    "text": "Loading modules\nOnce in the cluster, we need to make the modules (software) we need available.\n\nC compiler\nTo compile R packages, we need a C compiler.\nIn theory, one could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can be compiled by any C compiler—also including Clang and LLVM—but the default GCC compiler is the best way to avoid headaches).\nIt is thus much simpler to always load a gcc module before loading an r module.\nTo see which gcc versions are available on a cluster, run:\nmodule spider gcc\nTo see the dependencies of a particular version (e.g. gcc/11.3.0), run:\nmodule spider gcc/11.3.0\nThis shows us that we need StdEnv/2020 to load gcc/11.3.0.\n\n\nR module\nNow, of course, we also need an R module.\nAs before, to see which versions of R are available on a cluster, run:\nmodule spider r\nTo see the dependencies of a particular version (e.g. r/4.2.2), run:\nmodule spider r/4.2.2\n\n\nLoad the modules\nNow that we know what modules we need, let’s load them. The order is important: the dependencies (here StdEnv/2020) must be listed before the modules which depend on them.\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.2"
   },
   {
     "objectID": "r/clusters.html#installing-r-packages",
@@ -3910,7 +3910,7 @@
     "href": "r/clusters.html#running-r-jobs",
     "title": "Running R on HPC clusters",
     "section": "Running R jobs",
-    "text": "Running R jobs\nThere are two types of jobs that can be launched on an Alliance cluster: interactive jobs and batch jobs. We will practice both and discuss their respective merits and when to use which.\nFor this course, I purposefully built a rather small cluster (10 nodes with 4 CPUs and 30GB each) to give a tangible illustration of the constraints of resource sharing.\n\nInteractive jobs\n\nWhile it is fine to run R on the login node when you install packages, you must start a SLURM job before any heavy computation.\n\nTo run R interactively, you should launch an salloc session.\n\nExample:\n\nsalloc --time=1:10:00 --mem-per-cpu=7000M --ntasks=8\nThis takes you to a compute node where you can now launch R to run computations:\nR\n\nThis however leads to the same inefficient use of resources as happens when running an RStudio server: all the resources that you requested are blocked for you while your job is running, whether you are making use of them (running heavy computations) or not (thinking, typing code, running computations that use only a fraction of the requested resources).\nInteractive jobs are thus best kept to develop code.\n\n\n\nScripts\nTo run an R script called <your_script>.R, you first need to write a job script:\n\nExample:\n\n\n<your_job>.sh\n\n#!/bin/bash\n#SBATCH --account=def-<your_account>\n#SBATCH --time=15\n#SBATCH --mem-per-cpu=3000M\n#SBATCH --cpus-per-task=4\n#SBATCH --job-name=\"<your_job>\"\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.1\nRscript <your_script>.R   # Note that R scripts are run with the command `Rscript`\n\n\nThen launch your job with:\nsbatch <your_job>.sh\nYou can monitor your job with sq (an alias for squeue -u $USER $@).\n\nBatch jobs are the best approach to run parallel computations, particularly when they require a lot of hardware.\nIt will save you lots of waiting time (Alliance clusters) or money (commercial clusters)."
+    "text": "Running R jobs\nThere are two types of jobs that can be launched on an Alliance cluster: interactive jobs and batch jobs. We will practice both and discuss their respective merits and when to use which.\nFor this course, I purposefully built a rather small cluster (10 nodes with 4 CPUs and 30GB each) to give a tangible illustration of the constraints of resource sharing.\n\nInteractive jobs\n\nWhile it is fine to run R on the login node when you install packages, you must start a SLURM job before any heavy computation.\n\nTo run R interactively, you should launch an salloc session.\n\nExample:\n\nsalloc --time=1:10:00 --mem-per-cpu=7000M --ntasks=8\nThis takes you to a compute node where you can now launch R to run computations:\nR\n\nThis however leads to the same inefficient use of resources as happens when running an RStudio server: all the resources that you requested are blocked for you while your job is running, whether you are making use of them (running heavy computations) or not (thinking, typing code, running computations that use only a fraction of the requested resources).\nInteractive jobs are thus best kept to develop code.\n\n\n\nScripts\nTo run an R script called <your_script>.R, you first need to write a job script:\n\nExample:\n\n\n<your_job>.sh\n\n#!/bin/bash\n#SBATCH --account=def-<your_account>\n#SBATCH --time=15\n#SBATCH --mem-per-cpu=3000M\n#SBATCH --cpus-per-task=4\n#SBATCH --job-name=\"<your_job>\"\nmodule load StdEnv/2020 gcc/11.3.0 r/4.2.2\nRscript <your_script>.R   # Note that R scripts are run with the command `Rscript`\n\n\nThen launch your job with:\nsbatch <your_job>.sh\nYou can monitor your job with sq (an alias for squeue -u $USER $@).\n\nBatch jobs are the best approach to run parallel computations, particularly when they require a lot of hardware.\nIt will save you lots of waiting time (Alliance clusters) or money (commercial clusters)."
   },
   {
     "objectID": "r/control_flow.html#conditionals",
@@ -6130,5 +6130,33 @@
     "title": "Function definition",
     "section": "What is returned by a function?",
     "text": "What is returned by a function?\nIn R, the result of the last statement is printed automatically:\n\ntest <- function(x, y) {\n  x\n  y\n}\ntest(2, 3)\n\n[1] 3\n\n\nIf you want to also print other results, you need to explicitly use the print() function:\n\ntest <- function(x, y) {\n  print(x)\n  y\n}\ntest(2, 3)\n\n[1] 2\n\n\n[1] 3\n\n\nNote that, unlike print(), the function return() exits the function:\n\ntest <- function(x, y) {\n  return(x)\n  y\n}\ntest(2, 3)\n\n[1] 2\n\n\n\ntest <- function(x, y) {\n  return(x)\n  return(y)\n}\ntest(2, 3)\n\n[1] 2"
+  },
+  {
+    "objectID": "r/partition.html",
+    "href": "r/partition.html",
+    "title": "Partitioning data with multidplyr",
+    "section": "",
+    "text": "library(multidplyr)\ncl <- new_cluster(4)\ncl"
+  },
+  {
+    "objectID": "r/partition.html#data-assignment",
+    "href": "r/partition.html#data-assignment",
+    "title": "Partitioning data with multidplyr",
+    "section": "Data assignment",
+    "text": "Data assignment\nThere are multiple ways to assign the data to the workers.\n\nAssign the same value to each worker\nThis is done with the cluster_assign() function:\ncluster_assign(cl, a = c(1:4))\n[[1]]\n[1] 1 2 3 4\n\n[[2]]\n[1] 1 2 3 4\n\n[[3]]\n[1] 1 2 3 4\n\n[[4]]\n[1] 1 2 3 4\ncluster_assign(cl, b = runif(4))\n[[1]]\n[1] 0.5805588\n\n[[2]]\n[1] 0.5805588\n\n[[3]]\n[1] 0.5805588\n\n[[4]]\n[1] 0.5805588\n\n\nAssign different values to each worker\nFor this, use instead cluster_assign_each():\ncluster_assign_each(cl, c = c(1:4))\n[[1]]\n[1] 1\n\n[[2]]\n[1] 2\n\n[[3]]\n[1] 3\n\n[[4]]\n[1] 4\ncluster_assign_each(cl, d = runif(4))\n[[1]]\n[1] 0.8892167\n\n[[2]]\n[1] 0.09334862\n\n[[3]]\n[1] 0.614763\n\n[[4]]\n[1] 0.6986541\n\n\nPartition vectors\ncluster_assign_partition() splits up a vector to assign about the same amount of data to each worker:"
+  },
+  {
+    "objectID": "r/partition.html#code-execution",
+    "href": "r/partition.html#code-execution",
+    "title": "Partitioning data with multidplyr",
+    "section": "Code execution",
+    "text": "Code execution"
+  },
+  {
+    "objectID": "r/partition.html#main-concept",
+    "href": "r/partition.html#main-concept",
+    "title": "Partitioning data with multidplyr",
+    "section": "Main concept",
+    "text": "Main concept\nYou assign data to the workers, then you execute the code.\n\nHere is a very basic example:"
   }
 ]
