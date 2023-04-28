@@ -1,1 +1,1 @@
-This is the repo for [Marie-Hélène Burle](https://www.sfu.ca/~msb2/)'s [training material site](https://mint.westdri.ca/) for WestDRI.
+This is the repo for [Marie-Hélène Burle](https://www.sfu.ca/~msb2/)'s [training site](https://mint.westdri.ca/) for the [Research Computing Group](https://www.rcg.sfu.ca/) Training Team at [Simon Fraser University](https://www.sfu.ca/).
