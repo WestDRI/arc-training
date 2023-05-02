@@ -7,7 +7,7 @@ author: Marie-Hélène Burle
 
 The [`foreach`](https://cran.r-project.org/web/packages/foreach/index.html) package implements a looping construct without an explicit counter. It doesn't require the preallocation of an output container, it brings to R an equivalent of the Python or Julia list comprehensions, and mostly, it allows for an easy execution of loops in parallel. Unlike loops, it creates variables (loops are used for their side-effect).
 
-We will explore an example to calculate the sum of 1e4 random vectors of length 3.
+We will explore an example to calculate the sum of 1e3 random vectors of length 3.
 
 First, let's launch an interactive job with a single task (by default Slurm grants one CPU per task, so we are asking for one CPU):
 
@@ -46,7 +46,7 @@ set.seed(2)
 result1 <- numeric(3)             # Preallocate output container
 i <- 0                            # Initialise counter variable
 
-while(i < 1e4) {
+while(i < 1e3) {
   result1 <- result1 + runif(3)   # Calculate the sum
   i <- i + 1                      # Update the counter
 }
@@ -56,7 +56,7 @@ Here is the equivalent code using `foreach`:
 
 ```{r}
 set.seed(2)
-result2 <- foreach(i = 1:1e4, .combine = '+') %do% runif(3)
+result2 <- foreach(i = 1:1e3, .combine = '+') %do% runif(3)
 ```
 
 We can verify that both expressions return the same result:
@@ -143,14 +143,14 @@ Here are the two equivalent syntaxes:
 
 ```{.r}
 set.seed(2)
-result3 <- foreach(i = 1:1e4, .options.future = list(seed = TRUE), .combine = '+') %dofuture% {
+result3 <- foreach(i = 1:1e3, .options.future = list(seed = TRUE), .combine = '+') %dofuture% {
   runif(3)
 }
 ```
 
 ```{.r}
 set.seed(2)
-result3 <- foreach(i = 1:1e4, .combine = '+') %dofuture% {
+result3 <- foreach(i = 1:1e3, .combine = '+') %dofuture% {
   runif(3)
 } %seed% TRUE
 ```
@@ -161,50 +161,22 @@ It is now time to play with our code with all serial and parallel methods and do
 
 ## Benchmarks
 
-With the overhead of parallelization, it doesn't make sense to parallelize such a fast code: the parallel version will take longer than the serial one. Let's artificially make our code much slower without adding any complexity that would distract us from the parallelization question. To do that, we will simply add a delay at each iteration.
+With the overhead of parallelization, it doesn't make sense to parallelize such a fast code: the parallel version will take longer than the serial one.
 
-The classic while loop we replaced with `foreach` was the following:
-
-```{r}
-set.seed(2)
-result1 <- numeric(3)             # Preallocate output container
-i <- 0                            # Initialise counter variable
-
-while(i < 1e4) {
-  result1 <- result1 + runif(3)   # Calculate the sum
-  i <- i + 1                      # Update the counter
-}
-```
-
-Let's add a delay of 0.01s at each iteration:
+Let's artificially make our code much slower without adding any complexity that would distract us from the parallelization question. To do that, we will simply add a delay at each iteration:
 
 ```{r}
 set.seed(2)
-result1 <- numeric(3)
-i <- 0               
-
-while(i < 1e4) {
-  Sys.sleep(0.01)                 # Wait for 0.01s
-  result1 <- result1 + runif(3)
-  i <- i + 1                   
-}
-```
-
-The `foreach` version looked like this:
-
-```{r}
-set.seed(2)
-result2 <- foreach(i = 1:1e4, .combine = '+') %do% runif(3)
-```
-
-To add the delay at each iteration, we can write it this way:
-
-```{r}
-set.seed(2)
-result2 <- foreach(i = 1:1e4, .combine = '+') %do% {
-  Sys.sleep(0.01)
+result2 <- foreach(i = 1:1e3, .combine = '+') %do% {
+  Sys.sleep(0.01)         # Wait for 0.01s
   runif(3)
 }
+```
+
+Now, let's load the `bench` package that we will use for benchmarking our various tests:
+
+```{.r}
+library(bench)
 ```
 
 <!-- ## Toy example -->
@@ -271,37 +243,12 @@ result2 <- foreach(i = 1:1e4, .combine = '+') %do% {
 <!-- [1] 5.66s -->
 <!-- ``` -->
 
-First, let's time the classic while loop:
-
-```{.r}
-library(bench)
-
-set.seed(2)
-result1 <- numeric(3)
-i <- 0               
-
-bm <- mark(
-  while(i < 1e4) {
-    Sys.sleep(0.01)                 # Wait for 0.01s
-    result1 <- result1 + runif(3)
-    i <- i + 1                   
-  }
-)
-
-bm$median
-```
-
-```
-[1] 2.54ms
-```
-
-Now, here is the timing with `foreach` run sequentially:
+Let's first time this to get a reference:
 
 ```{.r}
 set.seed(2)
-
 bm <- mark(
-  result2 <- foreach(i = 1:1e4, .combine = '+') %do% {
+  result2 <- foreach(i = 1:1e3, .combine = '+') %do% {
     Sys.sleep(0.01)
     runif(3)
   }
@@ -311,20 +258,8 @@ bm$median
 ```
 
 ```
-[1] 11.2s
+[1] 11.4s
 ```
-
-:::{.note}
-
-`bench::mark()` is currently unable to provide memory information for parallel code. While it could output memory usage for this sequential run, we won't be able to compare it with parallel runs, so we might as well not ask for that information.
-
-:::
-
-:::{.note}
-
-The `foreach` version is actually slower. Its advantage comes in when we run code in parallel.
-
-:::
 
 ### Plan sequential
 
@@ -352,9 +287,8 @@ This is the parallelizable `foreach` code, but run sequentially:
 plan(sequential)     # Set the evaluation strategy
 
 set.seed(2)
-
 bm <- mark(
-  result3 <- foreach(i = 1:1e4, .combine = '+') %dofuture% {
+  result3 <- foreach(i = 1:1e3, .combine = '+') %dofuture% {
     Sys.sleep(0.01)
     runif(3)
   } %seed% TRUE
@@ -374,8 +308,6 @@ No surprise: this is similar to the previous timing.
 :::
 
 ### Multi-processing in shared memory
-
-xxx
 
 #### Number of cores
 
@@ -402,15 +334,15 @@ To be able to run our code in parallel, we need to have access to at least 2 CPU
 
 :::{.emph}
 
-Don't forget to relinquish your interactive job with Ctrl+D otherwise it will be running for the full 30 min, making the hardware it uses unavailable to all of us until the job expires.
+Don't forget to relinquish your interactive job with Ctrl+D otherwise it will be running for the full 50 min, making the hardware it uses unavailable to all of us until the job expires.
 
 :::
 
-Now what job should we run?
+The cluster for this course is made of 40 nodes with 4 CPUs each. We want to test shared memory parallelism, so our job needs to stay within one node. We can thus ask for a maximum of 4 CPUs and we want to ensure that we aren't getting them on different nodes.
 
-Remember that the cluster for this course is made of 10 nodes of 4 CPUs each. We want to test shared memory parallelism, so our job needs to stay within one node. We can thus ask for a maximum of 4 CPUs and we want to ensure that we aren't getting them on different nodes. If we all ask for 4 CPUs in an interactive session, the first 10 of us will get them and the job requests for the rest of us will remain pending, waiting for resources to become available, for as long as the lucky 10 are running their session. That's the big downside of interactive sessions.
+If we all ask for 4 CPUs in an interactive session, we are fine if there are 40 or fewer of us. If we are too numerous, the first 40 people to ask for an interactive job will get it, but the remainder of us will have their job requests pending, waiting for resources to become available, for as long as the lucky 40 are running their session. That's the big downside of interactive sessions.
 
-A much better approach here is to write the code in a script and run it with `sbatch`. That way, everybody will get to run their code with minimal delay.
+A better approach when we need a lot of resource is to write the code in a script and run it with `sbatch`. That way, everybody will get to run their code with minimal delay.
 
 Open a text file (let's call it `rf.R` since it creates a random forest object) with the text editor of your choice, for instance `nano`:
 
@@ -488,21 +420,17 @@ Edit the R script (with `nano rf.R`):
 
 ```{.r filename="rf.R"}
 library(doFuture)
-library(doRNG)
-library(randomForest)
 library(bench)
 
-registerDoFuture()   # Set the parallel backend
 plan(multisession)
 
-set.seed(11)
-traindata <- matrix(runif(1e5), 100)
-fac <- gl(2, 50)
+set.seed(2)
 
 bm <- mark(
-  rf <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
-    randomForest(x = traindata, y = fac, ntree = ntree),
-  memory = FALSE
+  result3 <- foreach(i = 1:1e3, .combine = '+') %dofuture% {
+    Sys.sleep(0.01)
+    runif(3)
+  } %seed% TRUE
 )
 
 bm$median
@@ -519,17 +447,14 @@ We now get in the output file:
 ```
 Loading required package: foreach
 Loading required package: future
-Loading required package: rngtools
-randomForest 4.7-1.1
-Type rfNews() to see new features/changes/bug fixes.
 Warning message:
 Some expressions had a GC in every iteration; so filtering is disabled.
-[1] 2.08s
+[1] 3.31s
 ```
 
 :::{.note}
 
-We got a speedup of `5.78 / 2.08 = 2.8`. Not bad considering that we have 4 CPU cores (the ideal speedup would be 4, but there is always some overhead to parallelization).
+We got a speedup of `11.4 / 3.31 = 3.4`. Not bad considering that we have 4 CPU cores (the ideal speedup would be 4, but there is always some overhead to parallelization).
 
 :::
 
@@ -541,21 +466,17 @@ Let's modify our R script again:
 
 ```{.r filename="rf.R"}
 library(doFuture)
-library(doRNG)
-library(randomForest)
 library(bench)
 
-registerDoFuture()   # Set the parallel backend
 plan(multicore)
 
-set.seed(11)
-traindata <- matrix(runif(1e5), 100)
-fac <- gl(2, 50)
+set.seed(2)
 
 bm <- mark(
-  rf <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
-    randomForest(x = traindata, y = fac, ntree = ntree),
-  memory = FALSE
+  result3 <- foreach(i = 1:1e3, .combine = '+') %dofuture% {
+    Sys.sleep(0.01)
+    runif(3)
+  } %seed% TRUE
 )
 
 bm$median
@@ -572,9 +493,6 @@ We get:
 ```
 Loading required package: foreach
 Loading required package: future
-Loading required package: rngtools
-randomForest 4.7-1.1
-Type rfNews() to see new features/changes/bug fixes.
 Warning message:
 Some expressions had a GC in every iteration; so filtering is disabled.
 [1] 1.89s
@@ -582,7 +500,7 @@ Some expressions had a GC in every iteration; so filtering is disabled.
 
 :::{.note}
 
-We got a similar speedup of `5.78 / 1.89 = 3.1`.
+We got a similar speedup of `11.4 / 3.01 = 3.8`. This time we are really close to the ideal speedup of 4!
 
 :::
 
@@ -674,24 +592,19 @@ We can now run the code in distributed memory parallelism:
 
 ```{.r filename="rf.R"}
 library(doFuture)
-library(doRNG)
-library(randomForest)
 library(bench)
-
-registerDoFuture()   # Set the parallel backend
 
 hosts <- system("srun hostname | cut -f 1 -d '.'", intern = T)
 cl <- parallel::makeCluster(hosts)
 plan(cluster, workers = cl)
 
-set.seed(11)
-traindata <- matrix(runif(1e5), 100)
-fac <- gl(2, 50)
+set.seed(2)
 
 bm <- mark(
-  rf <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
-    randomForest(x = traindata, y = fac, ntree = ntree),
-  memory = FALSE
+  result3 <- foreach(i = 1:1e3, .combine = '+') %dofuture% {
+    Sys.sleep(0.01)
+    runif(3)
+  } %seed% TRUE
 )
 
 bm$median
@@ -702,17 +615,14 @@ We get:
 ```
 Loading required package: foreach
 Loading required package: future
-Loading required package: rngtools
-randomForest 4.7-1.1
-Type rfNews() to see new features/changes/bug fixes.
 Warning message:
 Some expressions had a GC in every iteration; so filtering is disabled.
-[1] 1.16s
+[1] 1.94s
 ```
 
 :::{.note}
 
-Speedup: `5.78 / 1.16 = 5.0`. Here again, this is not bad with 8 CPU cores, considering the added overhead of message passing between both nodes.
+Speedup: `11.4 / 1.94 = 5.9`. Here again, this is not bad with 8 CPU cores, considering the added overhead of message passing between both nodes.
 
 :::
 
@@ -722,41 +632,4 @@ The cluster of workers can be stopped with:
 parallel::stopCluster(cl)
 ```
 
-Here, this is not necessary since our job stops running as soon as the execution is complete.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{.r}
-library(doFuture)
-library(bench)
-
-plan(multisession)
-
-set.seed(2)
-
-bm <- mark(
-  result3 <- foreach(i = 1:1e4, .combine = '+') %dofuture% {
-    Sys.sleep(0.01)
-    runif(3)
-  } %seed% TRUE
-)
-
-bm$median
-```
-
-```
-[1] 3.3s
-```
+Here, this is not necessary since our job stops running as soon as the execution is complete, but in other systems, this will prevent you from monopolizing hardware unnecessarily.
