@@ -3,51 +3,81 @@ title: Saving/loading models and checkpointing
 author: Marie-Hélène Burle
 ---
 
-## Saving models
+:::{.def}
 
-You can save a model by [serializing](https://en.wikipedia.org/wiki/Serialization) its internal state dictionary. The state dictionary is a Python dictionary that contains the parameters of your model.
+After you have trained your model, obviously you will want to save it to use it thereafter. You will then need to load it in any session in which you want to use it.
+
+In addition to saving or loading a fully trained model, it is important to know how to create regular checkpoints: training ML models takes a long time and a cluster crash or countless other issues might interrupt the training process. You don't want to have to restart from scratch if that happens.
+
+:::
+
+## Saving/loading models
+
+### Saving models
+
+You can save a model by [serializing](https://en.wikipedia.org/wiki/Serialization) its internal state dictionary. The state dictionary is a Python dictionary that contains the learnable parameters of your model (weights and biases).
 
 ```{.python}
-torch.save(model.state_dict(), "model.pth")
+torch.save(model.state_dict(), "model.pt")
 ```
 
-## Loading models
+### Loading models
 
 To recreate your model, you first need to recreate its structure:
 
 ```{.python}
-model = Net()
+model = TheModelClass(*args, **kwargs)
 ```
 
 Then you can load the state dictionary containing the parameters values into it:
 
 ```{.python}
-model.load_state_dict(torch.load("model.pth"))
+model.load_state_dict(torch.load("model.pt"))
 ```
 
-## Create a checkpoint
+Assuming you want to use your model for inference, you also must run:
+
+.```{python}
+model.eval()
+```
+
+:::{.note}
+
+If instead you want to do more training on your model, you would of course run `model.train()` instead.
+
+:::
+
+## Checkpointing
+
+### Creating a checkpoint
 
 ```{.python}
 torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss,
-            ...
-            }, PATH)
+    'epoch': epoch,
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'loss': loss,
+    ...
+}, "model.pt")
 ```
 
-## Resume training from a checkpoint
+### Resuming training from a checkpoint
+
+Recreate the state of your model from the checkpoint:
 
 ```{.python}
 model = TheModelClass(*args, **kwargs)
 optimizer = TheOptimizerClass(*args, **kwargs)
 
-checkpoint = torch.load(PATH)
+checkpoint = torch.load("model.pt")
 model.load_state_dict(checkpoint['model_state_dict'])
 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 epoch = checkpoint['epoch']
 loss = checkpoint['loss']
+```
 
+Resume training:
+
+```{.python}
 model.train()
 ```
