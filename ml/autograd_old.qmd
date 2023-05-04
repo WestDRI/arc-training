@@ -13,30 +13,6 @@ Let's have a first look at it.
 
 :::
 
-## Some definitions
-
-**Derivative of a function:** \
-Rate of change of a function with a single variable w.r.t. its variable.
-
-**Partial derivative:** \
-Rate of change of a function with multiple variables w.r.t. one variable while other variables are considered as constants.
-
-**Gradient:** \
-Vector of partial derivatives of function with several variables.
-
-**Differentiation:** \
-Calculation of the derivatives of a function.
-
-**Chain rule:** \
-Formula to calculate the derivatives of composite functions.
-
-**Automatic differentiation:** \
-Automatic computation of partial derivatives by algorithms.
-
-## Automatic differentiation with PyTorch
-
-[torch.autograd](https://pytorch.org/docs/stable/autograd.html) is PyTorch's package for automatic differentiation.
-
 ## Tracking computations
 
 PyTorch does not track all the computations on all the tensors (this would be extremely memory intensive!). To start tracking computations on a vector, set the `.requires_grad` attribute to `True`:
@@ -89,7 +65,43 @@ with torch.no_grad():
 
 ## Calculating gradients
 
+After you have performed a number of operations on `x` and obtained a final object (let's call it `loss` since in the context of neural networks, the output of the loss function is the starting place of the backpropagation process), you can get the gradient of any object `y` with:
 
+```{.python}
+loss.backward()
+print(y.grad)
+```
+
+## Example
+
+Let's go over a simple example:
+
+- let `real` be the tensor of some real values
+- let `predicted` be the tensor given by some model trying to predict these real values after an iteration
+
+We will calculate the first derivative (first step of the backpropagation) manually and with the `torch.autograd` package to really understand what that package does.
+
+Let's fill `real` and `predicted` with random values since we don't have a real situation with a real network (but let's make sure to start recording the history of computations performed on `predicted`):
+
+```{.python}
+real = torch.rand(3, 8)
+print(real)
+
+predicted = torch.rand(3, 8, requires_grad=True)
+print(predicted)
+```
+
+Several loss functions can be used in machine learning, let's use:
+
+$$\text{loss}=\sum_{}^{} (\text{predicted} - \text{real})^2$$
+
+```{.python}
+loss = (predicted - real).pow(2).sum()
+```
+
+Now, to train a model, after each forward-pass, we need to go through the backpropagation to adjust the weights and biases of the model. That means, we need to calculate all the derivatives, starting from the derivative of the predicted values up to the derivatives of the weights and biases.
+
+Here, we will only do the very first step: calculate the derivative of `predicted`.
 
 ### Manual derivative calculation
 
