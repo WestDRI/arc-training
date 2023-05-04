@@ -17,4 +17,473 @@ In this section, we will explore the basics of PyTorch tensors.
 
 :::
 
+## Creating tensors
 
+There are many ways to create tensors:
+
+- `torch.tensor`: &emsp;&emsp;Input individual values
+- `torch.arange`: &emsp;&emsp;Similar to `range` but creates a 1D tensor
+- `torch.linspace`: &emsp;1D linear scale tensor
+- `torch.logspace`: &emsp;1D log scale tensor
+- `torch.rand`: &emsp;&emsp;&emsp;&nbsp;Random numbers from a uniform distribution on `[0, 1)`
+- `torch.randn`: &emsp;&emsp;&ensp;&nbsp;Numbers from the standard normal distribution
+- `torch.randperm`: &emsp;&nbsp;Random permutation of integers
+- `torch.empty`: &emsp;&emsp;&ensp;&nbsp;Uninitialized tensor
+- `torch.zeros`: &emsp;&emsp;&ensp;&nbsp;Tensor filled with `0`
+- `torch.ones`: &emsp;&emsp;&emsp;&nbsp;Tensor filled with `1`
+- `torch.eye`: &emsp;&emsp;&emsp;&ensp;&nbsp;&nbsp;Identity matrix
+
+Let's play with a few of these. First, let's import PyTorch:
+
+```{python}
+import torch
+```
+
+Let's create a random tensor with a single element:
+
+```{python}
+t = torch.rand(1)
+t
+```
+
+We can extract the value from a tensor with one element:
+
+```{python}
+t.item()
+```
+
+All these tensors have a single element, but an increasing number of dimensions:
+
+```{python}
+torch.rand(1)
+```
+
+```{python}
+torch.rand(1, 1)
+```
+
+```{python}
+torch.rand(1, 1, 1)
+```
+
+```{python}
+torch.rand(1, 1, 1, 1)
+```
+
+```{python}
+torch.rand(1, 1, 1, 1).dim()
+```
+
+Tensors can have multiple elements in one dimension:
+
+```{python}
+torch.rand(6)
+```
+
+```{python}
+torch.rand(6).dim()
+```
+
+And multiple elements in multiple dimensions:
+
+```{python}
+torch.rand(2, 3, 4, 5)
+```
+
+```{python}
+torch.rand(2, 3, 4, 5).dim()
+```
+
+```{python}
+torch.rand(2, 3, 4, 5).numel()
+```
+
+```{python}
+torch.ones(2, 4)
+```
+
+```{python}
+t = torch.rand(2, 3)
+torch.zeros_like(t)             # Matches the size of t
+```
+
+```{python}
+torch.ones_like(t)
+```
+
+```{python}
+torch.randn_like(t)
+```
+
+```{python}
+torch.arange(2, 10, 3)    # From 2 to 10 in increments of 3
+```
+
+```{python}
+torch.linspace(2, 10, 3)  # 3 elements from 2 to 10 on the linear scale
+```
+
+```{python}
+torch.logspace(2, 10, 3)  # Same on the log scale
+```
+
+```{python}
+torch.randperm(3)
+```
+
+```{python}
+torch.eye(3)
+```
+
+## Conversion to/from NumPy
+
+PyTorch tensors can be converted to NumPy ndarrays and vice-versa in a very efficient manner as both objects share the same memory.
+
+### From PyTorch tensor to NumPy ndarray
+
+```{python}
+t = torch.rand(2, 3)
+t
+```
+
+```{python}
+t_np = t.numpy()
+t_np
+```
+
+### From NumPy ndarray to PyTorch tensor
+
+```{python}
+import numpy as np
+a = np.random.rand(2, 3)
+a
+```
+
+```{python}
+a_pt = torch.from_numpy(a)
+a_pt
+```
+
+:::{.note}
+
+Note the different default data types.
+
+:::
+
+## Indexing tensors
+
+```{python}
+t = torch.rand(3, 4)
+t
+```
+
+```{python}
+t[:, 2]
+```
+
+```{python}
+t[1, :]
+```
+
+```{python}
+t[2, 3]
+```
+
+:::{.info}
+
+**A word of caution about indexing**
+
+While indexing elements of a tensor to extract some of the data as a final step of some computation is fine, [you should not use indexing to run operations on tensor elements in a loop]{.emph} as this would be extremely inefficient.
+
+Instead, you want to use [vectorized operations]{.emph}.
+
+:::
+
+## Vectorized operations
+
+Since PyTorch tensors are homogeneous (i.e. made of a single data type), [as with NumPy's ndarrays](https://www.pythonlikeyoumeanit.com/Module3_IntroducingNumpy/VectorizedOperations.html#Vectorized-Operations), operations are vectorized and thus fast.
+
+NumPy is mostly written in C, PyTorch in C++. With either library, when you run vectorized operations on arrays/tensors, you don't use raw Python (slow) but compiled C/C++ code (much faster).
+
+[Here](https://pythonspeed.com/articles/vectorization-python/) is an excellent post explaining Python vectorization & why it makes such a big difference.
+
+## Data types
+
+### Default data type
+
+Since PyTorch tensors were built with efficiency in mind for neural networks, the default data type is **32-bit floating points**.
+
+This is sufficient for accuracy and much faster than 64-bit floating points.
+
+:::{.note}
+
+By contrast, NumPy ndarrays use 64-bit as their default.
+
+:::
+
+```{python}
+t = torch.rand(2, 4)
+t.dtype
+```
+
+### Setting data type at creation
+
+The type can be set with the `dtype` argument:
+
+```{python}
+t = torch.rand(2, 4, dtype=torch.float64)
+t
+```
+
+:::{.note}
+
+Printed tensors display attributes with values ≠ default values.
+
+:::
+
+```{python}
+t.dtype
+```
+
+### Changing data type
+
+```{python}
+t = torch.rand(2, 4)
+t.dtype
+```
+
+```{python}
+t2 = t.type(torch.float64)
+t2.dtype
+```
+
+### List of data types
+
+| dtype | Description |
+| ----- | ----- |
+| torch.float16 / torch.half | 16-bit / half-precision floating-point |
+| torch.float32 / torch.float | 32-bit / single-precision floating-point |
+| torch.float64 / torch.double | 64-bit / double-precision floating-point |
+| torch.uint8 | unsigned 8-bit integers |
+| torch.int8 | signed 8-bit integers |
+| torch.int16 / torch.short | signed 16-bit integers |
+| torch.int32 / torch.int | signed 32-bit integers |
+| torch.int64 / torch.long | signed 64-bit integers |
+| torch.bool | boolean |
+
+## Simple operations
+
+```{python}
+t1 = torch.tensor([[1, 2], [3, 4]])
+t1
+```
+
+```{python}
+t2 = torch.tensor([[1, 1], [0, 0]])
+t2
+```
+
+Operation performed between elements at corresponding locations:
+
+```{python}
+t1 + t2
+```
+
+Operation applied to each element of the tensor:
+
+```{python}
+t1 + 1
+```
+
+### Reduction
+
+```{python}
+t = torch.ones(2, 3, 4);
+t
+```
+
+```{python}
+t.sum()   # Reduction over all entries
+```
+
+:::{.note}
+
+Other reduction functions (e.g. mean) behave the same way.
+
+:::
+
+Reduction over a specific dimension:
+
+```{python}
+t.sum(0)
+```
+
+```{python}
+t.sum(1)
+```
+
+```{python}
+t.sum(2)
+```
+
+Reduction over multiple dimensions:
+
+```{python}
+t.sum((0, 1))
+```
+
+```{python}
+t.sum((0, 2))
+```
+
+```{python}
+t.sum((1, 2))
+```
+
+### In-place operations
+
+With operators post-fixed with `_`:
+
+```{python}
+t1 = torch.tensor([1, 2])
+t1
+```
+
+```{python}
+t2 = torch.tensor([1, 1])
+t2
+```
+
+```{python}
+t1.add_(t2)
+t1
+```
+
+```{python}
+t1.zero_()
+t1
+```
+
+:::{.note}
+
+While reassignments will use new addresses in memory, in-place operations will use the same addresses.
+
+:::
+
+### Tensor views
+
+```{.python}
+t = torch.tensor([[1, 2, 3], [4, 5, 6]]); print(t)
+t.size()
+t.view(6)
+t.view(3, 2)
+t.view(3, -1) # Same: with -1, the size is inferred from other dimensions
+```
+
+:::{.info}
+
+**Note the difference**
+
+```{python}
+t1 = torch.tensor([[1, 2, 3], [4, 5, 6]])
+t1
+```
+
+```{python}
+t2 = t1.t()
+t2
+```
+
+```{python}
+t3 = t1.view(3, 2)
+t3
+```
+
+:::
+
+### Logical operations
+
+```{python}
+t1 = torch.randperm(5)
+t1
+```
+
+```{python}
+t2 = torch.randperm(5)
+t2
+```
+
+Test each element:
+
+```{python}
+t1 > 3
+```
+
+Test corresponding pairs of elements:
+
+```{python}
+t1 < t2
+```
+
+## Device attribute
+
+Tensor data can be placed in the memory of various processor types:
+
+- the RAM of CPU,
+- the RAM of a GPU with CUDA support,
+- the RAM of a GPU with [AMD's ROCm support](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/),
+- the RAM of an [XLA device](https://www.tensorflow.org/xla) (e.g. [Cloud TPU](https://cloud.google.com/tpu)) with the [torch_xla package](https://github.com/pytorch/xla/).
+
+The values for the device attributes are:
+
+- CPU: &nbsp;`'cpu'`,
+- GPU (CUDA & AMD's ROCm): &nbsp;`'cuda'`,
+- XLA: &nbsp;`xm.xla_device()`.
+
+This last option requires to load the [torch_xla package](https://github.com/pytorch/xla/) first:
+
+```{.python}
+import torch_xla
+import torch_xla.core.xla_model as xm
+```
+
+### Creating a tensor on a specific device
+
+By default, tensors are created on the CPU.
+
+You can create a tensor on an accelerator by specifying the device attribute (our current training cluster does not have GPUs, so don't run this on it):
+
+```{.python}
+t_gpu = torch.rand(2, device='cuda')
+```
+
+### Copying a tensor to a specific device
+
+You can also make copies of a tensor on other devices:
+
+```{.python}
+# Make a copy of t on the GPU
+t_gpu = t.to(device='cuda')
+t_gpu = t.cuda()             # Alternative syntax
+
+# Make a copy of t_gpu on the CPU
+t = t_gpu.to(device='cpu')
+t = t_gpu.cpu()              # Alternative syntax
+```
+
+### Multiple GPUs
+
+If you have multiple GPUs, you can optionally specify which one a tensor should be created on or copied to:
+
+```{.python}
+t1 = torch.rand(2, device='cuda:0')  # Create a tensor on 1st GPU
+t2 = t1.to(device='cuda:0')          # Make a copy of t1 on 1st GPU
+t3 = t1.to(device='cuda:1')          # Make a copy of t1 on 2nd GPU
+```
+
+Or the equivalent short forms:
+
+```{.python}
+t2 = t1.cuda(0)
+t3 = t1.cuda(1)
+```
