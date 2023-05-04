@@ -3,9 +3,17 @@ title: Overall workflow
 author: Marie-Hélène Burle
 ---
 
+:::{.def}
+
+This classic PyTorch tutorial goes over the entire workflow to create and train a simple image classifier.
+
+Let's go over it step by step.
+
+:::
+
 ## The data
 
-[CIFAR-10](https://en.wikipedia.org/wiki/CIFAR-10) from [the Canadian Institute for Advanced Research](https://en.wikipedia.org/wiki/Canadian_Institute_for_Advanced_Research) is a classic dataset of 60,000 color images of size 32x32 pixels falling into 10 classes (6,000 images in each class):
+[CIFAR-10](https://en.wikipedia.org/wiki/CIFAR-10) from [the Canadian Institute for Advanced Research](https://en.wikipedia.org/wiki/Canadian_Institute_for_Advanced_Research) is a classic dataset of 60,000 color images falling into 10 classes (6,000 images in each class):
 
 - airplane
 - automobile
@@ -18,29 +26,64 @@ author: Marie-Hélène Burle
 - ship
 - truck
 
+The images are of size 32x32 pixels (tiny!), which makes it very lightweight, quick to load and easy to play with.
+
 ### Create a DataLoader
 
-A `DataLoader` is an iterable feeding data to a model at each iteration. The data loader sets the batch size, whether the data is shuffled or not, and how the I/O is parallelized.
+A DataLoader is an iterable feeding data to a model at each iteration. The data loader transforms the data to the proper format, sets the batch size, whether the data is shuffled or not, and how the I/O is parallelized. You can create DataLoaders with the [`torch.utils.data.DataLoader`](https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader) class.
 
-Finally, the data often need to be transformed. 
+Let's create 2 DataLoaders: one for the train set and one for the test set.
+
+#### Load packages
 
 ```{python}
-#| output: false
-
 import torch
 import torchvision
 import torchvision.transforms as transforms
+```
 
+#### Create a transform object
+
+The [CIFAR-10](https://en.wikipedia.org/wiki/CIFAR-10) images in the [TorchVision](https://pytorch.org/vision/stable/index.html) library are Image objects (from the [PIL.Image](https://pillow.readthedocs.io/en/stable/reference/Image.html) module of the [pillow](https://pillow.readthedocs.io/en/stable/index.html) package).
+
+We need to normalize them and turn them into tensors:
+
+```{python}
 transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+```
 
+#### Chose a batch size
+
+Remember that the data move forward through the network (forward pass), outputting some estimates which are used to calculate some loss (or error) value. Then we get gradients through automatic differentiation and the model parameters are adjusted a little through gradient descent.
+
+You do not have to have the entire training set go through this process each time: you can use batches.
+
+The batch size is the number of items from the data that are processed before the model is updated. There is no hard rule to set good batch sizes and sizes tend to be picked through trial and error.
+
+Here are some rules to chose a batch size:
+
+- make sure that the batch fits in the CPU or GPU,
+- small batches give faster results (each training iteration is very fast), but give less accuracy,
+- large batches lead to slower training, but better accuracy.
+
+Let's set the batch size to 4:
+
+```{python}
 batch_size = 4
+```
+
+#### Put it together into DataLoaders
+
+```{python}
+#| output: false
 
 trainset = torchvision.datasets.CIFAR10(root='./data',
                                         train=True,
                                         download=True,
                                         transform=transform)
+
 trainloader = torch.utils.data.DataLoader(trainset,
                                           batch_size=batch_size,
                                           shuffle=True,
@@ -50,38 +93,44 @@ testset = torchvision.datasets.CIFAR10(root='./data',
                                        train=False,
                                        download=True,
                                        transform=transform)
+
 testloader = torch.utils.data.DataLoader(testset,
                                          batch_size=batch_size,
                                          shuffle=False,
                                          num_workers=2)
+```
 
-classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+We will also need the classes:
+
+```{python}
+classes = ('plane', 'car', 'bird', 'cat', 'deer',
+           'dog', 'frog', 'horse', 'ship', 'truck')
 ```
 
 ### Visualize a sample of the data
 
-Though not necessary, it can be useful to have a look at the data.
+Though not necessary, it can be useful to have a look at the data:
 
 ```{python}
+# Load the packages for this
 import matplotlib.pyplot as plt
 import numpy as np
 
-# functions to show an image
+# Define a function to display an image
 def imshow(img):
     img = img / 2 + 0.5     # unnormalize
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
 
-# get some random training images
+# Get a batch of random training images
 dataiter = iter(trainloader)
 images, labels = next(dataiter)
 
-# show images
+# Display the images
 imshow(torchvision.utils.make_grid(images))
 
-# print labels
+# Print the labels
 print(' '.join(f'{classes[labels[j]]:5s}' for j in range(batch_size)))
 ```
 
@@ -158,10 +207,13 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
 ## Training
 
+We can now train the model:
+
 ```{python}
 for epoch in range(2):  # loop over the dataset twice
 
     running_loss = 0.0
+
     for i, data in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = data
@@ -186,23 +238,44 @@ print('Finished Training')
 
 ## Testing
 
+### Little test on one batch for fun
+
+Let's now test our model on one batch of testing data.
+
+First, let's get a batch of random testing data:
+
 ```{python}
 dataiter = iter(testloader)
 images, labels = next(dataiter)
+```
 
-# print images
+Let's display them and print their true labels:
+
+```{python}
 imshow(torchvision.utils.make_grid(images))
 print('Real: ', ' '.join(f'{classes[labels[j]]:5s}' for j in range(4)))
 ```
 
+Now, let's run the same batch of testing images through our model:
+
 ```{python}
 outputs = net(images)
+```
 
+Let's get the best predictions for these:
+
+```{python}
 _, predicted = torch.max(outputs, 1)
 
 print('Predicted: ', ' '.join(f'{classes[predicted[j]]:5s}'
                               for j in range(4)))
 ```
+
+### More serious testing
+
+This was fun, but of course, with a sample of one, we can't say anything about how good our model is. We need to test it on many more images from the test set.
+
+Let's use the entire test set:
 
 ```{python}
 correct = 0
@@ -220,6 +293,10 @@ with torch.no_grad():
 
 print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
 ```
+
+### Per class testing
+
+We could see whether the model seem to perform better for some classes than others:
 
 ```{python}
 # prepare to count predictions for each class
