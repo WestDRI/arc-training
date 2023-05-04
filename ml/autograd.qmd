@@ -5,11 +5,9 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-Imagine how hard it would be to write the chain rules of neural networks (with so many derivatives!) in backpropagation manually.
+PyTorch has [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation) capabilities—meaning that it can track all the operations performed on tensors during the forward pass and compute all the gradients automatically for the backpropagation—thanks to its package [torch.autograd](https://pytorch.org/docs/stable/autograd.html).
 
-PyTorch has [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation) abilities—meaning that it can track all the operations conducted on tensors and do the backprop for you—thanks to its package `torch.autograd`.
-
-Let's have a first look at it.
+Let's have a look at this.
 
 :::
 
@@ -33,102 +31,164 @@ Formula to calculate the derivatives of composite functions.
 **Automatic differentiation:** \
 Automatic computation of partial derivatives by algorithms.
 
-## Automatic differentiation with PyTorch
-
-[torch.autograd](https://pytorch.org/docs/stable/autograd.html) is PyTorch's package for automatic differentiation.
-
 ## Tracking computations
 
-PyTorch does not track all the computations on all the tensors (this would be extremely memory intensive!). To start tracking computations on a vector, set the `.requires_grad` attribute to `True`:
+PyTorch does not track all the computations on all the tensors (this would be extremely memory intensive!). To start tracking computations on a vector, set the `requires_grad` attribute to `True`:
 
-```{.python}
+```{python}
 import torch
 
-x = torch.rand(3, 7, requires_grad=True)
-print(x)
+x = torch.ones(2, 4, requires_grad=True)
+x
 ```
 
 ### The `grad_fun` attribute
 
 Whenever a tensor is created by an operation involving a tracked tensor, it has a `grad_fun` attribute:
 
-```{.python}
-x = torch.ones(2, 4, requires_grad=True)
-print(x)
+```{python}
 y = x + 1
-print(y)
-print(y.grad_fn)
+y
+```
+
+```{python}
+y.grad_fn
 ```
 
 ### Judicious tracking
 
-You don't want to track more than is necessary. There are multiple ways to avoid tracking what you don't want to.
+You don't want to track more than is necessary. There are multiple ways to avoid tracking what you don't want.
 
-You can simply stop tracking computations on a tensor with the method `detach`:
+You can stop tracking computations on a tensor with the method `detach`:
 
-```{.python}
-x = torch.rand(4, 3, requires_grad=True)
-print(x)
-print(x.detach_())
+```{python}
+x
+```
+
+```{python}
+x.detach_()
 ```
 
 You can change its `requires_grad` flag:
 
-```{.python}
-x = torch.rand(4, 3, requires_grad=True)
-print(x)
-print(x.requires_grad_(False))
+```{python}
+x = torch.zeros(2, 3, requires_grad=True)
+x
 ```
 
-Alternatively, you can wrap any code you don't want to track with `with torch.no_grad():`
+```{python}
+x.requires_grad_(False)
+```
 
-```{.python}
+Alternatively, you can wrap any code you don't want to track under `with torch.no_grad()`:
+
+```{python}
+x = torch.ones(2, 4, requires_grad=True)
+
 with torch.no_grad():
-    <some code>
+    y = x + 1
+
+y
 ```
+
+:::{.note}
+
+Compare this with what we just did above.
+
+:::
 
 ## Calculating gradients
 
+Let's imagine that $x$, $y$, and $z$ are tensors containing the parameters of a model and that the error $e$ could be calculated with the equation:
 
+$$e=2x^4-y^3+3z^2$$
 
 ### Manual derivative calculation
 
-The formula for this first derivative, with the loss function we used, is:
+Let's see how we would do this manually.
 
-$$\text{gradient}_\text{predicted}=2(\text{predicted} - \text{real})$$
+First, we need the model parameters tensors:
 
-There is no point in adding this operation to `predicted`'s computation history, so we will exclude it with `with torch.no_grad():`
+```{python}
+x = torch.tensor([1., 2.])
+y = torch.tensor([3., 4.])
+z = torch.tensor([5., 6.])
+```
 
-```{.python}
-with torch.no_grad():
-    manual_gradient_predicted = 2.0 * (predicted - real)
+We calculate $e$ following the above equation:
 
-print(manual_gradient_predicted)
+```{python}
+e = 2*x**4 - y**3 + 3*z**2
+```
+
+The gradients of the error $e$ w.r.t. the parameters $x$, $y$, and $z$ are:
+
+$$\frac{de}{dx}=8x^3$$
+$$\frac{de}{dy}=-3y^2$$
+$$\frac{de}{dz}=6z$$
+
+We can calculate them with:
+
+
+```{python}
+gradient_x = 8*x**3
+gradient_x
+```
+
+```{python}
+gradient_y = -3*y**2
+gradient_y
+```
+
+```{python}
+gradient_z = 6*z
+gradient_z
 ```
 
 ### Automatic derivative calculation
 
-Now, with `torch.autograd`:
+For this method, we need to define our model parameters with `requires_grad` set to `True`:
 
-```{.python}
-loss.backward()
+```{python}
+x = torch.tensor([1., 2.], requires_grad=True)
+y = torch.tensor([3., 4.], requires_grad=True)
+z = torch.tensor([5., 6.], requires_grad=True)
 ```
 
-Since we tracked computations on `predicted`, we can calculate its gradient with:
+ $e$ is calculated in the same fashion (except that here, all the computations on $x$, $y$, and $z$ are tracked):
 
-```{.python}
-auto_gradient_predicted = predicted.grad
-print(auto_gradient_predicted)
+```{python}
+e = 2*x**4 - y**3 + 3*z**2
+```
+
+The backward propagation is done automatically with:
+
+```{python}
+e.backward(torch.tensor([1., 1.]))
+```
+
+And we have our 3 partial derivatives:
+
+```{python}
+print(x.grad)
+print(y.grad)
+print(z.grad)
 ```
 
 ### Comparison
 
 The result is the same, as can be tested with:
 
-```{.python}
-print(manual_gradient_predicted.eq(auto_gradient_predicted).all())
+```{python}
+8*x**3 == x.grad
 ```
 
-The calculation of this first derivative of backpropagation was simple enough. But to propagate all the derivatives calculations backward through the chain rule would quickly turn into a deep calculus problem.
+```{python}
+-3*y**2 == y.grad
+```
 
-With `torch.autograd`, calculating the gradients of all the other elements of the network is as simple as calling them with the attribute `grad` once the function `torch.Tensor.backward()` has been run.
+```{python}
+6*z == z.grad
+```
+
+Of course, calculating the gradients manually here was extremely easy, but imagine how tedious and lengthy it would be to write the chain rules to calculate the gradients of all the composite functions in a neural network manually.
