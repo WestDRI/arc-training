@@ -21,6 +21,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -326,7 +360,26 @@ ul.task-list li input[type="checkbox"] {
 <div id="quarto-sidebar-glass" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar,#quarto-sidebar-glass"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title"><em>On this page:</em></h2>
+   
+  <ul>
+  <li><a href="#what-are-pre-trained-models" id="toc-what-are-pre-trained-models" class="nav-link active" data-scroll-target="#what-are-pre-trained-models">What are pre-trained models?</a>
+  <ul>
+  <li><a href="#transfer-learning" id="toc-transfer-learning" class="nav-link" data-scroll-target="#transfer-learning">Transfer learning</a></li>
+  <li><a href="#how-transfer-learning-works" id="toc-how-transfer-learning-works" class="nav-link" data-scroll-target="#how-transfer-learning-works">How transfer learning works</a></li>
+  <li><a href="#how-to-find-a-pre-trained-model" id="toc-how-to-find-a-pre-trained-model" class="nav-link" data-scroll-target="#how-to-find-a-pre-trained-model">How to find a pre-trained model</a></li>
+  </ul></li>
+  <li><a href="#models-in-pytorch-libraries" id="toc-models-in-pytorch-libraries" class="nav-link" data-scroll-target="#models-in-pytorch-libraries">Models in PyTorch libraries</a></li>
+  <li><a href="#pytorch-hub" id="toc-pytorch-hub" class="nav-link" data-scroll-target="#pytorch-hub">PyTorch Hub</a></li>
+  <li><a href="#hugging-face" id="toc-hugging-face" class="nav-link" data-scroll-target="#hugging-face">Hugging Face</a>
+  <ul>
+  <li><a href="#timm" id="toc-timm" class="nav-link" data-scroll-target="#timm">timm</a></li>
+  </ul></li>
+  <li><a href="#github" id="toc-github" class="nav-link" data-scroll-target="#github">GitHub</a></li>
+  <li><a href="#literature" id="toc-literature" class="nav-link" data-scroll-target="#literature">Literature</a></li>
+  </ul>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
@@ -357,19 +410,106 @@ ul.task-list li input[type="checkbox"] {
 <div class="def">
 <p>Training models from scratch requires way too much data, time, and computing power (or money) to be a practical option. This is why transfer learning has become such a common practice: by starting with models trained on related problems, you are saving time and achieving good results with little data.</p>
 <p>Now, where do you find such models?</p>
-<p>In this workshop, we will have a look at some of the most popular pre-trained models repositories and libraries (Model Zoo, PyTorch Hub, and Hugging Face); see how you can also search models in the literature and on GitHub; and finally learn how to import models into PyTorch.</p>
+<p>In this workshop, we will see how to use pre-trained models included in PyTorch libraries, have a look at some of the most popular pre-trained models repositories, and learn how to search models in the literature and on GitHub.</p>
 </div>
 <div class="box">
 <p><em>Prerequisites:</em></p>
 <p>If you want to follow the hands-on part of this workshop, please make sure to have an up-to-date version of <a href="https://pytorch.org/get-started/locally/">PyTorch</a> on your laptop.</p>
 </div>
-<!-- https://modelzoo.co/ -->
-<!-- https://pytorch.org/hub/ -->
-<!-- https://paperswithcode.com/ -->
-<!-- https://arxiv.org/ -->
-<!-- https://huggingface.co/ -->
+<section id="what-are-pre-trained-models" class="level2">
+<h2 class="anchored" data-anchor-id="what-are-pre-trained-models">What are pre-trained models?</h2>
+<section id="transfer-learning" class="level3">
+<h3 class="anchored" data-anchor-id="transfer-learning">Transfer learning</h3>
+<p>If you build models from scratch, expect their performance to be mediocre. Totally naive models with random weights and biases usually need to be trained for a long time on very large datasets, using vast amounts of computing resources, before they produce competitive results. You may not even have enough data to train a model from scratch.</p>
+<p>Instead of starting from zero however, you can use a model that has been trained on a similar task. For instance, if your goal is to create a model able to identify bird species from pictures, you could look for a model developed for image recognition tasks trained on a classic dataset such as <a href="https://en.wikipedia.org/wiki/ImageNet">ImageNet</a>. Classic such models include <a href="https://en.wikipedia.org/wiki/AlexNet">AlexNet</a> (2012) and <a href="https://en.wikipedia.org/wiki/Residual_neural_network">ResNet</a> (2015). These models will already have features that are useful to you and you will get better performance with less training time and fewer data. This is called <em><a href="https://en.wikipedia.org/wiki/Transfer_learning#:~:text=Transfer%20learning%20(TL)%20is%20a,when%20trying%20to%20recognize%20trucks.">transfer learning</a></em>.</p>
+</section>
+<section id="how-transfer-learning-works" class="level3">
+<h3 class="anchored" data-anchor-id="how-transfer-learning-works">How transfer learning works</h3>
+<p>Typically, you remove the last layer (for instance, with AlexNet, you would remove the classification layer), replace it with a layer suitable to your task, then, optionally, you can <em>fine tune</em> the model.</p>
+<p>Fine tuning a model consists of freezing the first layers (fixing their weights and biases) while retraining the model with data specific to the new task. This will only train the last few layers, greatly reducing the size of the model actually being trained and taking advantage of the early features from the source model.</p>
+<p>I will talk about transfer learning in another workshop, but today, we are focusing on finding a suitable pre-trained model.</p>
+<p><em>Note that the most powerful recent transformers such as GPT-3 and 4 and their competitors perform well in different tasks without the need for re-training.</em></p>
+</section>
+<section id="how-to-find-a-pre-trained-model" class="level3">
+<h3 class="anchored" data-anchor-id="how-to-find-a-pre-trained-model">How to find a pre-trained model</h3>
+<p>Key to transfer learning is the search for an appropriate source model. The great news is that the world of machine learning research is incredibly open: many teams make their papers and models available online. But you need a way to navigate this abundance of resource.</p>
+<p>Things you should probably care about when looking for a pre-trained model include:</p>
+<ul>
+<li>How pertinent is the model relative to your task?</li>
+<li>Does the model have an open license?</li>
+<li>Is the performance good?</li>
+<li>Is the model size suitable for the resources I have?</li>
+</ul>
+</section>
+</section>
+<section id="models-in-pytorch-libraries" class="level2">
+<h2 class="anchored" data-anchor-id="models-in-pytorch-libraries">Models in PyTorch libraries</h2>
+<p>The <a href="https://pytorch.org/">PyTorch</a> ecosystem contains domain specific libraries (e.g.&nbsp;<a href="https://pytorch.org/vision/stable/index.html">torchvision</a>, <a href="https://pytorch.org/text/stable/index.html">torchtext</a>, <a href="https://pytorch.org/audio/stable/index.html">torchaudio</a>). Among many domain specific utilities, these libraries contain many pretrained models in <a href="https://pytorch.org/vision/stable/models.html">vision</a>, <a href="https://pytorch.org/text/main/models.html">text</a>, and <a href="https://pytorch.org/audio/stable/models.html">audio</a>.</p>
+<p>These models benefit from optimum convenience since they are entirely integrated into PyTorch.</p>
+<div class="example">
+<p>Loading ResNet-18 is as simple as:</p>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torchvision</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> torchvision.models.resnet18()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="example">
+<p>Initializing a pretrained ResNet-50 model with the best currently available weights is as simple as:</p>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torchvision.models <span class="im">import</span> resnet50, ResNet50_Weights</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> resnet50(weights<span class="op">=</span>ResNet50_Weights.DEFAULT)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="pytorch-hub" class="level2">
+<h2 class="anchored" data-anchor-id="pytorch-hub">PyTorch Hub</h2>
+<p><a href="https://pytorch.org/hub/">PyTorch Hub</a> is a repository of pretrained models.</p>
+<div class="example">
+<p>Loading ResNet-18 from the hub is done with:</p>
+</div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> torch.hub.load(<span class="st">'pytorch/vision'</span>, <span class="st">'resnet18'</span>, pretrained<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="exo">
+<div class="yourturn">
+<p>Your turn:</p>
+</div>
+<p>Look for a small image classification model in the PyTorch Hub.</p>
+</div>
+</section>
+<section id="hugging-face" class="level2">
+<h2 class="anchored" data-anchor-id="hugging-face">Hugging Face</h2>
+<p><a href="https://en.wikipedia.org/wiki/Hugging_Face">Hugging Face</a>, launched in 2016, provides a <a href="https://huggingface.co/models">Model Hub</a>. Let’s explore it together.</p>
+<div class="note">
+<p>Note that Hugging Face also has a <a href="https://huggingface.co/datasets">Dataset Hub</a>.</p>
+</div>
+<div class="exo">
+<div class="yourturn">
+<p>Your turn:</p>
+</div>
+<p>Find a pre-trained model for image classification in PyTorch, trained on ImageNet, with an open license, and less than 100MB in size.</p>
+</div>
+<section id="timm" class="level3">
+<h3 class="anchored" data-anchor-id="timm">timm</h3>
+<p>For computer vision specifically, the <a href="https://huggingface.co/docs/timm/index">timm</a> (PyTorch Image Models) library contains more than 700 pretrained models, as well as scripts, utilities, optimizers, data-loaders, etc. The repo can be found <a href="https://github.com/huggingface/pytorch-image-models">here</a>.</p>
+<p>You can load models from the Hugging Face Hub with:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> timm</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> timm.create_model(<span class="st">'hf_hub:author/model'</span>, pretrained<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="github" class="level2">
+<h2 class="anchored" data-anchor-id="github">GitHub</h2>
+<p>A large number of open source models are hosted on <a href="https://github.com/">GitHub</a> and the platform can be searched directly for specific models.</p>
+<div class="exo">
+<div class="yourturn">
+<p>Your turn:</p>
+</div>
+<p>Do a search on GitHub, trying to find pre-trained models in PyTorch for image classification.</p>
+</div>
+</section>
+<section id="literature" class="level2">
+<h2 class="anchored" data-anchor-id="literature">Literature</h2>
+<p>While a less direct way to find pre-trained models, the literature is invaluable to (try to) keep up with what people are doing in the field.</p>
+<p><a href="https://paperswithcode.com/">Papers With Code</a> gathers machine learning papers with open source code.</p>
+<p><a href="https://arxiv.org/">arXiv</a> is an open-source repository of scientific preprints created by <a href="https://en.wikipedia.org/wiki/Paul_Ginsparg">Paul Ginsparg</a> from <a href="https://en.wikipedia.org/wiki/Cornell_University">Cornell University</a> in 1991. It contains a huge number of e-prints on machine learning in the <a href="https://arxiv.org/list/cs.LG/recent">computer science</a> and the <a href="https://arxiv.org/list/stat.ML/recent">statistics</a> fields. <a href="https://arxiv-sanity-lite.com/">arxiv-sanity</a>, created by <a href="https://en.wikipedia.org/wiki/Andrej_Karpathy">Andrej Karpathy</a>, tracks arXiv machine learning papers and is easier to browse.</p>
 
 
+</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
