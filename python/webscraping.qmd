@@ -3,140 +3,395 @@ title: Web scraping with Python
 author: Marie-Hélène Burle
 ---
 
-<!-- Site to use as a better example: -->
-<!-- https://trace.tennessee.edu/utk_graddiss/index.html -->
-<!-- 1. Scrape all the links of that page into a list -->
-<!-- 2. Use each link to extract the information "Date of Award", "Degree Type", etc. through a big loop -->
+*The internet is a trove of information. A lot of it is publicly available and thus suitable for use in research. Extracting that information and putting it in an organized format for analysis can however, be extremely tedious.*
+
+*Web scraping tools allow to automate parts of that process and Python is a popular language for the task.*
+
+*In this workshop, I will guide you through a simple example using the package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/).*
+
+## HTML and CSS
+
+[HyperText Markup Language](https://en.wikipedia.org/wiki/HTML) (HTML) is the standard markup language for websites: it encodes the information related to the formatting and structure of webpages. Additionally, some of the customization can be stored in [Cascading Style Sheets](https://en.wikipedia.org/wiki/CSS) (CSS) files.
+
+HTML uses tags of the form:
+
+```{.html}
+<some_tag>Your content</some_tag>
+```
+
+Some tags have attributes:
+
+```{.html}
+<some_tag attribute_name="attribute value">Your content</some_tag>
+```
+
+:::{.example}
+
+Examples:
+
+:::
+
+Site structure:
+
+- `<h2>This is a heading of level 2</h2>`
+- `<p>This is a paragraph</p>`
+
+Formatting:
+
+- `<b>This is bold</b>`
+- `<a href="https://some.url">This is the text for a link</a>`
+
+## Web scrapping
+
+Web scraping is a general term for a set of tools which allow for the extraction of data from the web automatically.
+
+While most of the data on the internet is publicly available, it is illegal to scrape some sites and you should always look into the policy of a site before attempting to scrape it. Some sites will also block you if you submit too many requests in a short amount of time, so remember to scrape responsibly.
+
+## Example for this workshop
+
+We will use [a website](https://trace.tennessee.edu/utk_graddiss/index.html) from the [University of Tennessee](https://www.utk.edu/) containing a database of PhD theses from that university.
+
+Our goal is to scrape data from this site to produce a dataframe with the date, major, and advisor for each dissertation.
+
+:::{.note}
+
+We will only do this for the first page which contains the links to the 100 most recent theses. If you really wanted to gather all the data, you would have to do this for all pages.
+
+:::
+
+## Let's look at the sites
+
+First of all, let's have a close look at the websites we want to scrape to think carefully about what we want to do. Before starting to write code, it is always a good idea to think about what you are trying to achieve with your code.
+
+To create a dataframe with the data for all the dissertations on that first page, we need to do two things:
+
+- Step 1: from the [dissertations database first page](https://trace.tennessee.edu/utk_graddiss/index.html), we want to scrape the list of URLs for the dissertation pages.
+
+- Step 2: once we have the URLs, we want to scrape those pages too to get the date, major, and advisor for each dissertation.
 
 ## Load packages
+
+Let's load the packages that will make scraping websites with Python easier:
 
 ```{python}
 import requests                 # To download the html data from a site
 from bs4 import BeautifulSoup   # To parse the html data
+import time                     # To add a delay between each requests
 import pandas as pd             # To store our data in a DataFrame
 ```
 
-## Get the data
+## Send request to the main site
+
+As mentioned above, our site is the [database of PhD dissertations from the University of Tennessee](https://trace.tennessee.edu/utk_graddiss/index.html).
+
+Let's create a string with the URL:
 
 ```{python}
-url = "https://www.scrapethissite.com/pages/simple/"
-page = requests.get(url)
+url = "https://trace.tennessee.edu/utk_graddiss/index.html"
 ```
+
+First, we send a request to that URL and save the response in a variable called `r`:
+
+```{python}
+r = requests.get(url)
+```
+
+Let's see what our response looks like:
+
+```{python}
+r
+```
+
+If you look in the [list of HTTP status codes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes), you can see that a response with a code of `200` means that the request was successful.
 
 ## Explore the raw data
 
+To get the actual content of the response as unicode (text), we can use the `text` property of the response. This will give us the raw HTML markup from the webpage.
+
+Let's print the first 200 characters:
+
 ```{python}
-print(page.text[:70])
+print(r.text[:200])
 ```
 
 ## Parse the data
 
+The package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/) transforms (parses) such HTML data into a parse tree, which will make extracting information easier.
+
+Let's create an object called `mainpage` with the parse tree:
+
 ```{python}
-soup = BeautifulSoup(page.content, "html.parser")
+mainpage = BeautifulSoup(r.text, "html.parser")
 ```
 
-## Extract the relevant section of the html
+:::{.note}
+
+`html.parser` is the name of the parser that we are using here. It is better to use a specific parser to get consistent results across environments.
+
+:::
+
+We can print the beginning of the parsed result:
 
 ```{python}
-test =  soup.find('div', attrs={'class' : 'col-md-4 country'})
-print(test.prettify())
+print(mainpage.prettify()[:200])
 ```
 
-## Extract information for one country
+:::{.note}
+
+The `prettify` method turns the BeautifulSoup object we created into a string (which is needed for slicing).
+
+:::
+
+It doesn't look any more clear to us, but it is now in a format the Beautiful Soup package can work with.
+
+For instance, we can get the HTML segment containing the title with three methods:
+
+- using the title tag name:
 
 ```{python}
-test_name = test.find('h3', class_="country-name")
-test_cap = test.find('span', class_="country-capital")
-test_pop = test.find('span', class_="country-population")
-test_area = test.find('span', class_="country-area")
+mainpage.title
 ```
 
-Let's look at our test data:
+- using `find` to look for HTML markers (tags, attributes, etc.):
 
 ```{python}
-print(test_name, test_cap, test_pop, test_area)
+mainpage.find("title")
 ```
 
-This is quite ugly ...
-
-Let's remove the html formatting by extract only the text:
+- using `select` which accepts CSS selectors:
 
 ```{python}
-print(test_name.text, test_cap.text, test_pop.text, test_area.text)
+mainpage.select("title")
 ```
 
-This is better, but let's also remove all those spaces:
+`find` will only return the first element. `find_all` will return all elements. `select` will also return all elements. Which one you chose depends on what you need to extract. There often several ways to get you there.
+
+Here are other examples of data extraction:
 
 ```{python}
-print(test_name.text.strip(), test_cap.text.strip(), test_pop.text.strip(), test_area.text.strip())
-```
-
-This is much more readable.
-
-## Extract information for all countries
-
-Let's create a set with the information for all countries:
-
-```{python}
-data = soup.find_all('div', class_="col-md-4 country")
-```
-
-`data` is a ResultSet object created by Beautiful Soup. It is an [iterable](https://docs.python.org/3/glossary.html#term-iterable), meaning that it can be used in a loop.
-
-```{python}
-type(data)
-```
-
-For each element of `data` (so for each country), we can now get our information:
-
-```{python}
-for country in data[:5]:
-    name = country.find('h3', class_="country-name")
-    cap = country.find('span', class_="country-capital")
-    pop = country.find('span', class_="country-population")
-    area = country.find('span', class_="country-area")
-    print(name.text.strip(), cap.text.strip(), pop.text.strip(), area.text.strip())
-```
-
-## Store results in a DataFrame
-
-Fist, we store the results in a list:
-
-```{python}
-ls = []
-
-for country in data:
-    name = country.find('h3', class_="country-name")
-    cap = country.find('span', class_="country-capital")
-    pop = country.find('span', class_="country-population")
-    area = country.find('span', class_="country-area")
-    ls.append((name.text.strip(), cap.text.strip(), pop.text.strip(), area.text.strip()))
+mainpage.head
 ```
 
 ```{python}
-type(ls)
+mainpage.a
 ```
 
 ```{python}
-print(ls)
+mainpage.find_all("a")[:5]
 ```
-
-Then, we create a list with the column names for our DataFrame:
 
 ```{python}
-cols = ["Name", "Capital", "Population", "Area"]
+mainpage.select("a")[:5]
 ```
 
-Finally, we can create our DataFrame:
+## Test run
+
+### Identify relevant markers
+
+The html code for this webpage contains the data we are interested in, but it is mixed in with a lot of HTML formatting and data we don't care about. We need to extract the data relevant to us and turn it into a workable format.
+
+The first step is to find the HTML markers that contain our data. One option is to use a web inspector or—even easier—the [SelectorGadget](https://selectorgadget.com/), a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
+
+To use this tool, go to the [SelectorGadget](https://selectorgadget.com/) website and drag the link of the bookmarklet to your bookmarks bar.
+
+Now, go to the [dissertations database first page](https://trace.tennessee.edu/utk_graddiss/index.html) and click on the bookmarklet in your bookmarks bar. You will see a floating box at the bottom of your screen. As you move your mouse across the screen, an orange rectangle appears around each element over which you pass.
+
+Click on one of the dissertation links: now, there is an `a` appearing in the box at the bottom as well as the number of elements selected. The selected elements are highlighted in yellow. Those elements are links (in HTML, `a` tags define hyperlinks).
+
+As you can see, all the links we want are selected. However, there are many other links we don't want that are also highlighted. In fact, *all* links in the document are selected. We need to remove the categories of links that we don't want. To do this, hover above any of the links we don't want. You will see a red rectangle around it. Click on it: now all similar links are gone. You might have to do this a few times until only the relevant links (i.e. those that lead to the dissertation information pages) remain highlighted.
+
+As there are 100 such links per page, the count of selected elements in the bottom floating box should be down to 100.
+
+In the main section of the floating box, you can now see: `.article-listing a`. This means that the data we want are under the HTML elements `.article-listing a` (the class `.article-listing` and the tag `a`).
+
+### Extract test URL
+
+It is a good idea to test things out on a single element before doing a massive batch scraping of a site, so let's test our method for the first dissertation.
+
+To start, we need to extract the first URL. Here, we will use the CSS selectors (we can get there using `find` too). `mainpage.select(".article-listing a")` would give us all the results (100 links):
+
+```{python}
+len(mainpage.select(".article-listing a"))
+```
+
+To get the first one, we index it:
+
+```{python}
+mainpage.select(".article-listing a")[0]
+```
+
+The actual URL is contained in the `href` attribute. Attributes can be extracted with the `get` method:
+
+```{python}
+mainpage.select(".article-listing a")[0].get("href")
+```
+
+We now have our URL as a string. We can double-check that it is indeed a string:
+
+```{python}
+type(mainpage.select(".article-listing a")[0].get("href"))
+```
+
+This is exactly what we need to send a request to that site, so let's create an object `url_test` with it:
+
+```{python}
+url_test = mainpage.select(".article-listing a")[0].get("href")
+```
+
+We have our first thesis URL:
+
+```{python}
+print(url_test)
+```
+
+### Send request to test URL
+
+Now that we have the URL for the first dissertation information page, we want to extract the date, major, and advisor for that dissertation.
+
+The first thing to do—as we did earlier with the database site—is to send a request to that page. Let's assign it to a new object that we will call `r_test`:
+
+```{python}
+r_test = requests.get(url_test)
+```
+
+Then we can parse it with Beautiful Soup (as we did before). Let's create a `dissertpage_test` object:
+
+```{python}
+dissertpage_test = BeautifulSoup(r_test.content, "html.parser")
+```
+
+### Get data for test URL
+
+It is time to extract the publication date, major, and advisor for our test URL.
+
+Let's start with the date. Thanks to the [SelectorGadget](https://selectorgadget.com/), following [the method we saw earlier](#identify-the-relevant-html-markers), we can see that we now need elements marked by `#publication_date p`.
+
+We can use `select` as we did earlier:
+
+```{python}
+dissertpage_test.select("#publication_date p")
+```
+
+Notice the square brackets around our result: this is import. It shows us that we have a ResultSet (a list of results specific to Beautiful Soup). This is because `select` returns all the results. Here, we have a single result, but the format is still list-like. Before we can go further, we need to index the value out of it:
+
+```{python}
+dissertpage_test.select("#publication_date p")[0]
+```
+
+We can now get the text out of this paragraph with the `text` attribute:
+
+```{python}
+dissertpage_test.select("#publication_date p")[0].text
+```
+
+We could save it in a variable `date_test`:
+
+```{python}
+date_test = dissertpage_test.select("#publication_date p")[0].text
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Get the major and advisor for our test URL.
+
+:::
+
+## Full run
+
+Once everything is working for a test site, we can do some bulk scraping.
+
+### Extract all URLs
+
+We already know how to get the 100 dissertations links from the main page: `mainpage.select(".article-listing a")`. Let's assign it to a variable:
+
+```{python}
+dissertlinks = mainpage.select(".article-listing a")
+```
+
+This ResultSet is an [iterable](https://docs.python.org/3/glossary.html#term-iterable), meaning that it can be used in a loop.
+
+Let's write a loop to extract all the URLs from this ResultSet of links:
+
+```{python}
+urls = []  # We create an empty list before filling it during the loop
+
+for link in dissertlinks:
+    urls.append(link.get("href"))
+```
+
+Let's see our first 5 URLs:
+
+```{python}
+urls[:5]
+```
+
+### Extract data from each page
+
+For each element of `urls` (i.e. for each dissertation URL), we can now get our information.
+
+```{python}
+ls = []                                            # Create an empty list
+
+for url in urls:                                   # For each element of our list of sites
+    r = requests.get(url)                                     # Send a request to the site
+    dissertpage = BeautifulSoup(r.text, "html.parser")        # Parse the result
+    date = dissertpage.select("#publication_date p")[0].text  # Get the date
+    major = dissertpage.select("#department p")[0].text       # Get the major
+    advisor = dissertpage.select("#advisor1 p")[0].text            # Get the advisor
+    ls.append((date, major, advisor))                              # Store the results in the list
+    time.sleep(0.1)                                           # Add a delay at each iteration
+```
+
+:::{.note}
+
+Some sites will block requests if they are too frequent. Adding a little delay between requests is often a good idea.
+
+:::
+
+## Store results in DataFrame
+
+A DataFrame would be a lot more convenient than a list to hold our results.
+
+First, we create a list with the column names for our future DataFrame:
+
+```{python}
+cols = ["Date", "Major", "Advisor"]
+```
+
+Then we create our DataFrame:
 
 ```{python}
 df = pd.DataFrame(ls, columns=cols)
 ```
 
 ```{python}
-type(df)
+df
 ```
 
+## Save results to file
+
+As a final step, we will save our data to a CSV file:
+
 ```{python}
-print(df)
+df.to_csv('dissertations_data.csv', index=False)
 ```
+
+:::{.note}
+
+The default `index=True` writes the row numbers. We are not writing these indices in our file by changing the value of this argument to `False`.
+
+:::
+
+If you are using a Jupyter notebook or the [IPython](https://en.wikipedia.org/wiki/IPython) shell, you can type `!ls` to see that the file is there and `!cat dissertations_data.csv` to print its content.
+
+:::{.note}
+
+`!` is a magic command that allows to run Unix shell commands in a notebook or IPython shell.
+
+:::
