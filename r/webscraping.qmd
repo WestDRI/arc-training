@@ -13,9 +13,9 @@ In this workshop, we will guide you through a simple example using the package [
 
 :::
 
-:::{.callout-accordion collapse="true"}
+:::{.callout collapse="true"}
 
-## ***Running R***
+## Running R
 
 For this workshop, we will use a temporary RStudio server.
 
@@ -69,13 +69,11 @@ Web scraping is a general term for a set of tools which allow for the extraction
 
 While most of the data on the internet is publicly available, it is illegal to scrape some sites and you should always look into the policy of a site before attempting to scrape it. Some sites will also block you if you submit too many requests in a short amount of time, so if you plan on scraping sites at a fairly large scale, you should look into the [polite](https://dmi3kno.github.io/polite/) package which will help you scrape responsibly.
 
-## Example
-
-### Goal
+## Example for this workshop
 
 We will use [a website](https://trace.tennessee.edu/utk_graddiss/index.html) from the [University of Tennessee](https://www.utk.edu/) containing a database of PhD theses from that university.
 
-Our goal is to scrape data from this site to produce a dataframe with the date, major, and principal investigator (PI) for each dissertation.
+Our goal is to scrape data from this site to produce a dataframe with the date, major, and advisor for each dissertation.
 
 :::{.note}
 
@@ -83,7 +81,7 @@ We will only do this for the first page which contains the links to the 100 most
 
 :::
 
-### Let's look at the sites
+## Let's look at the sites
 
 First of all, let's have a close look at the websites we want to scrape to think carefully about what we want to do. Before starting to write code, it is always a good idea to think about what you are trying to achieve with your code.
 
@@ -91,9 +89,9 @@ To create a dataframe with the data for all the dissertations on that first page
 
 - Step 1: from the [dissertations database first page](https://trace.tennessee.edu/utk_graddiss/index.html), we want to scrape the list of URLs for the dissertation pages.
 
-- Step 2: once we have the URLs, we want to scrape those pages too to get the date, major, and principal investigator (PI) for each dissertation.
+- Step 2: once we have the URLs, we want to scrape those pages too to get the date, major, and advisor for each dissertation.
 
-### Package
+## Package
 
 To do all this, we will use the package [rvest](https://cran.r-project.org/web/packages/rvest/index.html), part of the [tidyverse](https://www.tidyverse.org/) (a modern set of R packages). It is a package influenced by the popular Python package [Beautiful Soup](https://en.wikipedia.org/wiki/Beautiful_Soup_(HTML_parser)) and it makes scraping websites with R really easy.
 
@@ -103,7 +101,7 @@ Let's load it:
 library(rvest)
 ```
 
-### Read in HTML data from the main site
+## Read in HTML from main site
 
 As mentioned above, our site is the [database of PhD dissertations from the University of Tennessee](https://trace.tennessee.edu/utk_graddiss/index.html).
 
@@ -125,23 +123,27 @@ Let's have a look at the raw data:
 html
 ```
 
-### Test run
+## Test run
 
-#### Identify the relevant HTML markers
+### Identify the relevant HTML markers
 
-The html code for this webpage contains the data we are interested in, but it is mixed in with a lot of HTML formatting information and data we aren't interested in. We need to extract it and turn it into a workable format.
+The html code for this webpage contains the data we are interested in, but it is mixed in with a lot of HTML formatting and data we don't care about. We need to extract the data relevant to us and turn it into a workable format.
 
-The first step is to find the CSS elements that contain the data we want. For this, you can use a web inspector or—even easier—the [SelectorGadget](https://selectorgadget.com/), a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
+The first step is to find the HTML markers that contain our data. One option is to use a web inspector or—even easier—the [SelectorGadget](https://selectorgadget.com/), a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
 
-To use this tool, a simple option is to go to the [SelectorGadget](https://selectorgadget.com/) website and drag the link of the bookmarklet to your bookmarks bar.
+To use this tool, go to the [SelectorGadget](https://selectorgadget.com/) website and drag the link of the bookmarklet to your bookmarks bar.
 
-Now, go to the [dissertations database first page](https://trace.tennessee.edu/utk_graddiss/index.html) and click on the bookmarklet in your bookmarks bar. You will see a floating box at the bottom of your screen and an orange rectangle appears around each element of the page over which you hover your mouse. Click on one of the dissertation links: now, there is an `a` appearing in the box at the bottom as well as the number of elements selected. The selected elements are highlighted in yellow.
+Now, go to the [dissertations database first page](https://trace.tennessee.edu/utk_graddiss/index.html) and click on the bookmarklet in your bookmarks bar. You will see a floating box at the bottom of your screen. As you move your mouse across the screen, an orange rectangle appears around each element over which you pass.
 
-As you can see, all the links we want are selected. However, there are many other links we don't want that are also highlighted. To remove those, hover on any of the links we don't want. You will see a red rectangle around that unwanted link. Click on it: now, only the links we want (those that lead to the dissertation information pages) are highlighted in yellow and the count of selected elements in the bottom floating box is down to 100 (which makes sense since this site has 100 entries per page).
+Click on one of the dissertation links: now, there is an `a` appearing in the box at the bottom as well as the number of elements selected. The selected elements are highlighted in yellow. Those elements are links (in HTML, `a` tags define hyperlinks).
 
-In the main section of the floating box, you can now see: `.article-listing a`. This means that the data we want are under the HTML elements `.article-listing a` (the CSS class `.article-listing` and the tag `a`).
+As you can see, all the links we want are selected. However, there are many other links we don't want that are also highlighted. In fact, *all* links in the document are selected. We need to remove the categories of links that we don't want. To do this, hover above any of the links we don't want. You will see a red rectangle around it. Click on it: now all similar links are gone. You might have to do this a few times until only the relevant links (i.e. those that lead to the dissertation information pages) remain highlighted.
 
-#### Extract a test URL
+As there are 100 such links per page, the count of selected elements in the bottom floating box should be down to 100.
+
+In the main section of the floating box, you can now see: `.article-listing a`. This means that the data we want are under the HTML elements `.article-listing a` (the class `.article-listing` and the tag `a`).
+
+### Extract test URL
 
 It is a good idea to test things out on a single element before doing a massive batch scraping of a site, so let's test our method for the first dissertation.
 
@@ -202,9 +204,9 @@ url_test <- read_html(url) %>%
 
 :::
 
-#### Read in HTML data for our test URL
+### Read in HTML data for test URL
 
-Now that we have the URL for the first dissertation information page, we want to extract the date, major, and principal investigator (PI) for that dissertation.
+Now that we have the URL for the first dissertation information page, we want to extract the date, major, and advisor for that dissertation.
 
 We just saw that `url_test` is a character vector representing a URL. We know how to deal with this.
 
@@ -215,7 +217,7 @@ html_test <- read_html(url_test)
 html_test
 ```
 
-#### Get data for our test URL
+### Get data for test URL
 
 Now, we want to extract the publication date. Thanks to the [SelectorGadget](https://selectorgadget.com/), following [the method we saw earlier](#identify-the-relevant-html-markers), we can see that we now need the element marked by `#publication_date p`.
 
@@ -252,13 +254,13 @@ major_test <- html_test %>%
 major_test
 ```
 
-And for the PI, we need the `#advisor1 p` element:
+And for the advisor, we need the `#advisor1 p` element:
 
 ```{r}
-pi_test <- html_test %>%
+advisor_test <- html_test %>%
   html_element("#advisor1 p") %>%
   html_text2()
-pi_test
+advisor_test
 ```
 
 :::{.exo}
@@ -275,16 +277,16 @@ Now, write the code to extract it and make sure you actually get what you want.
 
 :::
 
-We now have the date, major, and PI for the first dissertation. We can create a matrix by passing them as arguments to `cbind()`:
+We now have the date, major, and advisor for the first dissertation. We can create a matrix by passing them as arguments to `cbind()`:
 
 ```{r}
-result_test <- cbind(date_test, major_test, pi_test)
+result_test <- cbind(date_test, major_test, advisor_test)
 result_test
 ```
 
-### Full run
+## Full run
 
-#### Extract all URLs
+### Extract all URLs
 
 Now that we have tested our code on the first dissertation, we can apply it on all 100 dissertations of the first page of the database.
 
@@ -329,9 +331,9 @@ list_urls[[1]]
 
 We now have a list of URLs (in the form of character vectors) as we wanted.
 
-#### Get the data from the list of URLs
+### Extract data from each page
 
-We will now extract the data (date, major, and PI) for all URLs in our list.
+We will now extract the data (date, major, and advisor) for all URLs in our list.
 
 Again, before running a for loop, we need to allocate memory first by creating an empty container (here a list):
 
@@ -350,11 +352,11 @@ for (i in seq_along(list_urls)) {
   major <- html %>%
     html_element("#department p") %>%
     html_text2()
-  pi <- html %>%
+  advisor <- html %>%
     html_element("#advisor1 p") %>%
     html_text2()
   Sys.sleep(0.1)  # Add a little delay
-  list_data[[i]] <- cbind(date, major, pi)
+  list_data[[i]] <- cbind(date, major, advisor)
 }
 ```
 
@@ -363,6 +365,8 @@ Let's make sure all looks good by printing the first element of `list_data`:
 ```{r}
 list_data[[1]]
 ```
+
+## Store results in DataFrame
 
 We can turn this big list into a dataframe:
 
@@ -395,13 +399,21 @@ result
 We can capitalize the headers:
 
 ```{r}
-names(result) <- c("Date", "Major", "PI")
+names(result) <- c("Date", "Major", "Advisor")
 ```
 
 This is what our final result looks like:
 
 ```{r}
 result
+```
+
+## Save results to file
+
+As a final step, we will save our data to a CSV file:
+
+```{r}
+write.csv(result, "dissertations_data.csv", row.names = FALSE)
 ```
 
 ## Functions recap
