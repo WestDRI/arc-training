@@ -91,7 +91,9 @@ n <- 1e5
 mark(f1(n), f2(n))
 ```
 
-`f2()` is consistently faster. While in this example the difference is very slight, pre-allocating the object that will hold the result of a loop before running the loop can make a huge difference.
+`f2()` is consistently faster. While in this example the difference is very slight, pre-allocating the object that will hold the result of a loop before running the loop can make a big difference.
+
+Also, note the difference in memory allocation.
 
 ## Aren't loops a big 'no no' in R?
 
@@ -249,7 +251,7 @@ Here the difference in timing is a factor of 50...
 One modulo operation and equality test can be removed by replacing `i %% 3 == 0 && i %% 5 == 0` by `i %% 15 == 0`. The difference isn't huge, but there is a slight speedup:
 
 ```{r}
-f2bis <- function(n) {
+f5 <- function(n) {
   z <- integer(n)
   for(i in 1:n) {
     if(i %% 15 == 0) {
@@ -265,12 +267,10 @@ f2bis <- function(n) {
   z
 }
 
-mark(f2(n), f2bis(n))
+mark(f2(n), f5(n))
 ```
 
 ### Example 3
-
-But is `f2()` really the fastest function?
 
 Louis Arsenault-Mahjoubi—who attended this workshop—found ways to get rid of several operations and get a speedup of 1.7 over `f2()`.
 
@@ -301,7 +301,7 @@ f_louis1(20)
 ... and is faster (speedup of 1.3):
 
 ```{r}
-mark(f2bis(n), f_louis1(n))
+mark(f5(n), f_louis1(n))
 ```
 
 Then, we can prevent the repetitions of the modulo operations and equality tests by saving them to variables:
@@ -327,7 +327,7 @@ f_louis2 <- function(n) {
 This gets us an even greater speedup of 1.7:
 
 ```{r}
-mark(f2bis(n), f_louis2(n))
+mark(f5(n), f_louis2(n))
 ```
 
 But it gets even better: we can actually get rid of the for loop!
@@ -347,7 +347,7 @@ f_louis3 <- function(n) {
 Now we get a speedup of 5.5 compared to our best `f2` function:
 
 ```{r}
-mark(f2bis(n), f_louis3(n))
+mark(f5(n), f_louis3(n))
 ```
 
 You can ensure that we still get the same result:
@@ -365,7 +365,7 @@ We want to write a function that will accept our dataframe as argument and play 
 One could imagine the following function:
 
 ```{r}
-f5 <- function(dat) {
+f6 <- function(dat) {
   z <- integer(length(dat[[1]]))
   for(i in seq_along(dat[[1]])) {
     if(dat[[1]][i] %% 3 == 0 && dat[[1]][i] %% 5 == 0) {
@@ -385,7 +385,7 @@ f5 <- function(dat) {
 Indexing a column from a dataframe in this fashion is a very costly operation. It is much more efficient to index with the name of the column:
 
 ```{r}
-f6 <- function(dat) {
+f7 <- function(dat) {
   z <- integer(length(dat$datvar))
   for(i in seq_along(dat$datvar)) {
     if(dat$datvar[i] %% 3 == 0 && dat$datvar[i] %% 5 == 0) {
@@ -401,12 +401,12 @@ f6 <- function(dat) {
   z
 }
 ```
-Now, let's create a random dataframe to benchmark `f5()` and `f6()`:
+Now, let's create a random dataframe to benchmark `f6()` and `f7()`:
 
 ```{r}
 set.seed(123)
 dat <- data.frame(datvar = round(runif(n, 1, n)))
-mark(f5(dat), f6(dat))
+mark(f6(dat), f7(dat))
 ```
 
 ## Avoid repetitions of costly operations
@@ -414,7 +414,7 @@ mark(f5(dat), f6(dat))
 This made a big difference (speedup of 5), but notice that we are indexing the column 6 times in our function. Let's remove the repetition of this operation:
 
 ```{r}
-f7 <- function(dat) {
+f8 <- function(dat) {
   var <- dat$datvar
   z <- integer(length(var))
   for(i in seq_along(var)) {
@@ -435,10 +435,10 @@ f7 <- function(dat) {
 Let's benchmark all 3 versions:
 
 ```{r}
-mark(f5(dat), f6(dat), f7(dat))
+mark(f6(dat), f7(dat), f8(dat))
 ```
 
-`f7()` gave us another speedup of almost 3 over `f6()`. `f7()` runs 14 times faster than our initial function!
+`f8()` gave us another speedup of almost 3 over `f7()`. `f8()` runs 14 times faster than our initial function!
 
 :::{.note}
 
@@ -459,7 +459,7 @@ Show that this last statement is true.
 :::
 
 <!-- ```{r} -->
-<!-- f8 <- function(dat) { -->
+<!-- f9 <- function(dat) { -->
 <!--   var <- dat$datvar -->
 <!--   z <- integer(length(var)) -->
 <!--   for(i in seq_along(var)) { -->
@@ -477,5 +477,5 @@ Show that this last statement is true.
 <!--   z -->
 <!-- } -->
 
-<!-- mark(f7(dat), f8(dat)) -->
+<!-- mark(f8(dat), f9(dat)) -->
 <!-- ``` -->
