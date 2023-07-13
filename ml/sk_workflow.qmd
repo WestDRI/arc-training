@@ -11,12 +11,16 @@ Scikit-learn has a very clean and consistent API, making it very easy to use: a 
 
 :::
 
+## Load packages
+
 ```{python}
 from sklearn.datasets import fetch_california_housing, load_breast_cancer
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error, accuracy_score
+
+import pandas as pd
 
 import matplotlib
 from matplotlib import pyplot as plt
@@ -26,10 +30,14 @@ import numpy as np
 from collections import Counter
 ```
 
+## Load and explore the data
+
 ```{python}
 cal_housing = fetch_california_housing()
 type(cal_housing)
 ```
+
+Let's look at the attributes of `cal_housing`:
 
 ```{python}
 dir(cal_housing)
@@ -48,6 +56,30 @@ X = cal_housing.data
 y = cal_housing.target
 X.shape, y.shape
 ```
+
+While not at all necessary, we can turn this bunch object into a more familiar data frame to explore the data further:
+
+```{python}
+cal_housing_df = pd.DataFrame(cal_housing.data, columns=cal_housing.feature_names)
+```
+
+```{python}
+cal_housing_df.head()
+```
+
+```{python}
+cal_housing_df.tail()
+```
+
+```{python}
+cal_housing_df.info()
+```
+
+```{python}
+cal_housing_df.describe() 
+```
+
+We can even plot it:
 
 ```{python}
 plt.hist(y)
@@ -74,34 +106,80 @@ X = X[:, :-2]
 X.shape, y.shape
 ```
 
+## Create a model and fit it
+
 ```{python}
+model = LinearRegression().fit(X, y)
+```
+
+:::{.note}
+
+This is equivalent to:
+
+```{.python}
 model = LinearRegression()
-model.fit(X, y)
+model.fit(x, y)
+```
+
+First, we create an instance of the class `LinearRegression`, then we call `.fit()` on it to fit the model.
+
+:::
+
+```{python}
+model.coef_
+```
+
+:::{.note}
+
+Trailing underscores indicate that an attribute is estimated. `.coef_` here is an estimated value.
+
+:::
+
+```{python}
+model.coef_.shape
 ```
 
 ```{python}
-model.coef_, model.coef_.shape
+model.intercept_
 ```
 
-```{python}
-model.intercept_, model.intercept_.shape
-```
+We can now get our predictions:
 
 ```{python}
 y_hat = model.predict(X)
-
-sse = np.sum((y - y_hat)**2)           # Sum of squared estimate of errors
-mse = np.mean((y - y_hat)**2)
-sse, mse, mean_squared_error(y, y_hat)
 ```
+
+And calculate some measures of error:
+
+- Sum of squared errors
+
+```{python}
+np.sum((y - y_hat)**2)           # 
+```
+
+- Mean squared error
+
+```{python}
+mean_squared_error(y, y_hat)
+```
+
+:::{.note}
+
+MSE could also be calculated with `np.mean((y - y_hat)**2)`.
+
+:::
 
 ```{python}
 mean_absolute_percentage_error(y, y_hat)
 ```
 
+Index of minimum value:
+
 ```{python}
 model.coef_.argmin()
 ```
+
+Index of maximum value:
 
 ```{python}
 model.coef_.argmax()
@@ -128,6 +206,12 @@ intercept_, model.intercept_
 ```{python}
 np.allclose(coef_, model.coef_)
 ```
+
+:::{.note}
+
+This means that the two arrays are equal element-wise, within a tolerance.
+
+:::
 
 ```{python}
 X_test = np.random.normal(size=(10, X.shape[1]))
@@ -177,7 +261,7 @@ def sigmoid(x):
 
 x = np.linspace(-10, 10, 100)
 plt.plot(x, sigmoid(x), lw=3)
-plt.title("The Sigmoid Function $\\sigma(x)$", fontsize=18)
+plt.title("The Sigmoid Function $\\sigma(x)$")
 ```
 
 ```{python}
@@ -215,8 +299,8 @@ ax = plt.gca()
 ax.set_aspect("equal")
 ax.plot(X[y == 0, 0], X[y == 0, 1], 'o', color=a, ms=8, label="$y=0$")
 ax.plot(X[y == 1, 0], X[y == 1, 1], 'o', color=b, ms=8, label="$y=1$")
-plt.title("Spirals", fontsize=18)
-plt.legend(fontsize=14)
+plt.title("Spirals")
+plt.legend()
 ```
 
 ```{python}
@@ -232,6 +316,12 @@ U, V = np.meshgrid(u, v)
 UV = np.array([U.ravel(), V.ravel()]).T
 U.shape, V.shape, UV.shape
 ```
+
+:::{.note}
+
+`np.ravel` returns a contiguous flattened array.
+
+:::
 
 ```{python}
 W = model.predict(UV).reshape(U.shape)
@@ -266,8 +356,8 @@ plt.pcolormesh(U, V, W)
 ```
 
 ```{python}
-fig, axes = plt.subplots(2, 4, figsize=(20, 10))
-fig.suptitle("Decision Regions", fontsize=24)
+fig, axes = plt.subplots(2, 4, figsize=(9.8, 5))
+fig.suptitle("Decision Regions")
 
 u = np.linspace(-8, 8, 100)
 v = np.linspace(-8, 8, 100)
@@ -283,14 +373,5 @@ for k, ax in zip(ks, axes.ravel()):
   W = model.predict(UV).reshape(U.shape)
   ax.imshow(W, origin="lower", cmap=cmap)
   ax.set_axis_off()
-  ax.set_title(f"$k$={k}, acc={acc:.2f}", fontsize=18)
-```
-
-```{python}
-A = np.arange(27).reshape((3, 3, 3))
-A
-```
-
-```{python}
-A.ravel()
+  ax.set_title(f"$k$={k}, acc={acc:.2f}")
 ```
