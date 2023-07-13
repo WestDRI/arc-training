@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-Scikit-learn has a very clean and consistent API, making it very easy to use: a similar workflow can be applied to most techniques.
+Scikit-learn has a very clean and consistent API, making it very easy to use: a similar workflow can be applied to most techniques. Let's go over two examples.
 
 *This code was modified from [Matthew Greenberg](https://science.ucalgary.ca/mathematics-statistics/contacts/matthew-greenberg).*
 
@@ -30,7 +30,9 @@ import numpy as np
 from collections import Counter
 ```
 
-## Load and explore the data
+## Example 1: California housing dataset
+
+### Load and explore the data
 
 ```{python}
 cal_housing = fetch_california_housing()
@@ -54,7 +56,21 @@ print(cal_housing.DESCR)
 ```{python}
 X = cal_housing.data
 y = cal_housing.target
-X.shape, y.shape
+```
+:::{.note}
+
+This can also be obtained with `X, y = fetch_california_housing(return_X_y=True)`.
+
+:::
+
+Let's have a look at the shape of `X` and `y`:
+
+```{python}
+X.shape
+```
+
+```{python}
+y.shape
 ```
 
 While not at all necessary, we can turn this bunch object into a more familiar data frame to explore the data further:
@@ -85,28 +101,9 @@ We can even plot it:
 plt.hist(y)
 ```
 
-```{python}
-b_cancer = load_breast_cancer()
-b_cancer.feature_names
-```
+### Create and fit a model
 
-```{python}
-b_cancer.target_names
-```
-
-```{python}
-X = b_cancer.data
-y = b_cancer.target
-X.shape, y.shape
-```
-
-```{python}
-X, y = fetch_california_housing(return_X_y=True)
-X = X[:, :-2]
-X.shape, y.shape
-```
-
-## Create a model and fit it
+Let's start with a very simple model: linear regression.
 
 ```{python}
 model = LinearRegression().fit(X, y)
@@ -154,7 +151,7 @@ And calculate some measures of error:
 - Sum of squared errors
 
 ```{python}
-np.sum((y - y_hat)**2)           # 
+np.sum((y - y_hat) ** 2)
 ```
 
 - Mean squared error
@@ -186,15 +183,6 @@ model.coef_.argmax()
 ```
 
 ```{python}
-cal_housing = fetch_california_housing()
-cal_housing.feature_names[4]
-```
-
-```{python}
-print(cal_housing.DESCR)
-```
-
-```{python}
 XX = np.concatenate([np.ones((len(X), 1)), X], axis=1)
 
 beta = np.linalg.lstsq(XX, y, rcond=None)[0]
@@ -209,7 +197,7 @@ np.allclose(coef_, model.coef_)
 
 :::{.note}
 
-This means that the two arrays are equal element-wise, within a tolerance.
+This means that the two arrays are equal element-wise, within a certain tolerance.
 
 :::
 
@@ -227,33 +215,95 @@ y_test
 model.predict(X_test)
 ```
 
-```{python}
-model.fit(X, y).predict(X_test)
-```
+Of course, instead of `LinearRegression()`, we could have used another model such as a random forest regressor (a meta estimator that fits a number of classifying decision trees on various sub-samples of the dataset and uses averaging to improve the predictive accuracy and control over-fitting) for instance:
 
 ```{python}
+model = RandomForestRegressor().fit(X, y).predict(X_test)
+model
+```
+
+:::{.note}
+
+Which is equivalent to:
+
+```{.python}
 model = RandomForestRegressor()
 model.fit(X, y).predict(X_test)
 ```
 
+:::
+
+## Example 2: breast cancer
+
+### Load and explore the data
+
 ```{python}
-X, y = load_breast_cancer(return_X_y=True)
-X.shape, y.shape, set(y)
+b_cancer = load_breast_cancer()
+```
+
+Let's print the description of this dataset:
+
+```{python}
+print(b_cancer.DESCR)
+```
+
+```{python}
+b_cancer.feature_names
+```
+
+```{python}
+b_cancer.target_names
+```
+
+```{python}
+X = b_cancer.data
+y = b_cancer.target
+```
+
+:::{.note}
+
+Here again, we could have used instead `X, y = load_breast_cancer(return_X_y=True)`.
+
+:::
+
+```{python}
+X.shape
+```
+
+```{python}
+y.shape
+```
+
+```{python}
+set(y)
 ```
 
 ```{python}
 Counter(y)
 ```
 
+### Create and fit a first model
+
 ```{python}
 model = LogisticRegression(max_iter=10000)
 y_hat = model.fit(X, y).predict(X)
-np.mean(y_hat == y)
 ```
+
+Get some measure of accuracy:
 
 ```{python}
 accuracy_score(y, y_hat)
 ```
+
+:::{.note}
+
+This can also be obtained with:
+
+```{.python}
+np.mean(y_hat == y)
+```
+
+:::
 
 ```{python}
 def sigmoid(x):
@@ -303,6 +353,10 @@ plt.title("Spirals")
 plt.legend()
 ```
 
+### Create and fit a second model
+
+Here, we use a logistic regression:
+
 ```{python}
 model = LogisticRegression()
 y_hat = model.fit(X, y).predict(X)
@@ -332,6 +386,10 @@ W.shape
 plt.pcolormesh(U, V, W)
 ```
 
+### Create and fit a third model
+
+Let's use a k-nearest neighbours classifier this time:
+
 ```{python}
 model = KNeighborsClassifier(n_neighbors=5)
 y_hat = model.fit(X, y).predict(X)
@@ -354,6 +412,8 @@ W.shape
 ```{python}
 plt.pcolormesh(U, V, W)
 ```
+
+We can iterate over various values of `k` to see how the accuracy and pseudocolor plot evolve:
 
 ```{python}
 fig, axes = plt.subplots(2, 4, figsize=(9.8, 5))
