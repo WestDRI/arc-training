@@ -1,0 +1,296 @@
+---
+title: Sklearn workflow
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+Scikit-learn has a very clean and consistent API, making it very easy to use: a similar workflow can be applied to most techniques.
+
+*This code was modified from [Matthew Greenberg](https://science.ucalgary.ca/mathematics-statistics/contacts/matthew-greenberg).*
+
+:::
+
+```{python}
+from sklearn.datasets import fetch_california_housing, load_breast_cancer
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error, accuracy_score
+
+import matplotlib
+from matplotlib import pyplot as plt
+
+import numpy as np
+
+from collections import Counter
+```
+
+```{python}
+cal_housing = fetch_california_housing()
+type(cal_housing)
+```
+
+```{python}
+dir(cal_housing)
+```
+
+```{python}
+cal_housing.feature_names
+```
+
+```{python}
+print(cal_housing.DESCR)
+```
+
+```{python}
+X = cal_housing.data
+y = cal_housing.target
+X.shape, y.shape
+```
+
+```{python}
+plt.hist(y)
+```
+
+```{python}
+b_cancer = load_breast_cancer()
+b_cancer.feature_names
+```
+
+```{python}
+b_cancer.target_names
+```
+
+```{python}
+X = b_cancer.data
+y = b_cancer.target
+X.shape, y.shape
+```
+
+```{python}
+X, y = fetch_california_housing(return_X_y=True)
+X = X[:, :-2]
+X.shape, y.shape
+```
+
+```{python}
+model = LinearRegression()
+model.fit(X, y)
+```
+
+```{python}
+model.coef_, model.coef_.shape
+```
+
+```{python}
+model.intercept_, model.intercept_.shape
+```
+
+```{python}
+y_hat = model.predict(X)
+
+sse = np.sum((y - y_hat)**2)           # Sum of squared estimate of errors
+mse = np.mean((y - y_hat)**2)
+sse, mse, mean_squared_error(y, y_hat)
+```
+
+```{python}
+mean_absolute_percentage_error(y, y_hat)
+```
+
+```{python}
+model.coef_.argmin()
+```
+
+```{python}
+model.coef_.argmax()
+```
+
+```{python}
+cal_housing = fetch_california_housing()
+cal_housing.feature_names[4]
+```
+
+```{python}
+print(cal_housing.DESCR)
+```
+
+```{python}
+XX = np.concatenate([np.ones((len(X), 1)), X], axis=1)
+
+beta = np.linalg.lstsq(XX, y, rcond=None)[0]
+intercept_, *coef_ = beta
+
+intercept_, model.intercept_
+```
+
+```{python}
+np.allclose(coef_, model.coef_)
+```
+
+```{python}
+X_test = np.random.normal(size=(10, X.shape[1]))
+X_test.shape
+```
+
+```{python}
+y_test = X_test @ coef_ + intercept_
+y_test
+```
+
+```{python}
+model.predict(X_test)
+```
+
+```{python}
+model.fit(X, y).predict(X_test)
+```
+
+```{python}
+model = RandomForestRegressor()
+model.fit(X, y).predict(X_test)
+```
+
+```{python}
+X, y = load_breast_cancer(return_X_y=True)
+X.shape, y.shape, set(y)
+```
+
+```{python}
+Counter(y)
+```
+
+```{python}
+model = LogisticRegression(max_iter=10000)
+y_hat = model.fit(X, y).predict(X)
+np.mean(y_hat == y)
+```
+
+```{python}
+accuracy_score(y, y_hat)
+```
+
+```{python}
+def sigmoid(x):
+  return 1/(1 + np.exp(-x))
+
+x = np.linspace(-10, 10, 100)
+plt.plot(x, sigmoid(x), lw=3)
+plt.title("The Sigmoid Function $\\sigma(x)$", fontsize=18)
+```
+
+```{python}
+y_pred = 1*(sigmoid(X @ model.coef_.squeeze() + model.intercept_) > 0.5)
+assert np.all(y_pred == model.predict(X))
+
+np.allclose(
+    model.predict_proba(X)[:, 1],
+    sigmoid(X @ model.coef_.squeeze() + model.intercept_)
+)
+```
+
+```{python}
+def make_spirals(k=20, s=1.0, n=2000):
+    X = np.zeros((n, 2))
+    y = np.round(np.random.uniform(size=n)).astype(int)
+    r = np.random.uniform(size=n)*k*np.pi
+    rr = r**0.5
+    theta = rr + np.random.normal(loc=0, scale=s, size=n)
+    theta[y == 1] = theta[y == 1] + np.pi
+    X[:,0] = rr*np.cos(theta)
+    X[:,1] = rr*np.sin(theta)
+    return X, y
+
+X, y = make_spirals()
+cmap = matplotlib.colormaps["viridis"]
+
+a = cmap(0)
+a = [*a[:3], 0.3]
+b = cmap(0.99)
+b = [*b[:3], 0.3]
+
+plt.figure(figsize=(7,7))
+ax = plt.gca()
+ax.set_aspect("equal")
+ax.plot(X[y == 0, 0], X[y == 0, 1], 'o', color=a, ms=8, label="$y=0$")
+ax.plot(X[y == 1, 0], X[y == 1, 1], 'o', color=b, ms=8, label="$y=1$")
+plt.title("Spirals", fontsize=18)
+plt.legend(fontsize=14)
+```
+
+```{python}
+model = LogisticRegression()
+y_hat = model.fit(X, y).predict(X)
+accuracy_score(y, y_hat)
+```
+
+```{python}
+u = np.linspace(-8, 8, 100)
+v = np.linspace(-8, 8, 100)
+U, V = np.meshgrid(u, v)
+UV = np.array([U.ravel(), V.ravel()]).T
+U.shape, V.shape, UV.shape
+```
+
+```{python}
+W = model.predict(UV).reshape(U.shape)
+W.shape
+```
+
+```{python}
+plt.pcolormesh(U, V, W)
+```
+
+```{python}
+model = KNeighborsClassifier(n_neighbors=5)
+y_hat = model.fit(X, y).predict(X)
+accuracy_score(y, y_hat)
+```
+
+```{python}
+u = np.linspace(-8, 8, 100)
+v = np.linspace(-8, 8, 100)
+U, V = np.meshgrid(u, v)
+UV = np.array([U.ravel(), V.ravel()]).T
+U.shape, V.shape, UV.shape
+```
+
+```{python}
+W = model.predict(UV).reshape(U.shape)
+W.shape
+```
+
+```{python}
+plt.pcolormesh(U, V, W)
+```
+
+```{python}
+fig, axes = plt.subplots(2, 4, figsize=(20, 10))
+fig.suptitle("Decision Regions", fontsize=24)
+
+u = np.linspace(-8, 8, 100)
+v = np.linspace(-8, 8, 100)
+U, V = np.meshgrid(u, v)
+UV = np.array([U.ravel(), V.ravel()]).T
+
+ks = np.arange(1, 16, 2)
+
+for k, ax in zip(ks, axes.ravel()):
+  model = KNeighborsClassifier(n_neighbors=k)
+  model.fit(X, y)
+  acc = accuracy_score(y, model.predict(X))
+  W = model.predict(UV).reshape(U.shape)
+  ax.imshow(W, origin="lower", cmap=cmap)
+  ax.set_axis_off()
+  ax.set_title(f"$k$={k}, acc={acc:.2f}", fontsize=18)
+```
+
+```{python}
+A = np.arange(27).reshape((3, 3, 3))
+A
+```
+
+```{python}
+A.ravel()
+```
