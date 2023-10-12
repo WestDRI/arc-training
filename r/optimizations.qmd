@@ -29,13 +29,57 @@ In this section, we will cover several principles by playing with the programmat
 
 Let's write functions to solve the game and time them to draw some general principles about more efficient code.
 
-We will use `bench::mark()` to benchmark our solutions. Let's load it:
+## Setup
+
+First of all, we need to load the necessary modules:
+
+```{.bash}
+module load StdEnv/2020 gcc/11.3.0 r/4.3.1
+```
+
+Then we need to launch a job.
+
+### Interactive job
+
+If there are few of us, we will use interactive sessions with one CPU each with:
+
+```{.bash}
+salloc --time=2:00:00 --mem-per-cpu=3500M
+```
+
+We can then launch R and load the benchmarking package we will use throughout this section:
 
 ```{r}
 library(bench)
 ```
 
-## Pre-allocate memory
+### Batch jobs
+
+If there are more of us than there are CPUs in the cluster, we will run batch jobs. In this Case:
+
+- Create an R script called `optim.R` with the code to run (you can reuse the same script for all sections on this page by editing it). Don't forget to load the package `bench` in your script.
+- Create a bash script called `optim.sh` with the following:
+
+```{.bash filename="<your_job>.sh"}
+#!/bin/bash
+#SBATCH --account=def-<your_account>
+#SBATCH --time=15
+#SBATCH --mem-per-cpu=3500M
+#SBATCH --cpus-per-task=4
+#SBATCH --job-name="<your_job>"
+module load StdEnv/2020 gcc/11.3.0 r/4.3.1
+Rscript <your_script>.R
+```
+
+- Run the jobs with:
+
+```sh
+sbatch optim.sh
+```
+
+## Optimizations
+
+### Pre-allocate memory
 
 In this first function, we create an empty object `z` of class integer and of length `0` that will hold the result of a loop, then we run the loop and at each iteration, we add a new value to `z`:
 
@@ -95,7 +139,7 @@ mark(f1(n), f2(n))
 
 Also, note the difference in memory allocation.
 
-## Aren't loops a big 'no no' in R?
+### Aren't loops a big 'no no' in R?
 
 By now, you might be thinking: "Wait... aren't loops a big 'no no' in R? I've always been told that they are slow and that one should always use functional programming! We are talking about optimization in this course and we are using loops?!?"
 
@@ -133,9 +177,9 @@ mark(f2(n), sapply(1:n, fb))
 
 As you can see, the loop is faster.
 
-## Avoid unnecessary operations
+### Avoid unnecessary operations
 
-### Example 1
+#### Example 1
 
 Calling `z` as the last command in our function is the same as calling `return(z)`.
 
@@ -246,7 +290,7 @@ f4 <- function(n) {
 
 Here the difference in timing is a factor of 50...
 
-### Example 2
+#### Example 2
 
 One modulo operation and equality test can be removed by replacing `i %% 3 == 0 && i %% 5 == 0` by `i %% 15 == 0`. The difference isn't huge, but there is a slight speedup:
 
@@ -270,7 +314,7 @@ f5 <- function(n) {
 mark(f2(n), f5(n))
 ```
 
-### Example 3
+#### Example 3
 
 Louis Arsenault-Mahjoubi—who attended this workshop—found ways to get rid of several additional operations and get a large speedup over `f5()`.
 
@@ -356,7 +400,7 @@ You can ensure that we still get the same result:
 f_louis3(20)
 ```
 
-## Replace costly operations where possible
+### Replace costly operations where possible
 
 Now imagine that we have a dataframe called `dat` with a first column called `datvar` filled with integers.
 
@@ -409,7 +453,7 @@ dat <- data.frame(datvar = round(runif(n, 1, n)))
 mark(f6(dat), f7(dat))
 ```
 
-## Avoid repetitions of costly operations
+### Avoid repetitions of costly operations
 
 This made a big difference (speedup of 5), but notice that we are indexing the column 6 times in our function. Let's remove the repetition of this operation:
 
