@@ -21,6 +21,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -390,7 +424,11 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#when-should-you-care" id="toc-when-should-you-care" class="nav-link active" data-scroll-target="#when-should-you-care">When should you care?</a></li>
-  <li><a href="#profiling" id="toc-profiling" class="nav-link" data-scroll-target="#profiling">Profiling</a></li>
+  <li><a href="#profiling" id="toc-profiling" class="nav-link" data-scroll-target="#profiling">Profiling</a>
+  <ul>
+  <li><a href="#base-r-profiler" id="toc-base-r-profiler" class="nav-link" data-scroll-target="#base-r-profiler">Base R profiler</a></li>
+  <li><a href="#packages" id="toc-packages" class="nav-link" data-scroll-target="#packages">Packages</a></li>
+  </ul></li>
   <li><a href="#benchmarking" id="toc-benchmarking" class="nav-link" data-scroll-target="#benchmarking">Benchmarking</a></li>
   </ul>
 </nav>
@@ -446,9 +484,31 @@ ul.task-list li input[type="checkbox"] {
 <p>“It is often a mistake to make a priori judgments about what parts of a program are really critical, since the universal experience of programmers who have been using measurement tools has been that their intuitive guesses fail.”</p>
 <p><a href="https://en.wikipedia.org/wiki/Donald_Knuth">— Donald Knuth</a></p>
 </blockquote>
-<p>R comes with a profiler: <code>Rprof()</code>.</p>
-<p><a href="https://cran.r-project.org/web/packages/profvis/index.html">profvis</a> is a newer tool, built by <a href="https://posit.co/">posit</a> (formerly RStudio Inc). Under the hood, it runs <code>Rprof()</code> to collect data, then produces an interactive html widget with a flame graph that allows for an easy visual identification of slow sections of code.</p>
-<p>While this tool integrates well within the RStudio IDE, it is not very well suited for remote work on a cluster. One option is to profile your code with small data on your own machine. Another option is to use the base profiler <code>Rprof()</code> directly as in <a href="https://rstudio.github.io/r-manuals/r-exts/Tidying-and-profiling-R-code.html#profiling-r-code-for-speed">this example</a>.</p>
+<section id="base-r-profiler" class="level3">
+<h3 class="anchored" data-anchor-id="base-r-profiler">Base R profiler</h3>
+<p>R comes with a profiler: <code>Rprof</code>.</p>
+<p>The data gets collected with:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="do">## Start profiler</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">Rprof</span>()</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="sc">&lt;</span>Your code to profile<span class="sc">&gt;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="do">## Stop profiler</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">Rprof</span>(<span class="cn">NULL</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This creates a <code>Rprof.out</code> file in your working directory (you can give it another name by passing a name into the initial call to <code>Rprof</code> (e.g.&nbsp;<code>Rprof("test.out")</code>).</p>
+<p>The raw data is dense and is better read by running <code>summaryRprof()</code> (or <code>summaryRprof("test.out")</code> if you have created the file <code>test.out</code> rather than the default).</p>
+<p>Alternatively, you can run <code>R CMD Rprof</code> (or <code>R CMD Rprof test.out</code> if you named your file) from the command line.</p>
+<p>You can find an example <a href="https://rstudio.github.io/r-manuals/r-exts/Tidying-and-profiling-R-code.html#profiling-r-code-for-speed">here</a>.</p>
+</section>
+<section id="packages" class="level3">
+<h3 class="anchored" data-anchor-id="packages">Packages</h3>
+<p>A number of packages run <code>Rprof</code> under the hood and create flame graphs or provide other utilities to visualize the profiling data:</p>
+<ul>
+<li><a href="https://cran.r-project.org/web/packages/profr/index.html">profr</a>,</li>
+<li><a href="https://cran.r-project.org/web/packages/proftools/index.html">proftools</a>,</li>
+<li><a href="https://cran.r-project.org/web/packages/profvis/index.html">profvis</a> built by <a href="https://posit.co/">posit</a> (formerly RStudio Inc) is the newest tool. See <a href="http://rstudio.github.io/profvis/">here</a> for an example.</li>
+</ul>
+</section>
 </section>
 <section id="benchmarking" class="level2">
 <h2 class="anchored" data-anchor-id="benchmarking">Benchmarking</h2>
