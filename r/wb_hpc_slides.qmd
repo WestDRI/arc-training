@@ -1,0 +1,634 @@
+---
+title: High-performance research computing in R
+aliases:
+  - hpc_intro_slides.html
+  - intro_hpc_slides.html
+frontlogo: /img/sfudrac.png
+author: Marie-Hélène Burle
+date: 2023-01-31
+date-format: long
+execute:
+  error: true
+  echo: true
+format:
+  revealjs:
+    embed-resources: true
+    theme: [default, ../revealjs.scss]
+    logo: /img/sfudrac_logo.png
+    highlight-style: monokai
+    code-line-numbers: false
+    template-partials:
+      - ../title-slide.html
+    pointer:
+      color: "#b5111b"
+      pointerSize: 32
+    link-external-newwindow: true
+    footer: <a href="wb_hpc.html"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="rgb(153, 153, 153)" class="bi bi-arrow-90deg-up" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4.854 1.146a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L4 2.707V12.5A2.5 2.5 0 0 0 6.5 15h8a.5.5 0 0 0 0-1h-8A1.5 1.5 0 0 1 5 12.5V2.707l3.146 3.147a.5.5 0 1 0 .708-.708l-4-4z"/></svg>&nbsp;Back to webinar page</a>
+revealjs-plugins:
+  - pointer
+---
+
+# Running R on HPC clusters
+
+# Loading modules
+
+## Intel vs GCC compilers
+
+To compile R packages, you need a C compiler.
+
+In theory, you could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can even be compiled with Clang and LLVM, but the default GCC compiler is the best way to avoid headaches).
+
+It is thus much simpler to always load a `gcc` module before loading an `r` module.
+
+## R module
+
+To see what versions of R are available on a cluster, run:
+
+```{.bash}
+module spider r
+```
+
+To see the dependencies of a particular version (e.g. `r/4.2.1`), run:
+
+```{.bash}
+module spider r/4.2.1
+```
+
+:::{.note}
+
+`StdEnv/2020` is a required module for this version.
+
+On most Alliance clusters, it is automatically loaded, so you don't need to include it. You can double-check with `module list` or you can include it (before `r/4.2.1`) just to be sure.
+
+:::
+
+Finally, load your modules:
+
+```{.bash}
+module load StdEnv/2020 gcc/11.3.0 r/4.2.1
+```
+
+# Installing R packages
+
+---
+
+To install a package, launch the interactive R console with:
+
+```{.bash}
+R
+```
+
+In the R console, run:
+
+```{.r}
+install.packages("<package_name>", repos="<url-cran-mirror>")
+```
+
+:::{.note}
+
+`repos` argument: chose a [CRAN mirror close to the location of your cluster](https://cran.r-project.org/mirrors.html) or use <https://cloud.r-project.org/>.
+
+:::
+
+:::{.note}
+
+The first time you install a package, R will ask you whether you want to create a personal library in your home directory. Answer `yes` to both questions. Your packages will now install under `~/`.
+
+:::
+
+:::{.note}
+
+Some packages require additional modules to be loaded before they can be installed. Other packages need additional R packages as dependencies. In either case, you will get explicit error messages. Adding the argument `dependencies = TRUE` helps in the second case, but you will still have to add packages manually from time to time.
+
+:::
+
+---
+
+Let's install the packages needed for this webinar:
+
+```{.r}
+install.packages(
+  c("tidyverse", "bench", "doFuture", "doRNG", "randomForest", "Rcpp"),
+  repos="https://mirror.rcg.sfu.ca/mirror/CRAN/"  # closest mirror from Cedar
+)
+```
+
+:::{.note}
+
+This will also install the dependencies `foreach`, `future`, and `iterators`.
+
+:::
+
+To leave the R console, press `<Ctrl+D>`.
+
+# Running R jobs
+
+## Scripts
+
+To run an R script called `<your_script>.R`, you first need to write a job script:
+
+:::{.example}
+
+Example:
+
+```{.bash filename="<your_job>.sh"}
+#!/bin/bash
+#SBATCH --account=def-<your_account>
+#SBATCH --time=15
+#SBATCH --mem-per-cpu=3000M
+#SBATCH --cpus-per-task=4
+#SBATCH --job-name="<your_job>"
+module load StdEnv/2020 gcc/11.3.0 r/4.2.1
+Rscript <your_script>.R	  # Note that R scripts are run with the command `Rscript`
+```
+
+:::
+
+Then launch your job with:
+
+```{.bash}
+sbatch <your_job>.sh
+```
+
+You can monitor your job with `sq` (an alias for `squeue -u $USER $@`).
+
+## Interactive jobs
+
+:::{.note}
+
+While it is fine to run R on the login node when you install packages, you **must start a SLURM job before any heavy computation**.
+
+:::
+
+To run R interactively, you should launch an `salloc` session.
+
+Here is what I will use for this webinar:
+
+```{.bash}
+salloc --time=1:10:00 --mem-per-cpu=7000M --ntasks=8
+```
+
+This takes me to a compute node where I can launch R to run computations:
+
+```{.bash}
+R
+```
+
+# Performance
+
+## Profiling
+
+The first thing to do if you want to improve your code efficiency is to identify bottlenecks in your code. Common tools are:
+
+- the base R function `Rprof()`
+- the package [profvis](https://cran.r-project.org/web/packages/profvis/index.html)
+
+[profvis](https://cran.r-project.org/web/packages/profvis/index.html) is a newer tool, built by [posit](https://posit.co/) (formerly RStudio). Under the hood, it runs `Rprof()` to collect data, then produces an interactive html widget with a flame graph that allows for an easy visual identification of slow sections of code. While this tool integrates well within the RStudio IDE or the [RPubs ecosystem](https://rpubs.com/wch/178493), it is not very well suited for remote work on a cluster. One option is to profile your code with small data on your own machine. Another option is to use the base profiler with `Rprof()` directly as in [this example](https://rstudio.github.io/r-manuals/r-exts/Tidying-and-profiling-R-code.html#profiling-r-code-for-speed).
+
+## Benchmarking
+
+Once you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.
+
+In the most basic fashion, you can use `system.time()`, but this is limited and imprecise.
+
+The [microbenchmark](https://cran.r-project.org/web/packages/microbenchmark/index.html) package is a popular option.
+
+It gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.
+
+The newer [bench](https://cran.r-project.org/web/packages/bench/index.html) package has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections. This is the package I will use today.
+
+# Parallel programming
+
+## Multi-threading
+
+We talk about **multi-threading** when a single process (with its own memory) runs multiple threads.
+
+The execution can happen in parallel—if each thread has access to a CPU core—or by alternating some of the threads on some CPU cores.
+
+Because all threads in a process write to the same memory addresses, multi-threading can lead to [race conditions](https://en.wikipedia.org/wiki/Race_condition).
+
+Multi-threading does not seem to be a common approach to parallelizing R code.
+
+## Multi-processing in shared memory
+
+**Multi-processing in shared memory** happens when multiple processes execute code on multiple CPU cores of a single node (or a single machine).
+
+The different processes need to communicate with each other, but because they are all running on the CPU cores of a single node, messages can pass via shared memory.
+
+## Multi-processing in distributed memory
+
+When processes involved in the execution of some code run on multiple nodes of a cluster, messages between them need to travel over the cluster interconnect. In that case, we talk about **distributed memory**.
+
+# Running R code in parallel
+
+## Package parallel (base R)
+
+The `parallel` package has been part of the "base" package group since version 2.14.0. \
+This means that it is comes with R.
+
+Most parallel approaches in R build on this package.
+
+We will make use of it to create and close an ad-hoc cluster.
+
+:::{.note}
+
+The [parallelly](https://parallelly.futureverse.org/) package adds functionality to the `parallel` package.
+
+:::
+
+## Package foreach
+
+The [foreach](https://cran.r-project.org/web/packages/foreach/index.html) package implements a looping construct without an explicit counter. It doesn't require the preallocation of an output container, it brings to R an equivalent of the Python or Julia list comprehensions, and mostly, it allows for an easy execution of loops in parallel. Unlike loops, it creates variables (loops are used for their side-effect).
+
+Let's look at an example to calculate the sum of 1e4 random vectors of length 3.
+
+We will use `foreach` and `iterators` (which creates convenient iterators for `foreach`):
+
+```{r}
+library(foreach)
+library(iterators)
+```
+
+---
+
+Classic while loop:
+
+```{r}
+set.seed(2)
+result1 <- numeric(3)            # Preallocate output container
+i <- 0                           # Initialise counter variable
+
+while(i < 1e4) {                 # Finally we run the loop
+  result1 <- result1 + runif(3)  # Calculate the sum
+  i <- i + 1                     # Update the counter
+}
+```
+
+With foreach:
+
+```{r}
+set.seed(2)
+result2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)
+```
+
+Verify:
+
+```{r}
+all.equal(result1, result2)
+```
+
+---
+
+The best part of `foreach` is that you can turn sequential loops into parallel ones by registering a parallel backend and replacing `%do%` with `%dopar%`.
+
+There are many parallelization backends available: `doFuture`, `doMC`, `doMPI`, `doFuture`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
+
+In this webinar, I will use [`doFuture`](https://cran.r-project.org/web/packages/doFuture/index.html) which allows to evaluate `foreach` expressions following any of the strategies of the [`future`](https://cran.r-project.org/web/packages/future/index.html) package.
+
+So first, what is the [`future`](https://cran.r-project.org/web/packages/future/index.html) package?
+
+## Package future
+
+A [future](https://en.wikipedia.org/wiki/Futures_and_promises) is an object that acts as an abstract representation for a value in the future. A future can be *resolved* (if the value has been computed) or *unresolved*. If the value is queried while the future is unresolved, the process is blocked until the future is resolved.
+
+Futures allow for asynchronous and parallel evaluations. The `future` package provides a simple and unified API to evaluate futures.
+
+## Plans
+
+The `future` package does this thanks to the `plan` function:
+
+- `plan(sequential)`: futures are evaluated sequentially in the current R session
+- `plan(multisession)`: futures are evaluated by new R sessions spawned in the background (*multi-processing in shared memory*)
+- `plan(multicore)`: futures are evaluated in processes forked from the existing process (*multi-processing in shared memory*)
+- `plan(cluster)`: futures are evaluated on an ad-hoc cluster (allows for *distributed parallelism* across multiple nodes)
+
+## Consistency
+
+To ensure a consistent behaviour across plans, all evaluations are done in a local environment:
+
+```{r}
+library(future)
+
+a <- 1
+
+b %<-% {
+  a <- 2
+}
+
+a
+```
+
+## Let's return to our example
+
+We had:
+
+```{.r}
+set.seed(2)
+result2 <- foreach(icount(1e4), .combine = '+') %do% runif(3)
+```
+
+We can replace `%do%` with `%dopar%`:
+
+```{.r}
+set.seed(2)
+result3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)
+```
+
+Since we haven't registered any parallel backend, the expression will still be evaluated sequentially.
+
+---
+
+To run this in parallel, we need to load `doFuture`, register it as a backend (with `registerDoFuture()`), and choose a parallel strategy (e.g. `plan(multicore)`):
+
+```{.r}
+library(foreach)
+library(doFuture)
+
+registerDoFuture()
+plan(multicore)
+
+set.seed(2)
+result3 <- foreach(icount(1e4), .combine = '+') %dopar% runif(3)
+```
+
+:::{.note}
+
+With the overhead of parallelization, it actually doesn't make sense to parallelize such a short code, so let's go over a toy example and do some benchmarking.
+
+:::
+
+# Toy example
+
+## Load packages
+
+For this toy example, I will use a modified version of one of the examples in the [foreach vignette](https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html): I will b
+uild a classification model made of a forest of decision trees thanks to the [`randomForest`](https://cran.r-project.org/web/packages/randomForest/index.html) package.
+
+Because the code includes randomly generated numbers, I will use the [`doRNG`](https://cran.r-project.org/web/packages/doRNG/index.html) package which replaces `foreach::%dopar%` wit
+h `doRNG::%dorng%`. This follows the recommendations of Pierre L'Ecuyer (1999)[^1] and ensures reproducibility.
+
+[^1]: [L'Ecuyer, P. (1999). Good parameters and implementations for combined multiple recursive random number generators. Operations Research, 47, 159–164.](https://pubsonline.informs.org/doi/abs/10.1287/opre.47.1.159)
+
+```{.r}
+library(doFuture)       # This will also load the `future` package
+library(doRNG)          # This will also load the `foreach` package
+library(randomForest)
+library(bench)          # To do some benchmarking
+```
+
+```
+Loading required package: foreach
+Loading required package: future
+Loading required package: rngtools
+```
+
+## The code to parallelize
+
+The goal is to create a classifier based on some data (here a matrix of random numbers for simplicity) and a response variable (as factor). This model could then be passed in the `predict()` function with novel data to generate predictions of classification. But here we are only interested in the creation of the model as this is the part that is computationally intensive. We aren't interested in actually using it.
+
+```{.r}
+set.seed(11)
+traindata <- matrix(runif(1e5), 100)
+fac <- gl(2, 50)
+
+rf <- foreach(ntree = rep(250, 8), .combine = combine) %do%
+  randomForest(x = traindata, y = fac, ntree = ntree)
+
+rf
+```
+
+```
+Call:
+ randomForest(x = traindata, y = fac, ntree = ntree)
+               Type of random forest: classification
+                     Number of trees: 2000
+No. of variables tried at each split: 31
+```
+
+## Reference timing
+
+This is the non parallelizable code with `%do%`:
+
+```{.r}
+tref <- mark(
+  rf1 <- foreach(ntree = rep(250, 8), .combine = combine) %do%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory = FALSE
+)
+
+tref$median
+```
+
+```
+[1] 5.66s
+```
+
+## Plan sequential
+
+This is the parallelizable `foreach` code, but run sequentially:
+
+```{.r}
+registerDoFuture()   # Set the parallel backend
+plan(sequential)     # Set the evaluation strategy
+
+# Using bench::mark()
+tseq <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory = FALSE
+)
+
+tseq$median
+```
+
+```
+[1] 5.78s
+```
+
+:::{.note}
+
+No surprise: those are similar.
+
+:::
+
+## Multi-processing in shared memory
+
+`future` provides `availableCores()` to detect the number of available cores:
+
+```{.r}
+availableCores()
+```
+
+```
+system
+     4
+```
+
+:::{.note}
+
+Similar to `parallel::detectCores()`.
+
+:::
+
+This detects the number of CPU cores available to me on the current compute node, that is, what I can use for shared memory multi-processing.
+
+## Plan multisession
+
+Shared memory multi-processing can be run with `plan(multisession)` that will spawn new R sessions in the background to evaluate futures:
+
+```{.r}
+plan(multisession)
+
+tms <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory = FALSE
+)
+
+tms$median
+```
+
+```
+[1] 2s
+```
+
+:::{.note}
+
+We got a speedup of `5.78 / 2 = 2.9`.
+
+:::
+
+## Plan multicore
+
+Shared memory multi-processing can also be run with `plan(multicore)` (except on Windows) that will fork the current R process to evaluate futures:
+
+```{.r}
+plan(multicore)
+
+tmc <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory = FALSE
+)
+
+tmc$median
+```
+
+```
+[1] 1.9s
+```
+
+:::{.note}
+
+We got a very similar speedup of `5.78 / 1.9 = 3.0`.
+
+:::
+
+## Multi-processing in distributed memory
+
+I requested 8 tasks from [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager) on a training cluster made of nodes with 4 CPU cores each. Let's verify that I got them by accessing the `SLURM_NTASKS` environment variable from within R:
+
+```{.r}
+as.numeric(Sys.getenv("SLURM_NTASKS"))
+```
+
+```
+[1] 8
+```
+
+I can create a character vector with the name of the node each task is running on:
+
+```{.r}
+(hosts <- system("srun hostname | cut -f 1 -d '.'", intern = TRUE))
+```
+
+```
+chr [1:8] "node1" "node1" "node1" "node1" "node2" "node2" "node2" "node2"
+```
+
+This allows me to create a cluster of workers:
+
+```{.r}
+(cl <- parallel::makeCluster(hosts))      # Defaults to type="PSOCK"
+```
+
+```
+socket cluster with 8 nodes on hosts ‘node1’, ‘node2’
+```
+
+## Plan cluster
+
+I can now try the code with distributed parallelism using all 8 CPU cores across both nodes:
+
+```{.r}
+plan(cluster, workers = cl)
+
+tdis <- mark(
+  rf2 <- foreach(ntree = rep(250, 8), .combine = combine) %dorng%
+    randomForest(x = traindata, y = fac, ntree = ntree),
+  memory = FALSE
+)
+
+tdis$median
+```
+
+```
+[1] 1.14s
+```
+
+:::{.note}
+
+Speedup: `5.78 / 1.14 = 5.1`.
+
+:::
+
+The cluster of workers can be stopped with:
+
+```{.r}
+parallel::stopCluster(cl)
+```
+
+## Alternative approaches
+
+The [multidplyr](https://cran.r-project.org/web/packages/multidplyr/index.html) package partitions data frames across worker processes, allows you to run the usual [tidyverse](https://www.tidyverse.org/) functions on each partition, then collects the processed data.
+
+The [furrr](https://cran.r-project.org/web/packages/furrr/index.html) package is a parallel equivalent to the [purrr](https://cran.r-project.org/web/packages/purrr/index.html) package from the [tidyverse](https://www.tidyverse.org/).
+
+If you work with genomic data, you might want to have a look at the [BiocParallel](https://bioconductor.org/packages/release/bioc/html/BiocParallel.html) package from [Bioconductor](https://bioconductor.org/).
+
+Yet another option to run distributed R code is to use the [sparklyr](https://cran.r-project.org/web/packages/sparklyr/index.html) package (an R interface to [Spark](https://spark.apache.org/)).
+
+[Rmpi](https://cran.r-project.org/web/packages/Rmpi/index.html) is a wrapper to [MPI (Message-Passing Interface)](https://en.wikipedia.org/wiki/Message_Passing_Interface). It has proved slow and problematic on Cedar though.
+
+The [boot](https://cran.r-project.org/web/packages/boot/index.html) package provides functions and datasets specifically for bootstrapping in parallel.
+
+# Write C++ with [Rcpp](https://cran.r-project.org/web/packages/Rcpp/index.html)
+
+---
+
+### When?
+
+- Code that cannot easily be parallelized (e.g. multiple recursive function calls)
+- Large number of function calls
+- Need for data structures missing in R
+- Creation of efficient packages
+
+### How?
+
+Rcpp provides C++ classes with mappings to R's `.Call()`. C++ functions can be declared in source files or directly in R scripts.
+
+<!-- ## Example -->
+
+<!-- get the 3 next numbers from the [Fibonacci sequence](https://en.wikipedia.org/wiki/Fibonacci_number): -->
+
+<!-- ```{r} -->
+<!-- start <- n -->
+<!-- i <- 2 -->
+<!-- while (fib[i] < 10) { -->
+<!--   fib <- c(fib, fib[i-1] + fib[i]) -->
+<!--   i <- i + 1 -->
+<!-- } -->
+<!-- print(fib) -->
+<!-- ``` -->
+
+<!-- ## Timing -->

@@ -1,0 +1,341 @@
+---
+title: Introduction to Julia
+aliases:
+  - intro.html
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+> Why would I want to learn a new language? I already know R/python.
+
+R and python are interpreted languages: the code is executed directly, without prior-compilation. This is extremely convenient: it is what allows you to run code in an interactive shell. The price to pay is low performance: R and python are simply not good at handling large amounts of data. To overcome this limitation, users often turn to C or C++ for the most computation-intensive parts of their analyses. These are compiled—and extremely efficient—languages, but the need to use multiple languages and the non-interactive nature of compiled languages make this approach tedious.
+
+Julia uses just-in-time (JIT) compilation: the code is compiled at run time. This combines the interactive advantage of interpreted languages with the efficiency of compiled ones. Basically, it feels like running R or python, while it is almost as fast as C. This makes Julia particularly well suited for big data analyses, machine learning, or heavy modelling.
+
+In addition, multiple dispatch (generic functions with multiple methods depending on the types of all the arguments) is at the very core of Julia. This is extremly convenient, cutting on conditionals and repetitions, and allowing for easy extensibility without having to rewrite code.
+
+Finally, Julia shines by its extremely clean and concise syntax. This last feature makes it easy to learn and really enjoyable to use.
+
+In this workshop, which does not require any prior experience in Julia (experience in another language—e.g. R or python—would be best), we will go over the basics of Julia's syntax and package system; then we will push the performance aspect further by looking at how Julia can make use of clusters for large scale parallel computing.
+
+:::
+
+## Introducing Julia
+
+### Brief history
+
+Started in 2009 by Jeff Bezanson, [Stefan Karpinski](https://en.wikipedia.org/wiki/Stefan_Karpinski), [Viral B. Shah](https://en.wikipedia.org/wiki/Viral_B._Shah), and [Alan Edelman](https://en.wikipedia.org/wiki/Alan_Edelman), the general-purpose programming language Julia was launched in 2012 as free and open source software. Version 1.0 was released in 2018.
+
+[Rust](https://www.rust-lang.org/) developer Graydon Hoare wrote an interesting [post](https://graydon2.dreamwidth.org/189377.html) which places Julia in a historical context of programming languages.
+
+### Why another language?
+
+#### JIT
+
+Computer languages mostly fall into two categories: *compiled languages* and *interpreted languages*.
+
+##### Compiled languages
+
+Compiled languages require two steps:
+
+- in a first step the code you write in a human-readable format (the source code, usually in plain text) gets compiled into machine code
+
+- it is then this machine code that is used to process your data
+
+So you write a script, compile it, then use it.
+
+![](img/compiled_language.png){fig-alt="noshadow" width="85%"}
+
+Because machine code is a lot easier to process by computers, compiled languages are fast. The two step process however makes prototyping new code less practical, these languages are hard to learn, and debugging compilation errors can be challenging.
+
+:::{.example}
+
+Examples of compiled languages include C, C++, Fortran, Go, and Haskell.
+
+:::
+
+##### Interpreted languages
+
+Interpreted languages are executed directly which has many advantages such as dynamic typing and direct feed-back from the code and they are easy to learn, but this comes at the cost of efficiency. The source code can facultatively be bytecompiled into non human-readable, more compact, lower level bytecode which is read by the interpreter more efficiently.
+
+![](img/interpreted_language.png){fig-alt="noshadow" width="85%"}
+
+:::{.example}
+
+Examples of interpreted languages include R, Python, Perl, and JavaScript.
+
+:::
+
+##### A common workflow
+
+So, with this, what do researchers do?
+
+A common workflow, with the constraints of either type of languages, consists of:
+
+1. exploring the data and developing code using a sample of the data or reasonably light computations in an interpreted language,
+2. translating the code into a compiled language,
+3. finally throwing the full data and all the heavy duty computation at that optimized code.
+
+This works and it works well.
+
+But, as you can imagine, this roundabout approach is tedious, not to mention the fact that it involves mastering 2 languages.
+
+##### JIT compiled languages
+
+Julia uses [just-in-time compilation](https://en.wikipedia.org/wiki/Just-in-time_compilation) or JIT based on [LLVM](https://en.wikipedia.org/wiki/LLVM): the source code is compiled at run time. This combines the flexibility of interpretation with the speed of compilation, bringing speed to an interactive language. It also allows for dynamic recompilation, continuous weighing of gains and costs of the compilation of parts of the code, and other on the fly optimizations.
+
+Of course, there are costs here too. They come in the form of overhead time to compile code the first time it is run and increased memory usage.
+
+#### Multiple dispatch
+
+In languages with [multiple dispatch](https://en.wikipedia.org/wiki/Multiple_dispatch), functions apply different methods at run time based on the type of the operands. This brings great type stability and improves speed.
+
+Julia is extremely flexible: type declaration is not required. Out of convenience, you can forego the feature if you want. Specifying types however will greatly optimize your code.
+
+[Here](http://ucidatascienceinitiative.github.io/IntroToJulia/Html/WhyJulia#Core-Idea:-Multiple-Dispatch-+-Type-Stability-=%3E-Speed-+-Readability) is a good post on type stability, multiple dispatch, and Julia efficiency.
+
+## How to run Julia?
+
+There are several ways to run Julia interactively:
+
+- directly in the REPL (read–eval–print loop: the interactive Julia shell),
+- in interactive notebooks (e.g. [Jupyter](https://jupyter.org/), [Pluto](https://github.com/fonsp/Pluto.jl)),
+- in an editor able to run Julia interactively (e.g. [Emacs](https://github.com/JuliaEditorSupport/julia-emacs), [VS Code](https://www.julia-vscode.org/), [Vim](https://github.com/JuliaEditorSupport/julia-vim)).
+
+Let's have a look at these interfaces.
+
+### The Julia REPL
+
+You can launch the REPL from a terminal directly by typing the `julia` command.
+
+#### REPL keybindings
+
+In the REPL, you can use standard command line keybindings (Emacs kbd):
+
+```
+C-c		cancel
+C-d		quit
+C-l		clear console
+
+C-u		kill from the start of line
+C-k		kill until the end of line
+
+C-a		go to start of line
+C-e		go to end of line
+
+C-f		move forward one character
+C-b		move backward one character
+
+M-f		move forward one word
+M-b		move backward one word
+
+C-d		delete forward one character
+C-h		delete backward one character
+
+M-d		delete forward one word
+M-Backspace	delete backward one word
+
+C-p		previous command
+C-n		next command
+
+C-r		backward search
+C-s		forward search
+```
+
+#### REPL modes
+
+The Julia REPL is unique in that it has four distinct modes:
+
+<span style="font-family: 'Source Code Pro', 'Lucida Console', monospace; font-size: 0.8rem; padding: 0.2rem; box-shadow: 0px 0px 2px rgba(0,0,0,0.3); border-radius: 5%; background-color: #f0f3f3; color: #339933"><b>julia></b></span> &emsp;&emsp; The main mode in which you will be running your code.
+
+<span style="font-family: 'Source Code Pro', 'Lucida Console', monospace; font-size: 0.8rem; padding: 0.2rem; box-shadow: 0px 0px 2px rgba(0,0,0,0.3); border-radius: 5%; background-color: #f0f3f3; color: #dab314"><b>help?></b></span> &emsp;&emsp; A mode to easily access documentation.
+
+<span style="font-family: 'Source Code Pro', 'Lucida Console', monospace; font-size: 0.8rem; padding: 0.2rem; box-shadow: 0px 0px 2px rgba(0,0,0,0.3); border-radius: 5%; background-color: #f0f3f3; color: #b30000"><b>shell></b></span> &emsp;&emsp; A mode in which you can run bash commands from within Julia.
+
+<span style="font-family: 'Source Code Pro', 'Lucida Console', monospace; font-size: 0.8rem; padding: 0.2rem; box-shadow: 0px 0px 2px rgba(0,0,0,0.3); border-radius: 5%; background-color: #f0f3f3; color: #2e5cb8"><b>(env) pkg></b></span> &nbsp; A mode to easily perform actions on packages with Julia package manager.
+
+(<span style="font-family: 'Source Code Pro', 'Lucida Console', monospace; font-size: 0.8rem; padding: 0.2rem; box-shadow: 0px 0px 2px rgba(0,0,0,0.3); border-radius: 5%; background-color: #f0f3f3; color: #2e5cb8"><b>env</b></span> is the name of your current project environment.
+
+Project environments are similar to Python's virtual environments and allow you, for instance, to have different package versions for different projects. By default, it is the current Julia version. So what you will see is <span style="font-family: 'Source Code Pro', 'Lucida Console', monospace; font-size: 0.8rem; padding: 0.2rem; box-shadow: 0px 0px 2px rgba(0,0,0,0.3); border-radius: 5%; background-color: #f0f3f3; color: #2e5cb8"><b>(v1.3) pkg></b></span>).
+
+Enter the various modes by typing `?`, `;`, and `]`. Go back to the regular mode with the `Backspace` key.
+
+### Text editors
+
+#### VS Code
+
+[Julia for Visual Studio Code](https://www.julia-vscode.org/) has become the main Julia IDE.
+
+#### Emacs
+
+- through the [julia-emacs](https://github.com/JuliaEditorSupport/julia-emacs) and [julia-repl](https://github.com/tpapp/julia-repl) packages
+- through the [ESS](https://github.com/emacs-ess/ESS) package
+- through the [Emacs IPython Notebook](http://millejoh.github.io/emacs-ipython-notebook/) package if you want to access Jupyter notebooks in Emacs
+
+#### Vim
+
+Through the [julia-vim](https://github.com/JuliaEditorSupport/julia-vim) package.
+
+### Interactive notebooks
+
+#### Jupyter
+
+[Project Jupyter](https://jupyter.org/) allows to create interactive programming documents through its web-based JupyterLab environment and its Jupyter Notebook.
+
+#### Pluto
+
+The Julia package [Juno](https://github.com/fonsp/Pluto.jl) is a reactive notebook for Julia.
+
+### Quarto
+
+[Quarto](https://quarto.org/) builds interactive documents with code and runs Julia through Jupyter.
+
+## Startup options
+
+You can configure Julia by creating the file `~/.julia/config/startup.jl`.
+
+## Help and documentation
+
+As we already saw, you can type `?` to enter the help mode:
+
+```{.julia}
+?sum
+```
+
+```
+search: sum sum! summary cumsum cumsum! isnumeric VersionNumber issubnormal 
+get_zero_subnormals set_zero_subnormals
+
+  sum(f, itr; [init])
+
+  Sum the results of calling function f on each element of itr.
+
+  The return type is Int for signed integers of less than system word size, 
+  and UInt for unsigned integers of less than system word size. For all other 
+  arguments a common return type is found to which all arguments are promoted.
+
+  The value returned for empty itr can be specified by init. It must be the 
+  additive identity (i.e. zero) as it is unspecified whether init is used for 
+  non-empty collections.
+```
+
+:::{.note}
+
+I truncated this output as the documentation also contains many examples.
+
+:::
+
+To print the list of functions containing a certain word in their description, you can use `apropos()`.
+
+:::{.example}
+
+Example:
+
+:::
+
+```{julia}
+apropos("truncate")
+```
+
+## Version information
+
+Julia version only:
+
+```{julia}
+versioninfo()
+```
+
+More information, including commit, OS, CPU, and compiler:
+
+```{julia}
+VERSION
+```
+
+## Let's try a few commands
+
+```{.julia}
+x = 10
+x
+x = 2;
+x
+y = x;
+y
+ans
+ans + 3
+
+a, b, c = 1, 2, 3
+b
+
+3 + 2
++(3, 2)
+
+a = 3
+2a
+a += 7
+a
+
+2\8
+
+a = [1 2; 3 4]
+b = a
+a[1, 1] = 0
+b
+
+[1, 2, 3, 4]
+[1 2; 3 4]
+[1 2 3 4]
+[1 2 3 4]'
+collect(1:4)
+collect(1:1:4)
+1:4
+a = 1:4
+collect(a)
+
+[1, 2, 3] .* [1, 2, 3]
+
+4//8
+8//1
+1//2 + 3//4
+
+a = true
+b = false
+a + b
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+What does `;` at the end of a command do? \
+What is surprising about `2a`? \
+What does `+=` do? \
+What does `.*`do?
+
+:::
+
+```{.julia}
+a = [3, 1, 2]
+
+sort(a)
+println(a)
+
+sort!(a)
+println(a)
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+What does `!` at the end of a function name do?
+
+:::

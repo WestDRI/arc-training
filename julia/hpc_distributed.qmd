@@ -1,0 +1,162 @@
+---
+title: Distributed computing
+aliases:
+  - distributed.html
+author: Marie-Hélène Burle
+---
+
+## Launching several Julia processes
+
+Julia supports distributed computing thanks to the module `Distributed` from its standard library.
+
+There are two ways to launch several Julia processes (called "workers"):
+
+### Launch Julia on n workers
+
+Julia can be started with the `-p` flag followed by the number of workers by running (in a terminal):
+
+```{.bash}
+julia -p n
+```
+
+This launches `n` workers, available for parallel computations, in addition to the process running the interactive prompt (so there are `n + 1` Julia processes in total).
+
+The module `Distributed` is needed whenever you want to use several workers, but the `-p` flag loads it automatically.
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+julia -p 4
+```
+
+Within Julia, you can see how many workers are running with:
+
+```{.julia}
+nworkers()
+```
+
+The total number of processes can be seen with:
+
+```{.julia}
+nprocs()
+```
+
+### Start workers from within a Julia session
+
+Alternatively, workers can be started from within a Julia session. In this case, you need to load the module `Distributed` explicitly:
+
+```{.julia}
+using Distributed
+```
+
+To launch `n` workers:
+
+```{.julia}
+addprocs(n)
+```
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.julia}
+addprocs(4)
+```
+
+## Managing workers
+
+To list all the worker process identifiers:
+
+```{.julia}
+workers()
+```
+
+:::{.note}
+
+The process running the Julia prompt has id `1`.
+
+:::
+
+To kill a worker:
+
+```{.julia}
+rmprocs(<pid>)
+```
+
+where `<pid>` is the process identifier of the worker you want to kill (you can kill several workers by providing a list of pids).
+
+## Using workers
+
+There are a number of [macros](https://docs.julialang.org/en/v1/manual/metaprogramming/#man-macros-1) that are very convenient here:
+
+- To execute an expression on all processes, there is `@everywhere`
+
+For instance, if your parallel code requires a module or an external package to run, you need to load that module or package with `@everywhere`:
+
+```{.julia}
+@everywhere using DataFrames
+```
+
+If the parallel code requires a script to run:
+
+```{.julia}
+@everywhere include("script.jl")
+```
+
+If it requires a function that you are defining, you need to define it on all the workers:
+
+```
+@everywhere function <name>(<arguments>)
+    <body>
+end
+```
+
+- To assign a task to a particular worker, you use `@spawnat`
+
+The first argument indicates the process id, the second argument is the expression that should be evaluated:
+
+```
+@spawnat <pid> <expression>
+```
+
+`@spawnat` returns of `Future`: the placeholder for a computation of unknown status and time. The function `fetch` waits for a `Future` to complete and returns the result of the computation.
+
+:::{.example}
+
+Example:
+
+:::
+
+The function `myid` gives the id of the current process. As I mentioned earlier, the process running the interactive Julia prompt has the pid `1`. So `myid()` normally returns `1`.
+
+But we can "spawn" `myid` on one of the worker, for instance the first worker (so pid `2`):
+
+```{.julia}
+@spawnat 2 myid()
+```
+
+As you can see, we get a `Future` as a result. But if we pass it through `fetch`, we get the result of `myid` ran on the worker with pid `2`:
+
+```{.julia}
+fetch(@spawnat 2 myid())
+```
+
+If you want tasks to be assigned to any worker automatically, you can pass the symbol `:any` to `@spawnat` instead of the worker id:
+
+```{.julia}
+@spawnat :any myid()
+```
+
+To get the result:
+
+```{.julia}
+fetch(@spawnat :any myid())
+```
+
+If you run this multiple times, you will see that `myid` is run on any of your available workers. This will however never return `1`, *except* when you only have one running Julia process (in that case, the process running the prompt is considered a worker).

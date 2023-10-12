@@ -1,0 +1,147 @@
+---
+title: Partitioning data with multidplyr
+aliases:
+  - partition.html
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+The package [`multidplyr`](https://cran.r-project.org/web/packages/multidplyr/index.html) provides simple techniques to partition data across a set of workers (multicore parallelism) on the same or different nodes.
+
+:::
+
+## Create a cluster of workers
+
+Let's load the `multidplyr` package:
+
+```{.r}
+library(multidplyr)
+```
+
+First of all, you need to create a set of worker:
+
+```{.r}
+cl <- new_cluster(4)
+cl
+```
+
+```
+4 session cluster [....]
+```
+
+## Data assignment
+
+There are multiple ways to assign data to the workers.
+
+### Assign the same value to each worker
+
+This is done with the `cluster_assign()` function:
+
+```{.r}
+cluster_assign(cl, a = 1:4)
+```
+
+To execute the code on each worker and return the result, you use the function `cluster_call()`:
+
+```{.r}
+cluster_call(cl, a)
+```
+
+```
+[[1]]
+[1] 1 2 3 4
+
+[[2]]
+[1] 1 2 3 4
+
+[[3]]
+[1] 1 2 3 4
+
+[[4]]
+[1] 1 2 3 4
+```
+
+```{.r}
+cluster_assign(cl, b = runif(4))
+cluster_call(cl, b)
+```
+
+```
+[[1]]
+[1] 0.93146519 0.75181518 0.33158435 0.02970799
+
+[[2]]
+[1] 0.93146519 0.75181518 0.33158435 0.02970799
+
+[[3]]
+[1] 0.93146519 0.75181518 0.33158435 0.02970799
+
+[[4]]
+[1] 0.93146519 0.75181518 0.33158435 0.02970799
+```
+
+### Assign different values to each worker
+
+For this, use instead `cluster_assign_each()`:
+
+```{.r}
+cluster_assign_each(cl, c = 1:4)
+cluster_call(cl, c)
+```
+
+```
+[[1]]
+[1] 1
+
+[[2]]
+[1] 2
+
+[[3]]
+[1] 3
+
+[[4]]
+[1] 4
+```
+
+```{.r}
+cluster_assign_each(cl, d = runif(4))
+cluster_call(cl, d)
+```
+
+```
+[[1]]
+[1] 0.8892167
+
+[[2]]
+[1] 0.09334862
+
+[[3]]
+[1] 0.614763
+
+[[4]]
+[1] 0.6986541
+```
+
+### Partition vectors
+
+`cluster_assign_partition()` splits up a vector to assign about the same amount of data to each worker:
+
+```{.r}
+cluster_assign_partition(cl, e = 1:10)
+cluster_call(cl, e)
+```
+
+```
+[[1]]
+[1] 1 2 3
+
+[[2]]
+[1] 4 5
+
+[[3]]
+[1] 6 7
+
+[[4]]
+[1]  8  9 10
+```
