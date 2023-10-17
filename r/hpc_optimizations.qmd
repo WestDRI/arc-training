@@ -137,9 +137,11 @@ n <- 1e5
 mark(f1(n), f2(n))
 ```
 
-`f2()` is consistently faster. Also, note the difference in memory allocation.
+`f2()` is consistently faster, although very slightly. In many cases, the difference you will find will be a lot greater.
 
-### Aren't loops a big 'no no' in R?
+Note also the large difference in memory allocation.
+
+### No, loops are not a big 'no no'
 
 By now, you might be thinking: "Wait... aren't loops a big 'no no' in R? I've always been told that they are slow and that one should always use functional programming! We are talking about optimization in this course and we are using loops?!?"
 
@@ -292,7 +294,7 @@ Here the difference in timing is a factor of 50...
 
 #### Example 2
 
-One modulo operation and equality test can be removed by replacing `i %% 3 == 0 && i %% 5 == 0` by `i %% 15 == 0`. We now have three modulo operations and equality tests per iteration instead of four. This gives us a pretty good speedup:
+One modulo operation and equality test can be removed by replacing `i %% 3 == 0 && i %% 5 == 0` by `i %% 15 == 0`. We now have three modulo operations and equality tests per iteration instead of four. This gives us a little speedup:
 
 ```{r}
 f6 <- function(n) {
@@ -318,8 +320,8 @@ But we can remove an additional modulo operation and equality test at each itera
 
 ```{r}
 f7 <- function(n) {
-  z <- 1:n
-  for(i in z) {
+  z <- integer(n)
+  for(i in 1:n) {
     div3 <- (i %% 3 == 0)
     div5 <- (i %% 5 == 0)
     if(div3 && div5) {
@@ -328,13 +330,15 @@ f7 <- function(n) {
       z[i] <- "Fizz"
     } else if(div5) {
       z[i] <- "Buzz"
-    } 
+    } else {
+      z[i] <- i
+    }
   }
   z
 }
 ```
 
-Now we only have two modulo operations and equality tests per iteration and we gets an even greater speedup:
+Now we only have two modulo operations and equality tests per iteration and we get another little speedup:
 
 ```{r}
 mark(f6(n), f7(n))
@@ -368,13 +372,13 @@ This function works:
 f8(20)
 ```
 
-The speedup however is extremely slight:
+and we get a really good speedup here:
 
 ```{r}
 mark(f7(n), f8(n))
 ```
 
-#### Example 4
+### Vectorize whenever possible
 
 We can actually get rid of the loop and use a vectorized approach.
 
@@ -400,12 +404,22 @@ f9(20)
 mark(f8(n), f9(n))
 ```
 
-The speedup of xxx shows how important it is to use vectorization whenever possible.
+The speedup of 3.8 shows how important it is to use vectorization whenever possible.
 
 ### Replace costly operations where possible
 
-Sometimes, it isn't obvious that one method will be faster than another. Benchmarking alternative methods can teach you which expressions are faster.
+Sometimes, it isn't obvious that one method will be faster than another. Benchmarking alternative expressions can teach you which ones are faster.
 
-For instance, it is much faster to index a column from a dataframe with the name of the column (e.g. `dataframe$column1`) than by using list indexing (e.g. `dataframe[[1]]`).
+For instance, it is much faster to index a column from a dataframe by its name (e.g. `dataframe$column1`) than by using list indexing (e.g. `dataframe[[1]]`).
 
-Even faster with data frame is to use the package [data.table](https://cran.r-project.org/web/packages/data.table/index.html).
+Sometimes, packages exist which bring much more efficiency than can be achieved with base R. In the case of data frames for example, there is [data.table](https://cran.r-project.org/web/packages/data.table/index.html).
+
+### Conclusion
+
+Starting from our first function `f1()`, we have gained a speedup of 7.4, simply by writing better code and without using parallelization and additional hardware:
+
+```{r}
+mark(f1(n), f9(n))
+```
+
+If we used a silly function such as `f5()` as our starting function, the speedup would be 370.
