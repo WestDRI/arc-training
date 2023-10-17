@@ -438,9 +438,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#example-1" id="toc-example-1" class="nav-link" data-scroll-target="#example-1">Example 1</a></li>
   <li><a href="#example-2" id="toc-example-2" class="nav-link" data-scroll-target="#example-2">Example 2</a></li>
   <li><a href="#example-3" id="toc-example-3" class="nav-link" data-scroll-target="#example-3">Example 3</a></li>
+  <li><a href="#example-4" id="toc-example-4" class="nav-link" data-scroll-target="#example-4">Example 4</a></li>
   </ul></li>
   <li><a href="#replace-costly-operations-where-possible" id="toc-replace-costly-operations-where-possible" class="nav-link" data-scroll-target="#replace-costly-operations-where-possible">Replace costly operations where possible</a></li>
-  <li><a href="#avoid-repetitions-of-costly-operations" id="toc-avoid-repetitions-of-costly-operations" class="nav-link" data-scroll-target="#avoid-repetitions-of-costly-operations">Avoid repetitions of costly operations</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -490,7 +490,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>any number divisible by 5 with the word “Buzz”,</li>
 <li>any number divisible by both 3 and 5 with the word “FizzBuzz”.</li>
 </ul>
-<p>Let’s write functions to solve the game and time them to draw some general principles about more efficient code.</p>
+<p>Let’s write functions that output series from <code>1</code> to <code>n</code> following these rules and time them to draw general principles about code efficiency.</p>
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
@@ -536,7 +536,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="optimizations">Optimizations</h2>
 <section id="pre-allocate-memory" class="level3">
 <h3 class="anchored" data-anchor-id="pre-allocate-memory">Pre-allocate memory</h3>
-<p>In this first function, we create an empty object <code>z</code> of class integer and of length <code>0</code> that will hold the result of a loop, then we run the loop and at each iteration, we add a new value to <code>z</code>:</p>
+<p>In order to store the results of a loop, we need to create an object and assign to it the result of the loop at each iteration. In this first function, we create an empty object <code>z</code> of class integer and of length <code>0</code> for that purpose:</p>
 <div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-2_9c82f0f2025e5713556230094be4222b">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>f1 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>()</span>
@@ -554,7 +554,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  z</span>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>The second function is very similar, but this time, we create an empty object <code>z</code> of class integer and of length matching the final length <code>z</code> will have after running the loop. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:</p>
+<p>The second function is similar, but this time, we initialize <code>z</code> with its final length. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:</p>
 <div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-3_e126f17501b711f9942dae4b416a200e">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>f2 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(n)</span>
@@ -601,12 +601,11 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f1(n)         332ms    346ms      2.89   16.55MB     10.1
-2 f2(n)         229ms    244ms      4.17    1.15MB     15.3</code></pre>
+1 f1(n)         137ms    142ms      7.00   16.55MB     24.5
+2 f2(n)         129ms    130ms      7.69    1.15MB     26.9</code></pre>
 </div>
 </div>
-<p><code>f2()</code> is consistently faster. While in this example the difference is very slight, pre-allocating the object that will hold the result of a loop before running the loop can make a big difference.</p>
-<p>Also, note the difference in memory allocation.</p>
+<p><code>f2()</code> is consistently faster. Also, note the difference in memory allocation.</p>
 </section>
 <section id="arent-loops-a-big-no-no-in-r" class="level3">
 <h3 class="anchored" data-anchor-id="arent-loops-a-big-no-no-in-r">Aren’t loops a big ‘no no’ in R?</h3>
@@ -614,8 +613,8 @@ disabled.</code></pre>
 <p>There are a lot of misconceptions around R loops. They can be very slow if you don’t pre-allocate memory. Otherwise they are almost always faster than functions (the <code>apply()</code> family or the <a href="https://www.tidyverse.org/">tidyverse</a> equivalent of the <code>purrr::map()</code> family). You can choose to use a functional programming approach for style and readability, but not for speed.</p>
 <p>Let’s test it.</p>
 <p>First we create a function:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-6_c850ae750b5bdb815719e99e96c48a59">
-<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>fb <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-6_14e08592cb15ea9403bb228ee75ff524">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>f3 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(n <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> n <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FizzBuzz"</span></span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span>(n <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
@@ -628,8 +627,8 @@ disabled.</code></pre>
 <span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Then we pass it through <code>sapply()</code>. We can test that it works on a small number:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-7_3888aaf8f79d1672c0a007fcc191ebe0">
-<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">20</span>, fb)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-7_e00d16689b9ef147618e688d9dde9e4e">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">20</span>, f3)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
  [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
@@ -638,8 +637,8 @@ disabled.</code></pre>
 </div>
 </div>
 <p>Finally, we compare the timing with that of <code>f2()</code>:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-8_3002d8d4ad5b0c16bb110d6b67cf0b99">
-<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span>n, fb))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-8_a110aa7f84e68768f53338d0b8703c9e">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span>n, f3))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
 disabled.</code></pre>
@@ -648,8 +647,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression           min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;      &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f2(n)              264ms    271ms      3.70    1.15MB     18.5
-2 sapply(1:n, fb)    371ms    377ms      2.65    3.29MB     11.9</code></pre>
+1 f2(n)              134ms    147ms      6.89    1.15MB     27.6
+2 sapply(1:n, f3)    184ms    186ms      5.18    3.29MB     22.4</code></pre>
 </div>
 </div>
 <p>As you can see, the loop is faster.</p>
@@ -664,8 +663,8 @@ disabled.</code></pre>
 <p>If the end of a function is reached without calling return, the value of the last evaluated expression is returned.</p>
 </blockquote>
 <p>Now, what about using <code>print()</code> instead?</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-9_6b3c947302b8a572dc0099f31ed82f11">
-<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>f3 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-9_15b9dac70cce66ced1594080b3c9e4ca">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>f4 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(n)</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>n) {</span>
 <span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
@@ -682,7 +681,7 @@ disabled.</code></pre>
 <span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Let’s benchmark it against <code>f2()</code>:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">f3</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">f4</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
  [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
 [13] "13"       "14"       "FizzBuzz" "16"       "17"       "Fizz"    
@@ -698,23 +697,23 @@ disabled.
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
 1 f2(1e+05)  151.88ms 157.65ms     6.30     1.25MB     29.9
-2 f3(1e+05)     3.25s    3.25s     0.308    1.04GB     26.8</code></pre>
+2 f4(1e+05)     3.25s    3.25s     0.308    1.04GB     26.8</code></pre>
 <p>What happened?</p>
-<p><code>print()</code> returns its argument, but it additionally prints it to the standard output. This is why the <code>mark()</code> function printed the output of <code>f3()</code> before printing the timings.</p>
+<p><code>print()</code> returns its argument, but it additionally prints it to the standard output. This is why the <code>mark()</code> function printed the output of <code>f4()</code> before printing the timings.</p>
 <p>As you can see, printing takes a long time.</p>
 <div class="note">
-<p>The code in this website is run by Quarto. Since, by default, RStudio will only print the first 1,000 results, the timing you will get for <code>f3()</code> in RStudio will be much less bad as it won’t include the time it takes to print the remaining 99,000 results.</p>
+<p>The code in this website is run by Quarto. Since, by default, RStudio will only print the first 1,000 results, the timing you will get for <code>f4()</code> in RStudio will be much less bad as it won’t include the time it takes to print the remaining 99,000 results.</p>
 </div>
-<p>If you are evaluating <code>f2()</code> on its own (e.g.&nbsp;<code>f2(20)</code>), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and <code>f3()</code> would be a very bad option. <code>f3()</code> is thus not a good function.</p>
-<p>Here is an example in which <code>f3()</code> would perform a totally unnecessary operation that <code>f2()</code> avoids:</p>
+<p>If you are evaluating <code>f2()</code> on its own (e.g.&nbsp;<code>f2(20)</code>), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and <code>f4()</code> would be a very bad option. <code>f4()</code> is thus not a good function.</p>
+<p>Here is an example in which <code>f4()</code> would perform a totally unnecessary operation that <code>f2()</code> avoids:</p>
 <div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-10_464a7f98efa992df678389a96b441dad">
 <div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="fu">f2</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="note">
 <p>No unnecessary printing.</p>
 </div>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-11_3e9b02ece99b9ded5edcb4367a9c834a">
-<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="fu">f3</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-11_50ffd76c7cb68b777071404022ee2d66">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>a <span class="ot">&lt;-</span> <span class="fu">f4</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
  [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
@@ -727,8 +726,8 @@ disabled.
 </div>
 <p>For 1e5, the difference in timing between running an unnecessary printing vs not is a factor of 21!</p>
 <p>Even worse would be to use:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-12_30158028903f50b9123621c8f931f2a3">
-<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>f4 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-12_f01580a56fbc45b15696059dd267cddd">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>f5 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>n) {</span>
 <span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
 <span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">print</span>(<span class="st">"FizzBuzz"</span>)</span>
@@ -746,9 +745,9 @@ disabled.
 </section>
 <section id="example-2" class="level4">
 <h4 class="anchored" data-anchor-id="example-2">Example 2</h4>
-<p>One modulo operation and equality test can be removed by replacing <code>i %% 3 == 0 &amp;&amp; i %% 5 == 0</code> by <code>i %% 15 == 0</code>. The difference isn’t huge, but there is a slight speedup:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-13_778d5e8d0ec8466b2cd0942efbb227de">
-<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>f5 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<p>One modulo operation and equality test can be removed by replacing <code>i %% 3 == 0 &amp;&amp; i %% 5 == 0</code> by <code>i %% 15 == 0</code>. We now have three modulo operations and equality tests per iteration instead of four. This gives us a pretty good speedup:</p>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-13_366f3e62734a9e8bd2f006357ff28ba2">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>f6 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(n)</span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>n) {</span>
 <span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">15</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
@@ -764,7 +763,7 @@ disabled.
 <span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>  z</span>
 <span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>}</span>
 <span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">f5</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f2</span>(n), <span class="fu">f6</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
 disabled.</code></pre>
@@ -773,33 +772,67 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f2(n)         320ms    344ms      2.90    1.15MB     13.1
-2 f5(n)         301ms    302ms      3.31    1.22MB     14.9</code></pre>
+1 f2(n)         176ms    176ms      5.15    1.15MB     20.6
+2 f6(n)         104ms    106ms      9.34    1.22MB     31.8</code></pre>
+</div>
+</div>
+<p>But we can remove an additional modulo operation and equality test at each iteration by assigning <code>i %% 3 == 0</code> and <code>i %% 5 == 0</code> to variables:</p>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-14_c775e24c3de6b09696f26e8167b3b17a">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>f7 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span>n</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> z) {</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    div3 <span class="ot">&lt;-</span> (i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    div5 <span class="ot">&lt;-</span> (i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(div3 <span class="sc">&amp;&amp;</span> div5) {</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(div3) {</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(div5) {</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    } </span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>  z</span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now we only have two modulo operations and equality tests per iteration and we gets an even greater speedup:</p>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-15_b24fb2eda13c59eca042cb8d76e9992a">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f6</span>(n), <span class="fu">f7</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
+disabled.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 6
+  expression      min   median `itr/sec` mem_alloc `gc/sec`
+  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+1 f6(n)       107.5ms  110.3ms      8.99    1.15MB     32.4
+2 f7(n)        63.5ms   63.9ms     15.6     1.21MB     31.2</code></pre>
 </div>
 </div>
 </section>
 <section id="example-3" class="level4">
 <h4 class="anchored" data-anchor-id="example-3">Example 3</h4>
-<p>Louis Arsenault-Mahjoubi—who attended this workshop—found ways to get rid of several additional operations and get a large speedup over <code>f5()</code>.</p>
-<p>First, we can assign <code>1:n</code> to <code>z</code> instead of pre-allocating memory with an empty vector, thus rendering the assignment of <code>i</code> to <code>z[i]</code> unnecessary in the last else statement:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-14_87a5753e2f67ca1134bd27d6a4392020">
-<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>f_louis1 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span>n</span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> z) {</span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
-<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    } </span>
-<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>  z</span>
-<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We can assign <code>1:n</code> to <code>z</code> instead of initializing it as an empty vector, thus rendering the assignment of <code>i</code> to <code>z[i]</code> in the last else statement unnecessary:</p>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-16_9d2c164d535e03f84b1719b5085063d6">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>f8 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span>n</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> z) {</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    div3 <span class="ot">&lt;-</span> (i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    div5 <span class="ot">&lt;-</span> (i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(div3 <span class="sc">&amp;&amp;</span> div5) {</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(div3) {</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(div5) {</span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a>    } </span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>  z</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>This function works:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-15_1c88e721dd743a4a5ec6f4c82212bcfc">
-<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">f_louis1</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-17_0241eaa771ebb719941273cdde53c676">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">f8</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
  [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
@@ -807,57 +840,27 @@ disabled.</code></pre>
 [19] "19"       "Buzz"    </code></pre>
 </div>
 </div>
-<p>… and is faster (speedup of 1.3):</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-16_c1662970b34d6d6b8bf34f194db4bfb4">
-<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f5</span>(n), <span class="fu">f_louis1</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The speedup however is extremely slight:</p>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-18_b3b6d57849b724e132d111d9c7a9bb95">
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f7</span>(n), <span class="fu">f8</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
 disabled.</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 2 × 6
-  expression       min   median `itr/sec` mem_alloc `gc/sec`
-  &lt;bch:expr&gt;  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f5(n)          215ms    218ms      4.56    1.15MB     16.7
-2 f_louis1(n)    168ms    171ms      5.59    1.15MB     20.5</code></pre>
+  expression      min   median `itr/sec` mem_alloc `gc/sec`
+  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+1 f7(n)        65.9ms   67.1ms      14.7    1.23MB     33.1
+2 f8(n)        65.5ms   67.6ms      14.7    1.22MB     35.0</code></pre>
 </div>
 </div>
-<p>Then, we can prevent the repetitions of the modulo operations and equality tests by saving them to variables:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-17_69b8189490577c6defddcfa0c6811fba">
-<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>f_louis2 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span>n</span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> z) {</span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    div3 <span class="ot">&lt;-</span> (i <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
-<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>    div5 <span class="ot">&lt;-</span> (i <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
-<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(div3 <span class="sc">&amp;&amp;</span> div5) {</span>
-<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
-<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(div3) {</span>
-<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
-<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(div5) {</span>
-<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
-<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>    } </span>
-<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>  z</span>
-<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>This gets us an even greater speedup of 1.7:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-18_1f72bb65e3cf7a09a26abc45565b9430">
-<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f5</span>(n), <span class="fu">f_louis2</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stderr">
-<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
-disabled.</code></pre>
-</div>
-<div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 2 × 6
-  expression       min   median `itr/sec` mem_alloc `gc/sec`
-  &lt;bch:expr&gt;  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f5(n)          229ms    231ms      4.34    1.15MB     18.8
-2 f_louis2(n)    122ms    153ms      6.74    1.21MB     15.2</code></pre>
-</div>
-</div>
-<p>But it gets even better: we can actually get rid of the for loop!</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-19_67aea36d4233f17790bf3eeda3cb7e44">
-<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>f_louis3 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
+</section>
+<section id="example-4" class="level4">
+<h4 class="anchored" data-anchor-id="example-4">Example 4</h4>
+<p>We can actually get rid of the loop and use a vectorized approach.</p>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-19_1626282a2e49b067e1f38f64911deb1e">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>f9 <span class="ot">&lt;-</span> <span class="cf">function</span>(n) {</span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span>n</span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>  div3 <span class="ot">&lt;-</span> (z <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
 <span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  div5 <span class="ot">&lt;-</span> (z <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>)</span>
@@ -867,24 +870,9 @@ disabled.</code></pre>
 <span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>  z</span>
 <span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Now we get a speedup of 6 compared to the <code>f5</code> function:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-20_dc2d88c3ec2324384a571f14edf35119">
-<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f5</span>(n), <span class="fu">f_louis3</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stderr">
-<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
-disabled.</code></pre>
-</div>
-<div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 2 × 6
-  expression       min   median `itr/sec` mem_alloc `gc/sec`
-  &lt;bch:expr&gt;  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f5(n)        207.8ms  221.5ms      4.53    1.15MB    18.1 
-2 f_louis3(n)   44.3ms   63.3ms     16.1     5.19MB     1.79</code></pre>
-</div>
-</div>
-<p>You can ensure that we still get the same result:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-21_251e0a31cfdde2cf03649a4c9405bfba">
-<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">f_louis3</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This still give us the same result:</p>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-20_5e917cd9dfa57e3e9aa60196b54d9f14">
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">f9</span>(<span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code> [1] "1"        "2"        "Fizz"     "4"        "Buzz"     "Fizz"    
  [7] "7"        "8"        "Fizz"     "Buzz"     "11"       "Fizz"    
@@ -892,53 +880,8 @@ disabled.</code></pre>
 [19] "19"       "Buzz"    </code></pre>
 </div>
 </div>
-</section>
-</section>
-<section id="replace-costly-operations-where-possible" class="level3">
-<h3 class="anchored" data-anchor-id="replace-costly-operations-where-possible">Replace costly operations where possible</h3>
-<p>Now imagine that we have a dataframe called <code>dat</code> with a first column called <code>datvar</code> filled with integers.</p>
-<p>We want to write a function that will accept our dataframe as argument and play the fizz buzz game on the column <code>datvar</code>.</p>
-<p>One could imagine the following function:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-22_80809cb61f23859ac3ce599984b723ef">
-<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>f6 <span class="ot">&lt;-</span> <span class="cf">function</span>(dat) {</span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(<span class="fu">length</span>(dat[[<span class="dv">1</span>]]))</span>
-<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="fu">seq_along</span>(dat[[<span class="dv">1</span>]])) {</span>
-<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
-<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
-<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat[[<span class="dv">1</span>]][i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
-<span id="cb47-10"><a href="#cb47-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
-<span id="cb47-11"><a href="#cb47-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> dat[[<span class="dv">1</span>]][i]</span>
-<span id="cb47-12"><a href="#cb47-12" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb47-13"><a href="#cb47-13" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb47-14"><a href="#cb47-14" aria-hidden="true" tabindex="-1"></a>  z</span>
-<span id="cb47-15"><a href="#cb47-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>Indexing a column from a dataframe in this fashion is a very costly operation. It is much more efficient to index with the name of the column:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-23_cad865f4ae2eadf84fd92a0eef54f814">
-<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>f7 <span class="ot">&lt;-</span> <span class="cf">function</span>(dat) {</span>
-<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(<span class="fu">length</span>(dat<span class="sc">$</span>datvar))</span>
-<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="fu">seq_along</span>(dat<span class="sc">$</span>datvar)) {</span>
-<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
-<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
-<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(dat<span class="sc">$</span>datvar[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb48-9"><a href="#cb48-9" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
-<span id="cb48-10"><a href="#cb48-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
-<span id="cb48-11"><a href="#cb48-11" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> dat<span class="sc">$</span>datvar[i]</span>
-<span id="cb48-12"><a href="#cb48-12" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb48-13"><a href="#cb48-13" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb48-14"><a href="#cb48-14" aria-hidden="true" tabindex="-1"></a>  z</span>
-<span id="cb48-15"><a href="#cb48-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>Now, let’s create a random dataframe to benchmark <code>f6()</code> and <code>f7()</code>:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-24_62ed89c8bf5aefca5e0390ac0be759bd">
-<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
-<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>dat <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">datvar =</span> <span class="fu">round</span>(<span class="fu">runif</span>(n, <span class="dv">1</span>, n)))</span>
-<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f6</span>(dat), <span class="fu">f7</span>(dat))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-21_705f07cd1a558f06a753acb23fe5fd3c">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f8</span>(n), <span class="fu">f9</span>(n))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
 disabled.</code></pre>
@@ -947,78 +890,18 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f6(dat)       3.29s    3.29s     0.304    1.26MB     15.8
-2 f7(dat)    700.21ms 700.21ms     1.43     1.26MB     12.9</code></pre>
+1 f8(n)        64.3ms   64.6ms      15.3    1.15MB    32.5 
+2 f9(n)          19ms   20.7ms      41.9    5.62MB     3.99</code></pre>
 </div>
 </div>
+<p>The speedup of xxx shows how important it is to use vectorization whenever possible.</p>
 </section>
-<section id="avoid-repetitions-of-costly-operations" class="level3">
-<h3 class="anchored" data-anchor-id="avoid-repetitions-of-costly-operations">Avoid repetitions of costly operations</h3>
-<p>This made a big difference (speedup of 5), but notice that we are indexing the column 6 times in our function. Let’s remove the repetition of this operation:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-25_9be71ecbce2289d36b6fb8d7f9b9b496">
-<div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a>f8 <span class="ot">&lt;-</span> <span class="cf">function</span>(dat) {</span>
-<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>  var <span class="ot">&lt;-</span> dat<span class="sc">$</span>datvar</span>
-<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>  z <span class="ot">&lt;-</span> <span class="fu">integer</span>(<span class="fu">length</span>(var))</span>
-<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="fu">seq_along</span>(var)) {</span>
-<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span>(var[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span> <span class="sc">&amp;&amp;</span> var[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"FizzBuzz"</span></span>
-<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(var[i] <span class="sc">%%</span> <span class="dv">3</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Fizz"</span></span>
-<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> <span class="cf">if</span>(var[i] <span class="sc">%%</span> <span class="dv">5</span> <span class="sc">==</span> <span class="dv">0</span>) {</span>
-<span id="cb52-10"><a href="#cb52-10" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> <span class="st">"Buzz"</span></span>
-<span id="cb52-11"><a href="#cb52-11" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
-<span id="cb52-12"><a href="#cb52-12" aria-hidden="true" tabindex="-1"></a>      z[i] <span class="ot">&lt;-</span> var[i]</span>
-<span id="cb52-13"><a href="#cb52-13" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb52-14"><a href="#cb52-14" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb52-15"><a href="#cb52-15" aria-hidden="true" tabindex="-1"></a>  z</span>
-<span id="cb52-16"><a href="#cb52-16" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>Let’s benchmark all 3 versions:</p>
-<div class="cell" data-hash="hpc_optimizations_cache/html/unnamed-chunk-26_f71cde62e8b392e168a71a8fddcbf3e2">
-<div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mark</span>(<span class="fu">f6</span>(dat), <span class="fu">f7</span>(dat), <span class="fu">f8</span>(dat))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stderr">
-<pre><code>Warning: Some expressions had a GC in every iteration; so filtering is
-disabled.</code></pre>
-</div>
-<div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 3 × 6
-  expression      min   median `itr/sec` mem_alloc `gc/sec`
-  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f6(dat)       3.22s    3.22s     0.311    1.15MB    15.8 
-2 f7(dat)    651.03ms 651.03ms     1.54     1.15MB    15.4 
-3 f8(dat)    251.33ms 262.73ms     3.81     1.25MB     9.52</code></pre>
-</div>
-</div>
-<p><code>f8()</code> gave us another speedup of almost 3 over <code>f7()</code>. <code>f8()</code> runs 14 times faster than our initial function!</p>
-<div class="note">
-<p>Indexing from a vector isn’t costly. There is thus no advantage at removing the repetition of that operation.</p>
-</div>
-<div class="exo">
-<div class="yourturn">
-<p>Your turn:</p>
-</div>
-<p>Show that this last statement is true.</p>
-</div>
-<!-- ```{r} -->
-<!-- f9 <- function(dat) { -->
-<!--   var <- dat$datvar -->
-<!--   z <- integer(length(var)) -->
-<!--   for(i in seq_along(var)) { -->
-<!--     num <- var[i] -->
-<!--     if(num %% 3 == 0 && num %% 5 == 0) { -->
-<!--       z[i] <- "FizzBuzz" -->
-<!--     } else if(num %% 3 == 0) { -->
-<!--       z[i] <- "Fizz" -->
-<!--     } else if(num %% 5 == 0) { -->
-<!--       z[i] <- "Buzz" -->
-<!--     } else { -->
-<!--       z[i] <- i -->
-<!--     } -->
-<!--   } -->
-<!--   z -->
-<!-- } -->
-<!-- mark(f8(dat), f9(dat)) -->
-<!-- ``` -->
+</section>
+<section id="replace-costly-operations-where-possible" class="level3">
+<h3 class="anchored" data-anchor-id="replace-costly-operations-where-possible">Replace costly operations where possible</h3>
+<p>Sometimes, it isn’t obvious that one method will be faster than another. Benchmarking alternative methods can teach you which expressions are faster.</p>
+<p>For instance, it is much faster to index a column from a dataframe with the name of the column (e.g.&nbsp;<code>dataframe$column1</code>) than by using list indexing (e.g.&nbsp;<code>dataframe[[1]]</code>).</p>
+<p>Even faster with data frame is to use the package <a href="https://cran.r-project.org/web/packages/data.table/index.html">data.table</a>.</p>
 
 
 </section>
