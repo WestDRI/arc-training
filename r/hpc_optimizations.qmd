@@ -29,7 +29,7 @@ In this section, we will cover several principles by playing with the programmat
 - any number divisible by 5 with the word "Buzz",
 - any number divisible by both 3 and 5 with the word "FizzBuzz".
 
-Let's write functions to solve the game and time them to draw some general principles about more efficient code.
+Let's write functions that output series from `1` to `n` following these rules and time them to draw general principles about code efficiency.
 
 ## Setup
 
@@ -83,7 +83,7 @@ sbatch optim.sh
 
 ### Pre-allocate memory
 
-In this first function, we create an empty object `z` of class integer and of length `0` that will hold the result of a loop, then we run the loop and at each iteration, we add a new value to `z`:
+In order to store the results of a loop, we need to create an object and assign to it the result of the loop at each iteration. In this first function, we create an empty object `z` of class integer and of length `0` for that purpose:
 
 ```{r}
 f1 <- function(n) {
@@ -103,7 +103,7 @@ f1 <- function(n) {
 }
 ```
 
-The second function is very similar, but this time, we create an empty object `z` of class integer and of length matching the final length `z` will have after running the loop. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:
+The second function is similar, but this time, we initialize `z` with its final length. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:
 
 ```{r}
 f2 <- function(n) {
@@ -137,9 +137,7 @@ n <- 1e5
 mark(f1(n), f2(n))
 ```
 
-`f2()` is consistently faster. While in this example the difference is very slight, pre-allocating the object that will hold the result of a loop before running the loop can make a big difference.
-
-Also, note the difference in memory allocation.
+`f2()` is consistently faster. Also, note the difference in memory allocation.
 
 ### Aren't loops a big 'no no' in R?
 
@@ -152,7 +150,7 @@ Let's test it.
 First we create a function:
 
 ```{r}
-fb <- function(n) {
+f3 <- function(n) {
   if(n %% 3 == 0 && n %% 5 == 0) {
     "FizzBuzz"
   } else if(n %% 3 == 0) {
@@ -168,13 +166,13 @@ fb <- function(n) {
 Then we pass it through `sapply()`. We can test that it works on a small number:
 
 ```{r}
-sapply(1:20, fb)
+sapply(1:20, f3)
 ```
 
 Finally, we compare the timing with that of `f2()`:
 
 ```{r}
-mark(f2(n), sapply(1:n, fb))
+mark(f2(n), sapply(1:n, f3))
 ```
 
 As you can see, the loop is faster.
@@ -192,7 +190,7 @@ From the R documentation:
 Now, what about using `print()` instead?
 
 ```{r}
-f3 <- function(n) {
+f4 <- function(n) {
   z <- integer(n)
   for(i in 1:n) {
     if(i %% 3 == 0 && i %% 5 == 0) {
@@ -212,7 +210,7 @@ f3 <- function(n) {
 Let's benchmark it against `f2()`:
 
 ```{.r}
-mark(f2(n), f3(n))
+mark(f2(n), f4(n))
 ```
 
 ```
@@ -231,24 +229,24 @@ disabled.
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   <bch:expr> <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
 1 f2(1e+05)  151.88ms 157.65ms     6.30     1.25MB     29.9
-2 f3(1e+05)     3.25s    3.25s     0.308    1.04GB     26.8
+2 f4(1e+05)     3.25s    3.25s     0.308    1.04GB     26.8
 ```
 
 What happened?
 
-`print()` returns its argument, but it additionally prints it to the standard output. This is why the `mark()` function printed the output of `f3()` before printing the timings.
+`print()` returns its argument, but it additionally prints it to the standard output. This is why the `mark()` function printed the output of `f4()` before printing the timings.
 
 As you can see, printing takes a long time.
 
 :::{.note}
 
-The code in this website is run by Quarto. Since, by default, RStudio will only print the first 1,000 results, the timing you will get for `f3()` in RStudio will be much less bad as it won't include the time it takes to print the remaining 99,000 results.
+The code in this website is run by Quarto. Since, by default, RStudio will only print the first 1,000 results, the timing you will get for `f4()` in RStudio will be much less bad as it won't include the time it takes to print the remaining 99,000 results.
 
 :::
 
-If you are evaluating `f2()` on its own (e.g. `f2(20)`), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and `f3()` would be a very bad option. `f3()` is thus not a good function.
+If you are evaluating `f2()` on its own (e.g. `f2(20)`), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and `f4()` would be a very bad option. `f4()` is thus not a good function.
 
-Here is an example in which `f3()` would perform a totally unnecessary operation that `f2()` avoids:
+Here is an example in which `f4()` would perform a totally unnecessary operation that `f2()` avoids:
 
 ```{r}
 a <- f2(20)
@@ -261,7 +259,7 @@ No unnecessary printing.
 :::
 
 ```{r}
-a <- f3(20)
+a <- f4(20)
 ```
 
 :::{.note}
@@ -275,7 +273,7 @@ For 1e5, the difference in timing between running an unnecessary printing vs not
 Even worse would be to use:
 
 ```{r}
-f4 <- function(n) {
+f5 <- function(n) {
   for(i in 1:n) {
     if(i %% 3 == 0 && i %% 5 == 0) {
       print("FizzBuzz")
@@ -294,10 +292,10 @@ Here the difference in timing is a factor of 50...
 
 #### Example 2
 
-One modulo operation and equality test can be removed by replacing `i %% 3 == 0 && i %% 5 == 0` by `i %% 15 == 0`. The difference isn't huge, but there is a slight speedup:
+One modulo operation and equality test can be removed by replacing `i %% 3 == 0 && i %% 5 == 0` by `i %% 15 == 0`. We now have three modulo operations and equality tests per iteration instead of four. This gives us a pretty good speedup:
 
 ```{r}
-f5 <- function(n) {
+f6 <- function(n) {
   z <- integer(n)
   for(i in 1:n) {
     if(i %% 15 == 0) {
@@ -313,47 +311,13 @@ f5 <- function(n) {
   z
 }
 
-mark(f2(n), f5(n))
+mark(f2(n), f6(n))
 ```
 
-#### Example 3
-
-Louis Arsenault-Mahjoubi—who attended this workshop—found ways to get rid of several additional operations and get a large speedup over `f5()`.
-
-First, we can assign `1:n` to `z` instead of pre-allocating memory with an empty vector, thus rendering the assignment of `i` to `z[i]` unnecessary in the last else statement:
+But we can remove an additional modulo operation and equality test at each iteration by assigning `i %% 3 == 0` and `i %% 5 == 0` to variables:
 
 ```{r}
-f_louis1 <- function(n) {
-  z <- 1:n
-  for(i in z) {
-    if(i %% 3 == 0 && i %% 5 == 0) {
-      z[i] <- "FizzBuzz"
-    } else if(i %% 3 == 0) {
-      z[i] <- "Fizz"
-    } else if(i %% 5 == 0) {
-      z[i] <- "Buzz"
-    } 
-  }
-  z
-}
-```
-
-This function works:
-
-```{r}
-f_louis1(20)
-```
-
-... and is faster (speedup of 1.3):
-
-```{r}
-mark(f5(n), f_louis1(n))
-```
-
-Then, we can prevent the repetitions of the modulo operations and equality tests by saving them to variables:
-
-```{r}
-f_louis2 <- function(n) {
+f7 <- function(n) {
   z <- 1:n
   for(i in z) {
     div3 <- (i %% 3 == 0)
@@ -370,16 +334,52 @@ f_louis2 <- function(n) {
 }
 ```
 
-This gets us an even greater speedup of 1.7:
+Now we only have two modulo operations and equality tests per iteration and we gets an even greater speedup:
 
 ```{r}
-mark(f5(n), f_louis2(n))
+mark(f6(n), f7(n))
 ```
 
-But it gets even better: we can actually get rid of the for loop!
+#### Example 3
+
+We can assign `1:n` to `z` instead of initializing it as an empty vector, thus rendering the assignment of `i` to `z[i]` in the last else statement unnecessary:
 
 ```{r}
-f_louis3 <- function(n) {
+f8 <- function(n) {
+  z <- 1:n
+  for(i in z) {
+    div3 <- (i %% 3 == 0)
+    div5 <- (i %% 5 == 0)
+    if(div3 && div5) {
+      z[i] <- "FizzBuzz"
+    } else if(div3) {
+      z[i] <- "Fizz"
+    } else if(div5) {
+      z[i] <- "Buzz"
+    } 
+  }
+  z
+}
+```
+
+This function works:
+
+```{r}
+f8(20)
+```
+
+The speedup however is extremely slight:
+
+```{r}
+mark(f7(n), f8(n))
+```
+
+#### Example 4
+
+We can actually get rid of the loop and use a vectorized approach.
+
+```{r}
+f9 <- function(n) {
   z <- 1:n
   div3 <- (z %% 3 == 0)
   div5 <- (z %% 5 == 0)
@@ -390,138 +390,22 @@ f_louis3 <- function(n) {
 }
 ```
 
-Now we get a speedup of 6 compared to the `f5` function:
+This still give us the same result:
 
 ```{r}
-mark(f5(n), f_louis3(n))
+f9(20)
 ```
-
-You can ensure that we still get the same result:
 
 ```{r}
-f_louis3(20)
+mark(f8(n), f9(n))
 ```
+
+The speedup of xxx shows how important it is to use vectorization whenever possible.
 
 ### Replace costly operations where possible
 
-Now imagine that we have a dataframe called `dat` with a first column called `datvar` filled with integers.
+Sometimes, it isn't obvious that one method will be faster than another. Benchmarking alternative methods can teach you which expressions are faster.
 
-We want to write a function that will accept our dataframe as argument and play the fizz buzz game on the column `datvar`.
+For instance, it is much faster to index a column from a dataframe with the name of the column (e.g. `dataframe$column1`) than by using list indexing (e.g. `dataframe[[1]]`).
 
-One could imagine the following function:
-
-```{r}
-f6 <- function(dat) {
-  z <- integer(length(dat[[1]]))
-  for(i in seq_along(dat[[1]])) {
-    if(dat[[1]][i] %% 3 == 0 && dat[[1]][i] %% 5 == 0) {
-      z[i] <- "FizzBuzz"
-    } else if(dat[[1]][i] %% 3 == 0) {
-      z[i] <- "Fizz"
-    } else if(dat[[1]][i] %% 5 == 0) {
-      z[i] <- "Buzz"
-    } else {
-      z[i] <- dat[[1]][i]
-    }
-  }
-  z
-}
-```
-
-Indexing a column from a dataframe in this fashion is a very costly operation. It is much more efficient to index with the name of the column:
-
-```{r}
-f7 <- function(dat) {
-  z <- integer(length(dat$datvar))
-  for(i in seq_along(dat$datvar)) {
-    if(dat$datvar[i] %% 3 == 0 && dat$datvar[i] %% 5 == 0) {
-      z[i] <- "FizzBuzz"
-    } else if(dat$datvar[i] %% 3 == 0) {
-      z[i] <- "Fizz"
-    } else if(dat$datvar[i] %% 5 == 0) {
-      z[i] <- "Buzz"
-    } else {
-      z[i] <- dat$datvar[i]
-    }
-  }
-  z
-}
-```
-Now, let's create a random dataframe to benchmark `f6()` and `f7()`:
-
-```{r}
-set.seed(123)
-dat <- data.frame(datvar = round(runif(n, 1, n)))
-mark(f6(dat), f7(dat))
-```
-
-### Avoid repetitions of costly operations
-
-This made a big difference (speedup of 5), but notice that we are indexing the column 6 times in our function. Let's remove the repetition of this operation:
-
-```{r}
-f8 <- function(dat) {
-  var <- dat$datvar
-  z <- integer(length(var))
-  for(i in seq_along(var)) {
-    if(var[i] %% 3 == 0 && var[i] %% 5 == 0) {
-      z[i] <- "FizzBuzz"
-    } else if(var[i] %% 3 == 0) {
-      z[i] <- "Fizz"
-    } else if(var[i] %% 5 == 0) {
-      z[i] <- "Buzz"
-    } else {
-      z[i] <- var[i]
-    }
-  }
-  z
-}
-```
-
-Let's benchmark all 3 versions:
-
-```{r}
-mark(f6(dat), f7(dat), f8(dat))
-```
-
-`f8()` gave us another speedup of almost 3 over `f7()`. `f8()` runs 14 times faster than our initial function!
-
-:::{.note}
-
-Indexing from a vector isn't costly. There is thus no advantage at removing the repetition of that operation.
-
-:::
-
-:::{.exo}
-
-:::{.yourturn}
-
-Your turn:
-
-:::
-
-Show that this last statement is true.
-
-:::
-
-<!-- ```{r} -->
-<!-- f9 <- function(dat) { -->
-<!--   var <- dat$datvar -->
-<!--   z <- integer(length(var)) -->
-<!--   for(i in seq_along(var)) { -->
-<!--     num <- var[i] -->
-<!--     if(num %% 3 == 0 && num %% 5 == 0) { -->
-<!--       z[i] <- "FizzBuzz" -->
-<!--     } else if(num %% 3 == 0) { -->
-<!--       z[i] <- "Fizz" -->
-<!--     } else if(num %% 5 == 0) { -->
-<!--       z[i] <- "Buzz" -->
-<!--     } else { -->
-<!--       z[i] <- i -->
-<!--     } -->
-<!--   } -->
-<!--   z -->
-<!-- } -->
-
-<!-- mark(f8(dat), f9(dat)) -->
-<!-- ``` -->
+Even faster with data frame is to use the package [data.table](https://cran.r-project.org/web/packages/data.table/index.html).
