@@ -7,7 +7,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-Memory can be a limiting factor and releasing it when not needed can be critical to avoid [out of memory](https://en.wikipedia.org/wiki/Out_of_memory) states. On the other hand, [memoisation](https://en.wikipedia.org/wiki/Memoization) is an optimization technique which stores the results of heavy computations for re-use at the cost of increasing memory usage.
+Memory can be a limiting factor and releasing it when not needed can be critical to avoid [out of memory](https://en.wikipedia.org/wiki/Out_of_memory) states. On the other hand, [memoisation](https://en.wikipedia.org/wiki/Memoization) is an optimization technique which consists of caching the results of heavy computations for re-use.
 
 Memory and speed are thus linked in a trade-off.
 
@@ -15,15 +15,87 @@ Memory and speed are thus linked in a trade-off.
 
 ## Releasing memory
 
-It is best to avoid creating very large intermediate objects (e.g. with nested functions or functions chained with the [magrittr](https://cran.r-project.org/web/packages/magrittr/index.html#:~:text=magrittr%3A%20A%20Forward-Pipe%20Operator,of%20right-hand%20side%20expressions.) pipe), but if you must, remove them from the global environment with `rm()` when you don't need them anymore. Once all the pointers to an object in memory are deleted, the garbage collector will clear its value and release the memory it used.
+It is best to avoid creating very large intermediate objects that take space in memory unnecessarily.
 
-Another way to release the memory used by heavy intermediate objects is with functions: if you create those objects in the local environment of a function (instead of directly in the global environment), they will be cleared from memory as soon as the function has finished running.
+- One option is to use nested functions or functions chained with pipes.
+
+- Another option is to create the intermediate objects within the local environment of a function as they will automatically be deleted as soon as the function has finished running.
+
+Let's go over a basic example: let's extract the sepal width variable from [the iris dataset](https://en.wikipedia.org/wiki/Iris_flower_data_set) (one of the datasets that come packaged with R), take the natural logarithm of the values, and round them to one decimal place.
+
+First, let's delete all objects inside our environment to make our little test as clean as possible:
+
+```{r}
+rm(list=ls())
+ls()
+```
+
+Now, we could perform our task this way:
+
+```{r}
+sepalwidth <- iris$Sepal.Width
+sepalwidth_ln <- log(sepalwidth)
+round(sepalwidth_ln, 1)
+```
+
+But this creates the unnecessary intermediate variables `sepalwidth` and `sepalwidth_ln` which get stored in memory:
+
+```{r}
+ls()
+```
+
+For very large objects, this is not ideal.
+
+Let's clear objects in our environment again:
+
+```{r}
+rm(list=ls())
+ls()
+```
+
+A better option is to use nested functions:
+
+```{r}
+round(log(iris$Sepal.Width), 1)
+```
+
+An equivalent option is to chain functions:
+
+```{r}
+iris$Sepal.Width |> log() |> round(1)
+```
+
+Another option is to create the intermediate variables in the local environment of a function:
+
+```{r}
+get_sepalwidth <- function(dataset) {
+  sepalwidth <- dataset$Sepal.Width
+  sepalwidth_ln <- log(sepalwidth)
+  round(sepalwidth_ln, 1)
+}
+
+get_sepalwidth(iris)
+```
+
+None of these options left intermediate variables in our environment:
+
+```{r}
+ls()
+```
 
 Note that in the case of a very large function, it might still be beneficial to run `rm()` inside the function to clear the memory for other processes coming next within that function. But this is a pretty rare case.
 
-## Caching in memory
+If you really have to create large intermediate objects in the global environment, make sure to delete them as soon as you don't need them anymore (e.g. `rm(sepalwidth, sepalwidth_ln)`).
 
-[Memoisation](https://en.wikipedia.org/wiki/Memoization) is a technique by which the results of heavy computations are stored in memory to avoid have to re-calculate them. This can be convenient in a variety of settings (e.g. to reduce calls to an API), but mostly, it can greatly improve the efficiency of some code such as recursive function calls.
+:::{.note}
+
+`rm()` deletes the names of variables (the pointers to objects in memory). But as soon as all the pointers to an object in memory are deleted, the garbage collector clears its value and releases the memory it used.
+
+:::
+
+## Caching
+
+[Memoisation](https://en.wikipedia.org/wiki/Memoization) is a technique by which some results are cached to avoid re-calculating them. This is convenient in a variety of settings (e.g. to reduce calls to an API, to avoid repeating heavy computations). In particular, it improves the efficiency of recursive function calls dramatically.
 
 Let's consider the calculation of the [Fibonacci numbers](https://en.wikipedia.org/wiki/Fibonacci_number) as an example. Those numbers form a sequence starting with `0` and `1`[^1], after which each number is the sum of the previous two.
 
