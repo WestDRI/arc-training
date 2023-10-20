@@ -225,26 +225,22 @@ mark(f2(n), f4(n))
 [37] "37"       "38"       "Fizz"     "Buzz"     "41"       "Fizz"
 ...
 
-Warning: Some expressions had a GC in every iteration; so filtering is
-disabled.
-# A tibble: 2 × 6
-  expression      min   median `itr/sec` mem_alloc `gc/sec`
-  <bch:expr> <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-1 f2(1e+05)  151.88ms 157.65ms     6.30     1.25MB     29.9
-2 f4(1e+05)     3.25s    3.25s     0.308    1.04GB     26.8
+  expression      min median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time
+  <bch:expr> <bch:tm> <bch:>     <dbl> <bch:byt>    <dbl> <int> <dbl>   <bch:tm>
+1 f2(n)         131ms  139ms      6.71        NA    21.8      4    13      596ms
+2 f4(n)         405ms  411ms      2.43        NA     8.52     2     7      822ms
+# ℹ 4 more variables: result <list>, memory <list>, time <list>, gc <list>
+Warning message:
+Some expressions had a GC in every iteration; so filtering is disabled.
 ```
+
+`f4()` is 3 times slower.
 
 What happened?
 
 `print()` returns its argument, but it additionally prints it to the standard output. This is why the `mark()` function printed the output of `f4()` before printing the timings.
 
 As you can see, printing takes a long time.
-
-:::{.note}
-
-The code in this website is run by Quarto. Since, by default, RStudio will only print the first 1,000 results, the timing you will get for `f4()` in RStudio will be much less bad as it won't include the time it takes to print the remaining 99,000 results.
-
-:::
 
 If you are evaluating `f2()` on its own (e.g. `f2(20)`), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and `f4()` would be a very bad option. `f4()` is thus not a good function.
 
@@ -270,11 +266,9 @@ Unnecessary printing.
 
 :::
 
-For 1e5, the difference in timing between running an unnecessary printing vs not is a factor of 21!
-
 Even worse would be to use:
 
-```{r}
+```{.r}
 f5 <- function(n) {
   for(i in 1:n) {
     if(i %% 3 == 0 && i %% 5 == 0) {
@@ -288,9 +282,28 @@ f5 <- function(n) {
     }
   }
 }
+
+mark(f2(n), f4(n), check = F)
 ```
 
-Here the difference in timing is a factor of 50...
+```
+  expression      min   median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc
+  <bch:expr> <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl> <int> <dbl>
+1 f2(n)       132.8ms 141.69ms     6.77         NA     25.4     4    15
+2 f5(n)         1.65s    1.65s     0.606        NA     12.7     1    21
+# ℹ 5 more variables: total_time <bch:tm>, result <list>, memory <list>,
+#   time <list>, gc <list>
+Warning message:
+Some expressions had a GC in every iteration; so filtering is disabled.
+```
+
+:::{.note}
+
+We have to disable the check here because the results of the two functions are not technically the same (but we don't care because, in both cases, the series gets created and that's what we want).
+
+:::
+
+Here the difference in timing is a factor of 12!
 
 #### Example 2
 
