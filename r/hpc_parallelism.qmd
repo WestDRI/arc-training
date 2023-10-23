@@ -1,0 +1,62 @@
+---
+title: "Parallelism: concepts"
+aliases:
+  - parallel_types.html
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+Once all sequential optimizations have been exhausted, it is time to consider whether parallelization makes sense.
+
+This section covers important concepts that are necessary to understand clearly before moving on to writing parallel code.
+
+:::
+
+## Hidden parallelism
+
+An increasing number of packages run code in parallel under the hood. It is very important to be aware of this before attempting any explicit parallelization or you may end up with recursive multicore parallelization and an explosion of running cores. This can be both inefficient with demultiplied overhead and extremely resource intensive.
+
+One way to assess this is to run your code (without any explicit parallelization) and look at the number of cores running with tools such as [htop](https://htop.dev/). We will see an example of this later.
+
+## Embarrassingly parallel problems
+
+Ideal cases for parallelization are embarrassingly parallel problems: problems which can be broken down into independent tasks without any work.
+
+Examples:
+
+- Loops for which all iterations are independent of each others.
+- [Resampling](https://en.wikipedia.org/wiki/Resampling_(statistics)) (e.g. bootstrapping or cross-validation).
+- [Ensemble learning](https://en.wikipedia.org/wiki/Ensemble_learning) (e.g. random forests).
+
+Examples of problems which are **not** embarrassingly parallel:
+
+- Loops for which the result of one iteration is needed for the next iteration.
+- Recursive function calls.
+- Problems that are inherently sequential.
+
+For non-embarrassingly parallel problems, one solution is [to use C++](hpc_rcpp.html) to improve speed, as we will see at the end of this course.
+
+## Types of parallelism
+
+There are various ways to run code in parallel and it is important to have a clear understanding of what each method entails.
+
+### Multi-threading
+
+We talk about **multi-threading** when a single process (with its own memory) runs multiple threads.
+
+The execution can happen in parallel—if each thread has access to a CPU core—or by alternating some of the threads on some CPU cores.
+
+Because all threads in a process write to the same memory addresses, multi-threading can lead to [race conditions](https://en.wikipedia.org/wiki/Race_condition).
+
+Multi-threading does not seem to be a common approach to parallelizing R code.
+
+### Multi-processing in shared memory
+
+**Multi-processing in shared memory** happens when multiple processes execute code on multiple CPU cores of a single node (or a single machine).
+
+The different processes need to communicate with each other, but because they are all running on the CPU cores of a single node, messages can pass via shared memory.
+
+### Multi-processing in distributed memory
+
+When processes involved in the execution of some code run on multiple nodes of a cluster, messages between them need to travel over the cluster interconnect. In that case, we talk about **distributed memory**.
