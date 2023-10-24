@@ -595,10 +595,18 @@ Levels: setosa versicolor virginica</code></pre>
 <section id="hidden-parallelism-check" class="level2">
 <h2 class="anchored" data-anchor-id="hidden-parallelism-check">Hidden parallelism check</h2>
 <p>Before parallelizing your code, remember to check whether the package you are using is already doing any parallelization under the hood (after all, maybe the <code>randomForest</code> package runs things in parallel. We don’t know).</p>
-<p>Let’s run the code and, while it is running, open <a href="https://htop.dev/">htop</a> and see how many cores are used:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>rf <span class="ot">&lt;-</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data=</span>big_iris, <span class="at">ntree=</span><span class="dv">2000</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Apparently, the function does not run in parallel. So let’s parallelize this code.</p>
+<p>One way to do this is to test the package on your local machine and, while some sample code is running, to open <a href="https://htop.dev/">htop</a> and see how many cores are used.</p>
+<p>Why do this on your local machine? because on the cluster, if you launch <code>htop</code> while your batch job is running, you will be looking at processes running on the login node while your code is running on compute node(s). So this will not help you. You could salloc on the/one of the compute node(s) running your job and run <code>htop</code> there, but in production clusters, compute nodes are large and you will see all the processes from all the other users using that compute node. So this test is just easier done locally.</p>
+<p>On my machine I ran:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>big_iris <span class="ot">&lt;-</span> iris[<span class="fu">rep</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(iris)), <span class="at">each =</span> <span class="fl">1e2</span>), ]</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(big_iris) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>rf <span class="ot">&lt;-</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data=</span>big_iris, <span class="at">ntree=</span><span class="dv">2000</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>And I could confirm that the function does not run in parallel.</p>
+<p>So let’s parallelize this code.</p>
 </section>
 <section id="the-foreach-package" class="level2">
 <h2 class="anchored" data-anchor-id="the-foreach-package">The <code>foreach</code> package</h2>
