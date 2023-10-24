@@ -92,14 +92,25 @@ And then we can run `randomForest()` on this dataset and 2000 trees.
 
 Before parallelizing your code, remember to check whether the package you are using is already doing any parallelization under the hood (after all, maybe the `randomForest` package runs things in parallel. We don't know).
 
-Let's run the code and, while it is running, open [htop](https://htop.dev/) and see how many cores are used:
+One way to do this is to test the package on your local machine and, while some sample code is running, to open [htop](https://htop.dev/) and see how many cores are used.
+
+Why do this on your local machine? because on the cluster, if you launch `htop` while your batch job is running, you will be looking at processes running on the login node while your code is running on compute node(s). So this will not help you. You could salloc on the/one of the compute node(s) running your job and run `htop` there, but in production clusters, compute nodes are large and you will see all the processes from all the other users using that compute node. So this test is just easier done locally.
+
+On my machine I ran:
 
 ```{.r}
+library(randomForest)
+
+big_iris <- iris[rep(seq_len(nrow(iris)), each = 1e2), ]
+rownames(big_iris) <- NULL
+
 set.seed(123)
 rf <- randomForest(Species ~ ., data=big_iris, ntree=2000)
 ```
 
-Apparently, the function does not run in parallel. So let's parallelize this code.
+And I could confirm that the function does not run in parallel.
+
+So let's parallelize this code.
 
 ## The `foreach` package
 
