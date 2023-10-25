@@ -429,13 +429,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title"><em>On this page:</em></h2>
    
   <ul>
-  <li><a href="#create-a-cluster-of-workers" id="toc-create-a-cluster-of-workers" class="nav-link active" data-scroll-target="#create-a-cluster-of-workers">Create a cluster of workers</a></li>
-  <li><a href="#data-assignment" id="toc-data-assignment" class="nav-link" data-scroll-target="#data-assignment">Data assignment</a>
-  <ul>
-  <li><a href="#assign-the-same-value-to-each-worker" id="toc-assign-the-same-value-to-each-worker" class="nav-link" data-scroll-target="#assign-the-same-value-to-each-worker">Assign the same value to each worker</a></li>
-  <li><a href="#assign-different-values-to-each-worker" id="toc-assign-different-values-to-each-worker" class="nav-link" data-scroll-target="#assign-different-values-to-each-worker">Assign different values to each worker</a></li>
-  <li><a href="#partition-vectors" id="toc-partition-vectors" class="nav-link" data-scroll-target="#partition-vectors">Partition vectors</a></li>
-  </ul></li>
+  <li><a href="#example-of-data-partitioning-case" id="toc-example-of-data-partitioning-case" class="nav-link active" data-scroll-target="#example-of-data-partitioning-case">Example of data partitioning case</a></li>
+  <li><a href="#partitioning-on-the-fly" id="toc-partitioning-on-the-fly" class="nav-link" data-scroll-target="#partitioning-on-the-fly">Partitioning on the fly</a></li>
+  <li><a href="#direct-data-loading" id="toc-direct-data-loading" class="nav-link" data-scroll-target="#direct-data-loading">Direct data loading</a></li>
   </ul>
 </nav>
     </div>
@@ -468,130 +464,241 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="def">
 <p>The package <a href="https://cran.r-project.org/web/packages/multidplyr/index.html">multidplyr</a> provides simple techniques to partition data across a set of workers on the same or different nodes.</p>
 </div>
+<section id="example-of-data-partitioning-case" class="level2">
+<h2 class="anchored" data-anchor-id="example-of-data-partitioning-case">Example of data partitioning case</h2>
+<p>What if we have an even bigger dataset?</p>
+<p>The <code>randomForest()</code> function has limitations:</p>
+<ul>
+<li>It is a memory hog.</li>
+<li>It doesn’t run if your data frame has too many rows.</li>
+</ul>
+<p>If you try to run:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>bigger_iris <span class="ot">&lt;-</span> iris[<span class="fu">rep</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(iris)), <span class="at">each =</span> <span class="fl">1e3</span>), ]</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(bigger_iris) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>rf <span class="ot">&lt;-</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data=</span>bigger_iris)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>rf <span class="ot">&lt;-</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data =</span> bigger_iris)</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>rf</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --time=10</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --mem-per-cpu=7500M</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> bigdata.R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>on a single core, you will get:</p>
 <pre><code>randomForest 4.7-1.1
 Type rfNews() to see new features/changes/bug fixes.
 /var/spool/slurmd/job00016/slurm_script: line 5: 74451 Killed                  Rscript data_partition.R
 slurmstepd: error: Detected 1 oom-kill event(s) in StepId=16.batch. Some of your processes may have been killed by the cgroup out-of-memory handler.</code></pre>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(multidplyr)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>cl <span class="ot">&lt;-</span> <span class="fu">new_cluster</span>(<span class="dv">4</span>)</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_library</span>(cl, <span class="st">"randomForest"</span>)</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>bigger_iris <span class="ot">&lt;-</span> iris[<span class="fu">rep</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(iris)), <span class="at">each =</span> <span class="fl">1e3</span>), ]</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(bigger_iris) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>split_iris <span class="ot">&lt;-</span> <span class="fu">partition</span>(bigger_iris, cl)</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>rf <span class="ot">&lt;-</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data=</span>split_iris)</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>rf</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="create-a-cluster-of-workers" class="level2">
-<h2 class="anchored" data-anchor-id="create-a-cluster-of-workers">Create a cluster of workers</h2>
-<p>Let’s load the <code>multidplyr</code> package:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(multidplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>First of all, you need to create a set of worker:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>cl <span class="ot">&lt;-</span> <span class="fu">new_cluster</span>(<span class="dv">4</span>)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>cl</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>4 session cluster [....]</code></pre>
+<p>You have ran out of memory. Reducing the number of trees won’t help as the problem comes from the size of the data frame.</p>
+<p>Trying to run things on multiple cores won’t help.</p>
+<p>With <code>plan(multisession)</code>:</p>
+<pre><code>Cluster with multisession
+Error in unserialize(node$con) :
+  MultisessionFuture (doFuture2-3) failed to receive message results from cluster RichSOCKnode #3 (PID 445273 on localhost ‘localhost’). The reason reported was ‘error reading from connection’. Post-mortem diagnostic: No process exists with this PID, i.e. the localhost worker is no longer alive. The total size of the 3 globals exported is 5.15 MiB. There are three globals: ‘big_iris’ (5.15 MiB of class ‘list’), ‘...future.seeds_ii’ (160 bytes of class ‘list’) and ‘...future.x_ii’ (112 bytes of class ‘list’)</code></pre>
+<p>With <code>plan(multicore)</code>:</p>
+<pre><code>Cluster with multicore
+Error: Failed to retrieve the result of MulticoreFuture (doFuture2-2) from the forked worker (on localhost; PID 444769). Post-mortem diagnostic: No process exists with this PID, i.e. the forked localhost worker is no longer alive. The total size of the 3 globals exported is 5.15 MiB. There are three globals: ‘big_iris’ (5.15 MiB of class ‘list’), ‘...future.seeds_ii’ (160 bytes of class ‘list’) and ‘...future.x_ii’ (112 bytes of class ‘list’)
+In addition: Warning message:
+In mccollect(jobs = jobs, wait = TRUE) :
+  1 parallel job did not deliver a result</code></pre>
+<p>You can try on multiple nodes, but things will fail as well, without any error message.</p>
+<p>So you could try on a different machine. One with more memory. I used my machine which has more memory than this training cluster and it worked.</p>
+<p>But then, what if <code>big_iris</code> is even bigger? Say, if we have this for instance:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>bigger_iris <span class="ot">&lt;-</span> iris[<span class="fu">rep</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(iris)), <span class="at">each =</span> <span class="fl">1e4</span>), ]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Then no amount of memory will save you and you will get errors similar to this:</p>
+<pre><code>Error in randomForest.default(m, y, ...) : 
+  long vectors (argument 28) are not supported in .C</code></pre>
+<p>That’s because <code>randomForest()</code> does not accept datasets with too many rows.</p>
+<p>Your options then are to run the code only on a subset of your data or split your dataset into chunks, run the code on each chunk, then combine the randomForest objects. This can be done with the <code>combine()</code> function from the <code>randomForest</code> package.</p>
+<p>You could do all this manually, but it would be very tedious and very lengthy. And if you want to run the code on all the chunks in parallel (this is a case calling for parallelism), then you have to implement it.</p>
+<p>There is a much simpler option: the <a href="https://cran.r-project.org/web/packages/multidplyr/index.html">multidplyr</a> package.</p>
 </section>
-<section id="data-assignment" class="level2">
-<h2 class="anchored" data-anchor-id="data-assignment">Data assignment</h2>
-<p>There are multiple ways to assign data to the workers.</p>
-<section id="assign-the-same-value-to-each-worker" class="level3">
-<h3 class="anchored" data-anchor-id="assign-the-same-value-to-each-worker">Assign the same value to each worker</h3>
-<p>This is done with the <code>cluster_assign()</code> function:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_assign</span>(cl, <span class="at">a =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>To execute the code on each worker and return the result, you use the function <code>cluster_call()</code>:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_call</span>(cl, a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[[1]]
-[1] 1 2 3 4
+<section id="partitioning-on-the-fly" class="level2">
+<h2 class="anchored" data-anchor-id="partitioning-on-the-fly">Partitioning on the fly</h2>
+<div class="note">
+<p>Be careful that <code>randomForest</code> and <code>dplyr</code> both have a <code>combine()</code> function. The one we want here is the one from the <code>randomForest</code> package. To avoid all conflict and confusion, you can use <code>randomForest::combine()</code>. <code>combine()</code> is ok if you make sure to load <code>dplyr</code> <strong>before</strong> <code>randomForest</code> since latest loaded functions overwrite earlier loaded ones.</p>
+</div>
+<p>If we use:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">combine</span>(rfs<span class="sc">$</span>rf)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We get the silly message:</p>
+<pre><code>Error in combine(rfs$rf) :
+  Argument must be a list of randomForest objects</code></pre>
+<p>That is because <code>combine()</code> expects a list of randomForest objects, but cannot accept an object of type list. We can bypass this with <code>do.call()</code>.</p>
+<p>So here is our script (let’s call it <code>partition.R</code>:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>partition.R</strong></pre>
+</div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(multidplyr)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr, <span class="at">warn.conflicts =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Create cluster of workers</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>cl <span class="ot">&lt;-</span> <span class="fu">new_cluster</span>(<span class="dv">4</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Load randomForest on each worker</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_library</span>(cl, <span class="st">"randomForest"</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>bigger_iris <span class="ot">&lt;-</span> iris[<span class="fu">rep</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(iris)), <span class="at">each =</span> <span class="fl">1e3</span>), ]</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(bigger_iris) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a partitioned data frame on the workers</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>split_iris <span class="ot">&lt;-</span> <span class="fu">partition</span>(bigger_iris, cl)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>rfs <span class="ot">&lt;-</span> split_iris <span class="sc">%&gt;%</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">do</span>(<span class="at">rf =</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data =</span> .)) <span class="sc">%&gt;%</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Bring partitioned data frame back into</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>  <span class="co"># a normal data frame in the main process:</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">collect</span>()</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>rf_all <span class="ot">&lt;-</span> <span class="fu">do.call</span>(combine, rfs<span class="sc">$</span>rf)</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Let's have a look at the intermediate models</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Here are the split randomForest models:</span><span class="sc">\n\n</span><span class="st">"</span>)</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>rfs<span class="sc">$</span>rf</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Let's look at our final randomForest object</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">And here is our final randomForest model:</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>rf_all</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a><span class="co"># Let's test our model</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Predictions on new data:</span><span class="sc">\n\n</span><span class="st">"</span>)</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>new_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>  <span class="at">Sepal.Length =</span> <span class="fu">c</span>(<span class="fl">5.3</span>, <span class="fl">4.6</span>, <span class="fl">6.5</span>),</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>  <span class="at">Sepal.Width =</span> <span class="fu">c</span>(<span class="fl">3.1</span>, <span class="fl">3.9</span>, <span class="fl">2.5</span>),</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>  <span class="at">Petal.Length =</span> <span class="fu">c</span>(<span class="fl">1.5</span>, <span class="fl">1.5</span>, <span class="fl">5.0</span>),</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>  <span class="at">Petal.Width =</span> <span class="fu">c</span>(<span class="fl">0.2</span>, <span class="fl">0.1</span>, <span class="fl">2.1</span>)</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="fu">predict</span>(rf_all, new_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s run it with the <code>partition.sh</code> script:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>reference.sh</strong></pre>
+</div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --time=10</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --mem-per-cpu=7500M</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --cpus-per-task=4</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> partition.R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>After running <code>sbatch partition.sh</code>, we get:</p>
+<pre><code>randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+
+Attaching package: ‘randomForest’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+Here are the split randomForest models:
+
+[[1]]
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
+
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
 
 [[2]]
-[1] 1 2 3 4
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
+
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
 
 [[3]]
-[1] 1 2 3 4
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
+
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
 
 [[4]]
-[1] 1 2 3 4</code></pre>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_assign</span>(cl, <span class="at">b =</span> <span class="fu">runif</span>(<span class="dv">4</span>))</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_call</span>(cl, b)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[[1]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799
 
-[[2]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
 
-[[3]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
 
-[[4]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799</code></pre>
+
+And here is our final randomForest model:
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 2000
+No. of variables tried at each split: 2
+
+
+Predictions on new data:
+
+        1         2         3
+   setosa    setosa virginica
+Levels: setosa versicolor virginica</code></pre>
 </section>
-<section id="assign-different-values-to-each-worker" class="level3">
-<h3 class="anchored" data-anchor-id="assign-different-values-to-each-worker">Assign different values to each worker</h3>
-<p>For this, use instead <code>cluster_assign_each()</code>:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_assign_each</span>(cl, <span class="at">c =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>)</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_call</span>(cl, c)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[[1]]
-[1] 1
-
-[[2]]
-[1] 2
-
-[[3]]
-[1] 3
-
-[[4]]
-[1] 4</code></pre>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_assign_each</span>(cl, <span class="at">d =</span> <span class="fu">runif</span>(<span class="dv">4</span>))</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_call</span>(cl, d)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[[1]]
-[1] 0.8892167
-
-[[2]]
-[1] 0.09334862
-
-[[3]]
-[1] 0.614763
-
-[[4]]
-[1] 0.6986541</code></pre>
-</section>
-<section id="partition-vectors" class="level3">
-<h3 class="anchored" data-anchor-id="partition-vectors">Partition vectors</h3>
-<p><code>cluster_assign_partition()</code> splits up a vector to assign about the same amount of data to each worker:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_assign_partition</span>(cl, <span class="at">e =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_call</span>(cl, e)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[[1]]
-[1] 1 2 3
-
-[[2]]
-[1] 4 5
-
-[[3]]
-[1] 6 7
-
-[[4]]
-[1]  8  9 10</code></pre>
+<section id="direct-data-loading" class="level2">
+<h2 class="anchored" data-anchor-id="direct-data-loading">Direct data loading</h2>
+<p>In our example, the data was too big for the <code>randomForest()</code> function, but it was otherwise not that big. So partitioning as we did made sense.</p>
+<p>In some cases, your data will be so big that it won’t fit in the memory of a single node. In that case, you have to split it into different files and load those files directly in the different nodes.</p>
+<p>For large data, even if it all fits on a single node, this approach is still worth considering because it saves all the copying between processes.</p>
+<p>Let’s see how this is how it works.</p>
+<p>First, split your data into several files and have all those files (and only those files) in a directory.</p>
+<p>Then, you can run:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(multidplyr)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(vroom)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Create the cluster of workers</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>cl <span class="ot">&lt;-</span> <span class="fu">new_cluster</span>(<span class="dv">4</span>)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a character vector with the list of data files</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>files <span class="ot">&lt;-</span> <span class="fu">dir</span>(<span class="st">"/path/to/data/directory"</span>, <span class="at">full.names =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Split up the vector amongst the workers</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_assign_partition</span>(cl, <span class="at">files =</span> files)</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a data frame called split_iris on each worker</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="fu">cluster_send</span>(cl, split_iris <span class="ot">&lt;-</span> <span class="fu">vroom</span>(files))</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Create the partitioned data frame from the workers' data frames</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>split_iris <span class="ot">&lt;-</span> <span class="fu">party_df</span>(cl, <span class="st">"split_iris"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>From here on, you can work as we did earlier.</p>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->
