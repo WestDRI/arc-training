@@ -7,141 +7,659 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-The package [`multidplyr`](https://cran.r-project.org/web/packages/multidplyr/index.html) provides simple techniques to partition data across a set of workers (multicore parallelism) on the same or different nodes.
+The package [multidplyr](https://cran.r-project.org/web/packages/multidplyr/index.html) provides simple techniques to partition data across a set of workers on the same node.
 
 :::
 
-## Create a cluster of workers
+## Data partitioning for memory
 
-Let's load the `multidplyr` package:
+### Case example
+
+What if we have an even bigger dataset?
+
+The `randomForest()` function has limitations:
+
+- It is a memory hog.
+- It doesn't run if your data frame has too many rows.
+
+If you try to run:
+
+```{.r filename="bigger.R"}
+library(randomForest)
+
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
+rownames(bigger_iris) <- NULL
+
+set.seed(123)
+rf <- randomForest(Species ~ ., data = bigger_iris)
+
+rf
+```
+
+on a single core, you will get:
+
+```
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+/var/spool/slurmd/job00016/slurm_script: line 5: 74451 Killed                  Rscript data_partition.R
+slurmstepd: error: Detected 1 oom-kill event(s) in StepId=16.batch. Some of your processes may have been killed by the cgroup out-of-memory handler.
+```
+
+You have ran out of memory.
+
+Reducing the number of trees won't help as the problem comes from the size of the data frame.
+
+Similarly, using `foreach` and `doFuture` as we did previously won't help either because that spreads the number of trees on various cores, but again, the problem doesn't come from the number of trees, but for the size of the dataset.
+
+:::{.note}
+
+With `plan(multisession)`, you would get:
+
+```
+Cluster with multisession
+Error in unserialize(node$con) :
+  MultisessionFuture (doFuture2-3) failed to receive message results from cluster RichSOCKnode #3 (PID 445273 on localhost ‘localhost’). The reason reported was ‘error reading from connection’. Post-mortem diagnostic: No process exists with this PID, i.e. the localhost worker is no longer alive. The total size of the 3 globals exported is 5.15 MiB. There are three globals: ‘big_iris’ (5.15 MiB of class ‘list’), ‘...future.seeds_ii’ (160 bytes of class ‘list’) and ‘...future.x_ii’ (112 bytes of class ‘list’)
+```
+
+And with `plan(multicore)`:
+
+```
+Cluster with multicore
+Error: Failed to retrieve the result of MulticoreFuture (doFuture2-2) from the forked worker (on localhost; PID 444769). Post-mortem diagnostic: No process exists with this PID, i.e. the forked localhost worker is no longer alive. The total size of the 3 globals exported is 5.15 MiB. There are three globals: ‘big_iris’ (5.15 MiB of class ‘list’), ‘...future.seeds_ii’ (160 bytes of class ‘list’) and ‘...future.x_ii’ (112 bytes of class ‘list’)
+In addition: Warning message:
+In mccollect(jobs = jobs, wait = TRUE) :
+  1 parallel job did not deliver a result
+```
+
+:::
+
+You can even try spreading the trees on multiple nodes, but things will fail as well, without any error message.
+
+Of course, you could always try on a different machine—one with more memory. I used my machine which has more memory than this training cluster and it worked.
+
+But then, what if `big_iris` is even bigger? Say, if we have this for instance:
+
+```{.r}
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e4), ]
+```
+
+Then no amount of memory will save you and you will get errors similar to this:
+
+```
+Error in randomForest.default(m, y, ...) : 
+  long vectors (argument 28) are not supported in .C
+```
+
+That's because `randomForest()` does not accept datasets with too many rows.
+
+:::{.info}
+
+The bottom line is that there are situation in which the data is just too big. In such cases, you want to look at **data parallelism**: instead of splitting your code into tasks that can run in parallel as we did previously, you split the data into chunks and run the code in parallel on those chunks.
+
+:::
+
+:::{.note}
+
+Of course, you could also simply run the code on a subset of your data. In many situation, reducing your data by sampling it properly will be good enough. But there are situations in which you want to use a huge dataset.
+
+:::
+
+You could split the data manually and run the code on each chunk, but it would be tedious and very lengthy. And to run the code on all the chunks in parallel, you could implement that yourself. There is a much simpler option provided by the [multidplyr](https://cran.r-project.org/web/packages/multidplyr/index.html) package.
+
+### Using multidplyr
+
+Let's break down the code with `multidplyr`.
+
+First, we load the packages that are running in the main session:
 
 ```{.r}
 library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
 ```
 
-First of all, you need to create a set of worker:
+:::{.note}
+
+We load `dplyr` for the `do()` function.
+
+Notice that we aren't loading the `randomForest` package yet: that's because we will use it on workers, not in the main session.
+
+:::
+
+Then we need to create a cluster of workers. Let's use 4 workers that we will run on a full node:
 
 ```{.r}
 cl <- new_cluster(4)
-cl
 ```
 
-```
-4 session cluster [....]
-```
-
-## Data assignment
-
-There are multiple ways to assign data to the workers.
-
-### Assign the same value to each worker
-
-This is done with the `cluster_assign()` function:
+Now we can load the `randomForest` package on each worker:
 
 ```{.r}
-cluster_assign(cl, a = 1:4)
+cluster_library(cl, "randomForest")
 ```
 
-To execute the code on each worker and return the result, you use the function `cluster_call()`:
+Of course, we need to generate our big dataset:
 
 ```{.r}
-cluster_call(cl, a)
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
+rownames(bigger_iris) <- NULL
 ```
 
+Then we create a partitioned data frame on the workers:
+
+```{.r}
+split_iris <- partition(bigger_iris, cl)
 ```
+
+:::{.note}
+
+The partitioning is done automatically, trying to split the data frame as evenly as possible among workers.
+
+:::
+
+If we want the code to be reproducible, we should set the seed on each worker:
+
+```{.r}
+cluster_send(cl, set.seed(123))
+```
+
+:::{.note}
+
+Run `cluster_send()` to send code to each worker when you aren't interested in any result (as is the case here) and `cluster_call()` if you want a computation to be executed on each worker and a result to be returned.
+
+:::
+
+Now we can run the `randomForest()` function on each worker:
+
+```{.r}
+split_rfs <- split_iris %>%
+  do(rf = randomForest(Species ~ ., data = .))
+```
+
+:::{.note}
+
+`split_rfs` is a partitioned data frame. You can check with `str(split_rfs)`.
+
+:::
+
+Now we need to bring the partitioned result in the main process:
+
+```{.r}
+rfs <- split_rfs %>% collect()
+```
+
+:::{.note}
+
+`rfs` is a data frame with a single column called `rf`. Which means that `rfs$rf` is a list. And each element of that list is a randomForest object (the 4 intermediate models created by the 4 workers). You can check by running `str(rfs)` and `str(rfs$df)`.
+
+:::
+
+Now, if we don't need to explore those intermediate objects, we can combined the previous 2 commands as:
+
+```{.r}
+rfs <- split_iris %>%
+  do(rf = randomForest(Species ~ ., data = .)) %>%
+  collect()
+```
+
+To have a look at the intermediate models, simply run:
+
+```{.r}
+rfs$rf
+```
+
+Finally, we need to combine the 4 randomForest models into a single one. This can be done with the `combine()` function from the `randomForest` package:
+
+```{.r}
+rf_all <- do.call(combine, rfs$rf)
+```
+
+:::{.note}
+
+Be careful that `randomForest` and `dplyr` both have a `combine()` function. The one we want here is the one from the `randomForest` package. To avoid all conflict and confusion, you can use `randomForest::combine()`. `combine()` is ok if you make sure to load `dplyr` **before** `randomForest` since latest loaded functions overwrite earlier loaded ones.
+
+:::
+
+Why are we using `do.call()`? If we use:
+
+```{.r}
+combine(rfs$rf)
+```
+
+We get the silly message:
+
+```
+Error in combine(rfs$rf) :
+  Argument must be a list of randomForest objects
+```
+
+That is because `randomForest::combine()` expects a list of randomForest objects, but cannot accept an object of type list.
+
+And we can print our final randomForest object:
+
+```{.r}
+rf_all
+```
+
+Let's combine it all in a script (let's call it `partition.R`):
+
+```{.r filename="partition.R"}
+library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
+
+# Create cluster of workers
+cl <- new_cluster(4)
+
+# Load randomForest on each worker
+cluster_library(cl, "randomForest")
+
+# Create our big data frame
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
+rownames(bigger_iris) <- NULL
+
+# Create a partitioned data frame on the workers
+split_iris <- partition(bigger_iris, cl)
+
+# Set the seed on each worker
+cluster_send(cl, set.seed(123))
+
+# Run the randomForest() function on each worker
+split_rfs <- split_iris %>%
+  do(rf = randomForest(Species ~ ., data = .))
+# split_rfs is a partitioned data frame
+
+# Bring partitioned result in the main process
+rfs <- split_rfs %>%
+  collect()
+# rfs is a normal data frame
+
+# Combine the randomForest models
+rf_all <- do.call(combine, rfs$rf)
+
+# Let's have a look at the intermediate models
+cat("Here are the split randomForest models:\n\n")
+rfs$rf
+
+# Let's look at our final randomForest object
+cat("\nAnd here is our final randomForest model:\n")
+rf_all
+
+# Let's test our model
+cat("\nPredictions on new data:\n\n")
+new_data <- data.frame(
+  Sepal.Length = c(5.3, 4.6, 6.5),
+  Sepal.Width = c(3.1, 3.9, 2.5),
+  Petal.Length = c(1.5, 1.5, 5.0),
+  Petal.Width = c(0.2, 0.1, 2.1)
+)
+
+predict(rf_all, new_data)
+```
+
+Let's run it with the `partition.sh` script:
+
+```{.bash filename="reference.sh"}
+#!/bin/bash
+#SBATCH --time=10
+#SBATCH --mem-per-cpu=7500M
+#SBATCH --cpus-per-task=4
+
+Rscript partition.R
+```
+
+After running `sbatch partition.sh`, we get:
+
+```
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+
+Attaching package: ‘randomForest’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+Here are the split randomForest models:
+
 [[1]]
-[1] 1 2 3 4
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
+
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
 
 [[2]]
-[1] 1 2 3 4
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
+
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
 
 [[3]]
-[1] 1 2 3 4
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
+
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
 
 [[4]]
-[1] 1 2 3 4
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 2
+
+        OOB estimate of  error rate: 0%
+Confusion matrix:
+           setosa versicolor virginica class.error
+setosa      12500          0         0           0
+versicolor      0      12500         0           0
+virginica       0          0     12500           0
+
+
+And here is our final randomForest model:
+
+Call:
+ randomForest(formula = Species ~ ., data = .)
+               Type of random forest: classification
+                     Number of trees: 2000
+No. of variables tried at each split: 2
+
+
+Predictions on new data:
+
+        1         2         3
+   setosa    setosa virginica
+Levels: setosa versicolor virginica
 ```
+
+Of course, we don't have to print so much. The minimal script you need looks like this:
+
+```{.r filename="partition.R"}
+library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
+
+# Create cluster of workers
+cl <- new_cluster(4)
+
+# Load randomForest on each worker
+cluster_library(cl, "randomForest")
+
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
+rownames(bigger_iris) <- NULL
+
+# Create a partitioned data frame on the workers
+split_iris <- partition(bigger_iris, cl)
+
+# Set the seed on each worker
+cluster_send(cl, set.seed(123))
+
+# Run the randomForest() function on each worker
+# and collect the results
+rfs <- split_iris %>%
+  do(rf = randomForest(Species ~ ., data = .)) %>%
+  collect()
+
+# Combine the randomForest models
+rf_all <- do.call(combine, rfs$rf)
+```
+
+### Conclusion
+
+`multidplyr` allowed us to split our data frame across multiple workers on one node and this solved the memory issues we had with our large dataset.
+
+## Data partitioning for speed
+
+Here, I want to explore two questions:
+
+- Can multidplyr run in distributed memory? There is nothing on this in the documentation, so let's try it.
+- Beside the memory advantage, how is the speedup of this data parallelization? i.e. how does it compare with the parallelization we did as regard the number of trees with `foreach` and `doFuture`? Let's try that too.
+
+### Distributed memory?
+
+```{.r filename="partition_bench.R"}
+library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
+library(bench)
+
+cl <- new_cluster(4)
+cluster_library(cl, "randomForest")
+
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
+rownames(bigger_iris) <- NULL
+
+cluster_send(cl, set.seed(123))
+
+part_rf <- function(data, cluster) {
+  split_data <- partition(data, cluster)
+  rfs <- split_data %>%
+    do(rf = randomForest(Species ~ ., data = .)) %>%
+    collect()
+  do.call(combine, rfs$rf)
+}
+
+mark(rf_all <- part_rf(bigger_iris, cl))
+```
+
+```
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+
+Attaching package: ‘randomForest’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+# A tibble: 1 × 13
+  expression      min median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time
+  <bch:expr>    <bch> <bch:>     <dbl> <bch:byt>    <dbl> <int> <dbl>   <bch:tm>
+1 rf_all <- pa…  5.5s   5.5s     0.182        NA    0.545     1     3       5.5s
+# ℹ 4 more variables: result <list>, memory <list>, time <list>, gc <list>
+Warning message:
+Some expressions had a GC in every iteration; so filtering is disabled.
+```
+
+```{.r filename="partition_dis.R"}
+library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
+library(bench)
+
+cl <- new_cluster(8)
+cluster_library(cl, "randomForest")
+
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
+rownames(bigger_iris) <- NULL
+
+cluster_send(cl, set.seed(123))
+
+part_rf <- function(data, cluster) {
+  split_data <- partition(data, cluster)
+  rfs <- split_data %>%
+    do(rf = randomForest(Species ~ ., data = .)) %>%
+    collect()
+  do.call(combine, rfs$rf)
+}
+
+mark(rf_all <- part_rf(bigger_iris, cl))
+```
+
+```{.r filename="partition_dis.R"}
+library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
+library(bench)
+library(future)
+
+hosts <- system("srun hostname -s", intern = T)
+cl <- parallel::makeCluster(hosts)
+
+cluster_library(cl, "randomForest")
+
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e2), ]
+rownames(bigger_iris) <- NULL
+
+cluster_send(cl, set.seed(123))
+
+part_rf <- function(data, cluster) {
+  split_data <- partition(data, cluster)
+  rfs <- split_data %>%
+    do(rf = randomForest(Species ~ ., data = ., ntree = 2000)) %>%
+    collect()
+  do.call(combine, rfs$rf)
+}
+
+mark(rf_all <- part_rf(bigger_iris, cl))
+```
+
+Comparison with foreach and doFuture:
+
+```{.r filename="partition2_shared.R"}
+library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
+library(bench)
+
+cl <- new_cluster(4)
+cluster_library(cl, "randomForest")
+
+bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e2), ]
+rownames(bigger_iris) <- NULL
+
+cluster_send(cl, set.seed(123))
+
+part_rf <- function(data, cluster) {
+  split_data <- partition(data, cluster)
+  rfs <- split_data %>%
+    do(rf = randomForest(Species ~ ., data = ., ntree = 2000)) %>%
+    collect()
+  do.call(combine, rfs$rf)
+}
+
+mark(
+  rf_all <- part_rf(bigger_iris, cl),
+  memory = FALSE
+)
+```
+
+Apparently not.
+
+### How is the speedup?
+
+We want to make sure to compare the same things. So we go back to our smaller `big_iris` and we up the number of trees back to 2000.
+
+Since we determined that `multidplyr` does not allow for distributed memory, we will compare it with the plans `multisession` and `multicore` that [we performed earlier](https://mint.westdri.ca/r/hpc_foreach#multisession). The minimum and median times for these two options for shared memory parallelism were of 2.72s and 3.15s respectively.
+
+```{.r filename="partition_bench.R"}
+library(multidplyr)
+library(dplyr, warn.conflicts = FALSE)
+library(bench)
+
+cl <- new_cluster(4)
+cluster_library(cl, "randomForest")
+
+big_iris <- iris[rep(seq_len(nrow(iris)), each = 1e2), ]
+rownames(big_iris) <- NULL
+
+cluster_send(cl, set.seed(123))
+
+part_rf <- function(data, cluster) {
+  split_data <- partition(data, cluster)
+  rfs <- split_data %>%
+    do(rf = randomForest(Species ~ ., data = ., ntree = 2000)) %>%
+    collect()
+  do.call(combine, rfs$rf)
+}
+
+mark(
+  rf_all <- part_rf(big_iris, cl),
+  memory = FALSE
+)
+```
+
+```{.bash filename="partition_bench.sh"}
+#!/bin/bash
+#SBATCH --time=10
+#SBATCH --mem-per-cpu=7500M
+#SBATCH --cpus-per-task=4
+
+Rscript partition_bench.R
+```
+
+```{.bash}
+sbatch partition_bench.sh
+```
+
+```
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+
+Attaching package: ‘randomForest’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+# A tibble: 1 × 13
+  expression      min median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time
+  <bch:expr>    <bch> <bch:>     <dbl> <bch:byt>    <dbl> <int> <dbl>   <bch:tm>
+1 rf_all <- pa… 2.48s  2.48s     0.403        NA     2.02     1     5      2.48s
+# ℹ 4 more variables: result <list>, memory <list>, time <list>, gc <list>
+Warning message:
+Some expressions had a GC in every iteration; so filtering is disabled.
+```
+
+As we can see, we are getting very similar results. The difference is that if we up the number of workers to 8 and run it on 2 nodes with 4 cores per node, we aren't getting more speedup because `multidply`'s way of creating for a cluster of workers doesn't have a mechanism to spread them across nodes.
+
+## Direct data loading
+
+The method we used is very convenient, but it involves copying the data to the workers. If you want to save some memory, you can load the split data directly to the workers.
+
+For this, first, split your data into several files and have all those files (and only those files) in a directory.
+
+Then, you can run:
 
 ```{.r}
-cluster_assign(cl, b = runif(4))
-cluster_call(cl, b)
+library(multidplyr)
+library(dplyr)
+library(vroom)
+
+# Create the cluster of workers
+cl <- new_cluster(4)
+
+# Create a character vector with the list of data files
+files <- dir("/path/to/data/directory", full.names = TRUE)
+
+# Split up the vector amongst the workers
+cluster_assign_partition(cl, files = files)
+
+# Create a data frame called split_iris on each worker
+cluster_send(cl, split_iris <- vroom(files))
+
+# Create the partitioned data frame from the workers' data frames
+split_iris <- party_df(cl, "split_iris")
 ```
 
-```
-[[1]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799
-
-[[2]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799
-
-[[3]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799
-
-[[4]]
-[1] 0.93146519 0.75181518 0.33158435 0.02970799
-```
-
-### Assign different values to each worker
-
-For this, use instead `cluster_assign_each()`:
-
-```{.r}
-cluster_assign_each(cl, c = 1:4)
-cluster_call(cl, c)
-```
-
-```
-[[1]]
-[1] 1
-
-[[2]]
-[1] 2
-
-[[3]]
-[1] 3
-
-[[4]]
-[1] 4
-```
-
-```{.r}
-cluster_assign_each(cl, d = runif(4))
-cluster_call(cl, d)
-```
-
-```
-[[1]]
-[1] 0.8892167
-
-[[2]]
-[1] 0.09334862
-
-[[3]]
-[1] 0.614763
-
-[[4]]
-[1] 0.6986541
-```
-
-### Partition vectors
-
-`cluster_assign_partition()` splits up a vector to assign about the same amount of data to each worker:
-
-```{.r}
-cluster_assign_partition(cl, e = 1:10)
-cluster_call(cl, e)
-```
-
-```
-[[1]]
-[1] 1 2 3
-
-[[2]]
-[1] 4 5
-
-[[3]]
-[1] 6 7
-
-[[4]]
-[1]  8  9 10
-```
+From here on, you can work as we did earlier.
