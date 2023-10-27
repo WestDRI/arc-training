@@ -139,22 +139,26 @@ cluster_library(cl, "randomForest")
 
 Of course, we need to generate our big dataset:
 
-```{.r}
+```{r}
 bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
 rownames(bigger_iris) <- NULL
 ```
 
-Then we create a partitioned data frame on the workers:
+Then we create a partitioned data frame on the workers with the `partition()` function. The function will try to split the data as heavenly as possible among workers.
 
-```{.r}
-split_iris <- partition(bigger_iris, cl)
+If you group observations by some variable (with `dplyr::group_by()`) beforehand, `multidplyr` will ensure that all data points in a group end up on the same worker. This is very convenient in a lot of cases, but is not relevant here. Without grouping observations first, it is unclear how `partition()` chooses which observation goes to which worker. In our data, we have all the `setosa` observations first, then all the `versicolor`, and finally all the `virginica`. We want to make sure that the `randomForest()` function runs on a sample of all 3 species. We will thus randomly shuffle the data before partitioning it (when we were parallelizing by splitting the trees, we didn't have to worry about that since each subset of trees was running on the entire dataset):
+
+```{r}
+set.seed(11)
+bigger_iris_shuffled <- bigger_iris[sample(nrow(bigger_iris)), ]
+
+# The rows are now randomly shuffled:
+head(bigger_iris_shuffled)
 ```
 
-:::{.note}
-
-The partitioning is done automatically, trying to split the data frame as evenly as possible among workers.
-
-:::
+```{.r}
+split_iris <- partition(bigger_iris_shuffled, cl)
+```
 
 If we want the code to be reproducible, we should set the seed on each worker:
 
