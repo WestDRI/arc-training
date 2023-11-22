@@ -3,14 +3,14 @@ title: JAX principles
 author: Marie-Hélène Burle
 ---
 
-Composable transformations:
+<!-- Composable transformations: -->
 
-- `grad` transform: turn a loss function (e.g. `mse_loss`) and turn it into a function that computes the gradients
-- `jit` transform: just-in-time compilation
-- `vmap` transform: work in a **v**ectorized fashion across elements of a batch
-- `pmap` transform: work in **p**arallel across processing units
+<!-- - `grad` transform: turn a loss function (e.g. `mse_loss`) and turn it into a function that computes the gradients -->
+<!-- - `jit` transform: just-in-time compilation -->
+<!-- - `vmap` transform: work in a **v**ectorized fashion across elements of a batch -->
+<!-- - `pmap` transform: work in **p**arallel across processing units -->
 
-
+## Functioning
 
 ```{dot}
 //| echo: false
@@ -52,3 +52,81 @@ TPU [shape=octagon, color=gray55, fontcolor=gray55]
 }
 ```
 
+## Performance
+
+JAX was built with performance in mind. Its speed relies on many design decisions.
+
+### Accelerators
+
+JAX can run on CPUs, but also on accelerators such as GPUs and TPUs.
+
+### Default type
+
+Like [PyTorch](https://pytorch.org/)—another library designed for deep learning—JAX uses float32 as its default data type. This level of precision is perfectly suitable for machine learning and increases efficiency (by contrast, [NumPy](https://numpy.org/)—which was built with other purposes in mind—defaults to float64).
+
+### Asynchronous dispatch
+
+One of the efficiencies of JAX is its use of [asynchronous execution](https://en.wikipedia.org/wiki/Asynchrony_(computer_programming)).
+
+#### Advantage
+
+Let's consider the code:
+
+```{.python}
+import jax.numpy as jnp
+from jax import random
+
+x = random.normal(random.PRNGKey(0), (1000, 1000))
+y = random.normal(random.PRNGKey(0), (1000, 1000))
+z = jnp.dot(x, y)
+```
+
+Instead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a [future](https://en.wikipedia.org/wiki/Futures_and_promises) is created. This future is a [jax.Array](https://jax.readthedocs.io/en/latest/jax.html#jax-array-jax-array) and can be passed to further computations immediately.
+
+Of course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.
+
+#### Consequence on benchmarking
+
+Timing `jnp.dot(x, y)` would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.
+
+On my laptop, running the computation on one GPU, I get:
+
+```{.python}
+import timeit
+
+timeit.timeit("jnp.dot(x, y)",
+              number=1000,
+              globals=globals())/1000
+```
+
+```
+0.0005148850770000308
+```
+
+To get a proper timing, we need to make sure that the future is resolved using the `block_until_ready()` method: `jnp.dot(x, y).block_until_ready()`.
+
+On the same machine:
+
+```{.python}
+timeit.timeit("jnp.dot(x, y).block_until_ready()",
+              number=1000,
+              globals=globals())/1000
+```
+
+```
+0.0005967016279998916
+```
+
+The difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.
+
+:::{.note}
+
+If you are running small computations such as this one without accelerator, the dispatch will be on the same thread as the overhead of the asynchronous execution is larger than the speedup. Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use `block_until_ready()` in your benchmarks.
+
+:::
+
+### JIT compilation
+
+
+
+### AD
