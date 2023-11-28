@@ -32,7 +32,7 @@ TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
 
 py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
 jaxpr [label="Jaxpr\n(JAX expression)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
-hlo [label="High level\noptimized (HLO)\ncode", color=gray10, fontcolor=gray10]
+hlo [label="High-level\noptimized (HLO)\ncode", color=gray10, fontcolor=gray10]
 
 py -> tracer [dir=none]
 tracer -> jaxpr
@@ -53,9 +53,17 @@ jaxpr -> transform [dir=both, minlen=3]
 <br>
 *Tracing* happens during the first call of a function. *Tracer objects* are wrapped around each argument and record all operations performed on them, creating a **Jaxpr** (JAX expression). It is this *intermediate representation*—rather than the Python code—that JAX then uses.
 
-Function side-effects are not recorded by the tracers and are thus absent from the Jaxpr. This means that they will be executed once (during tracing) and are thereafter absent from the JAX architecture. [For this reason, only pure functions (functions without side effects) should be used with JAX.]{.emph}
+The tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that new inputs with the same shape and dtype will use the cached compiled program directly, skipping the Python code entirely. Inputs with new shape and/or dtype will trigger a new tracing (so the Python function gets executed again).
 
-A number of composable transformations can be applied to the Jaxpr, the last of which being JIT compilation.
+Function side-effects are not recorded by the tracers, which means that they are not part of the Jaxprs. They will be executed once (during tracing), but are thereafter absent from the cached compiled program.
+
+Functions which use values outside of their arguments (e.g. values from the global environment) will not update the cache if such values change.
+
+[For these reasons, only functionally pure functions (functions without side effects and which do not rely on values outside their arguments) should be used with JAX.]{.emph}
+
+A number of composable transformations can be applied to the Jaxpr, the last of which being JIT compilation (when possible).
+
+
 
 ## Performance
 
@@ -64,10 +72,6 @@ JAX was built with performance in mind. Its speed relies on many design decision
 ### Accelerators
 
 JAX can run on CPUs, but also on accelerators such as GPUs and TPUs.
-
-### XLA
-
-The tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that the intermediate representation can then be rerun directly with new values, skipping the (slow) Python code.
 
 ### Default type
 
@@ -136,7 +140,11 @@ If you are running small computations such as this one without accelerator, the 
 
 ### JIT compilation
 
+#### Static vs traced variables
+
 Static shapes known at compile time
+
+#### Static vs traced operations
 
 ## AD
 
