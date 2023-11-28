@@ -445,14 +445,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#performance" id="toc-performance" class="nav-link" data-scroll-target="#performance">Performance</a>
   <ul>
   <li><a href="#accelerators" id="toc-accelerators" class="nav-link" data-scroll-target="#accelerators">Accelerators</a></li>
-  <li><a href="#xla" id="toc-xla" class="nav-link" data-scroll-target="#xla">XLA</a></li>
   <li><a href="#default-type" id="toc-default-type" class="nav-link" data-scroll-target="#default-type">Default type</a></li>
   <li><a href="#asynchronous-dispatch" id="toc-asynchronous-dispatch" class="nav-link" data-scroll-target="#asynchronous-dispatch">Asynchronous dispatch</a>
   <ul>
   <li><a href="#advantage" id="toc-advantage" class="nav-link" data-scroll-target="#advantage">Advantage</a></li>
   <li><a href="#consequence-on-benchmarking" id="toc-consequence-on-benchmarking" class="nav-link" data-scroll-target="#consequence-on-benchmarking">Consequence on benchmarking</a></li>
   </ul></li>
-  <li><a href="#jit-compilation" id="toc-jit-compilation" class="nav-link" data-scroll-target="#jit-compilation">JIT compilation</a></li>
+  <li><a href="#jit-compilation" id="toc-jit-compilation" class="nav-link" data-scroll-target="#jit-compilation">JIT compilation</a>
+  <ul>
+  <li><a href="#static-vs-traced-variables" id="toc-static-vs-traced-variables" class="nav-link" data-scroll-target="#static-vs-traced-variables">Static vs traced variables</a></li>
+  <li><a href="#static-vs-traced-operations" id="toc-static-vs-traced-operations" class="nav-link" data-scroll-target="#static-vs-traced-operations">Static vs traced operations</a></li>
+  </ul></li>
   </ul></li>
   <li><a href="#ad" id="toc-ad" class="nav-link" data-scroll-target="#ad">AD</a></li>
   </ul>
@@ -515,7 +518,7 @@ jit
 <title>
 hlo
 </title>
-<ellipse fill="none" stroke="#1a1a1a" cx="115.28" cy="-207.7" rx="80.13" ry="41.09"></ellipse> <text text-anchor="middle" x="115.28" y="-220.3" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">High level</text> <text text-anchor="middle" x="115.28" y="-203.5" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">optimized (HLO)</text> <text text-anchor="middle" x="115.28" y="-186.7" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">code</text> </g> <!-- jit&#45;&gt;hlo --> <g id="edge4" class="edge">
+<ellipse fill="none" stroke="#1a1a1a" cx="115.28" cy="-207.7" rx="80.13" ry="41.09"></ellipse> <text text-anchor="middle" x="115.28" y="-220.3" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">High-level</text> <text text-anchor="middle" x="115.28" y="-203.5" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">optimized (HLO)</text> <text text-anchor="middle" x="115.28" y="-186.7" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">code</text> </g> <!-- jit&#45;&gt;hlo --> <g id="edge4" class="edge">
 <title>
 jit-&gt;hlo
 </title>
@@ -578,8 +581,11 @@ hlo-&gt;xla
 </div>
 </div>
 <p><br> <em>Tracing</em> happens during the first call of a function. <em>Tracer objects</em> are wrapped around each argument and record all operations performed on them, creating a <strong>Jaxpr</strong> (JAX expression). It is this <em>intermediate representation</em>—rather than the Python code—that JAX then uses.</p>
-<p>Function side-effects are not recorded by the tracers and are thus absent from the Jaxpr. This means that they will be executed once (during tracing) and are thereafter absent from the JAX architecture. <span class="emph">For this reason, only pure functions (functions without side effects) should be used with JAX.</span></p>
-<p>A number of composable transformations can be applied to the Jaxpr, the last of which being JIT compilation.</p>
+<p>The tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that new inputs with the same shape and dtype will use the cached compiled program directly, skipping the Python code entirely. Inputs with new shape and/or dtype will trigger a new tracing (so the Python function gets executed again).</p>
+<p>Function side-effects are not recorded by the tracers, which means that they are not part of the Jaxprs. They will be executed once (during tracing), but are thereafter absent from the cached compiled program.</p>
+<p>Functions which use values outside of their arguments (e.g.&nbsp;values from the global environment) will not update the cache if such values change.</p>
+<p><span class="emph">For these reasons, only functionally pure functions (functions without side effects and which do not rely on values outside their arguments) should be used with JAX.</span></p>
+<p>A number of composable transformations can be applied to the Jaxpr, the last of which being JIT compilation (when possible).</p>
 </section>
 <section id="performance" class="level2">
 <h2 class="anchored" data-anchor-id="performance">Performance</h2>
@@ -587,10 +593,6 @@ hlo-&gt;xla
 <section id="accelerators" class="level3">
 <h3 class="anchored" data-anchor-id="accelerators">Accelerators</h3>
 <p>JAX can run on CPUs, but also on accelerators such as GPUs and TPUs.</p>
-</section>
-<section id="xla" class="level3">
-<h3 class="anchored" data-anchor-id="xla">XLA</h3>
-<p>The tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that the intermediate representation can then be rerun directly with new values, skipping the (slow) Python code.</p>
 </section>
 <section id="default-type" class="level3">
 <h3 class="anchored" data-anchor-id="default-type">Default type</h3>
@@ -635,7 +637,13 @@ hlo-&gt;xla
 </section>
 <section id="jit-compilation" class="level3">
 <h3 class="anchored" data-anchor-id="jit-compilation">JIT compilation</h3>
+<section id="static-vs-traced-variables" class="level4">
+<h4 class="anchored" data-anchor-id="static-vs-traced-variables">Static vs traced variables</h4>
 <p>Static shapes known at compile time</p>
+</section>
+<section id="static-vs-traced-operations" class="level4">
+<h4 class="anchored" data-anchor-id="static-vs-traced-operations">Static vs traced operations</h4>
+</section>
 </section>
 </section>
 <section id="ad" class="level2">
