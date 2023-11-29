@@ -1,0 +1,85 @@
+---
+title: How does JAX work?
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+Before using JAX, it is critical to understand its functioning: JAX architecture is at the core of its efficiency and flexibility, but also the cause of a number of constraints.
+
+:::
+
+## Map
+
+Here is a schematic of JAX's functioning:<br><br>
+
+```{dot}
+//| echo: false
+//| fig-height: 800px
+
+strict digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif"]
+edge [color=gray55]
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label=" Transformations ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxpr\n(JAX expression)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+
+{rank=same; jaxpr transform}
+
+}
+```
+
+## Tracing
+
+*Tracing* happens during the first call of a function. *Tracer objects* are wrapped around each argument and record all operations performed on them, creating a **Jaxpr** (JAX expression). It is this *intermediate representation*—rather than the Python code—that JAX then uses.
+
+The tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that new inputs with the same shape and dtype will use the cached compiled program directly, skipping the Python code entirely. Inputs with new shape and/or dtype will trigger tracing again (so the Python function gets executed again).
+
+Function side-effects are not recorded by the tracers, which means that they are not part of the Jaxprs. They will be executed once (during tracing), but are thereafter absent from the cached compiled program.
+
+Functions which use values outside of their arguments (e.g. values from the global environment) will not update the cache if such values change.
+
+[For these reasons, only functionally pure functions (functions without side effects and which do not rely on values outside their arguments) should be used with JAX.]{.emph}
+
+## Transformations
+
+JAX is essentially a functional programming framework. Transformations are higher-order functions transforming Jaxprs.
+
+Transformations are composable and include:
+
+- `grad`: creates a function that evaluates the gradient of the input function,
+- `vmap`: implementation of automatic **v**ectorization,
+- `pmap`: implementation of data **p**arallelism across processing units,
+
+and finally, once other necessary transformations have been performed:
+
+- `jit`: just-in-time compilation for the XLA.
+
+## XLA
+
+The [XLA (Accelerated Linear Algebra) compiler](https://github.com/openxla/xla) takes JIT-compiled JAX programs and optimizes them for the available hardware (CPUs, GPUs, or TPUs). 
