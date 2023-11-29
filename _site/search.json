@@ -235,7 +235,7 @@
     "href": "tools/index.html",
     "title": "Research tools",
     "section": "",
-    "text": "Computing tools workshops\nWorkshops on various computing tools\n\n\n\n\nComputing tools webinars\n60 min webinars on various research tools"
+    "text": "Workshops\nWorkshops on various computing tools\n\n\n\n\nWebinars\n60 min webinars on various research tools"
   },
   {
     "objectID": "tools/help.html",
@@ -1026,7 +1026,7 @@
     "href": "python/index.html",
     "title": "Python",
     "section": "",
-    "text": "Getting started with Python\nIntro course to programming in Python\n\n\n\n\nPython workshops\nWorkshops on various Python topics"
+    "text": "Getting started with Python\nAn introductory course to programming in Python\n\n\n\n \n\n\n\n\n \n\n\n \n\n\n\n\n\nWorkshops\nWorkshops on various Python topics"
   },
   {
     "objectID": "python/control_flow.html",
@@ -2697,37 +2697,93 @@
   {
     "objectID": "ml/jx_numpy.html",
     "href": "ml/jx_numpy.html",
-    "title": "NumPy on the GPU?",
+    "title": "Relation to NumPy",
     "section": "",
     "text": "NumPy is a popular Python scientific API at the core of many libraries. JAX uses a NumPy-inspired API. There are however important differences that we will explore in this section."
   },
   {
-    "objectID": "ml/jx_installation.html",
-    "href": "ml/jx_installation.html",
-    "title": "JAX installation",
+    "objectID": "ml/jx_numpy.html#a-numpy-inspired-api",
+    "href": "ml/jx_numpy.html#a-numpy-inspired-api",
+    "title": "Relation to NumPy",
+    "section": "A NumPy-inspired API",
+    "text": "A NumPy-inspired API\nNumPy being so popular, JAX comes with a convenient high-level wrapper to NumPy: jax.numpy.\n\nBeing familiar with NumPy is thus an advantage to get started with JAX. The NumPy quickstart is a useful resource.\n\n\nFor a more efficient usage, JAX also comes with a lower-level API: jax.lax."
+  },
+  {
+    "objectID": "ml/jx_numpy.html#differences-with-numpy",
+    "href": "ml/jx_numpy.html#differences-with-numpy",
+    "title": "Relation to NumPy",
+    "section": "Differences with NumPy",
+    "text": "Differences with NumPy\n\nFunctionally pure functions\n\nNo side effects\n\n\nOutputs only based on inputs\n\n\n\nPseudorandom number generation (PRNG)\nimport numpy as np  # for comparison\n\nimport jax\nimport jax.numpy as jnp\n\n\nDifferent default data types\nx = np.arange(9).reshape((3, 3))\nprint(x)\ntype(x)\ny = jnp.arange(9).reshape((3, 3))\nprint(y)\ntype(y)\n\n\nImmutable arrays\nx[0, 0] = 9\nprint(x)\ny[0, 0] = 9\nprint(y)\ny = y.at[0, 0].set(10)\nprint(y)"
+  },
+  {
+    "objectID": "ml/jx_numpy.html#integration-with-numpy",
+    "href": "ml/jx_numpy.html#integration-with-numpy",
+    "title": "Relation to NumPy",
+    "section": "Integration with NumPy",
+    "text": "Integration with NumPy\ndevice_put()"
+  },
+  {
+    "objectID": "ml/jx_map.html",
+    "href": "ml/jx_map.html",
+    "title": "How does JAX work?",
     "section": "",
-    "text": "Windows: JAX on CPUs only.\nSolutions: WSL, use CPUs only, use Alliance clusters, use cloud service.\nBest to use pip.\nAll instructions here.\nInstallations not supported in this course as we will use a remote machine."
+    "text": "Before using JAX, it is critical to understand its functioning: JAX architecture is at the core of its efficiency and flexibility, but also the cause of a number of constraints."
   },
   {
-    "objectID": "ml/jx_dataset.html#hugging-face",
-    "href": "ml/jx_dataset.html#hugging-face",
-    "title": "Loading datasets",
-    "section": "Hugging Face",
-    "text": "Hugging Face"
+    "objectID": "ml/jx_map.html#map",
+    "href": "ml/jx_map.html#map",
+    "title": "How does JAX work?",
+    "section": "Map",
+    "text": "Map\nHere is a schematic of JAX’s functioning:\n\n\n\n\n\n  \n\ntracer\n\n Tracing   \n\njaxpr\n\n Jaxpr (JAX expression) intermediate representation (IR)   \n\ntracer-&gt;jaxpr\n\n    \n\njit\n\n  Just-in-time  (JIT) compilation   \n\nhlo\n\n High-level optimized (HLO) program   \n\njit-&gt;hlo\n\n    \n\nxla\n\n Accelerated  Linear Algebra  (XLA)   \n\nCPU\n\n CPU   \n\nxla-&gt;CPU\n\n    \n\nGPU\n\n GPU   \n\nxla-&gt;GPU\n\n    \n\nTPU\n\n TPU   \n\nxla-&gt;TPU\n\n    \n\ntransform\n\n  Transformations    \n\npy\n\n Pure Python functions   \n\npy-&gt;tracer\n\n   \n\njaxpr-&gt;jit\n\n   \n\njaxpr-&gt;transform\n\n     \n\nhlo-&gt;xla"
   },
   {
-    "objectID": "ml/jx_dataset.html#tensorflow",
-    "href": "ml/jx_dataset.html#tensorflow",
-    "title": "Loading datasets",
-    "section": "TensorFlow",
-    "text": "TensorFlow"
+    "objectID": "ml/jx_map.html#tracing",
+    "href": "ml/jx_map.html#tracing",
+    "title": "How does JAX work?",
+    "section": "Tracing",
+    "text": "Tracing\nTracing happens during the first call of a function. Tracer objects are wrapped around each argument and record all operations performed on them, creating a Jaxpr (JAX expression). It is this intermediate representation—rather than the Python code—that JAX then uses.\nThe tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that new inputs with the same shape and dtype will use the cached compiled program directly, skipping the Python code entirely. Inputs with new shape and/or dtype will trigger tracing again (so the Python function gets executed again).\nFunction side-effects are not recorded by the tracers, which means that they are not part of the Jaxprs. They will be executed once (during tracing), but are thereafter absent from the cached compiled program.\nFunctions which use values outside of their arguments (e.g. values from the global environment) will not update the cache if such values change.\nFor these reasons, only functionally pure functions (functions without side effects and which do not rely on values outside their arguments) should be used with JAX."
+  },
+  {
+    "objectID": "ml/jx_map.html#transformations",
+    "href": "ml/jx_map.html#transformations",
+    "title": "How does JAX work?",
+    "section": "Transformations",
+    "text": "Transformations\nJAX is essentially a functional programming framework. Transformations are higher-order functions transforming Jaxprs.\nTransformations are composable and include:\n\ngrad: creates a function that evaluates the gradient of the input function,\nvmap: implementation of automatic vectorization,\npmap: implementation of data parallelism across processing units,\n\nand finally, once other necessary transformations have been performed:\n\njit: just-in-time compilation for the XLA."
+  },
+  {
+    "objectID": "ml/jx_map.html#xla",
+    "href": "ml/jx_map.html#xla",
+    "title": "How does JAX work?",
+    "section": "XLA",
+    "text": "XLA\nThe XLA (Accelerated Linear Algebra) compiler takes JIT-compiled JAX programs and optimizes them for the available hardware (CPUs, GPUs, or TPUs)."
+  },
+  {
+    "objectID": "ml/jx_ecosystem.html",
+    "href": "ml/jx_ecosystem.html",
+    "title": "The JAX ecosystem for deep learning",
+    "section": "",
+    "text": "Several packages have been built on top of JAX to accelerate computations in various domains.\nHere, we will look at a common ecosystem for the development of deep neural networks."
+  },
+  {
+    "objectID": "ml/jx_ecosystem.html#deep-learning-workflow",
+    "href": "ml/jx_ecosystem.html#deep-learning-workflow",
+    "title": "The JAX ecosystem for deep learning",
+    "section": "Deep learning workflow",
+    "text": "Deep learning workflow\nTraining a neural network requires a number of steps:\n\n\n\n\n\n  \n\nLoad\n\n Load dataset   \n\nDefine\n\n Define architecture   \n\nLoad-&gt;Define\n\n    \n\nTrain\n\n Train   \n\nDefine-&gt;Train\n\n    \n\nTest\n\n Test   \n\nTrain-&gt;Test\n\n    \n\nSave\n\n Save model   \n\nTest-&gt;Save\n\n   \n\n\n\n\n\n Let’s see how to do this with JAX."
+  },
+  {
+    "objectID": "ml/jx_ecosystem.html#a-common-dl-workflow-with-jax",
+    "href": "ml/jx_ecosystem.html#a-common-dl-workflow-with-jax",
+    "title": "The JAX ecosystem for deep learning",
+    "section": "A common DL workflow with JAX",
+    "text": "A common DL workflow with JAX\n\nLoad datasets\n\n\nThere are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX did not worry about creating its own implementation.\n\n\nDefine network architecture\n\n\nNeural networks can be build in JAX from scratch, but a number of packages built on JAX provide the necessary toolkit. Flax is a popular option and the one we will use in this course.\n\n\nTrain\n\n\nTraining a model requires optimization functions. These can be implemented in JAX from scratch but the library Optax provides the core components.\n\n\nTest\n\n\nTesting a model is easy to do directly in JAX.\n\n\nSave model\n\n\nFlax provides methods to save a model.\n\n To sum up, here is a common ecosystem of libraries to use JAX for neural networks:\n\n\n\n\n\n  \n\nLoad\n\nLoad dataset   \n\nDefine\n\nDefine architecture    \n\nPyTorch\n\n PyTorch    \n\nTrain\n\nTrain    \n\nflax1\n\n Flax    \n\nTest\n\nTest    \n\nSave\n\nSave model    \n\nTensorFlow\n\n TensorFlow    \n\nPyTorch-&gt;flax1\n\n    \n\nHugging Face\n\n Hugging Face    \n\nTensorFlow-&gt;flax1\n\n    \n\nHugging Face-&gt;flax1\n\n    \n\njax1\n\n JAX +  Optax   \n\nflax1-&gt;jax1\n\n    \n\nFlax\n\n Flax   \n\nJAX\n\n JAX   \n\njax1-&gt;JAX\n\n    \n\nJAX-&gt;Flax"
   },
   {
     "objectID": "ml/index.html",
     "href": "ml/index.html",
     "title": "Machine learning",
     "section": "",
-    "text": "Getting started with PyTorch\nIntroductory course to deep learning\n\n\n\n\nFaster deep learning with JAX\nDeep learning course\n\n\n\n\n\n\nA brief overview of scikit-learn\nIntroduction to machine learning with sklearn\n\n\n\n\nMachine learning workshops\nWorkshops on various ML topics\n\n\n\n\n\n\nMachine learning webinars\n60 min webinars on various ML topics"
+    "text": "Getting started with PyTorch\nAn introductory course to deep learning\n\n\n\n\nFaster deep learning with JAX\nAn introduction to JAX\n\n\n\n\n\n\nA brief overview of scikit-learn\nTraditional machine learning with scikit-learn\n\n\n\n \n\n\n\n\n \n\n\n \n\n\n\n\n\nWorkshops\nWorkshops on deep learning topics\n\n\n\n\nWebinars\n60 min webinars on deep learning topics"
   },
   {
     "objectID": "julia/wb_makie.html",
@@ -3217,7 +3273,7 @@
     "href": "git/index.html",
     "title": "Git",
     "section": "",
-    "text": "Getting started with Git\nIntro course to version control with Git\n\n\n\n\nGit workshops\nWorkshops on various Git topics"
+    "text": "Getting started with Git\nAn introductory course to version control\n\n\n\n \n\n\n\n\n \n\n\n \n\n\n\n\n\nWorkshops\nWorkshops on various Git topics"
   },
   {
     "objectID": "git/first_steps.html",
@@ -3658,7 +3714,7 @@
     "href": "bash/index.html",
     "title": "Bash",
     "section": "",
-    "text": "Getting started with Bash\nIntroductory course in Bash & the Unix shell\n\n\n\n\nBash workshops\nWorkshops on various Bash topics\n\n\n\n\n\n\nBash webinars\n60 min webinars on various Bash topics"
+    "text": "Getting started with Bash\nAn introductory course to the Unix shell\n\n\n\n \n\n\n\n\n \n\n\n \n\n\n\n\n\nWorkshops\nWorkshops on various Bash topics\n\n\n\n\nWebinars\n60 min webinars on various Bash topics"
   },
   {
     "objectID": "bash/introduction.html",
@@ -4190,7 +4246,7 @@
     "href": "julia/index.html",
     "title": "Julia",
     "section": "",
-    "text": "Getting started with Julia\nIntro course to programming in Julia\n\n\n\n\nHigh-performance Julia\nHPC course in Julia\n\n\n\n\n\n\nJulia webinars\n60 min webinars on various Julia topics"
+    "text": "Getting started with Julia\nAn introductory course to programming in Julia\n\n\n\n\nHigh-performance Julia\nAn HPC course in Julia\n\n\n\n\n\n \n\n\n \n\n\n\n\n\nWebinars\n60 min webinars on various Julia topics"
   },
   {
     "objectID": "julia/intro_collections.html",
@@ -4599,53 +4655,116 @@
     "text": "Conclusion: Makie on production clusters\n\n2D plots: use CairoMakie and save to file\n3D plots: use WGLMakie and save to file"
   },
   {
-    "objectID": "ml/jx_ecosystem.html",
-    "href": "ml/jx_ecosystem.html",
-    "title": "The JAX ecosystem",
-    "section": "",
-    "text": "Load\n\nLoad dataset   \n\nDefine\n\nDefine architecture    \n\nPyTorch\n\n PyTorch    \n\nTrain\n\nTrain    \n\nflax1\n\n flax    \n\nTest\n\nTest    \n\nSave\n\nSave model    \n\nTensorFlow\n\n TensorFlow    \n\nPyTorch-&gt;flax1\n\n    \n\nHugging Face\n\n Hugging Face    \n\nTensorFlow-&gt;flax1\n\n    \n\nHugging Face-&gt;flax1\n\n    \n\njax1\n\n JAX +  optax   \n\nflax1-&gt;jax1\n\n    \n\nflax\n\n flax   \n\nJAX\n\n JAX   \n\njax1-&gt;JAX\n\n    \n\nJAX-&gt;flax"
+    "objectID": "ml/jx_jit.html#jit",
+    "href": "ml/jx_jit.html#jit",
+    "title": "JIT subtleties",
+    "section": "JIT",
+    "text": "JIT"
   },
   {
-    "objectID": "ml/jx_ecosystem.html#neural-networks-workflow",
-    "href": "ml/jx_ecosystem.html#neural-networks-workflow",
-    "title": "The JAX ecosystem",
-    "section": "",
-    "text": "Load\n\nLoad dataset   \n\nDefine\n\nDefine architecture    \n\nPyTorch\n\n PyTorch    \n\nTrain\n\nTrain    \n\nflax1\n\n flax    \n\nTest\n\nTest    \n\nSave\n\nSave model    \n\nTensorFlow\n\n TensorFlow    \n\nPyTorch-&gt;flax1\n\n    \n\nHugging Face\n\n Hugging Face    \n\nTensorFlow-&gt;flax1\n\n    \n\nHugging Face-&gt;flax1\n\n    \n\njax1\n\n JAX +  optax   \n\nflax1-&gt;jax1\n\n    \n\nflax\n\n flax   \n\nJAX\n\n JAX   \n\njax1-&gt;JAX\n\n    \n\nJAX-&gt;flax"
+    "objectID": "ml/jx_jit.html#jit-constraints",
+    "href": "ml/jx_jit.html#jit-constraints",
+    "title": "JIT subtleties",
+    "section": "JIT constraints",
+    "text": "JIT constraints\n\nStatic vs traced variables\nStatic shapes known at compile time\n\n\nStatic vs traced operations"
   },
   {
-    "objectID": "ml/jx_nn.html",
-    "href": "ml/jx_nn.html",
-    "title": "Building model architectures with flax",
-    "section": "",
-    "text": "Similar to PyTorch\nhttps://flax.readthedocs.io/en/latest/guides/setup_or_nncompact.html"
+    "objectID": "ml/jx_nn.html#load-dataset",
+    "href": "ml/jx_nn.html#load-dataset",
+    "title": "Let’s build a NN with JAX",
+    "section": "Load dataset",
+    "text": "Load dataset\nAmong the many options to load a dataset, let’s use Hugging Face:"
   },
   {
-    "objectID": "ml/jx_principles.html",
-    "href": "ml/jx_principles.html",
-    "title": "JAX principles",
+    "objectID": "ml/jx_nn.html#define-model-architecture",
+    "href": "ml/jx_nn.html#define-model-architecture",
+    "title": "Let’s build a NN with JAX",
+    "section": "Define model architecture",
+    "text": "Define model architecture\nHere, we use Flax:"
+  },
+  {
+    "objectID": "ml/jx_nn.html#train",
+    "href": "ml/jx_nn.html#train",
+    "title": "Let’s build a NN with JAX",
+    "section": "Train",
+    "text": "Train\n\nCheckpointing"
+  },
+  {
+    "objectID": "ml/jx_nn.html#test",
+    "href": "ml/jx_nn.html#test",
+    "title": "Let’s build a NN with JAX",
+    "section": "Test",
+    "text": "Test"
+  },
+  {
+    "objectID": "ml/jx_nn.html#save-model",
+    "href": "ml/jx_nn.html#save-model",
+    "title": "Let’s build a NN with JAX",
+    "section": "Save model",
+    "text": "Save model"
+  },
+  {
+    "objectID": "ml/jx_parallel.html",
+    "href": "ml/jx_parallel.html",
+    "title": "Parallel computing",
     "section": "",
-    "text": "tracer\n\n Tracing   \n\njaxpr\n\n Jaxpr (JAX expression) intermediate representation (IR)   \n\ntracer-&gt;jaxpr\n\n    \n\njit\n\n  Just-in-time  (JIT) compilation   \n\nhlo\n\n High-level optimized (HLO) code   \n\njit-&gt;hlo\n\n    \n\nxla\n\n Accelerated  Linear Algebra  (XLA)   \n\nCPU\n\n CPU   \n\nxla-&gt;CPU\n\n    \n\nGPU\n\n GPU   \n\nxla-&gt;GPU\n\n    \n\nTPU\n\n TPU   \n\nxla-&gt;TPU\n\n    \n\ntransform\n\n  Transformations    \n\npy\n\n Pure Python functions   \n\npy-&gt;tracer\n\n   \n\njaxpr-&gt;jit\n\n   \n\njaxpr-&gt;transform\n\n     \n\nhlo-&gt;xla\n\n  \n\n\n\n\n\n Tracing happens during the first call of a function. Tracer objects are wrapped around each argument and record all operations performed on them, creating a Jaxpr (JAX expression). It is this intermediate representation—rather than the Python code—that JAX then uses.\nThe tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that new inputs with the same shape and dtype will use the cached compiled program directly, skipping the Python code entirely. Inputs with new shape and/or dtype will trigger a new tracing (so the Python function gets executed again).\nFunction side-effects are not recorded by the tracers, which means that they are not part of the Jaxprs. They will be executed once (during tracing), but are thereafter absent from the cached compiled program.\nFunctions which use values outside of their arguments (e.g. values from the global environment) will not update the cache if such values change.\nFor these reasons, only functionally pure functions (functions without side effects and which do not rely on values outside their arguments) should be used with JAX.\nA number of composable transformations can be applied to the Jaxpr, the last of which being JIT compilation (when possible)."
+    "text": "With performance in mind, JAX is built for parallel computing at all levels. This section gives an overview of the various parallel implementations."
+  },
+  {
+    "objectID": "ml/jx_parallel.html#asynchronous-dispatch",
+    "href": "ml/jx_parallel.html#asynchronous-dispatch",
+    "title": "Parallel computing",
+    "section": "Asynchronous dispatch",
+    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\n\nAdvantage\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nx = random.normal(random.PRNGKey(0), (1000, 1000))\ny = random.normal(random.PRNGKey(0), (1000, 1000))\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.\n\n\nConsequence on benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop, running the computation on one GPU, I get:\nimport timeit\n\ntimeit.timeit(\"jnp.dot(x, y)\",\n              number=1000,\n              globals=globals())/1000\n0.0005148850770000308\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method: jnp.dot(x, y).block_until_ready().\nOn the same machine:\ntimeit.timeit(\"jnp.dot(x, y).block_until_ready()\",\n              number=1000,\n              globals=globals())/1000\n0.0005967016279998916\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the dispatch will be on the same thread as the overhead of the asynchronous execution is larger than the speedup. Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready() in your benchmarks."
+  },
+  {
+    "objectID": "ml/jx_parallel.html#vectorization",
+    "href": "ml/jx_parallel.html#vectorization",
+    "title": "Parallel computing",
+    "section": "Vectorization",
+    "text": "Vectorization"
+  },
+  {
+    "objectID": "ml/jx_parallel.html#data-parallelism",
+    "href": "ml/jx_parallel.html#data-parallelism",
+    "title": "Parallel computing",
+    "section": "Data parallelism",
+    "text": "Data parallelism"
+  },
+  {
+    "objectID": "ml/jx_parallel.html#sharding",
+    "href": "ml/jx_parallel.html#sharding",
+    "title": "Parallel computing",
+    "section": "Sharding",
+    "text": "Sharding"
   },
   {
     "objectID": "ml/jx_why.html",
     "href": "ml/jx_why.html",
     "title": "Why JAX?",
     "section": "",
-    "text": "There are many excellent and popular deep learning frameworks already (e.g. PyTorch), so why did Google—already behind the successful TensorFlow project—start developing JAX?\nIn this section, we will look at the advantages brought by JAX, namely speed and extremely flexible automatic differentiation."
+    "text": "There are many excellent and popular deep learning frameworks already (e.g. PyTorch). So why did Google—already behind the successful TensorFlow project—start developing JAX?\nIn this section, we will look at the advantages brought by JAX, namely speed and flexible automatic differentiation."
   },
   {
     "objectID": "ml/jx_why.html#a-relatively-new-project",
     "href": "ml/jx_why.html#a-relatively-new-project",
     "title": "Why JAX?",
     "section": "A relatively new project",
-    "text": "A relatively new project\nIt is clear that JAX is not a widely adopted project yet.\n\nTrends of Google searches\n\n\n\nAs of October 16, 2023.\n\n\n\n\n\nTrends of Stack Overflow tags\n\n\n\nAs of October 16, 2023.\n\n\n\nSo why learn JAX?"
+    "text": "A relatively new project\nIt is clear that JAX is not a widely adopted project yet.\n\nTrends of Google searches\n\n\n\nAs of October 16, 2023.\n\n\n\n\n\nTrends of Stack Overflow tags\n\n\n\nAs of October 16, 2023.\n\n\n\nSo why JAX?"
   },
   {
-    "objectID": "ml/jx_why.html#the-need-for-new-deep-learning-frameworks",
-    "href": "ml/jx_why.html#the-need-for-new-deep-learning-frameworks",
+    "objectID": "ml/jx_why.html#jax-is-fast",
+    "href": "ml/jx_why.html#jax-is-fast",
     "title": "Why JAX?",
-    "section": "The need for new deep learning frameworks",
-    "text": "The need for new deep learning frameworks\nAutomatic differentiation (autodiff or AD) is the evaluation by computer programs of the partial derivatives of functions. It is a key part of deep learning since training a model consists of updating its weights and biases to decrease some loss function thanks to various gradient-based optimizations.\nSeveral implementations have been developed by different teams over time. This post by Chris Rackauckas summarizes the trade-offs of the various strategies.\nRemoving Julia (which is very interesting: Julia has a lot to offer in the field of AD) and PyTorch stale attempt at JIT compilation, Chris Rackauckas’ post can be summarized this way:\n\n\n\n\n\n  \n\n01\n\n  Autodiff method   \n\n1\n\nStatic graph and XLA    \n\n02\n\n  Framework    \n\n2\n\nDynamic graph   \n\n1-&gt;2\n\n    \n\na\n\n TensorFlow    \n\n4\n\nDynamic graph and XLA   \n\n2-&gt;4\n\n    \n\nb\n\n PyTorch    \n\n5\n\nNon-standard interpretation and XLA   \n\n4-&gt;5\n\n    \n\nd\n\n TensorFlow2    \n\ne\n\n JAX     \n\n03\n\n  Advantage     \n\n7\n\nOptimized autodiff     \n\n8\n\nConvenient     \n\n9\n\nConvenient    \n\n10\n\nFlexible and optimized autodiff     \n\n04\n\n  Disadvantage     \n\nA\n\nInconvenient     \n\nB\n\nCan’t optimize autodiff     \n\nD\n\nDynamism doesn’t play well with XLA    \n\nE\n\nOnly works on pure functions       \n\n\n\n\n\n\nTensorFlow initial approach with computational graphs in a domain-specific language was unintuitive, inconvenient, and hard to debug. PyTorch came with dynamic graphs—an approach so much more convenient that it marked the beginning of the decline of TensorFlow. However xxxx. TensorFlow2 tried xxxx, but xxx.\nThis leaves room for new strategies. Julia offers several promising approaches, but implementations are not straightforward and projects are not always mature. It is an exciting avenue for developers, not necessarily an easy one for end users. JAX is another attempt at bringing both optimization and flexibility to autodiff. With Google behind it, it is a new but fast growing project."
+    "section": "JAX is fast",
+    "text": "JAX is fast\nJAX was built with performance in mind. Its speed relies on design decisions at all levels.\n\nDefault data type\n\n\nLike PyTorch—a popular deep learning library—JAX uses float32 as its default data type. This level of precision is perfectly suitable for deep learning and increases efficiency (by contrast, NumPy defaults to float64).\n\n\nJIT compilation\n\nJIT compilation combines computations, avoids the allocation of memory to temporary objects, and more generally optimizes code for the XLA.\n\nAccelerators\n\n\nThe same code can run on CPUs or on accelerators (GPUs and TPUs).\n\n\nXLA optimization\n\n\nXLA (Accelerated Linear Algebra) is a domain-specific compiler for linear algebra that takes JIT-compiled JAX programs and optimizes them for the available hardware (CPUs, GPUs, or TPUs).\n\n\nAsynchronous dispatch\n\n\nComputations are executed on the accelerators asynchronously.\n\n\nVectorization, data parallelism, and sharding\n\n\nAll levels of shared and distributed memory parallelism are supported in JAX."
+  },
+  {
+    "objectID": "ml/jx_why.html#flexible-differentiation",
+    "href": "ml/jx_why.html#flexible-differentiation",
+    "title": "Why JAX?",
+    "section": "Flexible differentiation",
+    "text": "Flexible differentiation\nAutomatic differentiation (autodiff or AD) is the evaluation by computer programs of the partial derivatives of functions. It is a key part of deep learning since training a model consists of updating its weights and biases to decrease some loss function thanks to various gradient-based optimizations.\nSeveral implementations have been developed by different teams over time. This post by Chris Rackauckas summarizes the trade-offs of the various strategies.\nRemoving Julia (which is very interesting: Julia has a lot to offer in the field of AD) and PyTorch stale attempt at JIT compilation, Chris Rackauckas’ post can be summarized this way:\n\n\n\n\n\n  \n\n01\n\n  Autodiff method   \n\n1\n\nStatic graph and XLA    \n\n02\n\n  Framework    \n\n2\n\nDynamic graph   \n\n1-&gt;2\n\n    \n\na\n\n TensorFlow    \n\n4\n\nDynamic graph and XLA   \n\n2-&gt;4\n\n    \n\nb\n\n PyTorch    \n\n5\n\nNon-standard interpretation and XLA   \n\n4-&gt;5\n\n    \n\nd\n\n TensorFlow2    \n\ne\n\n JAX     \n\n03\n\n  Advantage     \n\n7\n\nOptimized autodiff     \n\n8\n\nConvenient     \n\n9\n\nConvenient    \n\n10\n\nFlexible and optimized autodiff     \n\n04\n\n  Disadvantage     \n\nA\n\nInconvenient     \n\nB\n\nCan’t optimize autodiff     \n\nD\n\nDynamism doesn’t play well with XLA    \n\nE\n\nRequires an intermediate representation       \n\n\n\n\n\n\nTensorFlow initial approach with computational graphs in a domain-specific language was unintuitive, inconvenient, and hard to debug. PyTorch came with dynamic graphs—an approach so much more convenient that it marked the beginning of the decline of TensorFlow. However xxxx. TensorFlow2 tried xxxx, but xxx.\nThis leaves room for new strategies. Julia offers several promising approaches, but implementations are not straightforward and projects are not always mature. It is an exciting avenue for developers, not necessarily an easy one for end users. JAX is another attempt at bringing both optimization and flexibility to autodiff. With Google behind it, it is a new but fast growing project."
   },
   {
     "objectID": "ml/pt_checkpoints.html",
@@ -5000,7 +5119,7 @@
   {
     "objectID": "ml/top_jx.html",
     "href": "ml/top_jx.html",
-    "title": "Deep learning with JAX",
+    "title": "Faster deep learning with JAX",
     "section": "",
     "text": "Faster than TensorFlow and PyTorch, JAX is the new open source Google deep learning framework. Based on Python and NumPy, it uses the XLA compiler for linear algebra and just-in-time compilation. It runs on accelerators (GPUs and TPUs) and provides a powerful and flexible automatic differentiation engine.\n\n\n\n\n\n\n Start course ➤"
   },
@@ -5800,7 +5919,7 @@
     "href": "r/index.html",
     "title": "R",
     "section": "",
-    "text": "Getting started with R\nIntroductory course to programming in R\n\n\n\n\nHigh-performance R\nCourse on high-performance & parallel R\n\n\n\n\n\n\nR workshops\nWorkshops on various R topics\n\n\n\n\nR webinars\n60 min webinars on various R topics"
+    "text": "Getting started with R\nAn introductory course to programming in R\n\n\n\n\nHigh-performance R\nA course on high-performance and parallel R\n\n\n\n\n\n \n\n\n \n\n\n\n\n\nWorkshops\nWorkshops on various R topics\n\n\n\n\nWebinars\n60 min webinars on various R topics"
   },
   {
     "objectID": "r/intro_control_flow.html",
@@ -6902,6 +7021,27 @@
     "text": "The current times are exciting: we are witnessing a growth of computing power while the open source community is vigorously building impressive machine learning and scientific programming tools.\nThis boom of hardware and software assets cannot however translate into research if graduate students aren’t able to take advantage of it. Curricula often lack training pertinent to the use of such resources. Worse yet, in many fields faculties and PIs don’t have the necessary background to help their students with high-performance programming. The training team at Simon Fraser University Research Computing Group aims to fill this gap in the West on behalf of the Alliance and all Western Canadian universities.\nThis talk will present an overview of the training we provide, from introductory skill sets for researchers new to ARC and HPC to advanced topics in parallel programming.\n\nSlides"
   },
   {
+    "objectID": "tools/emacs_prog_ide_slides.html#helm",
+    "href": "tools/emacs_prog_ide_slides.html#helm",
+    "title": "Emacs as a programming IDE",
+    "section": "Helm",
+    "text": "Helm\nSearching in buffer\n\nNavigating open buffers and recent files\n\n\nNavigating file sections\n\n\nSelecting from kill ring\n\n\nMoving in mark ring\n\n\nLooking at active modes"
+  },
+  {
+    "objectID": "tools/emacs_prog_ide_slides.html#completion",
+    "href": "tools/emacs_prog_ide_slides.html#completion",
+    "title": "Emacs as a programming IDE",
+    "section": "Completion",
+    "text": "Completion\ncompany-mode\n\nyasnippet\n\n\nDynamic abbrev expansion"
+  },
+  {
+    "objectID": "tools/emacs_prog_ide_slides.html#undoingredoing-with-undo-tree",
+    "href": "tools/emacs_prog_ide_slides.html#undoingredoing-with-undo-tree",
+    "title": "Emacs as a programming IDE",
+    "section": "Undoing/redoing with undo-tree",
+    "text": "Undoing/redoing with undo-tree"
+  },
+  {
     "objectID": "tools/help_slides.html#when-you-are-stuck-1",
     "href": "tools/help_slides.html#when-you-are-stuck-1",
     "title": "So, you are stuck … now what?",
@@ -7159,453 +7299,5 @@
     "title": "The new R Markdown:",
     "section": "",
     "text": "This webinar will show you how to easily create beautiful publications (webpages, pdf, websites, presentations, books…)—complete with formatted text, dynamic code and figures with Quarto.\nQuarto is the successor to R Markdown. By combining the powers of Jupyter or knitr with Pandoc, it works with R, but also with Python and Julia code blocks and it adds new functionalities to the old tool.\n\nSlides (Click and wait: this reveal.js presentation may take a little time to load.) \n\n\n\nVariation of the talk as a staff to staff webinar:"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nHave some file"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-1",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-1",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake some edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-2",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-2",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake more edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-3",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-3",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))---4((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake more edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-4",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-4",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nCan undo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-5",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-5",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \")):::current---3((\" \"))---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nUndo some more"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-6",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-6",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nCan redo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-7",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-7",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))-.-4((\" \")):::lost\n   3((\" \"))---5((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n   classDef lost stroke-dasharray: 3 4\n\n\n\n\n\n\n\nMake new edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-8",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-8",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current-.-4((\" \")):::lost\n   3((\" \"))---5((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n   classDef lost stroke-dasharray: 3 4\n\n\n\n\n\n\n\nCan still undo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-9",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-9",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \")):::current---3((\" \"))-.-4((\" \")):::lost\n   3((\" \"))---5((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n   classDef lost stroke-dasharray: 3 4\n\n\n\n\n\n\n\nCan still undo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-10",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-10",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current-.-4((\" \")):::lost\n   3((\" \"))---5((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n   classDef lost stroke-dasharray: 3 4\n\n\n\n\n\n\n\nAnd can redo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-11",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-11",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))-.-4((\" \")):::lost\n   3((\" \"))---5((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n   classDef lost stroke-dasharray: 3 4\n\n\n\n\n\n\n\nBut some edits are forever lost"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1)):::current\n   classDef current stroke: #f96, stroke-width: 2px"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-1",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-1",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake some edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-2",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-2",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake more edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-3",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-3",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3))---4((4)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake more edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-4",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-4",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3))---4((4))---5((3)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nThe first undo adds a new point to the chain of edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-5",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-5",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3))---4((4))---5((3))---6((2)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMore undoing keeps adding points to the chain"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-6",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-6",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nThere is no redo: you stop undoing, then start again to undo the undo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-7",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-7",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3))---8((5)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nYou can make new edits\n\n\n\n\nNothing ever gets lost, but you might get headaches\n\n\n\n\n\nExample: let’s go back to the starting point"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-8",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-8",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3))---8((5))---9((3))---10((2))---11((3))---12((4))---13((3))---14((2))---15((1)):::current\n   classDef current stroke: #f96, stroke-width: 2px"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-9",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-emacs-9",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: Emacs",
-    "text": "Linear systems: Emacs\n\n\n\n\n%%{init: { 'flowchart': {'rankSpacing':15} } }%%\nflowchart TD\n   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3))---8((5)):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nAnd you can make new edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-12",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-12",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake some edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-13",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-13",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))---4((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake more edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-14",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-14",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nCan undo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-15",
-    "href": "tools/emacs_prog_ide_slides.html#linear-systems-classic-undoredo-15",
-    "title": "Emacs as a programming IDE",
-    "section": "Linear systems: classic undo/redo",
-    "text": "Linear systems: classic undo/redo\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \")):::current---3((\" \"))---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-1",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-1",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake some edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-2",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-2",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake some edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-3",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-3",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))---4((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake some edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-4",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-4",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nUndo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-5",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-5",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \")):::current---3((\" \"))---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nUndo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-6",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-6",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \")):::current---4((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nRedo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-7",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-7",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))---4((\" \"))\n   3((\" \"))---5((\" \")):::current\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nMake new edits"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-8",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-8",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))---4((\" \"))\n   3((\" \")):::current---5((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nUndo"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-9",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-9",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \"))---2((\" \"))---3((\" \"))---4((\" \")):::current\n   3((\" \"))---5((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nSwitch branch and redo the old version"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-10",
-    "href": "tools/emacs_prog_ide_slides.html#non-linear-system-undo-tree-10",
-    "title": "Emacs as a programming IDE",
-    "section": "Non linear system: undo-tree",
-    "text": "Non linear system: undo-tree\n\n\n\n\n\nflowchart TD\n   1((\" \")):::current---2((\" \"))---3((\" \"))---4((\" \"))\n   3((\" \"))---5((\" \"))\n   classDef current stroke: #f96, stroke-width: 2px\n\n\n\n\n\n\n\nNothing gets lost and it is more sane to navigate the history"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#section",
-    "href": "tools/emacs_prog_ide_slides.html#section",
-    "title": "Emacs as a programming IDE",
-    "section": "",
-    "text": "Time for a demo\n\n\n\n\n\n Back to webinar page"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#helm",
-    "href": "tools/emacs_prog_ide_slides.html#helm",
-    "title": "Emacs as a programming IDE",
-    "section": "Helm",
-    "text": "Helm\nSearching in buffer\n\nNavigating open buffers and recent files\n\n\nNavigating file sections\n\n\nSelecting from kill ring\n\n\nMoving in mark ring\n\n\nLooking at active modes"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#fully-customizable",
-    "href": "tools/emacs_prog_ide_slides.html#fully-customizable",
-    "title": "Emacs as a programming IDE",
-    "section": "Fully customizable",
-    "text": "Fully customizable"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#kbd-for-everything",
-    "href": "tools/emacs_prog_ide_slides.html#kbd-for-everything",
-    "title": "Emacs as a programming IDE",
-    "section": "Kbd for everything",
-    "text": "Kbd for everything"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#macros",
-    "href": "tools/emacs_prog_ide_slides.html#macros",
-    "title": "Emacs as a programming IDE",
-    "section": "Macros",
-    "text": "Macros"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#undoingredoing-with-undo-tree",
-    "href": "tools/emacs_prog_ide_slides.html#undoingredoing-with-undo-tree",
-    "title": "Emacs as a programming IDE",
-    "section": "Undoing/redoing with undo-tree",
-    "text": "Undoing/redoing with undo-tree"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#section-1",
-    "href": "tools/emacs_prog_ide_slides.html#section-1",
-    "title": "Emacs as a programming IDE",
-    "section": "",
-    "text": "Time for a demo\n\n\n\n\n\n Back to webinar page"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#org-mode",
-    "href": "tools/emacs_prog_ide_slides.html#org-mode",
-    "title": "Emacs as a programming IDE",
-    "section": "Org mode",
-    "text": "Org mode\n\nOrg tables"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#ediff",
-    "href": "tools/emacs_prog_ide_slides.html#ediff",
-    "title": "Emacs as a programming IDE",
-    "section": "Ediff",
-    "text": "Ediff"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#emacs-everywhere",
-    "href": "tools/emacs_prog_ide_slides.html#emacs-everywhere",
-    "title": "Emacs as a programming IDE",
-    "section": "Emacs everywhere",
-    "text": "Emacs everywhere\nCan be used for Emails, Slack, Telegram with mu4e, emacs-slack, telega"
-  },
-  {
-    "objectID": "tools/emacs_prog_ide_slides.html#completion",
-    "href": "tools/emacs_prog_ide_slides.html#completion",
-    "title": "Emacs as a programming IDE",
-    "section": "Completion",
-    "text": "Completion\ncompany-mode\n\nyasnippet\n\n\nDynamic abbrev expansion"
-  },
-  {
-    "objectID": "ml/jx_principles.html#overall-functioning",
-    "href": "ml/jx_principles.html#overall-functioning",
-    "title": "JAX principles",
-    "section": "",
-    "text": "tracer\n\n tracer values   \n\nIntermediate(IR)\n\n Intermediate Representation (IR)   \n\ntracer-&gt;Intermediate(IR)\n\n    \n\njit\n\n jit compilation   \n\nHigh Levelcode(HLO)\n\n High Level Optimized code (HLO)   \n\njit-&gt;High Levelcode(HLO)\n\n    \n\nAcceleratedAlgebra(XLA)\n\n Accelerated Linear Algebra (XLA)   \n\nCPU\n\n CPU   \n\nAcceleratedAlgebra(XLA)-&gt;CPU\n\n    \n\nGPU\n\n GPU   \n\nAcceleratedAlgebra(XLA)-&gt;GPU\n\n    \n\nTPU\n\n TPU   \n\nAcceleratedAlgebra(XLA)-&gt;TPU\n\n    \n\ntransforms\n\n transforms   \n\nPython codeonly pure\n\n Python code with only pure functions   \n\nPython codeonly pure-&gt;tracer\n\n   \n\nIntermediate(IR)-&gt;jit\n\n   \n\nIntermediate(IR)-&gt;transforms\n\n     \n\nHigh Levelcode(HLO)-&gt;AcceleratedAlgebra(XLA)"
-  },
-  {
-    "objectID": "ml/jx_principles.html#asynchronous-dispatch",
-    "href": "ml/jx_principles.html#asynchronous-dispatch",
-    "title": "JAX principles",
-    "section": "Asynchronous dispatch",
-    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\n\nAdvantage\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nx = random.normal(random.PRNGKey(0), (1000, 1000))\ny = random.normal(random.PRNGKey(0), (1000, 1000))\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.\n\n\nConsequence on benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop, running the computation on one GPU, I get:\nimport timeit\n\ntimeit.timeit(\"jnp.dot(x, y)\",\n              number=1000,\n              globals=globals())/1000\n0.0005148850770000308\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method: jnp.dot(x, y).block_until_ready().\nOn the same machine:\ntimeit.timeit(\"jnp.dot(x, y).block_until_ready()\",\n              number=1000,\n              globals=globals())/1000\n0.0005967016279998916\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way."
-  },
-  {
-    "objectID": "ml/jx_principles.html#jax-performance",
-    "href": "ml/jx_principles.html#jax-performance",
-    "title": "JAX principles",
-    "section": "JAX performance",
-    "text": "JAX performance\nJAX was built with performance in mind. Its speed relies on many design decisions.\n\nAccelerators\nJAX can run on CPUs, but also on accelerators such as GPUs and TPUs.\n\n\nDefault type\nLike PyTorch—another library designed for deep learning—JAX uses float32 as its default data type. This level of precision is perfectly suitable for machine learning and increases efficiency (by contrast, NumPy—which was built with other purposes in mind—defaults to float64).\n\n\nAsynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\n\nAdvantage\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nx = random.normal(random.PRNGKey(0), (1000, 1000))\ny = random.normal(random.PRNGKey(0), (1000, 1000))\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.\n\n\nConsequence on benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop, running the computation on one GPU, I get:\nimport timeit\n\ntimeit.timeit(\"jnp.dot(x, y)\",\n              number=1000,\n              globals=globals())/1000\n0.0005148850770000308\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method: jnp.dot(x, y).block_until_ready().\nOn the same machine:\ntimeit.timeit(\"jnp.dot(x, y).block_until_ready()\",\n              number=1000,\n              globals=globals())/1000\n0.0005967016279998916\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\n\n\nJIT compilation"
-  },
-  {
-    "objectID": "ml/jx_principles.html#built-for-performance",
-    "href": "ml/jx_principles.html#built-for-performance",
-    "title": "JAX principles",
-    "section": "Built for performance",
-    "text": "Built for performance\nJAX was built with performance in mind. Its speed relies on many design decisions.\n\nAccelerators\nJAX can run on CPUs, but also on accelerators such as GPUs and TPUs.\n\n\nDefault type\nLike PyTorch—another library designed for deep learning—JAX uses float32 as its default data type. This level of precision is perfectly suitable for machine learning and increases efficiency (by contrast, NumPy—which was built with other purposes in mind—defaults to float64).\n\n\nAsynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\n\nAdvantage\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nx = random.normal(random.PRNGKey(0), (1000, 1000))\ny = random.normal(random.PRNGKey(0), (1000, 1000))\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.\n\n\nConsequence on benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop, running the computation on one GPU, I get:\nimport timeit\n\ntimeit.timeit(\"jnp.dot(x, y)\",\n              number=1000,\n              globals=globals())/1000\n0.0005148850770000308\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method: jnp.dot(x, y).block_until_ready().\nOn the same machine:\ntimeit.timeit(\"jnp.dot(x, y).block_until_ready()\",\n              number=1000,\n              globals=globals())/1000\n0.0005967016279998916\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the dispatch will be on the same thread as the overhead of the asynchronous execution is larger than the speedup. Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready() in your benchmarks.\n\n\n\n\nJIT compilation"
-  },
-  {
-    "objectID": "ml/jx_numpy.html#differences-between-jax-and-numpy",
-    "href": "ml/jx_numpy.html#differences-between-jax-and-numpy",
-    "title": "JAX vs NumPy",
-    "section": "Differences between JAX and NumPy",
-    "text": "Differences between JAX and NumPy\n\nPseudorandom number generation (PRNG)\nimport numpy as np  # for comparison\n\nimport jax\nimport jax.numpy as jnp\ndifferent Python types\nx = np.arange(9).reshape((3, 3))\nprint(x)\ntype(x)\ny = jnp.arange(9).reshape((3, 3))\nprint(y)\ntype(y)\nJAX arrays are immutable\nx[0, 0] = 9\nprint(x)\ny[0, 0] = 9\nprint(y)\ny = y.at[0, 0].set(10)\nprint(y)"
-  },
-  {
-    "objectID": "ml/jx_numpy.html#working-with-numpy-in-jax",
-    "href": "ml/jx_numpy.html#working-with-numpy-in-jax",
-    "title": "JAX vs NumPy",
-    "section": "Working with NumPy in JAX",
-    "text": "Working with NumPy in JAX\ndevice_put()"
-  },
-  {
-    "objectID": "ml/jx_principles.html#performance",
-    "href": "ml/jx_principles.html#performance",
-    "title": "JAX principles",
-    "section": "Performance",
-    "text": "Performance\nJAX was built with performance in mind. Its speed relies on many design decisions.\n\nAccelerators\nJAX can run on CPUs, but also on accelerators such as GPUs and TPUs.\n\n\nDefault type\nLike PyTorch—another library designed for deep learning—JAX uses float32 as its default data type. This level of precision is perfectly suitable for machine learning and increases efficiency (by contrast, NumPy—which was built with other purposes in mind—defaults to float64).\n\n\nAsynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\n\nAdvantage\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nx = random.normal(random.PRNGKey(0), (1000, 1000))\ny = random.normal(random.PRNGKey(0), (1000, 1000))\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.\n\n\nConsequence on benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop, running the computation on one GPU, I get:\nimport timeit\n\ntimeit.timeit(\"jnp.dot(x, y)\",\n              number=1000,\n              globals=globals())/1000\n0.0005148850770000308\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method: jnp.dot(x, y).block_until_ready().\nOn the same machine:\ntimeit.timeit(\"jnp.dot(x, y).block_until_ready()\",\n              number=1000,\n              globals=globals())/1000\n0.0005967016279998916\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the dispatch will be on the same thread as the overhead of the asynchronous execution is larger than the speedup. Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready() in your benchmarks.\n\n\n\n\nJIT compilation\n\nStatic vs traced variables\nStatic shapes known at compile time\n\n\nStatic vs traced operations"
-  },
-  {
-    "objectID": "ml/jx_principles.html#functioning",
-    "href": "ml/jx_principles.html#functioning",
-    "title": "JAX principles",
-    "section": "",
-    "text": "tracer\n\n Tracing   \n\njaxpr\n\n Jaxpr (JAX expression) intermediate representation (IR)   \n\ntracer-&gt;jaxpr\n\n    \n\njit\n\n  Just-in-time  (JIT) compilation   \n\nhlo\n\n High-level optimized (HLO) code   \n\njit-&gt;hlo\n\n    \n\nxla\n\n Accelerated  Linear Algebra  (XLA)   \n\nCPU\n\n CPU   \n\nxla-&gt;CPU\n\n    \n\nGPU\n\n GPU   \n\nxla-&gt;GPU\n\n    \n\nTPU\n\n TPU   \n\nxla-&gt;TPU\n\n    \n\ntransform\n\n  Transformations    \n\npy\n\n Pure Python functions   \n\npy-&gt;tracer\n\n   \n\njaxpr-&gt;jit\n\n   \n\njaxpr-&gt;transform\n\n     \n\nhlo-&gt;xla\n\n  \n\n\n\n\n\n Tracing happens during the first call of a function. Tracer objects are wrapped around each argument and record all operations performed on them, creating a Jaxpr (JAX expression). It is this intermediate representation—rather than the Python code—that JAX then uses.\nThe tracer objects used to create the Jaxpr contain information about the shape and dtype of the initial Python arguments, but not their values. This means that new inputs with the same shape and dtype will use the cached compiled program directly, skipping the Python code entirely. Inputs with new shape and/or dtype will trigger a new tracing (so the Python function gets executed again).\nFunction side-effects are not recorded by the tracers, which means that they are not part of the Jaxprs. They will be executed once (during tracing), but are thereafter absent from the cached compiled program.\nFunctions which use values outside of their arguments (e.g. values from the global environment) will not update the cache if such values change.\nFor these reasons, only functionally pure functions (functions without side effects and which do not rely on values outside their arguments) should be used with JAX.\nA number of composable transformations can be applied to the Jaxpr, the last of which being JIT compilation (when possible)."
-  },
-  {
-    "objectID": "ml/jx_dataset.html",
-    "href": "ml/jx_dataset.html",
-    "title": "Loading datasets",
-    "section": "",
-    "text": "There are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX does not have its own implementation. In this section, we will see an example using Hugging Face."
-  },
-  {
-    "objectID": "ml/jx_principles.html#ad",
-    "href": "ml/jx_principles.html#ad",
-    "title": "JAX principles",
-    "section": "AD",
-    "text": "AD"
-  },
-  {
-    "objectID": "ml/jx_why.html#faster-and-more-flexible-differentiation",
-    "href": "ml/jx_why.html#faster-and-more-flexible-differentiation",
-    "title": "Why JAX?",
-    "section": "Faster and more flexible differentiation",
-    "text": "Faster and more flexible differentiation\nAutomatic differentiation (autodiff or AD) is the evaluation by computer programs of the partial derivatives of functions. It is a key part of deep learning since training a model consists of updating its weights and biases to decrease some loss function thanks to various gradient-based optimizations.\nSeveral implementations have been developed by different teams over time. This post by Chris Rackauckas summarizes the trade-offs of the various strategies.\nRemoving Julia (which is very interesting: Julia has a lot to offer in the field of AD) and PyTorch stale attempt at JIT compilation, Chris Rackauckas’ post can be summarized this way:\n\n\n\n\n\n  \n\n01\n\n  Autodiff method   \n\n1\n\nStatic graph and XLA    \n\n02\n\n  Framework    \n\n2\n\nDynamic graph   \n\n1-&gt;2\n\n    \n\na\n\n TensorFlow    \n\n4\n\nDynamic graph and XLA   \n\n2-&gt;4\n\n    \n\nb\n\n PyTorch    \n\n5\n\nNon-standard interpretation and XLA   \n\n4-&gt;5\n\n    \n\nd\n\n TensorFlow2    \n\ne\n\n JAX     \n\n03\n\n  Advantage     \n\n7\n\nOptimized autodiff     \n\n8\n\nConvenient     \n\n9\n\nConvenient    \n\n10\n\nFlexible and optimized autodiff     \n\n04\n\n  Disadvantage     \n\nA\n\nInconvenient     \n\nB\n\nCan’t optimize autodiff     \n\nD\n\nDynamism doesn’t play well with XLA    \n\nE\n\nOnly works on pure functions       \n\n\n\n\n\n\nTensorFlow initial approach with computational graphs in a domain-specific language was unintuitive, inconvenient, and hard to debug. PyTorch came with dynamic graphs—an approach so much more convenient that it marked the beginning of the decline of TensorFlow. However xxxx. TensorFlow2 tried xxxx, but xxx.\nThis leaves room for new strategies. Julia offers several promising approaches, but implementations are not straightforward and projects are not always mature. It is an exciting avenue for developers, not necessarily an easy one for end users. JAX is another attempt at bringing both optimization and flexibility to autodiff. With Google behind it, it is a new but fast growing project."
-  },
-  {
-    "objectID": "ml/jx_why.html#faster",
-    "href": "ml/jx_why.html#faster",
-    "title": "Why JAX?",
-    "section": "Faster",
-    "text": "Faster\nJAX can JIT compile Python functions into XLA-optimized programs for your hardware (CPU, GPUs, or TPUs)."
-  },
-  {
-    "objectID": "ml/jx_why.html#more-flexible-differentiation",
-    "href": "ml/jx_why.html#more-flexible-differentiation",
-    "title": "Why JAX?",
-    "section": "More flexible differentiation",
-    "text": "More flexible differentiation\nAutomatic differentiation (autodiff or AD) is the evaluation by computer programs of the partial derivatives of functions. It is a key part of deep learning since training a model consists of updating its weights and biases to decrease some loss function thanks to various gradient-based optimizations.\nSeveral implementations have been developed by different teams over time. This post by Chris Rackauckas summarizes the trade-offs of the various strategies.\nRemoving Julia (which is very interesting: Julia has a lot to offer in the field of AD) and PyTorch stale attempt at JIT compilation, Chris Rackauckas’ post can be summarized this way:\n\n\n\n\n\n  \n\n01\n\n  Autodiff method   \n\n1\n\nStatic graph and XLA    \n\n02\n\n  Framework    \n\n2\n\nDynamic graph   \n\n1-&gt;2\n\n    \n\na\n\n TensorFlow    \n\n4\n\nDynamic graph and XLA   \n\n2-&gt;4\n\n    \n\nb\n\n PyTorch    \n\n5\n\nNon-standard interpretation and XLA   \n\n4-&gt;5\n\n    \n\nd\n\n TensorFlow2    \n\ne\n\n JAX     \n\n03\n\n  Advantage     \n\n7\n\nOptimized autodiff     \n\n8\n\nConvenient     \n\n9\n\nConvenient    \n\n10\n\nFlexible and optimized autodiff     \n\n04\n\n  Disadvantage     \n\nA\n\nInconvenient     \n\nB\n\nCan’t optimize autodiff     \n\nD\n\nDynamism doesn’t play well with XLA    \n\nE\n\nRequires an intermediate representation       \n\n\n\n\n\n\nTensorFlow initial approach with computational graphs in a domain-specific language was unintuitive, inconvenient, and hard to debug. PyTorch came with dynamic graphs—an approach so much more convenient that it marked the beginning of the decline of TensorFlow. However xxxx. TensorFlow2 tried xxxx, but xxx.\nThis leaves room for new strategies. Julia offers several promising approaches, but implementations are not straightforward and projects are not always mature. It is an exciting avenue for developers, not necessarily an easy one for end users. JAX is another attempt at bringing both optimization and flexibility to autodiff. With Google behind it, it is a new but fast growing project."
-  },
-  {
-    "objectID": "ml/jx_why.html#jax-is-faster",
-    "href": "ml/jx_why.html#jax-is-faster",
-    "title": "Why JAX?",
-    "section": "JAX is faster",
-    "text": "JAX is faster\nJAX traces pure Python functions into an intermediate language that can be transformed and JIT compiled into a high-level optimized code which is passed to the XLA compiler for optimization across the available hardware (CPUs, GPUs, or TPUs).\nThis series of internal steps—which starts with the constraint that JAX only works reliably with pure Python functions (functions with no side effects)—makes JAX extremely fast. Training models with JAX can be substantially faster than with TensorFlow or PyTorch, although the size of the speedup depends on the size of the model, the type of GPUs, and other factors."
-  },
-  {
-    "objectID": "ml/jx_numpy.html#comparison-with-numpy",
-    "href": "ml/jx_numpy.html#comparison-with-numpy",
-    "title": "NumPy on the GPU?",
-    "section": "Comparison with NumPy",
-    "text": "Comparison with NumPy\n\njax.numpy\nNumPy being so popular, JAX comes with a convenient high-level wrapper to NumPy: jax.numpy.\n\nBeing familiar with NumPy is an advantage to get started with JAX. The NumPy quickstart is a useful resource.\n\nHowever,\n\nthere are key differences with NumPy,\nfor a more efficient usage, JAX also comes with a lower-level API: jax.lax.\n\n\n\nPseudorandom number generation (PRNG)\nimport numpy as np  # for comparison\n\nimport jax\nimport jax.numpy as jnp\n\n\nDifferent default data types\nx = np.arange(9).reshape((3, 3))\nprint(x)\ntype(x)\ny = jnp.arange(9).reshape((3, 3))\nprint(y)\ntype(y)\n\n\nImmutable arrays\nx[0, 0] = 9\nprint(x)\ny[0, 0] = 9\nprint(y)\ny = y.at[0, 0].set(10)\nprint(y)"
-  },
-  {
-    "objectID": "ml/jx_numpy.html#integration-with-numpy",
-    "href": "ml/jx_numpy.html#integration-with-numpy",
-    "title": "NumPy on the GPU?",
-    "section": "Integration with NumPy",
-    "text": "Integration with NumPy\ndevice_put()"
   }
 ]
