@@ -5,17 +5,102 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-
+JIT compilation is a key component to what makes JAX efficient. For the most part, it is very easy to use, but there are subtleties to be aware of. We will explore those in this section.
 
 :::
 
-
 ## JIT
+
+Instead of executing computations one at a time, they can be combined and optimized by JIT compilation before being passed to the XLA.
+
+This is done by the `jax.jit()` function or the equivalent decorator `@jit`.
+
+Let's consider this code:
+
+```{.python}
+import jax.numpy as jnp
+from jax import jit
+from jax import random
+
+key = random.PRNGKey(8)
+key, subkey1, subkey2 = random.split(key, 3)
+
+a = random.normal(subkey1, (500, 500))
+b = random.normal(subkey2, (500, 500))
+
+def sum_squared_error(a, b):
+  return jnp.sum((a-b)**2)
+```
+
+Our function can simply be used as:
+
+```{.python}
+print(sum_squared_error(a, b))
+```
+
+The code will run faster however if we create a JIT compiled version of the function and use that instead (we will see how to benchmark JAX code later in the course):
+
+```{.python}
+sum_squared_error_jit = jit(sum_squared_error)
+print(sum_squared_error_jit(a, b))
+```
+
+```
+502084.75
+```
+
+Alternatively, this can be written as:
+
+```{.python}
+print(jit(sum_squared_error)(a, b))
+```
+
+```
+502084.75
+```
+
+Or as:
+
+```{.python}
+@jit
+def sum_squared_error(a, b):
+  return jnp.sum((a - b) ** 2)
+
+print(sum_squared_error(a, b))
+```
+
+```
+502084.75
+```
+
+This was very easy. There are situations however in which tracing will fail.
 
 ## JIT constraints
 
 ### Static vs traced variables
 
-Static shapes known at compile time
+One example can arise with control flow.
+
+```{.python}
+@jit
+def cond_func(x):
+  if x < 0.0:
+    return x ** 2.0
+  else:
+    return x ** 3.0
+
+cond_func(1.0)
+```
+
+```
+jax.errors.TracerBoolConversionError:
+Attempted boolean conversion of traced array with shape bool[].
+This concrete value was not available in Python because it depends
+on the value of the argument x.
+```
+
+
+
+<!-- Static shapes known at compile time -->
 
 ### Static vs traced operations
