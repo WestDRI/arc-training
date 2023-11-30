@@ -89,18 +89,95 @@ def cond_func(x):
   else:
     return x ** 3.0
 
-cond_func(1.0)
+print(cond_func(1.0))
 ```
 
 ```
-jax.errors.TracerBoolConversionError:
-Attempted boolean conversion of traced array with shape bool[].
-This concrete value was not available in Python because it depends
-on the value of the argument x.
+jax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[]..
+The error occurred while tracing the function cond_func at jx_jit.qmd:85 for jit. This concrete value was not available in Python because it depends on the value of the argument x.
+See https://jax.readthedocs.io/en/latest/errors.html#jax.errors.TracerBoolConversionError
 ```
 
+What is going on?
 
+JIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics. The tracer objects are not real values but abstract representation that are more general. In control flow situations such as the one we have here, an abstract general value does not work as it wouldn't know which branch to take.
 
-<!-- Static shapes known at compile time -->
+The solution is to tell `jit()` not to trace some arguments (to consider them as static) by using the `static_argnums` parameter. This parameter takes an integer or a collection of integers to specify the position of the arguments to treat as static.
+
+Here, our function only accepts one argument, so we will use `static_argnums=(0,)`
+
+```{.python}
+def cond_func(x):
+  if x < 0.0:
+    return x ** 2.0
+  else:
+    return x ** 3.0
+
+cond_func_jit = jit(cond_func, static_argnums=(0,))
+
+print(cond_func_jit(2.0))
+print(cond_func_jit(-2.0))
+```
+
+```
+8.0
+4.0
+```
+
+Alternatively, the arguments that we want to be treated as static can be specified by their names:
+
+```{.python}
+def cond_func(x):
+  if x < 0.0:
+    return x ** 2.0
+  else:
+    return x ** 3.0
+
+cond_func_jit_alt = jit(cond_func, static_argnames="x")
+
+print(cond_func_jit_alt(2.0))
+print(cond_func_jit_alt(-2.0))
+```
+
+```
+8.0
+4.0
+```
 
 ### Static vs traced operations
+
+Similarly, you will need to mark certain operations are static so that they don't get traced during JIT compilation:
+
+```{.python}
+@jit
+def f(x):
+  return x.reshape(jnp.array(x.shape).prod())
+
+x = jnp.ones((2, 3))
+print(f(x))
+```
+
+```
+TypeError: Shapes must be 1D sequences of concrete values of integer type, got [Traced<ShapedArray(int32[])>with<DynamicJaxprTrace(level=1/0)>].
+If using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.
+```
+
+The solution here is to use NumPy of JAX:
+
+```{.python}
+import numpy as np
+
+@jit
+def f(x):
+  return x.reshape((np.prod(x.shape),))
+
+print(f(x))
+```
+
+```
+[1. 1. 1. 1. 1. 1.]
+```
+
+<!-- Local Variables: -->
+<!-- pyvenv-activate: "/home/marie/parvus/prog/mint/ml/jx_env" -->
+<!-- End: -->
