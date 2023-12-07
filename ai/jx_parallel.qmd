@@ -72,10 +72,74 @@ If you are running small computations such as this one without accelerator, the 
 
 ## Vectorization
 
+[Remember how a number of transformations are applied to Jaxprs](https://mint.westdri.ca/ai/jx_map#map). We already saw one of JAX's main transformations: JIT compilation with `jax.jit()`. Vectorization with `jax.vmap()` is another one.
+
+It automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).
+
+Here is an example from [JAX 101](https://jax.readthedocs.io/en/latest/jax-101/index.html) commonly encountered in deep learning:
+
+```{.python}
+import jax
+import jax.numpy as jnp
+
+x = jnp.arange(5)
+w = jnp.array([2., 3., 4.])
+
+def convolve(x, w):
+  output = []
+  for i in range(1, len(x)-1):
+    output.append(jnp.dot(x[i-1:i+2], w))
+  return jnp.array(output)
+
+convolve(x, w)
+```
+
+```
+Array([11., 20., 29.], dtype=float32)
+```
+
+How can you apply the function `convolve()` on a batch of weights `w` and vectors `x`.
+
+```{.python}
+xs = jnp.stack([x, x])
+ws = jnp.stack([w, w])
+```
+
+We apply the `jax.vmap()` transformation to the `convolve()` function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:
+
+```{.python}
+auto_batch_convolve = jax.vmap(convolve)
+auto_batch_convolve(xs, ws)
+```
+
+```
+Array([[11., 20., 29.],
+       [11., 20., 29.]], dtype=float32)
+```
+
+Transformations can be composed:
+
+```{.python}
+jitted_batch_convolve = jax.jit(auto_batch_convolve)
+jitted_batch_convolve(xs, ws)
+```
+
+```
+Array([[11., 20., 29.],
+       [11., 20., 29.]], dtype=float32)
+```
+
 ## Data parallelism
+
+The `jax.pmap()` transformation does the same thing but each computation runs on a different device, allowing to scale things up dramatically.
 
 ## Sharding
 
+JAX is also capable of running arrays across multiple devices.
+
+## Multi-host communication
+
+JAX does not have the ability to scale things up to the level of multi-node clusters, but the [mpi4jax](https://github.com/mpi4jax/mpi4jax) extension provides it.
 
 <!-- https://mpi4jax.readthedocs.io/en/latest/ -->
 
