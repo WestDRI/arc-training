@@ -3654,13 +3654,6 @@
     "text": "Automatic differentiation\nIf we had to do all this manually, it would be absolute hell. Thankfully, many tools—including PyTorch—can do this automatically.\n\nTracking computations\nFor the automation of the calculation of all those derivatives through chain rules, PyTorch needs to track computations during the forward pass.\nPyTorch does not however track all the computations on all the tensors (this would be extremely memory intensive!). To start tracking computations on a vector, set the requires_grad attribute to True:\n\nimport torch\n\nx = torch.ones(2, 4, requires_grad=True)\nx\n\ntensor([[1., 1., 1., 1.],\n        [1., 1., 1., 1.]], requires_grad=True)\n\n\n\nThe grad_fun attribute\nWhenever a tensor is created by an operation involving a tracked tensor, it has a grad_fun attribute:\n\ny = x + 1\ny\n\ntensor([[2., 2., 2., 2.],\n        [2., 2., 2., 2.]], grad_fn=&lt;AddBackward0&gt;)\n\n\n\ny.grad_fn\n\n&lt;AddBackward0 at 0x7f1802532c80&gt;\n\n\n\n\nJudicious tracking\nYou don’t want to track more than is necessary. There are multiple ways to avoid tracking what you don’t want.\nYou can stop tracking computations on a tensor with the method detach:\n\nx\n\ntensor([[1., 1., 1., 1.],\n        [1., 1., 1., 1.]], requires_grad=True)\n\n\n\nx.detach_()\n\ntensor([[1., 1., 1., 1.],\n        [1., 1., 1., 1.]])\n\n\nYou can change its requires_grad flag:\n\nx = torch.zeros(2, 3, requires_grad=True)\nx\n\ntensor([[0., 0., 0.],\n        [0., 0., 0.]], requires_grad=True)\n\n\n\nx.requires_grad_(False)\n\ntensor([[0., 0., 0.],\n        [0., 0., 0.]])\n\n\nAlternatively, you can wrap any code you don’t want to track under with torch.no_grad():\n\nx = torch.ones(2, 4, requires_grad=True)\n\nwith torch.no_grad():\n    y = x + 1\n\ny\n\ntensor([[2., 2., 2., 2.],\n        [2., 2., 2., 2.]])\n\n\n\nCompare this with what we just did above.\n\n\n\n\nCalculating gradients\nLet’s calculate gradients manually, then use autograd, in a very simple case: imagine that \\(x\\), \\(y\\), and \\(z\\) are tensors containing the parameters of a model and that the error \\(e\\) could be calculated with the equation:\n\\[e=2x^4-y^3+3z^2\\]\n\nManual derivative calculation\nLet’s see how we would do this manually.\nFirst, we need the model parameters tensors:\n\nx = torch.tensor([1., 2.])\ny = torch.tensor([3., 4.])\nz = torch.tensor([5., 6.])\n\nWe calculate \\(e\\) following the above equation:\n\ne = 2*x**4 - y**3 + 3*z**2\n\nThe gradients of the error \\(e\\) w.r.t. the parameters \\(x\\), \\(y\\), and \\(z\\) are:\n\\[\\frac{de}{dx}=8x^3\\] \\[\\frac{de}{dy}=-3y^2\\] \\[\\frac{de}{dz}=6z\\]\nWe can calculate them with:\n\ngradient_x = 8*x**3\ngradient_x\n\ntensor([ 8., 64.])\n\n\n\ngradient_y = -3*y**2\ngradient_y\n\ntensor([-27., -48.])\n\n\n\ngradient_z = 6*z\ngradient_z\n\ntensor([30., 36.])\n\n\n\n\nAutomatic derivative calculation\nFor this method, we need to define our model parameters with requires_grad set to True:\n\nx = torch.tensor([1., 2.], requires_grad=True)\ny = torch.tensor([3., 4.], requires_grad=True)\nz = torch.tensor([5., 6.], requires_grad=True)\n\n\\(e\\) is calculated in the same fashion (except that here, all the computations on \\(x\\), \\(y\\), and \\(z\\) are tracked):\n\ne = 2*x**4 - y**3 + 3*z**2\n\nThe backward propagation is done automatically with:\n\ne.backward(torch.tensor([1., 1.]))\n\nAnd we have our 3 partial derivatives:\n\nprint(x.grad)\nprint(y.grad)\nprint(z.grad)\n\ntensor([ 8., 64.])\ntensor([-27., -48.])\ntensor([30., 36.])\n\n\n\n\nComparison\nThe result is the same, as can be tested with:\n\n8*x**3 == x.grad\n\ntensor([True, True])\n\n\n\n-3*y**2 == y.grad\n\ntensor([True, True])\n\n\n\n6*z == z.grad\n\ntensor([True, True])\n\n\nOf course, calculating the gradients manually here was extremely easy, but imagine how tedious and lengthy it would be to write the chain rules to calculate the gradients of all the composite functions in a neural network manually…"
   },
   {
-    "objectID": "ai/jx_pytree.html",
-    "href": "ai/jx_pytree.html",
-    "title": "Pytrees",
-    "section": "",
-    "text": "stateful vs stateless OOP vs functional programming"
-  },
-  {
     "objectID": "ai/jx_numpy.html",
     "href": "ai/jx_numpy.html",
     "title": "Relation to NumPy",
@@ -3724,18 +3717,53 @@
     "text": "XLA\nThe XLA (Accelerated Linear Algebra) compiler takes JIT-compiled JAX programs and optimizes them for the available hardware (CPUs, GPUs, or TPUs)."
   },
   {
-    "objectID": "ai/fl_jaxdl.html#deep-learning-workflow",
-    "href": "ai/fl_jaxdl.html#deep-learning-workflow",
-    "title": "Deep learning with JAX",
-    "section": "Deep learning workflow",
-    "text": "Deep learning workflow\nTraining a neural network from scratch requires a number of steps:\n\n\n\n\n\n  \n\nLoad\n\n Load dataset   \n\nDefine\n\n Define architecture   \n\nLoad-&gt;Define\n\n    \n\nTrain\n\n Train   \n\nDefine-&gt;Train\n\n    \n\nTest\n\n Test   \n\nTrain-&gt;Test\n\n    \n\nSave\n\n Save model   \n\nTest-&gt;Save\n\n   \n\n\n\n\n\n Pretrained models can also be used for feature extraction or transfer learning."
+    "objectID": "ai/fl_state.html",
+    "href": "ai/fl_state.html",
+    "title": "Stateless models",
+    "section": "",
+    "text": "Deep learning models can be split into two big categories depending on the deep learning frameworks used to train them: stateful and stateless models.\nWhat does this mean and where does Flax stand?"
   },
   {
-    "objectID": "ai/fl_jaxdl.html#a-common-dl-workflow-with-jax",
-    "href": "ai/fl_jaxdl.html#a-common-dl-workflow-with-jax",
-    "title": "Deep learning ecosystem with JAX",
-    "section": "A common DL workflow with JAX",
-    "text": "A common DL workflow with JAX\n\nLoad datasets\n\n\nThere are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX did not worry about creating its own implementation.\n\n\nDefine network architecture\n\n\nNeural networks can be build in JAX from scratch, but a number of packages built on JAX provide the necessary toolkit. Flax is a popular option and the one we will use in this course.\n\n\nTrain\n\n\nTraining a model requires optimization functions. These can be implemented in JAX from scratch but the library Optax provides the core components.\n\n\nTest\n\n\nTesting a model is easy to do directly in JAX.\n\n\nSave model\n\n\nFlax provides methods to save a model.\n\n To sum up, here is a common ecosystem of libraries to use JAX for neural networks:\n\n\n\n\n\n  \n\nLoad\n\nLoad dataset   \n\nDefine\n\nDefine architecture    \n\nPyTorch\n\n PyTorch    \n\nTrain\n\nTrain    \n\nflax1\n\n Flax    \n\nTest\n\nTest    \n\nSave\n\nSave model    \n\nTensorFlow\n\n TensorFlow    \n\nPyTorch-&gt;flax1\n\n    \n\nHugging Face\n\n Hugging Face    \n\nTensorFlow-&gt;flax1\n\n    \n\nHugging Face-&gt;flax1\n\n    \n\njax1\n\n JAX +  Optax   \n\nflax1-&gt;jax1\n\n    \n\nFlax\n\n Flax   \n\nJAX\n\n JAX   \n\njax1-&gt;JAX\n\n    \n\nJAX-&gt;Flax"
+    "objectID": "ai/fl_state.html#stateful-models",
+    "href": "ai/fl_state.html#stateful-models",
+    "title": "Stateless models",
+    "section": "Stateful models",
+    "text": "Stateful models\nIn frameworks such as PyTorch or the Julia package Flux, model parameters and optimizer state are stored within the model instance. Instantiating a PyTorch model allocates memory for the model parameters. The model can then be described as stateful.\nDuring the forward pass, only the inputs are passed through the model. The output depends on the inputs and on the state of the model."
+  },
+  {
+    "objectID": "ai/fl_state.html#stateless-models",
+    "href": "ai/fl_state.html#stateless-models",
+    "title": "Stateless models",
+    "section": "Stateless models",
+    "text": "Stateless models\nJAX JIT compilation requires that functions be without side effects since side effects are only executed once, during tracing.\nUpdating model parameters and optimizer state thus cannot be done as a side-effect. The state cannot be part of the model instance—it needs to be explicit, that is, separated from the model. During instantiation, no memory is allocated for the parameters. During the forward pass, the state will pass, along with the inputs, through the model. The model is thus stateless and the constrains of pure functional programming are met (inputs lead to outputs without external influence or side effects).\nFrameworks based on JAX such as Flax as well as the Julia package Lux (a modern rewrite of Flux with explicit model parameters and a philosophy similar to JAX’s) follow this approach."
+  },
+  {
+    "objectID": "ai/fl_dataset.html",
+    "href": "ai/fl_dataset.html",
+    "title": "Loading datasets",
+    "section": "",
+    "text": "Neither JAX nor Flax implement methods to load datasets since PyTorch, TensorFlow, and Hugging Face already provide great APIs for this.\nLet’s use one of the most classic of all deep learning datasets—the MNIST (LeCun, Cortes, and Burges 2010)—to see how these APIs work."
+  },
+  {
+    "objectID": "ai/fl_dataset.html#hugging-face-datasets",
+    "href": "ai/fl_dataset.html#hugging-face-datasets",
+    "title": "Loading datasets",
+    "section": "Hugging Face Datasets",
+    "text": "Hugging Face Datasets\nThe Datasets library from 🤗 is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\n\nSearch dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community.\n\n\nInspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}\n\n\n\n\nDownload dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5\n\n\n\n\nConvert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\ndsj['train']['label'][:10]\nArray([5, 0, 4, 1, 9, 2, 1, 3, 1, 4], dtype=int32)\nWe can shuffle the data:\nds_shuffled = dsj.shuffle(seed=123)\nds_shuffled['train']['label'][:10]\nArray([4, 4, 4, 1, 7, 8, 5, 2, 8, 3], dtype=int32)\nFor normalization and more complex operations, you will need the Hugging Face transformers package."
+  },
+  {
+    "objectID": "ai/fl_dataset.html#pytorch",
+    "href": "ai/fl_dataset.html#pytorch",
+    "title": "Loading datasets",
+    "section": "PyTorch",
+    "text": "PyTorch\nIf you are familiar with PyTorch DataLoaders, this is an equally great option:\nimport torch\nfrom torchvision import datasets, transforms\n\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])\n\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\n\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)\n\n# create DataLoaders\ntrain_loader = torch.utils.data.DataLoader(\n    train_data, batch_size=20, shuffle=True)\n\ntest_loader = torch.utils.data.DataLoader(\n    test_data, batch_size=20, shuffle=False)\nYou can find more details in our PyTorch course."
+  },
+  {
+    "objectID": "ai/fl_dataset.html#tensorflow-datasets",
+    "href": "ai/fl_dataset.html#tensorflow-datasets",
+    "title": "Loading datasets",
+    "section": "TensorFlow Datasets",
+    "text": "TensorFlow Datasets\nFor those familiar with TensorFlow, here is an example from the Flax Quick start:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n  \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n  \n  train_ds = tfds.load('mnist', split='train')\n  test_ds = tfds.load('mnist', split='test')\n\n  # normalize train set\n  train_ds = train_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  # normalize test set\n  test_ds = test_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  \n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  test_ds = test_ds.shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  return train_ds, test_ds\nThere is nothing wrong with using utilities from different libraries! Pick and choose the tools that serve your needs best."
   },
   {
     "objectID": "about.html",
@@ -3757,6 +3785,27 @@
     "title": "About this site",
     "section": "Other websites",
     "text": "Other websites\nIn addition, here are a few of our websites for various training events:\n\nAutumn School 2022\nTraining Modules 2022\nTraining Modules 2021\nSummer School 2020\nCoding Fundamentals for Humanists 2022 for the Digital Humanities Summer Institute\nCoding Fundamentals for Humanists 2021 for the Digital Humanities Summer Institute\nHSS Winter Series 2023\nHSS Winter Series 2022"
+  },
+  {
+    "objectID": "ai/fl_jaxdl.html",
+    "href": "ai/fl_jaxdl.html",
+    "title": "Deep learning with JAX",
+    "section": "",
+    "text": "JAX is perfect for developing deep learning models:\n\nit deals with multi-dimensional arrays,\nit is extremely fast,\nit is optimized for accelerators,\nand it is capable of flexible automatic differentiation.\n\nJAX is however not a DL library. While it is possible to create neural networks directly in JAX, it makes more sense to use libraries built on JAX that provide the toolkit necessary to build and train neural networks."
+  },
+  {
+    "objectID": "ai/fl_jaxdl.html#deep-learning-workflow",
+    "href": "ai/fl_jaxdl.html#deep-learning-workflow",
+    "title": "Deep learning with JAX",
+    "section": "Deep learning workflow",
+    "text": "Deep learning workflow\nTraining a neural network from scratch requires a number of steps:\n\n\n\n\n\n  \n\nLoad\n\n Load dataset   \n\nDefine\n\n Define architecture   \n\nLoad-&gt;Define\n\n    \n\nTrain\n\n Train   \n\nDefine-&gt;Train\n\n    \n\nTest\n\n Test   \n\nTrain-&gt;Test\n\n    \n\nSave\n\n Save model   \n\nTest-&gt;Save\n\n   \n\n\n\n\n\n Pretrained models can also be used for feature extraction or transfer learning."
+  },
+  {
+    "objectID": "ai/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
+    "href": "ai/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
+    "title": "Deep learning with JAX",
+    "section": "Deep learning ecosystem for JAX",
+    "text": "Deep learning ecosystem for JAX\nHere is a classic ecosystem of libraries for deep learning with JAX:\n\nLoad datasets\n\n\nThere are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX did not worry about creating its own implementation.\n\n\nDefine network architecture\n\n\nNeural networks can be build in JAX from scratch, but a number of packages built on JAX provide the necessary toolkit. Flax is a popular option and the one we will use in this course.\n\n\nTrain\n\n\nTraining a model requires optimization functions. These can be implemented in JAX from scratch but the library Optax provides the core components.\n\n\nTest\n\n\nTesting a model is easy to do directly in JAX.\n\n\nSave model\n\n\nFlax provides methods to save a model.\n\n To sum up, here is a common ecosystem of libraries to use JAX for neural networks:\n\n\n\n\n\n  \n\nLoad\n\nLoad dataset   \n\nDefine\n\nDefine architecture    \n\nPyTorch\n\n PyTorch    \n\nTrain\n\nTrain    \n\nflax1\n\n Flax    \n\nTest\n\nTest    \n\nSave\n\nSave model    \n\nTensorFlow\n\n TensorFlow    \n\nPyTorch-&gt;flax1\n\n    \n\nHugging Face\n\n Hugging Face    \n\nTensorFlow-&gt;flax1\n\n    \n\nHugging Face-&gt;flax1\n\n    \n\njax1\n\n JAX +  Optax   \n\nflax1-&gt;jax1\n\n    \n\nFlax\n\n Flax   \n\nJAX\n\n JAX   \n\njax1-&gt;JAX\n\n    \n\nJAX-&gt;Flax\n\n   \n\n\n\n\n\n When working from pretrained models, Hugging Face also provides a great API to download from thousands of pretrained models."
   },
   {
     "objectID": "ai/index.html",
@@ -3855,6 +3904,13 @@
     "title": "Parallel computing",
     "section": "Sharding",
     "text": "Sharding\nJAX is also capable of running arrays across multiple devices."
+  },
+  {
+    "objectID": "ai/jx_parallel.html#multi-host-communication",
+    "href": "ai/jx_parallel.html#multi-host-communication",
+    "title": "Parallel computing",
+    "section": "Multi-host communication",
+    "text": "Multi-host communication\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides it."
   },
   {
     "objectID": "ai/jx_why.html",
@@ -7418,250 +7474,5 @@
     "title": "A few more of our favourite tools",
     "section": "",
     "text": "Please find this webinar in the Bash section."
-  },
-  {
-    "objectID": "ai/fl_jaxdl.html",
-    "href": "ai/fl_jaxdl.html",
-    "title": "Deep learning with JAX",
-    "section": "",
-    "text": "JAX is perfect for developing deep learning models:\n\nit deals with multi-dimensional arrays,\nit is extremely fast,\nit is optimized for accelerators,\nand it is capable of flexible automatic differentiation.\n\nJAX is however not a DL library. While it is possible to create neural networks directly in JAX, it makes more sense to use libraries built on JAX that provide the toolkit necessary to build and train neural networks."
-  },
-  {
-    "objectID": "ai/fl_jaxdl.html#dl-ecosystem-with-jax",
-    "href": "ai/fl_jaxdl.html#dl-ecosystem-with-jax",
-    "title": "Deep learning with JAX",
-    "section": "DL ecosystem with JAX",
-    "text": "DL ecosystem with JAX\n\nLoad datasets\n\n\nThere are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX did not worry about creating its own implementation.\n\n\nDefine network architecture\n\n\nNeural networks can be build in JAX from scratch, but a number of packages built on JAX provide the necessary toolkit. Flax is a popular option and the one we will use in this course.\n\n\nTrain\n\n\nTraining a model requires optimization functions. These can be implemented in JAX from scratch but the library Optax provides the core components.\n\n\nTest\n\n\nTesting a model is easy to do directly in JAX.\n\n\nSave model\n\n\nFlax provides methods to save a model.\n\n To sum up, here is a common ecosystem of libraries to use JAX for neural networks:\n\n\n\n\n\n  \n\nLoad\n\nLoad dataset   \n\nDefine\n\nDefine architecture    \n\nPyTorch\n\n PyTorch    \n\nTrain\n\nTrain    \n\nflax1\n\n Flax    \n\nTest\n\nTest    \n\nSave\n\nSave model    \n\nTensorFlow\n\n TensorFlow    \n\nPyTorch-&gt;flax1\n\n    \n\nHugging Face\n\n Hugging Face    \n\nTensorFlow-&gt;flax1\n\n    \n\nHugging Face-&gt;flax1\n\n    \n\njax1\n\n JAX +  Optax   \n\nflax1-&gt;jax1\n\n    \n\nFlax\n\n Flax   \n\nJAX\n\n JAX   \n\njax1-&gt;JAX\n\n    \n\nJAX-&gt;Flax"
-  },
-  {
-    "objectID": "ai/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
-    "href": "ai/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
-    "title": "Deep learning with JAX",
-    "section": "Deep learning ecosystem for JAX",
-    "text": "Deep learning ecosystem for JAX\nHere is a classic ecosystem of libraries for deep learning with JAX:\n\nLoad datasets\n\n\nThere are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX did not worry about creating its own implementation.\n\n\nDefine network architecture\n\n\nNeural networks can be build in JAX from scratch, but a number of packages built on JAX provide the necessary toolkit. Flax is a popular option and the one we will use in this course.\n\n\nTrain\n\n\nTraining a model requires optimization functions. These can be implemented in JAX from scratch but the library Optax provides the core components.\n\n\nTest\n\n\nTesting a model is easy to do directly in JAX.\n\n\nSave model\n\n\nFlax provides methods to save a model.\n\n To sum up, here is a common ecosystem of libraries to use JAX for neural networks:\n\n\n\n\n\n  \n\nLoad\n\nLoad dataset   \n\nDefine\n\nDefine architecture    \n\nPyTorch\n\n PyTorch    \n\nTrain\n\nTrain    \n\nflax1\n\n Flax    \n\nTest\n\nTest    \n\nSave\n\nSave model    \n\nTensorFlow\n\n TensorFlow    \n\nPyTorch-&gt;flax1\n\n    \n\nHugging Face\n\n Hugging Face    \n\nTensorFlow-&gt;flax1\n\n    \n\nHugging Face-&gt;flax1\n\n    \n\njax1\n\n JAX +  Optax   \n\nflax1-&gt;jax1\n\n    \n\nFlax\n\n Flax   \n\nJAX\n\n JAX   \n\njax1-&gt;JAX\n\n    \n\nJAX-&gt;Flax\n\n   \n\n\n\n\n\n When working from pretrained models, Hugging Face also provides a great API to download from thousands of pretrained models."
-  },
-  {
-    "objectID": "ai/fl_dataset.html",
-    "href": "ai/fl_dataset.html",
-    "title": "Loading datasets",
-    "section": "",
-    "text": "Neither JAX nor Flax implement methods to load datasets since PyTorch, TensorFlow, and Hugging Face already provide great APIs for this.\nLet’s use one of the most classic of all deep learning datasets—the MNIST (LeCun, Cortes, and Burges 2010)—to see how these APIs work."
-  },
-  {
-    "objectID": "ai/fl_dataset.html#inspect-dataset",
-    "href": "ai/fl_dataset.html#inspect-dataset",
-    "title": "Loading datasets",
-    "section": "Inspect dataset",
-    "text": "Inspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}"
-  },
-  {
-    "objectID": "ai/fl_dataset.html#search-dataset",
-    "href": "ai/fl_dataset.html#search-dataset",
-    "title": "Loading datasets",
-    "section": "Search dataset",
-    "text": "Search dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community."
-  },
-  {
-    "objectID": "ai/fl_dataset.html#download-dataset-and-load-in-session",
-    "href": "ai/fl_dataset.html#download-dataset-and-load-in-session",
-    "title": "Loading datasets",
-    "section": "Download dataset and load in session",
-    "text": "Download dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5"
-  },
-  {
-    "objectID": "ai/fl_state.html",
-    "href": "ai/fl_state.html",
-    "title": "Stateless models",
-    "section": "",
-    "text": "Deep learning models can be split into two big categories depending on the deep learning frameworks used to train them: stateful and stateless models.\nWhat does this mean and where does Flax stand?"
-  },
-  {
-    "objectID": "ai/fl_state.html#stateful-models",
-    "href": "ai/fl_state.html#stateful-models",
-    "title": "Stateless models",
-    "section": "Stateful models",
-    "text": "Stateful models\nIn frameworks such as PyTorch or the Julia package Flux, model parameters and optimizer state are stored within the model instance. Instantiating a PyTorch model allocates memory for the model parameters. The model can then be described as stateful.\nDuring the forward pass, only the inputs are passed through the model. The output depends on the inputs and on the state of the model."
-  },
-  {
-    "objectID": "ai/fl_state.html#stateless-models",
-    "href": "ai/fl_state.html#stateless-models",
-    "title": "Stateless models",
-    "section": "Stateless models",
-    "text": "Stateless models\nJAX JIT compilation requires that functions be without side effects since side effects are only executed once, during tracing.\nUpdating model parameters and optimizer state thus cannot be done as a side-effect. The state cannot be part of the model instance—it needs to be explicit, that is, separated from the model. During instantiation, no memory is allocated for the parameters. During the forward pass, the state will pass, along with the inputs, through the model. The model is thus stateless and the constrains of pure functional programming are met (inputs lead to outputs without external influence or side effects).\nFrameworks based on JAX such as Flax as well as the Julia package Lux (a modern rewrite of Flux with explicit model parameters) follow this approach."
-  },
-  {
-    "objectID": "ai/fl_dataset.html#convert-to-jax-object",
-    "href": "ai/fl_dataset.html#convert-to-jax-object",
-    "title": "Loading datasets",
-    "section": "Convert to JAX object",
-    "text": "Convert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\nfor epoch in range(epochs):\n        for batch in dsj[\"train\"].iter(batch_size=32):\n            x, y = batch[\"image\"], batch[\"label\"]\n            ..."
-  },
-  {
-    "objectID": "ai/fl_dataset_pt.html",
-    "href": "ai/fl_dataset_pt.html",
-    "title": "Loading datasets with Hugging Face",
-    "section": "",
-    "text": "PyTorch, TensorFlow, and Hugging Face all provide APIs to download datasets for deep learning. In this course, we will use Hugging Face.\nThe Datasets library from Hugging Face is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\nLet’s use one of the most classic of all deep learning datasets, the MNIST (LeCun, Cortes, and Burges 2010)."
-  },
-  {
-    "objectID": "ai/fl_dataset_pt.html#search-dataset",
-    "href": "ai/fl_dataset_pt.html#search-dataset",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Search dataset",
-    "text": "Search dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community."
-  },
-  {
-    "objectID": "ai/fl_dataset_pt.html#inspect-dataset",
-    "href": "ai/fl_dataset_pt.html#inspect-dataset",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Inspect dataset",
-    "text": "Inspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}"
-  },
-  {
-    "objectID": "ai/fl_dataset_pt.html#download-dataset-and-load-in-session",
-    "href": "ai/fl_dataset_pt.html#download-dataset-and-load-in-session",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Download dataset and load in session",
-    "text": "Download dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5"
-  },
-  {
-    "objectID": "ai/fl_dataset_pt.html#convert-to-jax-object",
-    "href": "ai/fl_dataset_pt.html#convert-to-jax-object",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Convert to JAX object",
-    "text": "Convert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)"
-  },
-  {
-    "objectID": "ai/fl_dataset_tf.html",
-    "href": "ai/fl_dataset_tf.html",
-    "title": "Loading datasets with TensorFlow",
-    "section": "",
-    "text": "From the Flax Quick start example:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n  \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n  \n  train_ds = tfds.load('mnist', split='train')\n  test_ds = tfds.load('mnist', split='test')\n\n  # normalize train set\n  train_ds = train_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  # normalize test set\n  test_ds = test_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  \n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  test_ds = test_ds.shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  return train_ds, test_ds"
-  },
-  {
-    "objectID": "ai/fl_dataset_tf.html#search-dataset",
-    "href": "ai/fl_dataset_tf.html#search-dataset",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Search dataset",
-    "text": "Search dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community."
-  },
-  {
-    "objectID": "ai/fl_dataset_tf.html#inspect-dataset",
-    "href": "ai/fl_dataset_tf.html#inspect-dataset",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Inspect dataset",
-    "text": "Inspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}"
-  },
-  {
-    "objectID": "ai/fl_dataset_tf.html#download-dataset-and-load-in-session",
-    "href": "ai/fl_dataset_tf.html#download-dataset-and-load-in-session",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Download dataset and load in session",
-    "text": "Download dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5"
-  },
-  {
-    "objectID": "ai/fl_dataset_tf.html#convert-to-jax-object",
-    "href": "ai/fl_dataset_tf.html#convert-to-jax-object",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Convert to JAX object",
-    "text": "Convert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)"
-  },
-  {
-    "objectID": "ai/fl_dataset_hf.html",
-    "href": "ai/fl_dataset_hf.html",
-    "title": "Loading datasets with Hugging Face",
-    "section": "",
-    "text": "Neither JAX nor Flax implemented methods to load datasets since PyTorch, TensorFlow, and Hugging Face all provide great APIs for this. In this section, we will see how to load a dataset using Hugging Face.\nThe Datasets library from Hugging Face is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\nLet’s use one of the most classic of all deep learning datasets, the MNIST (LeCun, Cortes, and Burges 2010)."
-  },
-  {
-    "objectID": "ai/fl_dataset_hf.html#search-dataset",
-    "href": "ai/fl_dataset_hf.html#search-dataset",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Search dataset",
-    "text": "Search dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community."
-  },
-  {
-    "objectID": "ai/fl_dataset_hf.html#inspect-dataset",
-    "href": "ai/fl_dataset_hf.html#inspect-dataset",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Inspect dataset",
-    "text": "Inspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}"
-  },
-  {
-    "objectID": "ai/fl_dataset_hf.html#download-dataset-and-load-in-session",
-    "href": "ai/fl_dataset_hf.html#download-dataset-and-load-in-session",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Download dataset and load in session",
-    "text": "Download dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5"
-  },
-  {
-    "objectID": "ai/fl_dataset_hf.html#convert-to-jax-object",
-    "href": "ai/fl_dataset_hf.html#convert-to-jax-object",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Convert to JAX object",
-    "text": "Convert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\nfor epoch in range(epochs):\n        for batch in dsj[\"train\"].iter(batch_size=32):\n            x, y = batch[\"image\"], batch[\"label\"]\n            ..."
-  },
-  {
-    "objectID": "ai/fl_dataset_hf.html#process-the-data",
-    "href": "ai/fl_dataset_hf.html#process-the-data",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Process the data",
-    "text": "Process the data\n\nFrom the Flax Quick start example:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n  \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n  \n  train_ds = tfds.load('mnist', split='train')\n  test_ds = tfds.load('mnist', split='test')\n\n  # normalize train set\n  train_ds = train_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  # normalize test set\n  test_ds = test_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  \n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  test_ds = test_ds.shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  return train_ds, test_ds"
-  },
-  {
-    "objectID": "ai/fl_dataset.html#process-the-data",
-    "href": "ai/fl_dataset.html#process-the-data",
-    "title": "Loading datasets",
-    "section": "Process the data",
-    "text": "Process the data"
-  },
-  {
-    "objectID": "ai/fl_dataset.html#which-library-should-i-use-to-load-datasets",
-    "href": "ai/fl_dataset.html#which-library-should-i-use-to-load-datasets",
-    "title": "Loading datasets with Hugging Face",
-    "section": "Which library should I use to load datasets?",
-    "text": "Which library should I use to load datasets?\nFrom the Flax Quick start example:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n  \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n  \n  train_ds = tfds.load('mnist', split='train')\n  test_ds = tfds.load('mnist', split='test')\n\n  # normalize train set\n  train_ds = train_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  # normalize test set\n  test_ds = test_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  \n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  test_ds = test_ds.shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  return train_ds, test_ds"
-  },
-  {
-    "objectID": "ai/fl_dataset.html#which-library-to-use-to-load-datasets",
-    "href": "ai/fl_dataset.html#which-library-to-use-to-load-datasets",
-    "title": "Loading datasets",
-    "section": "Which library to use to load datasets?",
-    "text": "Which library to use to load datasets?\nThere are many equally great options to load datasets. If you are familiar with PyTorch DataLoaders, this is an equally great option:\n\nFor those familiar with TensorFlow, here is an example from the Flax Quick start:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n  \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n  \n  train_ds = tfds.load('mnist', split='train')\n  test_ds = tfds.load('mnist', split='test')\n\n  # normalize train set\n  train_ds = train_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  # normalize test set\n  test_ds = test_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  \n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  test_ds = test_ds.shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  return train_ds, test_ds"
-  },
-  {
-    "objectID": "ai/fl_dataset.html#datasets",
-    "href": "ai/fl_dataset.html#datasets",
-    "title": "Loading datasets",
-    "section": "🤗 Datasets",
-    "text": "🤗 Datasets\nThe Datasets library from Hugging Face is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\n\nSearch dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community.\n\n\nInspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}\n\n\n\n\nDownload dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5\n\n\n\n\nConvert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\nfor epoch in range(epochs):\n        for batch in dsj[\"train\"].iter(batch_size=32):\n            x, y = batch[\"image\"], batch[\"label\"]\n            ...\n\n\nProcess the data"
-  },
-  {
-    "objectID": "ai/fl_dataset.html#pytorch",
-    "href": "ai/fl_dataset.html#pytorch",
-    "title": "Loading datasets",
-    "section": "PyTorch",
-    "text": "PyTorch\nIf you are familiar with PyTorch DataLoaders, this is an equally great option:\nimport torch\nfrom torchvision import datasets, transforms\n\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])\n\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\n\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)\n\n# create DataLoaders\ntrain_loader = torch.utils.data.DataLoader(\n    train_data, batch_size=20, shuffle=True)\n\ntest_loader = torch.utils.data.DataLoader(\n    test_data, batch_size=20, shuffle=False)\nYou can find more details in our PyTorch course."
-  },
-  {
-    "objectID": "ai/fl_dataset.html#tensorflow-datasets",
-    "href": "ai/fl_dataset.html#tensorflow-datasets",
-    "title": "Loading datasets",
-    "section": "TensorFlow Datasets",
-    "text": "TensorFlow Datasets\nFor those familiar with TensorFlow, here is an example from the Flax Quick start:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n  \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n  \n  train_ds = tfds.load('mnist', split='train')\n  test_ds = tfds.load('mnist', split='test')\n\n  # normalize train set\n  train_ds = train_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  # normalize test set\n  test_ds = test_ds.map(\n      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                      'label': sample['label']})\n  \n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  # create shuffled dataset by allocating a buffer size of 1024\n  # to randomly draw elements from\n  test_ds = test_ds.shuffle(1024)\n\n  # group into batches of batch_size and skip incomplete batch,\n  # prefetch the next sample to improve latency\n  test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n  return train_ds, test_ds\nThere is nothing wrong with using utilities from different libraries! Pick and choose the tools that serve your needs best."
-  },
-  {
-    "objectID": "ai/fl_dataset.html#hugging-face-datasets",
-    "href": "ai/fl_dataset.html#hugging-face-datasets",
-    "title": "Loading datasets",
-    "section": "Hugging Face Datasets",
-    "text": "Hugging Face Datasets\nThe Datasets library from 🤗 is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\n\nSearch dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community.\n\n\nInspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}\n\n\n\n\nDownload dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5\n\n\n\n\nConvert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\ndsj['train']['label'][:10]\nArray([5, 0, 4, 1, 9, 2, 1, 3, 1, 4], dtype=int32)\nWe can shuffle the data:\nds_shuffled = dsj.shuffle(seed=123)\nds_shuffled['train']['label'][:10]\nArray([4, 4, 4, 1, 7, 8, 5, 2, 8, 3], dtype=int32)\nFor normalization and more complex operations, you will need the Hugging Face transformers package."
-  },
-  {
-    "objectID": "ai/jx_parallel.html#multi-host-communication",
-    "href": "ai/jx_parallel.html#multi-host-communication",
-    "title": "Parallel computing",
-    "section": "Multi-host communication",
-    "text": "Multi-host communication\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides it."
   }
 ]
