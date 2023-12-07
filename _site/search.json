@@ -3840,21 +3840,21 @@
     "href": "ai/jx_parallel.html#vectorization",
     "title": "Parallel computing",
     "section": "Vectorization",
-    "text": "Vectorization"
+    "text": "Vectorization\nRemember how a number of transformations are applied to Jaxprs. We already saw one of JAX’s main transformations: JIT compilation with jax.jit(). Vectorization with jax.vmap() is another one.\nIt automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).\nHere is an example from JAX 101 commonly encountered in deep learning:\nimport jax\nimport jax.numpy as jnp\n\nx = jnp.arange(5)\nw = jnp.array([2., 3., 4.])\n\ndef convolve(x, w):\n  output = []\n  for i in range(1, len(x)-1):\n    output.append(jnp.dot(x[i-1:i+2], w))\n  return jnp.array(output)\n\nconvolve(x, w)\nArray([11., 20., 29.], dtype=float32)\nHow can you apply the function convolve() on a batch of weights w and vectors x.\nxs = jnp.stack([x, x])\nws = jnp.stack([w, w])\nWe apply the jax.vmap() transformation to the convolve() function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:\nauto_batch_convolve = jax.vmap(convolve)\nauto_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)\nTransformations can be composed:\njitted_batch_convolve = jax.jit(auto_batch_convolve)\njitted_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)"
   },
   {
     "objectID": "ai/jx_parallel.html#data-parallelism",
     "href": "ai/jx_parallel.html#data-parallelism",
     "title": "Parallel computing",
     "section": "Data parallelism",
-    "text": "Data parallelism"
+    "text": "Data parallelism\nThe jax.pmap() transformation does the same thing but each computation runs on a different device, allowing to scale things up dramatically."
   },
   {
     "objectID": "ai/jx_parallel.html#sharding",
     "href": "ai/jx_parallel.html#sharding",
     "title": "Parallel computing",
     "section": "Sharding",
-    "text": "Sharding"
+    "text": "Sharding\nJAX is also capable of running arrays across multiple devices."
   },
   {
     "objectID": "ai/jx_why.html",
@@ -7656,5 +7656,12 @@
     "title": "Loading datasets",
     "section": "Hugging Face Datasets",
     "text": "Hugging Face Datasets\nThe Datasets library from 🤗 is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\n\nSearch dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community.\n\n\nInspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nGet a description of the dataset:\n\nds_builder.info.description\n\n'The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000\\nimages per class. There are 60,000 training images and 10,000 test images.\\n'\n\n\nGet information on the features:\n\nds_builder.info.features\n\n{'image': Image(decode=True, id=None),\n 'label': ClassLabel(names=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], id=None)}\n\n\n\n\nDownload dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nDatasetDict({\n    train: Dataset({\n        features: ['image', 'label'],\n        num_rows: 60000\n    })\n    test: Dataset({\n        features: ['image', 'label'],\n        num_rows: 10000\n    })\n})\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\n2\n\n\n\nds.keys()\n\ndict_keys(['train', 'test'])\n\n\n\nds['train']\n\nDataset({\n    features: ['image', 'label'],\n    num_rows: 60000\n})\n\n\n\nlen(ds['train'])\n\n60000\n\n\n\nds['train'][0]\n\n{'image': &lt;PIL.PngImagePlugin.PngImageFile image mode=L size=28x28&gt;,\n 'label': 5}\n\n\n\nlen(ds['train'][0])\n\n2\n\n\n\nds['train'][0].keys()\n\ndict_keys(['image', 'label'])\n\n\n\nds['train'][0]['image']\n\n\n\n\n\nds['train'][0]['label']\n\n5\n\n\n\n\nConvert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\ndsj['train']['label'][:10]\nArray([5, 0, 4, 1, 9, 2, 1, 3, 1, 4], dtype=int32)\nWe can shuffle the data:\nds_shuffled = dsj.shuffle(seed=123)\nds_shuffled['train']['label'][:10]\nArray([4, 4, 4, 1, 7, 8, 5, 2, 8, 3], dtype=int32)\nFor normalization and more complex operations, you will need the Hugging Face transformers package."
+  },
+  {
+    "objectID": "ai/jx_parallel.html#multi-host-communication",
+    "href": "ai/jx_parallel.html#multi-host-communication",
+    "title": "Parallel computing",
+    "section": "Multi-host communication",
+    "text": "Multi-host communication\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides it."
   }
 ]

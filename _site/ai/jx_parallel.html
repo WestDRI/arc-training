@@ -66,7 +66,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
 <link href="../ai/top_fl.html" rel="next">
-<link href="../ai/jx_pytree.html" rel="prev">
+<link href="../ai/jx_jit.html" rel="prev">
 <link href="..//img/sfu_favicon.png" rel="icon" type="image/png">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -303,18 +303,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../ai/jx_ad.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Automatic differentiation</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../ai/jx_pytree.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Pytrees</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../ai/jx_parallel.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Parallel computing</span></a>
   </div>
@@ -337,6 +325,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../ai/fl_jaxdl.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Deep learning with JAX</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../ai/fl_dataset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Loading datasets</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../ai/fl_state.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Stateless models</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -479,6 +479,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#vectorization" id="toc-vectorization" class="nav-link" data-scroll-target="#vectorization">Vectorization</a></li>
   <li><a href="#data-parallelism" id="toc-data-parallelism" class="nav-link" data-scroll-target="#data-parallelism">Data parallelism</a></li>
   <li><a href="#sharding" id="toc-sharding" class="nav-link" data-scroll-target="#sharding">Sharding</a></li>
+  <li><a href="#multi-host-communication" id="toc-multi-host-communication" class="nav-link" data-scroll-target="#multi-host-communication">Multi-host communication</a></li>
   </ul>
 </nav>
     </div>
@@ -550,12 +551,48 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="vectorization" class="level2">
 <h2 class="anchored" data-anchor-id="vectorization">Vectorization</h2>
+<p><a href="https://mint.westdri.ca/ai/jx_map#map">Remember how a number of transformations are applied to Jaxprs</a>. We already saw one of JAX’s main transformations: JIT compilation with <code>jax.jit()</code>. Vectorization with <code>jax.vmap()</code> is another one.</p>
+<p>It automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).</p>
+<p>Here is an example from <a href="https://jax.readthedocs.io/en/latest/jax-101/index.html">JAX 101</a> commonly encountered in deep learning:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> jnp.arange(<span class="dv">5</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>w <span class="op">=</span> jnp.array([<span class="fl">2.</span>, <span class="fl">3.</span>, <span class="fl">4.</span>])</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> convolve(x, w):</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  output <span class="op">=</span> []</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(x)<span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    output.append(jnp.dot(x[i<span class="op">-</span><span class="dv">1</span>:i<span class="op">+</span><span class="dv">2</span>], w))</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> jnp.array(output)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>convolve(x, w)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>Array([11., 20., 29.], dtype=float32)</code></pre>
+<p>How can you apply the function <code>convolve()</code> on a batch of weights <code>w</code> and vectors <code>x</code>.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>xs <span class="op">=</span> jnp.stack([x, x])</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>ws <span class="op">=</span> jnp.stack([w, w])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We apply the <code>jax.vmap()</code> transformation to the <code>convolve()</code> function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>auto_batch_convolve <span class="op">=</span> jax.vmap(convolve)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>auto_batch_convolve(xs, ws)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>Array([[11., 20., 29.],
+       [11., 20., 29.]], dtype=float32)</code></pre>
+<p>Transformations can be composed:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>jitted_batch_convolve <span class="op">=</span> jax.jit(auto_batch_convolve)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>jitted_batch_convolve(xs, ws)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>Array([[11., 20., 29.],
+       [11., 20., 29.]], dtype=float32)</code></pre>
 </section>
 <section id="data-parallelism" class="level2">
 <h2 class="anchored" data-anchor-id="data-parallelism">Data parallelism</h2>
+<p>The <code>jax.pmap()</code> transformation does the same thing but each computation runs on a different device, allowing to scale things up dramatically.</p>
 </section>
 <section id="sharding" class="level2">
 <h2 class="anchored" data-anchor-id="sharding">Sharding</h2>
+<p>JAX is also capable of running arrays across multiple devices.</p>
+</section>
+<section id="multi-host-communication" class="level2">
+<h2 class="anchored" data-anchor-id="multi-host-communication">Multi-host communication</h2>
+<p>JAX does not have the ability to scale things up to the level of multi-node clusters, but the <a href="https://github.com/mpi4jax/mpi4jax">mpi4jax</a> extension provides it.</p>
 <!-- https://mpi4jax.readthedocs.io/en/latest/ -->
 
 
@@ -811,8 +848,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../ai/jx_pytree.html" class="pagination-link">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Pytrees</span>
+      <a href="../ai/jx_jit.html" class="pagination-link">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">JIT subtleties</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
