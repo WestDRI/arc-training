@@ -1,12 +1,12 @@
 ---
-title: Loading datasets
+title: Loading datasets with Hugging Face
 author: Marie-Hélène Burle
 bibliography: fl.bib
 ---
 
 :::{.def}
 
-[PyTorch](https://github.com/pytorch/pytorch), [TensorFlow](https://github.com/tensorflow/datasets), and [Hugging Face](https://github.com/huggingface/datasets) all provide APIs to download datasets for deep learning. In this course, we will use Hugging Face.
+Neither JAX nor Flax implement methods to load datasets since [PyTorch](https://github.com/pytorch/pytorch), [TensorFlow](https://github.com/tensorflow/datasets), and [Hugging Face](https://github.com/huggingface/datasets) already provide great APIs for this. In this section, we will see how to load and pre-process a dataset using Hugging Face.
 
 :::
 
@@ -147,3 +147,65 @@ dsj['train'][0]['label']
 ```
 Array(5, dtype=int32)
 ```
+
+
+```{.python}
+for epoch in range(epochs):
+        for batch in dsj["train"].iter(batch_size=32):
+            x, y = batch["image"], batch["label"]
+            ...
+```
+
+## Process the data
+
+:::{.info}
+
+## Which library to use to load datasets?
+
+There are many equally great options to load datasets. If you are familiar with PyTorch DataLoaders, this is an equally great option:
+
+```{.python}
+
+```
+
+For those familiar with TensorFlow, here is an example from the Flax [Quick start](https://flax.readthedocs.io/en/latest/quick_start.html):
+
+```{.python}
+import tensorflow_datasets as tfds
+import tensorflow as tf
+
+def get_datasets(num_epochs, batch_size):
+  """Load MNIST train and test datasets into memory."""
+  
+  train_ds = tfds.load('mnist', split='train')
+  test_ds = tfds.load('mnist', split='test')
+
+  # normalize train set
+  train_ds = train_ds.map(
+      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,
+                      'label': sample['label']})
+  # normalize test set
+  test_ds = test_ds.map(
+      lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,
+                      'label': sample['label']})
+  
+  # create shuffled dataset by allocating a buffer size of 1024
+  # to randomly draw elements from
+  train_ds = train_ds.repeat(num_epochs).shuffle(1024)
+
+  # group into batches of batch_size and skip incomplete batch,
+  # prefetch the next sample to improve latency
+  train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)
+
+  # create shuffled dataset by allocating a buffer size of 1024
+  # to randomly draw elements from
+  test_ds = test_ds.shuffle(1024)
+
+  # group into batches of batch_size and skip incomplete batch,
+  # prefetch the next sample to improve latency
+  test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)
+
+  return train_ds, test_ds
+```
+
+:::
