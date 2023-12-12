@@ -703,6 +703,33 @@ Added stage `evaluate` in 'dvc.yaml'
 git commit -m "Define pipeline"
 ```
 
+```
+prepare:
+	changed deps:
+	        modified:           data/raw
+	        modified:           src/prepare.py
+	changed outs:
+	        deleted:            data/prepared/test.csv
+	        deleted:            data/prepared/train.csv
+train:
+	changed deps:
+	        deleted:            data/prepared/train.csv
+	        modified:           src/train.py
+	changed outs:
+	        deleted:            model/model.joblib
+evaluate:
+	changed deps:
+	        deleted:            model/model.joblib
+	        modified:           src/evaluate.py
+	changed outs:
+	        deleted:            metrics/accuracy.json
+[main 4aa331b] Define pipeline
+ 3 files changed, 27 insertions(+)
+ create mode 100644 data/prepared/.gitignore
+ create mode 100644 dvc.yaml
+ create mode 100644 model/.gitignore
+```
+
 ## Visualize pipeline {.center}
 
 ```{.bash}
@@ -710,21 +737,27 @@ dvc dag
 ```
 
 ```
- +---------+
- | prepare |
- +---------+
-	  *
-	  *
-	  *
-  +-------+
-  | train |
-  +-------+
-	  *
-	  *
-	  *
- +----------+
- | evaluate |
- +----------+
++--------------------+         +------------------+
+| data/raw/train.dvc |         | data/raw/val.dvc |
++--------------------+         +------------------+
+                  ***           ***
+                     **       **
+                       **   **
+                    +---------+
+                    | prepare |
+                    +---------+
+                          *
+                          *
+                          *
+                      +-------+
+                      | train |
+                      +-------+
+                          *
+                          *
+                          *
+                    +----------+
+                    | evaluate |
+                    +----------+
 ```
 
 ## Run pipeline {.center}
@@ -736,6 +769,10 @@ dvc repro
 ```{.bash}
 git commit -m "First pipeline run"
 ```
+
+## Modify pipeline {.center}
+
+From now on, if I edit one of the scripts, or one of the dependencies, `dvc status` will tell me what changed and `dvc repro` will only rerun the parts of the pipeline to update the result, pretty much as a Makefile would
 
 ## Going further ... next time {.center}
 
