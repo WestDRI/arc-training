@@ -23,6 +23,7 @@ format:
       color: "#b5111b"
       pointerSize: 32
     link-external-newwindow: true
+    tbl-cap-location: bottom
     footer: <a href="wb_dvc.html"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="rgb(153, 153, 153)" class="bi bi-arrow-90deg-up" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4.854 1.146a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L4 2.707V12.5A2.5 2.5 0 0 0 6.5 15h8a.5.5 0 0 0 0-1h-8A1.5 1.5 0 0 1 5 12.5V2.707l3.146 3.147a.5.5 0 1 0 .708-.708l-4-4z"/></svg>&nbsp;Back to webinar page</a>
     auto-stretch: false
 revealjs-plugins:
@@ -39,19 +40,81 @@ I won't introduce here the benefits of using a good version control system such 
 
 While Git is a wonderful tool for text files versioning (code, writings in markup formats), it isn't a tool to manage changes to datasets
 
-Several open source tools—each with a different structure and functioning—extend Git capabilities to track data: [Git LFS](https://git-lfs.com/), [git-annex](https://git-annex.branchable.com/), [lakeFS](https://github.com/treeverse/lakeFS), [Dolt](https://github.com/dolthub/dolt), [DataLad](https://github.com/datalad/datalad)...
-
-. . .
-
-and yes, [DVC](https://dvc.org/)
+Several open source tools—each with a different structure and functioning—extend Git capabilities to track data: [Git LFS](https://git-lfs.com/), [git-annex](https://git-annex.branchable.com/), [lakeFS](https://github.com/treeverse/lakeFS), [Dolt](https://github.com/dolthub/dolt), [DataLad](https://github.com/datalad/datalad)
 
 ## Extending Git for models and experiments {.center}
 
-Reproducible research and collaboration on data science and machine learning projects involve more than datasets management: experiments and the models they produce also need to be tracked
+Reproducible research and collaboration on data science and machine learning projects involve more than datasets management:
+
+Experiments and the models they produce also need to be tracked
+
+## Many moving parts {.center}
+
+:::{.right}
+
+[*hp = hyperparameter]{.small}
+
+:::
+
+```{dot}
+//| echo: false
+//| fig-height: 50%
+
+digraph {
+  
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", fontsize=9, penwidth=0.5]
+edge [color=gray55, arrowhead="vee", arrowsize=0.5, penwidth=0.5]
+
+data1 [label="data1", color=darkviolet]
+data2 [label="data2", color=darkviolet]
+data3 [label="data3", color=darkviolet]
+
+hp1 [label="hp1", color=darkslategray4]
+hp2 [label="hp2", color=darkslategray4]
+hp3 [label="hp3", color=darkslategray4]
+
+model1 [label="model1", color=deepskyblue3]
+model2 [label="model2", color=deepskyblue3]
+model3 [label="model3", color=deepskyblue3]
+
+performance [label="performance1 ... performance27", color=darkorange4]
+
+{data1 data2 data3} -> {model1 model2 model3} [color=darkviolet]
+{hp1 hp2 hp3} -> {model1 model2 model3} [color=darkslategray4]
+
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+{model1 model2 model3} -> performance [color=deepskyblue3]
+
+}
+```
 
 . . .
 
-DVC xxx pipelining 
+How did we get `performance17` again? 🤯
+
+# Enters DVC
+
+## DVC principles {.center}
+
+Large files (datasets, models...) are kept outside Git \
+Each large file or directory put under DVC tracking has an associated `.dvc` file \
+Git only tracks the `.dvc` files (metadata)
+
+. . .
+
+Workflows can be tracked for collaboration and reproducibility
+
+. . .
+
+DVC functions as a Makefile and allows to only rerun what is necessary
 
 ## Installation {.center}
 
@@ -75,9 +138,9 @@ Optional dependencies `[s3]`, `[gdrive]`, etc. for remote storage
 
 - Terminal
 
-    ```{.bash}
-    dvc ...
-    ```
+	```{.bash}
+	dvc ...
+	```
 
 - [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Iterative.dvc)
 
@@ -93,34 +156,78 @@ In this webinar, I will use DVC through the command line
 
 :::
 
-## Initialize DVC project
+## Acknowledgements {.center}
 
-- Initialize Git repo:
+Code and data for this webinar modified jfrom:
 
-	```{.bash}
-	git init
-	```
+- [Real Python](https://realpython.com/)
+- [DataLad handbook](https://handbook.datalad.org/)
+- [DVC documentation](https://dvc.org/doc)
 
-	```
-	Initialized empty Git repository in dvc/.git/
-	```
+## The project {.center}
 
-- Initialize DVC project:
+```{.bash}
+tree -L 3
+```
 
-	```{.bash}
-	dvc init
-	```
+```
+├── LICENSE
+├── data
+│   ├── prepared
+│   └── raw
+│       ├── train
+│       └── val
+├── metrics
+├── model
+├── requirements.txt
+└── src
+    ├── evaluate.py
+    ├── prepare.py
+    └── train.py
+```
 
-	```
-	Initialized DVC repository.
+## Initialize Git repo {.center}
 
-	You can now commit the changes to git.
+```{.bash}
+git init
+```
 
-	What's next?
-	------------
-	- Check out the documentation: <https://dvc.org/doc>
-	- Get help and share ideas: <https://dvc.org/chat>
-	- Star us on GitHub: <https://github.com/iterative/dvc>
+```
+Initialized empty Git repository in dvc/.git/
+```
+
+. . .
+
+This creates the `.git` directory
+
+. . .
+
+```{.bash}
+git status
+```
+
+```
+On branch main
+
+No commits yet
+
+Untracked files:
+	LICENSE
+	data/
+	requirements.txt
+	src/
+```
+
+## Initialize DVC project {.center}
+
+```{.bash}
+dvc init
+```
+
+```
+Initialized DVC repository.
+
+You can now commit the changes to git.
 ```
 
 :::{.notenoline}
@@ -129,62 +236,478 @@ You will also see a note about usage analytics collection and info on how to opt
 
 :::
 
-## Initialize DVC project
+. . .
 
-- Commit DVC system files:
+A `.dvc` directory and a `.dvcignore` file got created
 
-  :::{.note}
+## Commit DVC system files {.center}
 
-  DVC automatically staged its system file for us:
+:::{.note}
 
-	```{.bash}
-	git status
-	```
+DVC automatically staged its system file for us:
 
-	```
-	On branch main
+```{.bash}
+git status
+```
 
-	No commits yet
+```
+On branch main
 
-	Changes to be committed:
-	  (use "git rm --cached <file>..." to unstage)
-		new file:   .dvc/.gitignore
-		new file:   .dvc/config
-		new file:   .dvcignore
-	```
+No commits yet
 
-  :::
+Changes to be committed:
+	new file:   .dvc/.gitignore
+	new file:   .dvc/config
+	new file:   .dvcignore
 
-## Initialize DVC project
+Untracked files:
+	LICENSE
+	data/
+	requirements.txt
+	src/
+```
 
-- Commit DVC system files:
+:::
 
-  So we can directly commit:
+So we can directly commit:
 
-	```{.bash}
-	git commit -m "Initialize DVC"
-	```
+```{.bash}
+git commit -m "Initialize DVC"
+```
 
-	```
-	[main (root-commit) a32e0ed] Initialize DVC
-	 3 files changed, 6 insertions(+)
-	 create mode 100644 .dvc/.gitignore
-	 create mode 100644 .dvc/config
-	 create mode 100644 .dvcignore
-	```
+## Prepare repo {.center}
 
-# Tracking data
+Let's work in a virtual environment:
+
+```{.bash}
+python -m venv venv && echo venv > .gitignore
+source venv/bin/activate
+```
+
+Let's clean things up:
+
+```{.bash}
+git add .gitignore LICENSE requirements.txt
+git commit -m "Add general files"
+git add src
+git commit -m "Add scripts"
+```
+
+```{.bash}
+git status
+```
+
+```
+On branch main
+Untracked files:
+	data/
+```
+
+. . .
+
+:::{.note}
+
+Now, it is time to deal with the data
+
+:::
+
+# Tracking data with DVC
+
+## Putting data under DVC tracking {.center}
+
+We are still not tracking any data:
+
+```{.bash}
+dvc status
+```
+
+```
+There are no data or pipelines tracked in this project yet.
+```
+
+You can choose what to track as a unit (i.e. each picture individually, the whole `data` directory as a unit)
+
+Let's break it down by set:
+
+```{.bash}
+dvc add data/raw/train
+dvc add data/raw/val
+```
+
+## {.center}
+
+This added data to `.dvc/cache` and created 3 files in `data/raw`:
+
+- `.gitignore`
+- `train.dvc`
+- `val.dvc`
+
+The `.gitignore` tells Git not to track the data:
+
+```{.bash}
+cat data/raw/.gitignore
+```
+
+```
+/train
+/val
+```
+
+The `.dvc` files contain the metadata for the cached directories
+
+## Tracked data {.center}
+
+We are all good:
+
+```{.bash}
+dvc status
+```
+
+```
+Data and pipelines are up to date.
+```
+
+## Data (de)duplication {.center}
+
+Link between checked-out version of a file/directory and the cache:
+
+|                |Duplication   |Editable
+|----------------|:-:|:-:
+|Reflinks*         |Only when needed|Yes
+|Hardlinks/Symlinks|No            |No     
+|Copies            |Yes	       |Yes
+
+: Cache ⟷ working directory {tbl-colwidths="[44, 28, 28]"}
+
+[*Reflinks only available for a few file systems (Btrfs, XFS, OCFS2, or APFS)]{.aside}
+
+## Commit the metafiles {.center}
+
+The metafiles should be put under Git version control
+
+:::{.note}
+
+You can configure DVC to automatically stage its newly created system files:
+
+```{.bash}
+dvc config [--system] [--global] core.autostage true
+```
+
+:::
+
+You can then commit directly:
+
+```{.bash}
+git commit -m "Initial version of data"
+git status
+```
+
+```
+On branch main
+nothing to commit, working tree clean
+```
+
+## Tracking changes to the data {.center}
+
+Let's make some change to the data:
+
+```{.bash}
+rm data/raw/val/n03445777/ILSVRC2012_val*
+```
+
+. . .
+
+Remember that Git is not tracking the data:
+
+```{.bash}
+git status
+```
+
+```{.bash}
+On branch main
+nothing to commit, working tree clean
+```
+
+. . .
+
+But DVC is:
+
+```{.bash}
+dvc status
+```
+
+```
+data/raw/val.dvc:
+	changed outs:
+	        modified:           data/raw/val
+```
+
+## Adding changes to DVC {.center}
+
+```{.bash}
+dvc add data/raw/val
+dvc status
+```
+
+```
+Data and pipelines are up to date.
+```
+
+. . .
+
+Now we need to commit the changes to the `.dvc` file to Git:
+
+```{.bash}
+git status
+```
+
+```
+On branch main
+Changes to be committed:
+	modified:   data/raw/val.dvc
+```
+
+:::{.note}
+
+Staging happened automatically because I have set the `autostage` option to `true` on my system
+
+:::
+
+```{.bash}
+git commit -m "Delete data/raw/val/n03445777/ILSVRC2012_val*"
+```
+
+## Checking out older versions {.center}
+
+What if we want to go back to the 1st version of our data?
+
+For this, we first use Git to checkout the proper commit, then run `dvc checkout` to have the data catch up to the `.dvc` file
+
+To avoid forgetting to run the commands that will make DVC catch up to Git, we can automate this process by installing Git hooks:
+
+```{.bash}
+dvc install
+```
+
+---
+
+Now, all we have to do is to checkout the commit we want:
+
+```{.bash}
+git log --oneline
+```
+
+```
+94b520b (HEAD -> main) Delete data/raw/val/n03445777/ILSVRC2012_val*
+92837a6 Initial version of data
+dd961c6 Add scripts
+db9c14e Initialize repo
+7e08586 Initialize DVC
+```
+
+```{.bash}
+git checkout 92837a6
+```
+
+The version of the data in the working directory got automatically switched to match the `.dvc` file:
+
+```{.bash}
+dvc status
+```
+
+```
+Data and pipelines are up to date.
+```
+
+You can look at your files to verify that the deleted files are back
+
+## Git workflows {.center}
+
+`git checkout` is ok to have a look, but a detached HEAD is not a good place to create new commits
+
+Let's create a new branch and switch to it:
+
+```{.bash}
+git switch -c alternative
+```
+
+```
+Switched to a new branch 'alternative'
+```
+
+# Collaboration
+
+## Classic workflow {.center}
+
+The Git project (including `.dvc` files) go to a Git remote (GitHub/GitLab/Bitbucket/server)
+
+The data go to a DVC remote (AWS/Azure/Google Drive/server/etc.)
+
+## DVC remotes {.center}
+
+DVC can use many cloud storage or remote machines/server via SSH, WebDAV, etc.
+
+Let's create a local remote here:
+
+```{.bash}
+# Create a directory outside the project
+mkdir ../remote
+
+# Setup default (-d) remote
+dvc remote add -d local_remote ../remote
+```
+
+```
+Setting 'local_remote' as a default remote.
+```
+
+```{.bash}
+cat .dvc/config
+```
+
+```
+[core]
+    remote = local_remote
+['remote "local_remote"']
+    url = ../../remote
+```
+
+## Commit remote config {.center}
+
+The new remote configuration should be committed:
+
+```{.bash}
+git status
+```
+
+```
+On branch alternative
+
+Changes not staged for commit:
+	modified:   .dvc/config
+```
+
+```{.bash}
+git add .
+git commit -m "Config remote"
+```
+
+## Pushing to remotes {.center}
+
+Let's push the data from the cache (`.dvc/cache`) to the remote:
+
+```{.bash}
+dvc push
+```
+
+```
+2702 files pushed
+```
+
+:::{.note}
+
+With Git hooks installed, `dvc push` is automatically run after `git push`
+
+(But the data is pushed to the DVC remote while the files tracked by Git get pushed to the Git remote)
+
+:::
+
+By default, the entire data cache gets pushed to the remote, but there are many options
+
+:::{.example}
+
+Example: only push data corresponding to a certain `.dvc` files
+
+
+```{.bash}
+dvc push data/raw/val.dvc
+```
+
+:::
+
+## Pulling from remotes {.center}
+
+`dvc fetch` downloads data from the remote into the cache. To have it update the working directory, follow by `dvc checkout`
+
+You can do these 2 commands at the same time with `dvc pull`
 
 # Tracking experiments
 
-## [DVCLive](https://github.com/iterative/dvclive)
+## DVC pipelines {.center}
 
-Python library to log experiment metrics
+DVC pipelines create reproducible workflows and are functionally similar to Makefiles
 
-# Data registry
+Each step in a pipeline is created with `dvc stage add` and add an entry to a `dvc.yaml` file
 
+This entry contains:
 
+- `cmd`: the command executed
+- `deps`: the dependencies
+- `outs`: the outputs
 
-# Continuous integration
+The file is then used to reproduce the pipeline or visualize it
 
-The sister project [CML](https://github.com/iterative/cml) (Continuous Machine Learning)
+## Example {.center}
+
+Let's create a pipeline to compare the results of 2 classifiers on our data:
+
+- an SDG
+- a random forest
+
+The pipeline contains 3 steps:
+
+- prepare
+- train
+- evaluate
+
+## Different models on different branches {.center}
+
+Let's create a different branch for each model
+
+First, 
+
+```{.bash}
+git switch -c sgd
+```
+
+```
+Switched to a new branch 'sgd'
+```
+
+First stage (data preparation):
+
+```{.bash}
+dvc stage add -n prepare \
+	-d src/prepare.py -d data/raw \
+	-o data/prepared/train.csv -o data/prepared/test.csv \
+	python src/prepare.py
+```
+
+```
+Added stage 'prepare' in 'dvc.yaml'
+```
+
+```{.bash}
+dvc stage add -n train \
+	-d src/train.py -d data/prepared/train.csv \
+	-o model/model.joblib \
+	python src/train.py
+```
+
+# Going much further ... next time
+
+## A rich toolkit {.center}
+
+DVC is a sophisticated tool with many additional features:
+
+- Creation of data registries
+
+- [DVCLive](https://github.com/iterative/dvclive)
+
+  A Python library to log experiment metrics
+
+- Visualize the performance logs as [plots](https://dvc.org/doc/user-guide/experiment-management/visualizing-plots)
+  
+- Continuous integration
+
+  With the sister project [CML](https://github.com/iterative/cml) (Continuous Machine Learning)
