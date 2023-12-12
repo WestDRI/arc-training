@@ -12,7 +12,7 @@ execute:
   echo: true
 format:
   revealjs:
-    # embed-resources: true
+    embed-resources: true
     theme: [default, ../revealjs.scss]
     logo: /img/logo_sfudrac.png
     highlight-style: ayu
@@ -158,7 +158,7 @@ In this webinar, I will use DVC through the command line
 
 ## Acknowledgements {.center}
 
-Code and data for this webinar modified jfrom:
+Code and data for this webinar modified from:
 
 - [Real Python](https://realpython.com/)
 - [DataLad handbook](https://handbook.datalad.org/)
@@ -313,7 +313,7 @@ Now, it is time to deal with the data
 
 # Tracking data with DVC
 
-## Putting data under DVC tracking {.center}
+## Put data under DVC tracking {.center}
 
 We are still not tracking any data:
 
@@ -407,7 +407,7 @@ On branch main
 nothing to commit, working tree clean
 ```
 
-## Tracking changes to the data {.center}
+## Track changes to the data {.center}
 
 Let's make some change to the data:
 
@@ -442,7 +442,7 @@ data/raw/val.dvc:
 	        modified:           data/raw/val
 ```
 
-## Adding changes to DVC {.center}
+## Add changes to DVC {.center}
 
 ```{.bash}
 dvc add data/raw/val
@@ -477,7 +477,7 @@ Staging happened automatically because I have set the `autostage` option to `tru
 git commit -m "Delete data/raw/val/n03445777/ILSVRC2012_val*"
 ```
 
-## Checking out older versions {.center}
+## Check out older versions {.center}
 
 What if we want to go back to the 1st version of our data?
 
@@ -592,7 +592,7 @@ git add .
 git commit -m "Config remote"
 ```
 
-## Pushing to remotes {.center}
+## Push to remotes {.center}
 
 Let's push the data from the cache (`.dvc/cache`) to the remote:
 
@@ -625,7 +625,7 @@ dvc push data/raw/val.dvc
 
 :::
 
-## Pulling from remotes {.center}
+## Pull from remotes {.center}
 
 `dvc fetch` downloads data from the remote into the cache. To have it update the working directory, follow by `dvc checkout`
 
@@ -645,14 +645,11 @@ This entry contains:
 - `deps`: the dependencies
 - `outs`: the outputs
 
-The file is then used to reproduce the pipeline or visualize it
+The file is then used to visualize the pipeline and run it
 
 ## Example {.center}
 
-Let's create a pipeline to compare the results of 2 classifiers on our data:
-
-- an SDG
-- a random forest
+Let's create a pipeline to run a classifier on our data
 
 The pipeline contains 3 steps:
 
@@ -660,21 +657,8 @@ The pipeline contains 3 steps:
 - train
 - evaluate
 
-## Different models on different branches {.center}
 
-Let's create a different branch for each model
-
-First, 
-
-```{.bash}
-git switch -c sgd
-```
-
-```
-Switched to a new branch 'sgd'
-```
-
-First stage (data preparation):
+## 1^st^ stage (data preparation) {.center}
 
 ```{.bash}
 dvc stage add -n prepare \
@@ -687,6 +671,8 @@ dvc stage add -n prepare \
 Added stage 'prepare' in 'dvc.yaml'
 ```
 
+## 2^nd^ stage (training) {.center}
+
 ```{.bash}
 dvc stage add -n train \
 	-d src/train.py -d data/prepared/train.csv \
@@ -694,10 +680,66 @@ dvc stage add -n train \
 	python src/train.py
 ```
 
-# Going much further ... next time
+```
+Added stage `train` in 'dvc.yaml'
+```
 
-## A rich toolkit {.center}
+## 3^rd^ stage (evaluation) {.center}
 
+```{.bash}
+dvc stage add -n evaluate \
+    -d src/evaluate.py -d model/model.joblib \
+    -M metrics/accuracy.json \
+    python src/evaluate.py
+```
+
+```
+Added stage `evaluate` in 'dvc.yaml'
+```
+
+## Commit pipeline {.center}
+
+```{.bash}
+git commit -m "Define pipeline"
+```
+
+## Visualize pipeline {.center}
+
+```{.bash}
+dvc dag
+```
+
+```
+ +---------+
+ | prepare |
+ +---------+
+	  *
+	  *
+	  *
+  +-------+
+  | train |
+  +-------+
+	  *
+	  *
+	  *
+ +----------+
+ | evaluate |
+ +----------+
+```
+
+## Run pipeline {.center}
+
+```{.bash}
+dvc repro
+```
+
+```{.bash}
+git commit -m "First pipeline run"
+```
+
+## Going further ... next time {.center}
+
+<br>
 DVC is a sophisticated tool with many additional features:
 
 - Creation of data registries
