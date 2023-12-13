@@ -118,6 +118,8 @@ DVC functions as a Makefile and allows to only rerun what is necessary
 
 ## Installation {.center}
 
+For Linux (other OSes, refer to [the doc](https://dvc.org/doc/install)):
+
 - `pip`:
 
 	```{.bash}
@@ -132,7 +134,11 @@ DVC functions as a Makefile and allows to only rerun what is necessary
 	pipx install dvc
 	```
 
+:::{.note}
+
 Optional dependencies `[s3]`, `[gdrive]`, etc. for remote storage
+
+:::
 
 ## How to run {.center}
 
@@ -280,11 +286,20 @@ git commit -m "Initialize DVC"
 Let's work in a virtual environment:
 
 ```{.bash}
+# Create venv and add to .gitignore
 python -m venv venv && echo venv > .gitignore
+
+# Activate venv
 source venv/bin/activate
+
+# Update pip
+python -m pip install --upgrade pip
+
+# Install packages needed
+python -m pip install -r requirements.txt
 ```
 
-Let's clean things up:
+## Clean working tree {.center}
 
 ```{.bash}
 git add .gitignore LICENSE requirements.txt
@@ -336,7 +351,7 @@ dvc add data/raw/val
 
 ## {.center}
 
-This added data to `.dvc/cache` and created 3 files in `data/raw`:
+This adds data to `.dvc/cache/files` and created 3 files in `data/raw`:
 
 - `.gitignore`
 - `train.dvc`
@@ -535,6 +550,13 @@ git switch -c alternative
 Switched to a new branch 'alternative'
 ```
 
+Going back and forth between both versions of our data is now as simple as switching branch:
+
+```{.bash}
+git switch main
+git switch alternative
+```
+
 # Collaboration
 
 ## Classic workflow {.center}
@@ -639,7 +661,19 @@ DVC pipelines create reproducible workflows and are functionally similar to Make
 
 Each step in a pipeline is created with `dvc stage add` and add an entry to a `dvc.yaml` file
 
-This entry contains:
+:::{.note}
+
+`dvc stage add` options:
+
+`-n`: name of stage \
+`-d`: dependency \
+`-o`: output
+
+:::
+
+. . .
+
+Each stage contains:
 
 - `cmd`: the command executed
 - `deps`: the dependencies
@@ -658,11 +692,12 @@ The pipeline contains 3 steps:
 - evaluate
 
 
-## 1^st^ stage (data preparation) {.center}
+## Create a pipeline {.center}
+
+1^st^ stage (data preparation):
 
 ```{.bash}
-dvc stage add -n prepare \
-	-d src/prepare.py -d data/raw \
+dvc stage add -n prepare -d src/prepare.py -d data/raw \
 	-o data/prepared/train.csv -o data/prepared/test.csv \
 	python src/prepare.py
 ```
@@ -671,11 +706,12 @@ dvc stage add -n prepare \
 Added stage 'prepare' in 'dvc.yaml'
 ```
 
-## 2^nd^ stage (training) {.center}
+. . .
+
+2^nd^ stage (training)
 
 ```{.bash}
-dvc stage add -n train \
-	-d src/train.py -d data/prepared/train.csv \
+dvc stage add -n train -d src/train.py -d data/prepared/train.csv \
 	-o model/model.joblib \
 	python src/train.py
 ```
@@ -684,11 +720,12 @@ dvc stage add -n train \
 Added stage `train` in 'dvc.yaml'
 ```
 
-## 3^rd^ stage (evaluation) {.center}
+. . .
+
+3^rd^ stage (evaluation)
 
 ```{.bash}
-dvc stage add -n evaluate \
-    -d src/evaluate.py -d model/model.joblib \
+dvc stage add -n evaluate -d src/evaluate.py -d model/model.joblib \
     -M metrics/accuracy.json \
     python src/evaluate.py
 ```
@@ -730,7 +767,7 @@ evaluate:
  create mode 100644 model/.gitignore
 ```
 
-## Visualize pipeline {.center}
+## Visualize pipeline in a [DAG](https://en.wikipedia.org/wiki/Directed_acyclic_graph) {.center}
 
 ```{.bash}
 dvc dag
@@ -766,13 +803,83 @@ dvc dag
 dvc repro
 ```
 
+```
+'data/raw/train.dvc' didn't change, skipping
+'data/raw/val.dvc' didn't change, skipping
+Running stage 'prepare':
+> python src/prepare.py
+Generating lock file 'dvc.lock'
+Updating lock file 'dvc.lock'
+
+Running stage 'train':
+> python src/train.py
+Updating lock file 'dvc.lock'
+
+Running stage 'evaluate':
+> python src/evaluate.py
+Updating lock file 'dvc.lock'
+Use `dvc push` to send your updates to remote storage.
+```
+
+## dvc repro breakdown {.center}
+
+- `dvc repro` runs the `dvc.yaml` file in a Makefile fashion
+
+- First, it looks at the dependencies: the data didn't change
+
+- Then it ran the commands to produce the outputs (since it is our first run, we had no outputs)
+
+- When the 1^st^ stage is run, a `dvc.lock` is created with information on that part of the run
+
+- When the 2^nd^ and 3^rd^ stages are run, `dvc.lock` is updated
+
+  At the end of the run `dvc.lock` contains all the info about the run we just did (version of the data used, etc.)
+
+- A new directory called `runs` is created in `.dvc/cache` with cached data for this run
+
+## Results of the run {.center}
+
+- The prepared data was created in `data/prepared` (with a `.gitignore` to exclude it from Git—you don't want to track results in Git, but the scripts that can reproduce them)
+
+- A model was saved in `model` (with another `.gitignore` file)
+
+- The accuracy of this run was created in `metrics`
+
+## Clean working tree {.center}
+
+Now, we definitely want to create a commit with the `dvc.lock`
+
+We could add the metrics resulting from this run in the same commit:
+
 ```{.bash}
-git commit -m "First pipeline run"
+git add metrics
+git commit -m "First pipeline run and results"
+```
+
+. . .
+
+Our working tree is now clean and our data/pipeline up to date:
+
+```{.bash}
+git status
+```
+
+```
+On branch alternative
+nothing to commit, working tree clean
+```
+
+```{.bash}
+dvc status
+```
+
+```
+Data and pipelines are up to date.
 ```
 
 ## Modify pipeline {.center}
 
-From now on, if I edit one of the scripts, or one of the dependencies, `dvc status` will tell me what changed and `dvc repro` will only rerun the parts of the pipeline to update the result, pretty much as a Makefile would
+From now on, if we edit one of the scripts, or one of the dependencies, `dvc status` will tell us what changed and `dvc repro` will only rerun the parts of the pipeline to update the result, pretty much as a Makefile would
 
 ## Going further ... next time {.center}
 
