@@ -1,0 +1,220 @@
+---
+title: Transferring files
+aliases:
+  - transfer.html
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+If you want to use the Alliance clusters to run some of your heavy computations, you will have to move files back and forth between your machine and the clusters.
+
+This section covers various ways to do this.
+
+:::
+
+## Remote copies with `scp`
+
+[Secure copy protocol (SCP)](https://en.wikipedia.org/wiki/Secure_copy_protocol) allows to copy files over the [Secure Shell Protocol (SSH)](https://en.wikipedia.org/wiki/Secure_Shell) with the `scp` utility. `scp` follows a syntax similar to that of the `cp` command.
+
+**Note that you need to run it from your local machines (not from the cluster).**
+
+### Copy from your machine to the cluster
+
+```{.bash}
+# Copy a local file to your home directory on the cluster
+scp /local/path/file userxxx@bobthewren.c3.ca:
+```
+
+```{.bash}
+# Copy a local file to some path on the cluster
+scp /local/path/file userxxx@bobthewren.c3.ca:/remote/path
+```
+
+### Copy from the cluster to your machine
+
+```{.bash}
+# Copy a file from the cluster to some path on your machine
+scp userxxx@bobthewren.c3.ca:/remote/path/file /local/path
+```
+
+```{.bash}
+# Copy a file from the cluster to your current location on your machine
+scp userxxx@bobthewren.c3.ca:/remote/path/file .
+```
+
+You can also use wildcards to transfer multiple files:
+
+```{.bash}
+# Copy all the Bash scripts from your cluster home dir to some local path
+scp userxxx@bobthewren.c3.ca:*.sh /local/path
+```
+
+### Copying directories
+
+To copy a directory, you need to add the `-r` (recursive) flag:
+
+```{.bash}
+scp -r /local/path/folder userxxx@bobthewren.c3.ca:/remote/path
+```
+
+### Copying for Windows users
+
+MobaXterm users (on Windows) can copy files by dragging them between the local and remote machines in the GUI. Alternatively, they can use the download and upload buttons.
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Copy a file from your local computer to your home directory in the training cluster.
+
+:::
+
+*[Here](https://youtu.be/6iqwJWGJ6es) is a video of a previous version of this workshop.*
+
+## Interactive transfers with `sftp`
+
+The [Secure File Transfer Protocol (SFTP)](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) is more sophisticated and allows additional operations. The `sftp` command provided by [OpenSSH](https://en.wikipedia.org/wiki/OpenSSH) and other packages launches an SFTP client:
+
+```{.bash}
+sftp userxxx@bobthewren.c3.ca
+```
+
+:::{.note}
+
+Look at your prompt: your usual Bash/Zsh prompt has been replaced with `sftp>`.
+
+:::
+
+From this prompt, you can access a number of SFTP commands. Type `help` for a list:
+
+```{.bash}
+sftp> help
+```
+
+```
+Available commands:
+bye                                Quit sftp
+cd path                            Change remote directory to 'path'
+chgrp [-h] grp path                Change group of file 'path' to 'grp'
+chmod [-h] mode path               Change permissions of file 'path' to 'mode'
+chown [-h] own path                Change owner of file 'path' to 'own'
+copy oldpath newpath               Copy remote file
+cp oldpath newpath                 Copy remote file
+df [-hi] [path]                    Display statistics for current directory or
+                                   filesystem containing 'path'
+exit                               Quit sftp
+get [-afpR] remote [local]         Download file
+help                               Display this help text
+lcd path                           Change local directory to 'path'
+lls [ls-options [path]]            Display local directory listing
+lmkdir path                        Create local directory
+ln [-s] oldpath newpath            Link remote file (-s for symlink)
+lpwd                               Print local working directory
+ls [-1afhlnrSt] [path]             Display remote directory listing
+lumask umask                       Set local umask to 'umask'
+mkdir path                         Create remote directory
+progress                           Toggle display of progress meter
+put [-afpR] local [remote]         Upload file
+pwd                                Display remote working directory
+quit                               Quit sftp
+reget [-fpR] remote [local]        Resume download file
+rename oldpath newpath             Rename remote file
+reput [-fpR] local [remote]        Resume upload file
+rm path                            Delete remote file
+rmdir path                         Remove remote directory
+symlink oldpath newpath            Symlink remote file
+version                            Show SFTP version
+!command                           Execute 'command' in local shell
+!                                  Escape to local shell
+?                                  Synonym for help
+```
+
+As this list shows, you have access to a number of classic Unix command such as `cd`, `pwd`, `ls`, etc. **These commands will be executed on the remote machine.**
+
+In addition, there are a number of commands of the form `l<command>`. "l" stands for "local". \
+**These commands will be executed on your local machine.**
+
+For instance, `ls` will list the files in your current directory in the remote machine while `lls` ("local ls") will list the files in your current directory on your computer.
+
+This means that you are now able to navigate two file systems at once: your local machine and the remote machine.
+
+:::{.example}
+
+Here are a few examples:
+
+:::
+
+```{.bash}
+sftp> pwd              # print remote working directory
+sftp> lpwd             # print local working directory
+sftp> ls               # list files in remote working directory
+sftp> lls              # list files in local working directory
+sftp> cd               # change the remote directory
+sftp> lcd              # change the local directory
+sftp> put local_file   # upload a file
+sftp> get remote_file  # download a file
+```
+
+### Copying directories
+
+To upload/download directories, you first need to create them in the destination, then copy the content with the `-r` (recursive) flag.
+
+:::{.example}
+
+If you have a local directory called `dir` and you want to copy it to the cluster you need to run:
+
+:::
+
+```{.bash}
+sftp> mkdir dir	   # First create the directory
+sftp> put -r dir   # Then copy the content
+```
+
+To terminate the session, press `<Ctrl+D>`.
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+In an SFTP session:
+
+- List the content of `projects` (`projects` is in your home on the training cluster).
+- Copy a file from the training cluster to your local computer.
+
+:::
+
+## Syncing
+
+If, instead of an occasional copying of files between your machine and the cluster, you want to keep a directory in sync between both machines, you might want to use [rsync](https://en.wikipedia.org/wiki/Rsync) instead. You can look at [the Alliance wiki page on rsync](https://docs.alliancecan.ca/wiki/Transferring_data#Rsync) for complete instructions.
+
+## Heavy transfers
+
+While the methods covered above work very well for limited amounts of data, if you need to make large transfers, you should use [globus](https://www.globus.org/) instead, following the instructions in [the Alliance wiki page on this service](https://docs.alliancecan.ca/wiki/Globus).
+
+## Windows line endings
+
+On modern Mac operating systems and on Linux, lines in files are terminated with a newline (`\n`).
+On Windows, they are terminated with a carriage return + newline (`\r\n`).
+
+When you transfer files between Windows and Linux (the cluster uses Linux), this creates a mismatch. Most modern software handle this correctly, but you may occasionally run into problems.
+
+The solution is to convert a file from Windows encoding to Unix encoding with:
+
+```{.bash}
+dos2unix file
+```
+
+To convert a file back to Windows encoding, run:
+
+```{.bash}
+unix2dos file
+```
