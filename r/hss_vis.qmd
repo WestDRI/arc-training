@@ -1,0 +1,229 @@
+---
+title: Data visualization
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+To understand data, it is often extremely useful to visualize them. In this section, we will plot the US infectious disease data.
+
+:::
+
+## Load packages
+
+The most popular R package for data visualization is the tidyverse package [ggplot2](https://ggplot2.tidyverse.org/). Let's load it in addition to our previous packages:
+
+```{r}
+library(dslabs)
+library(dplyr)
+library(ggplot2)
+```
+
+Let's start by plotting the total number of cases for all states and all diseases per year. We already saw in the previous section how to group and summarise the data. Let's create a new data frame with our prepared data:
+
+```{r}
+us_year_totals <- us_contagious_diseases |>
+  group_by(year) |>
+  summarise(total = sum(count))
+```
+
+This is what our data frame looks like:
+
+```{r}
+head(us_year_totals)
+```
+
+Now we can use it to make a first plot.
+
+## The Canvas
+
+The first component of a plot is the data:
+
+```{r}
+ggplot(us_year_totals)
+```
+
+The second component sets the way variables are mapped on the axes. This is done with the `aes()` (aesthetics) function:
+
+```{r}
+ggplot(us_year_totals, aes(year, total))
+```
+
+## Geometric representations of the data
+
+Onto this canvas, we can add "geoms" (geometrical objects) representing the data. The type of "geom" defines the type of representation (e.g. boxplot, histogram, bar chart).
+
+To represent the data as a scatterplot, we use the `geom_point()` function:
+
+```{r}
+ggplot(us_year_totals, aes(year, total)) +
+  geom_point()
+```
+
+This immediately shows that the number of contagious infections in the US has declined sharply since the early 60s.
+
+Multiple "geoms" can be added on top of each other. For instance, we can add a smoothed conditional means function with `geom_smooth()`. That will help us see patterns in the data:
+
+```{r}
+ggplot(us_year_totals, aes(year, total)) +
+  geom_point() +
+  geom_smooth()
+```
+
+There is a bump of cases in the early 40s. Due to WWII maybe?
+
+The default smoothing function uses the LOESS (locally estimated scatterplot smoothing) method, which is a nonlinear regression. We can change the method to a linear model:
+
+```{r}
+ggplot(us_year_totals, aes(year, total)) +
+  geom_point() +
+  geom_smooth(method = lm)
+```
+
+Line width, color, and whether or not the standard error (`se`) is shown can be customized:
+
+```{r}
+ggplot(us_year_totals, aes(year, total)) +
+  geom_point() +
+  geom_smooth(
+    method = lm,
+    se = FALSE,
+    color = "#999999",
+    linewidth = 0.5
+  )
+```
+
+## Colour representations
+
+So far, we have pooled the data for all diseases together, but maybe different diseases show different trends.
+
+Let's create a new data frame with the totals per year and per disease so that we can create plots with more information:
+
+```{r}
+us_year_disease_totals <- us_contagious_diseases |>
+  group_by(year, disease) |>
+  summarise(total = sum(count), .groups = 'drop')
+
+head(us_year_disease_totals)
+```
+
+Now we can use a different colour for each disease:
+
+```{r}
+ggplot(us_year_disease_totals, aes(year, total)) +
+  geom_point(aes(color = disease))
+```
+
+This shows how prevalent measles was until the 70s.
+
+When plotting quickly to understand the data, aesthetics don't matter. If you want to produce plots for publications or presentations, of course you should then spend some time tweaking their style and readability.
+
+## Colour scales
+
+Many colour scales exist. `scale_color_brewer()`, based on [color brewer 2.0](https://colorbrewer2.org/#type=sequential&scheme=BuGn&n=3), is one of many methods to change the color scale. Here is the list of available scales for this particular method:
+
+![](img/color_scale.png){width="70%" fig-align="center"}
+
+When choosing a colour scale, it is very important to remember that various forms of colour blindness are common. Try to choose distinctive colours. Some palettes are specifically designed to work well for everyone.
+
+Here, let's try the `Dark2` palette:
+
+```{r}
+ggplot(us_year_disease_totals, aes(year, total)) +
+  geom_point(aes(color = disease)) +
+  scale_color_brewer(palette = "Dark2")
+```
+
+## Labels
+
+Let's improve our axes labels and legend and add a title to the plot:
+
+```{r}
+ggplot(us_year_disease_totals, aes(year, total)) +
+  geom_point(aes(color = disease)) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(
+    title = "Infectious diseases in the US",
+    x = "Year",
+    y = "Number of cases",
+    color = "Diseases"
+  )
+```
+
+## Themes
+
+`ggplot2` comes with a number of preset themes.
+
+[Edward Tufte](https://en.wikipedia.org/wiki/Edward_Tufte) developed, amongst others, the principle of *data-ink ratio* which emphasizes that ink should be used primarily where it communicates meaningful messages. It is indeed common to see charts where more ink is used in labels or background than in the actual representation of the data.
+
+The default `ggplot2` theme could be criticized as not following this principle. Let's change it:
+
+```{r}
+ggplot(us_year_disease_totals, aes(year, total)) +
+  geom_point(aes(color = disease)) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(
+    title = "Infectious diseases in the US",
+    x = "Year",
+    y = "Number of cases",
+    color = "Diseases"
+  ) +
+  theme_classic()
+```
+
+The `theme()` function allows to tweak the theme in any number of ways. For instance, what if we don't like the default position of the title and we would rather have it centered?
+
+```{r}
+ggplot(us_year_disease_totals, aes(year, total)) +
+  geom_point(aes(color = disease)) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(
+    title = "Infectious diseases in the US",
+    x = "Year",
+    y = "Number of cases",
+    color = "Diseases"
+  ) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+We can also move the legend to give more space to the actual graph:
+
+```{r}
+ggplot(us_year_disease_totals, aes(year, total)) +
+  geom_point(aes(color = disease)) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(
+    title = "Infectious diseases in the US",
+    x = "Year",
+    y = "Number of cases",
+    color = "Diseases"
+  ) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom")
+```
+
+## Facets
+
+Instead of plotting the data for all diseases on a single graph, we can create facets:
+
+```{r}
+ggplot(us_year_disease_totals, aes(year, total)) +
+  geom_point(aes(color = disease), show.legend = FALSE) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(
+    title = "Infectious diseases in the US",
+    x = "Year",
+    y = "Number of cases"
+  ) +
+  facet_wrap(~ disease) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+## `ggplot2` extensions
+
+Thanks to its popularity, `ggplot2` has seen a proliferation of packages extending its capabilities. A full list can be found [here](https://exts.ggplot2.tidyverse.org/gallery/).
+
+```{=html}
+<iframe width="780" height="1000" src="https://exts.ggplot2.tidyverse.org/gallery/"></iframe>
+```
