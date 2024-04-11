@@ -5,13 +5,56 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-JIT compilation is a key component to what makes JAX efficient. For the most part, it is very easy to use, but there are subtleties to be aware of. We will explore those in this section.
+JIT compilation is a key component to JAX efficiency. For the most part, it is very easy to use, but there are subtleties to be aware of.
 
 :::
 
 ## JIT
 
-Instead of executing computations one at a time, they can be combined and optimized by JIT compilation before being passed to the XLA.
+JAX functions are already compiled and optimized, but user functions can also be optimized for the XLA by JIT compilation which will combine computations.
+
+Remember the map of JAX functioning:
+
+```{dot}
+//| echo: false
+//| fig-height: 600px
+
+strict digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif"]
+edge [color=gray55]
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label="JIT\n compilation ", shape=rectangle, color=red, fontcolor=red, fontsize="25"]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label=" Transformations ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxpr\n(JAX expression)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+
+{rank=same; jaxpr transform}
+
+}
+```
 
 This is done by the `jax.jit()` function or the equivalent decorator `@jit`.
 
@@ -38,7 +81,7 @@ Our function can simply be used as:
 print(sum_squared_error(a, b))
 ```
 
-The code will run faster however if we create a JIT compiled version of the function and use that instead (we will see how to benchmark JAX code later in the course):
+Our code will run faster if we create a JIT compiled version and use that instead (we will see how to benchmark JAX code later in the course. There are some subtleties for that too, so for now, just believe that it is faster. You will be able to test it later):
 
 ```{.python}
 sum_squared_error_jit = jit(sum_squared_error)
@@ -102,9 +145,9 @@ What is going on?
 
 JIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics. The tracer objects are not real values but abstract representation that are more general. In control flow situations such as the one we have here, an abstract general value does not work as it wouldn't know which branch to take.
 
-The solution is to tell `jit()` not to trace some arguments (to consider them as static) by using the `static_argnums` parameter. This parameter takes an integer or a collection of integers to specify the position of the arguments to treat as static.
+The solution is to tell `jit()` to exclude the problematic arguments (in our example a single argument: `x`) from tracing (i.e. to consider them as static). Of course, those elements will not be optimized, but the rest of the code will, so it is a lot better than not JIT compiling the function at all.
 
-Here, our function only accepts one argument, so we will use `static_argnums=(0,)`
+You can either use the `static_argnums` parameter which takes an integer or a collection of integers to specify the position of the arguments to treat as static:
 
 ```{.python}
 def cond_func(x):
@@ -124,7 +167,7 @@ print(cond_func_jit(-2.0))
 4.0
 ```
 
-Alternatively, the arguments that we want to be treated as static can be specified by their names:
+Or you can use `static_argnames` which accepts argument names:
 
 ```{.python}
 def cond_func(x):
@@ -144,9 +187,15 @@ print(cond_func_jit_alt(-2.0))
 4.0
 ```
 
+:::{.note}
+
+You cannot use the `@jit` decorator when you need to pass arguments to the `jax.jit()` function.
+
+:::
+
 ### Static vs traced operations
 
-Similarly, you will need to mark certain operations are static so that they don't get traced during JIT compilation:
+Similarly, you will need to mark problematic operations as static so that they don't get traced during JIT compilation:
 
 ```{.python}
 @jit
@@ -162,14 +211,16 @@ TypeError: Shapes must be 1D sequences of concrete values of integer type, got [
 If using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.
 ```
 
-The solution here is to use NumPy of JAX:
+The problem here is that the shape of the argument to `prod()` depends on the value of `x` which is unknown at compilation time.
+
+The solution is to use the NumPy version of `prod()`: it will not be JIT compiled (not such thing with NumPy) and that allows us to still optimize the rest of our function:
 
 ```{.python}
 import numpy as np
 
 @jit
 def f(x):
-    return x.reshape((np.prod(x.shape),))
+    return x.reshape((np.prod(x.shape)))
 
 print(f(x))
 ```
