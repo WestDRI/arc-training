@@ -7112,7 +7112,7 @@
     "href": "ai/jx_jit.html#jit-constraints",
     "title": "JIT compilation",
     "section": "JIT constraints",
-    "text": "JIT constraints\n\nStatic vs traced variables\nOne example can arise with control flow.\n@jit\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\nprint(cond_func(1.0))\njax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[]..\nThe error occurred while tracing the function cond_func at jx_jit.qmd:85 for jit. This concrete value was not available in Python because it depends on the value of the argument x.\nSee https://jax.readthedocs.io/en/latest/errors.html#jax.errors.TracerBoolConversionError\nWhat is going on?\nJIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics. The tracer objects are not real values but abstract representation that are more general. In control flow situations such as the one we have here, an abstract general value does not work as it wouldn’t know which branch to take.\nThe solution is to tell jit() to exclude the problematic arguments (in our example a single argument: x) from tracing (i.e. to consider them as static). Of course, those elements will not be optimized, but the rest of the code will, so it is a lot better than not JIT compiling the function at all.\nYou can either use the static_argnums parameter which takes an integer or a collection of integers to specify the position of the arguments to treat as static:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit = jit(cond_func, static_argnums=(0,))\n\nprint(cond_func_jit(2.0))\nprint(cond_func_jit(-2.0))\n8.0\n4.0\nOr you can use static_argnames which accepts argument names:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit_alt = jit(cond_func, static_argnames=\"x\")\n\nprint(cond_func_jit_alt(2.0))\nprint(cond_func_jit_alt(-2.0))\n8.0\n4.0\n\nYou cannot use the @jit decorator when you need to pass arguments to the jax.jit() function.\n\n\n\nStatic vs traced operations\nSimilarly, you will need to mark problematic operations as static so that they don’t get traced during JIT compilation:\n@jit\ndef f(x):\n    return x.reshape(jnp.array(x.shape).prod())\n\nx = jnp.ones((2, 3))\nprint(f(x))\nTypeError: Shapes must be 1D sequences of concrete values of integer type, got [Traced&lt;ShapedArray(int32[])&gt;with&lt;DynamicJaxprTrace(level=1/0)&gt;].\nIf using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.\nThe problem here is that the shape of the argument to prod() depends on the value of x which is unknown at compilation time.\nThe solution is to use the NumPy version of prod(): it will not be JIT compiled (not such thing with NumPy) and that allows us to still optimize the rest of our function:\nimport numpy as np\n\n@jit\ndef f(x):\n    return x.reshape((np.prod(x.shape)))\n\nprint(f(x))\n[1. 1. 1. 1. 1. 1.]",
+    "text": "JIT constraints\n\nStatic vs traced variables\nOne example can arise with control flow.\n@jit\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\nprint(cond_func(1.0))\njax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[]..\nThe error occurred while tracing the function cond_func at jx_jit.qmd:85 for jit. This concrete value was not available in Python because it depends on the value of the argument x.\nSee https://jax.readthedocs.io/en/latest/errors.html#jax.errors.TracerBoolConversionError\nWhat is going on?\nJIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics. The tracer objects are not real values but abstract representation that are more general. In control flow situations such as the one we have here, an abstract general value does not work as it wouldn’t know which branch to take.\nThe solution is to tell jit() to exclude the problematic arguments (in our example a single argument: x) from tracing (i.e. to consider them as static). Of course, those elements will not be optimized, but the rest of the code will, so it is a lot better than not JIT compiling the function at all.\nYou can either use the static_argnums parameter which takes an integer or a collection of integers to specify the position of the arguments to treat as static:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit = jit(cond_func, static_argnums=(0,))\n\nprint(cond_func_jit(2.0))\nprint(cond_func_jit(-2.0))\n8.0\n4.0\nOr you can use static_argnames which accepts argument names:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit_alt = jit(cond_func, static_argnames=\"x\")\n\nprint(cond_func_jit_alt(2.0))\nprint(cond_func_jit_alt(-2.0))\n8.0\n4.0\n\nYou cannot use the @jit decorator when you need to pass arguments to the jax.jit() function. xxxxx\n\n\n\nStatic vs traced operations\nSimilarly, you will need to mark problematic operations as static so that they don’t get traced during JIT compilation:\n@jit\ndef f(x):\n    return x.reshape(jnp.array(x.shape).prod())\n\nx = jnp.ones((2, 3))\nprint(f(x))\nTypeError: Shapes must be 1D sequences of concrete values of integer type, got [Traced&lt;ShapedArray(int32[])&gt;with&lt;DynamicJaxprTrace(level=1/0)&gt;].\nIf using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.\nThe problem here is that the shape of the argument to prod() depends on the value of x which is unknown at compilation time.\nThe solution is to use the NumPy version of prod(): it will not be JIT compiled (not such thing with NumPy) and that allows us to still optimize the rest of our function:\nimport numpy as np\n\n@jit\ndef f(x):\n    return x.reshape((np.prod(x.shape)))\n\nprint(f(x))\n[1. 1. 1. 1. 1. 1.]",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -12888,5 +12888,29 @@
     "title": "Accelerated array computing and flexible differentiation with",
     "section": "Vectorization and parallelization",
     "text": "Vectorization and parallelization\nOther transformations for parallel run of computations across batches of arrays:\n\nAutomatic vectorization with jax.vmap\nParallelization across devices with jax.pmap"
+  },
+  {
+    "objectID": "ai/jx_why.html#what-is-jax",
+    "href": "ai/jx_why.html#what-is-jax",
+    "title": "Why JAX?",
+    "section": "What is JAX?",
+    "text": "What is JAX?\nLibrary for Python developed by Google\nKey data structure: Array\nComposition, transformation, and differentiation of numerical programs\nCompilation for CPUs, GPUs, and TPUs\nNumPy-like and lower-level APIs\nRequires strict functional programming",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Why JAX?"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#a-structure-for-handling-data-and-parameters",
+    "href": "ai/jx_pytree.html#a-structure-for-handling-data-and-parameters",
+    "title": "Pytrees",
+    "section": "A structure for handling data and parameters",
+    "text": "A structure for handling data and parameters",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
   }
 ]
