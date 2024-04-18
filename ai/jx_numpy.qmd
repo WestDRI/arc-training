@@ -25,7 +25,7 @@ Let's load the latest module:
 module load ipython-kernel/3.11
 ```
 
-Let's start an interactive job:
+Let's now start an interactive job:
 
 ```{.bash}
 salloc --time=1:0:0 --mem-per-cpu=3500M
@@ -37,7 +37,7 @@ Now that we are on a compute node, we can active the virtual python environment:
 source /project/60055/env/bin/activate
 ```
 
-And we can launch IPython:
+Finally, we can launch IPython:
 
 ```{.bash}
 ipython
@@ -363,7 +363,59 @@ print(jit(f)(jnp.arange(3), jnp.arange(3)))
 [0 2 4]
 ```
 
-This time, no printing...
+This time, no printing.
+
+:::{.info}
+
+**Understanding jaxprs**
+
+Jaxprs are created by tracers wrapping the Python code during compilation (the first run). They contain information on the shape and data type of arrays as well as the operations performed on these arrays. Jaxprs do not however contain information on values: this allows the compiled program to be general enough to be rerun with any new arrays of the same shape and data type without having to rerun the slow Python code and recompile.
+
+Jaxprs also do not contain any information on elements that are not part of the inputs such as external variables, nor do they contain information on side effects.
+
+Jaxprs can be visualized with the `jax.make_jaxpr` function:
+
+```{.python}
+import jax
+
+x = jnp.array([1., 4., 3.])
+y = jnp.array([8., 1., 2.])
+
+def f(x, y):
+    return 2 * x**2 + y
+
+jax.make_jaxpr(f)(x, y) 
+```
+
+```
+{ lambda ; a:f32[3] b:f32[3]. let
+    c:f32[3] = integer_pow[y=2] a
+    d:f32[3] = mul 2.0 c
+    e:f32[3] = add d b
+  in (e,) }
+```
+
+Let's add a print function to `f`:
+
+```{.python}
+def f(x, y):
+    print("This is a function with side-effect")
+    return 2 * x**2 + y
+
+jax.make_jaxpr(f)(x, y)
+```
+
+```
+{ lambda ; a:f32[3] b:f32[3]. let
+    c:f32[3] = integer_pow[y=2] a
+    d:f32[3] = mul 2.0 c
+    e:f32[3] = add d b
+  in (e,) }
+```
+
+The jaxpr is exactly the same. This is why printing will happen during tracing (when the Python code is run), but not afterwards (when the compiled code using the jaxpr is run).
+
+:::
 
 ### Pseudorandom number generation
 
