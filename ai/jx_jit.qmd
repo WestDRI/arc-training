@@ -116,9 +116,59 @@ print(sum_squared_error(a, b))
 502084.75
 ```
 
-This was very easy. There are situations however in which tracing will fail.
+:::{.info}
+
+**Understanding jaxprs**
+
+Let's have a look at the jaxpr of a jit-compiled function.
+
+This is what the jaxpr of the non-jit-compiled function looks like:
+
+```{.python}
+import jax
+
+def sum_squared_error(a, b):
+    return jnp.sum((a - b) ** 2)
+
+jax.make_jaxpr(sum_squared_error)(x, y)
+```
+
+```
+{ lambda ; a:f32[3] b:f32[3]. let
+    c:f32[3] = sub a b
+    d:f32[3] = integer_pow[y=2] c
+    e:f32[] = reduce_sum[axes=(0,)] d
+  in (e,) }
+```
+
+The jaxpr of the jit-compiled function looks like this:
+
+```{.python}
+@jit
+def sum_squared_error(a, b):
+    return jnp.sum((a - b) ** 2)
+
+jax.make_jaxpr(sum_squared_error)(x, y)
+```
+
+```
+{ lambda ; a:f32[3] b:f32[3]. let
+    c:f32[] = pjit[
+      name=sum_squared_error
+      jaxpr={ lambda ; d:f32[3] e:f32[3]. let
+          f:f32[3] = sub d e
+          g:f32[3] = integer_pow[y=2] f
+          h:f32[] = reduce_sum[axes=(0,)] g
+        in (h,) }
+    ] a b
+  in (c,) }
+```
+
+:::
 
 ## JIT constraints
+
+Using `jit` in the example above was very easy. There are situations however in which tracing will fail.
 
 ### Control flow
 
