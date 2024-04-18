@@ -120,9 +120,9 @@ This was very easy. There are situations however in which tracing will fail.
 
 ## JIT constraints
 
-### Static vs traced variables
+### Control flow
 
-One example can arise with control flow.
+One example can arise with control flow:
 
 ```{.python}
 @jit
@@ -141,11 +141,11 @@ The error occurred while tracing the function cond_func at jx_jit.qmd:85 for jit
 See https://jax.readthedocs.io/en/latest/errors.html#jax.errors.TracerBoolConversionError
 ```
 
-What is going on?
-
 JIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics. The tracer objects are not real values but abstract representation that are more general. In control flow situations such as the one we have here, an abstract general value does not work as it wouldn't know which branch to take.
 
-The solution is to tell `jit()` to exclude the problematic arguments (in our example a single argument: `x`) from tracing (i.e. to consider them as static). Of course, those elements will not be optimized, but the rest of the code will, so it is a lot better than not JIT compiling the function at all.
+#### Static variables
+
+One solution is to tell `jit()` to exclude the problematic arguments (in our example the argument: `x`) from tracing (i.e. to consider them as static). Of course, those elements will not be optimized, but the rest of the code will, so it is a lot better than not JIT compiling the function at all.
 
 You can either use the `static_argnums` parameter which takes an integer or a collection of integers to specify the position of the arguments to treat as static:
 
@@ -176,7 +176,7 @@ def cond_func(x):
     else:
         return x ** 3.0
 
-cond_func_jit_alt = jit(cond_func, static_argnames="x")
+cond_func_jit_alt = jit(cond_func, static_argnames='x')
 
 print(cond_func_jit_alt(2.0))
 print(cond_func_jit_alt(-2.0))
@@ -187,13 +187,64 @@ print(cond_func_jit_alt(-2.0))
 4.0
 ```
 
-:::{.note}
+You cannot use the `@jit` decorator when you need to pass arguments to the `jit` function, but you can still use a decorator:
 
-You cannot use the `@jit` decorator when you need to pass arguments to the `jax.jit()` function.
+```{.python}
+from functools import partial
 
-:::
+@partial(jit, static_argnums=(0,))
+def cond_func(x):
+    if x < 0.0:
+        return x ** 2.0
+    else:
+        return x ** 3.0
+```
 
-### Static vs traced operations
+or:
+
+```{.python}
+@partial(jit, static_argnames=['x'])
+def cond_func(x):
+    if x < 0.0:
+        return x ** 2.0
+    else:
+        return x ** 3.0
+```
+
+#### Control flow primitives
+
+If you don't want the code to recompile for each new value, another solution, is to use one of the structured control flow primitives:
+
+```{.python}
+from jax import lax
+
+lax.cond(False, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([2.]))
+```
+
+```
+Array([8.], dtype=float32)
+```
+
+```{.python}
+lax.cond(True, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([-2.]))
+```
+
+```
+Array([4.], dtype=float32)
+```
+
+There are other control flow primitives:
+
+- `lax.while_loop`
+- `lax.fori_loop`
+- `lax.scan`
+
+and other pseudo dynamic control flow functions:
+
+- `lax.select` (NumPy API `jnp.where` and `jnp.select`)
+- `lax.switch` (NumPy API `jnp.piecewise`)
+
+### Static operations
 
 Similarly, you will need to mark problematic operations as static so that they don't get traced during JIT compilation:
 
@@ -211,9 +262,9 @@ TypeError: Shapes must be 1D sequences of concrete values of integer type, got [
 If using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.
 ```
 
-The problem here is that the shape of the argument to `prod()` depends on the value of `x` which is unknown at compilation time.
+The problem here is that the shape of the argument to `prod` depends on the value of `x`, but jaxprs do not record values.
 
-The solution is to use the NumPy version of `prod()`: it will not be JIT compiled (not such thing with NumPy) and that allows us to still optimize the rest of our function:
+One solution is to use the NumPy version of `prod`: it will not be JIT compiled (not such thing with NumPy) and that allows us to still optimize the rest of our function:
 
 ```{.python}
 import numpy as np
