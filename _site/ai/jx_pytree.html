@@ -21,6 +21,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -467,7 +501,11 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title"><em>On this page:</em></h2>
    
   <ul>
-  <li><a href="#a-structure-for-handling-data-and-parameters" id="toc-a-structure-for-handling-data-and-parameters" class="nav-link active" data-scroll-target="#a-structure-for-handling-data-and-parameters">A structure for handling data and parameters</a></li>
+  <li><a href="#a-tree-like-structure" id="toc-a-tree-like-structure" class="nav-link active" data-scroll-target="#a-tree-like-structure">A tree-like structure</a></li>
+  <li><a href="#extracting-leaves" id="toc-extracting-leaves" class="nav-link" data-scroll-target="#extracting-leaves">Extracting leaves</a></li>
+  <li><a href="#structure-of-pytrees" id="toc-structure-of-pytrees" class="nav-link" data-scroll-target="#structure-of-pytrees">Structure of pytrees</a></li>
+  <li><a href="#pytree-operations" id="toc-pytree-operations" class="nav-link" data-scroll-target="#pytree-operations">Pytree operations</a></li>
+  <li><a href="#pytree-transposition" id="toc-pytree-transposition" class="nav-link" data-scroll-target="#pytree-transposition">Pytree transposition</a></li>
   </ul>
 </nav>
     </div>
@@ -500,10 +538,101 @@ ul.task-list li input[type="checkbox"] {
 
 
 <div class="def">
-
+<p>It is convenient to store data, model parameters, gradients, etc. in container structures such as lists or dicts. JAX has a container-like structure, the <em>pytree</em> that is flexible, can be nested, and is supported by many JAX functions, making for convenient workflows.</p>
+<p>This section introduces pytrees and their functioning.</p>
 </div>
-<section id="a-structure-for-handling-data-and-parameters" class="level2">
-<h2 class="anchored" data-anchor-id="a-structure-for-handling-data-and-parameters">A structure for handling data and parameters</h2>
+<section id="a-tree-like-structure" class="level2">
+<h2 class="anchored" data-anchor-id="a-tree-like-structure">A tree-like structure</h2>
+<p>The pytree container registry contains, by default, <em>lists</em>, <em>tuples</em>, and <em>dicts</em>. It can be extended to other containers.</p>
+<p>Objects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).</p>
+<p>Pytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.</p>
+<div class="example">
+<p>Examples of pytrees:</p>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>),</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>[<span class="dv">1</span>, <span class="fl">1.</span>, <span class="st">"string"</span>, <span class="va">True</span>],</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>jnp.arange(<span class="dv">2</span>),</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>{<span class="st">'key1'</span>: <span class="fl">3.4</span>, <span class="st">'key2'</span>: <span class="fl">6.</span>},</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>[<span class="fl">3.</span>, (<span class="dv">1</span>, <span class="dv">2</span>), {<span class="st">'key1'</span>: <span class="st">'val1'</span>, <span class="st">'key2'</span>: <span class="st">'val2'</span>, <span class="st">'key3'</span>: <span class="st">'val3'</span>}],</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>(<span class="dv">3</span>, <span class="dv">2</span>, (<span class="dv">6</span>, <span class="dv">0</span>), <span class="dv">2</span>, ()),</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>jnp.zeros(<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="extracting-leaves" class="level2">
+<h2 class="anchored" data-anchor-id="extracting-leaves">Extracting leaves</h2>
+<p>Trees can be flattened and their leaves extracted into a list with <code>jax.tree.leaves</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>jax.tree.leaves([<span class="fl">3.</span>, (<span class="dv">1</span>, <span class="dv">2</span>), {<span class="st">'key1'</span>: <span class="st">'val1'</span>, <span class="st">'key2'</span>: <span class="st">'val2'</span>, <span class="st">'key3'</span>: <span class="st">'val3'</span>}])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[3.0, 1, 2, 'val1', 'val2', 'val3']</code></pre>
+<p>Let’s create a list of pytrees and extract their leaves to look at more examples:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>trees <span class="op">=</span> [</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">1</span>, <span class="fl">1.</span>, <span class="st">"string"</span>, <span class="va">True</span>],</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    jnp.arange(<span class="dv">2</span>),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    {<span class="st">'key1'</span>: <span class="fl">3.4</span>, <span class="st">'key2'</span>: <span class="fl">6.</span>},</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">3.</span>, (<span class="dv">1</span>, <span class="dv">2</span>), {<span class="st">'key1'</span>: <span class="st">'val1'</span>, <span class="st">'key2'</span>: <span class="st">'val2'</span>, <span class="st">'key3'</span>: <span class="st">'val3'</span>}],</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">3</span>, <span class="dv">2</span>, (<span class="dv">6</span>, <span class="dv">0</span>), <span class="dv">2</span>, ()),</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    jnp.zeros(<span class="dv">3</span>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pytree <span class="kw">in</span> trees:</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  leaves <span class="op">=</span> jax.tree.leaves(pytree)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(leaves)<span class="sc">}</span><span class="ss"> leaves: </span><span class="sc">{</span>leaves<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>3 leaves: [1, 2, 3]
+4 leaves: [1, 1.0, 'string', True]
+1 leaves: [Array([0, 1], dtype=int32)]
+2 leaves: [3.4, 6.0]
+6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']
+5 leaves: [3, 2, 6, 0, 2]
+1 leaves: [Array([0., 0., 0.], dtype=float32)]</code></pre>
+</section>
+<section id="structure-of-pytrees" class="level2">
+<h2 class="anchored" data-anchor-id="structure-of-pytrees">Structure of pytrees</h2>
+<p>As we just saw, JAX can extract the leaves of pytrees. This is useful to run functions on them. But JAX also records their structure and is able to recreate them. The structure can be obtained with <code>jax.tree.structure</code>:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>jax.tree.structure([<span class="fl">3.</span>, (<span class="dv">1</span>, <span class="dv">2</span>), {<span class="st">'key1'</span>: <span class="st">'val1'</span>, <span class="st">'key2'</span>: <span class="st">'val2'</span>, <span class="st">'key3'</span>: <span class="st">'val3'</span>}])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}])</code></pre>
+<p>So each pytree can be turned into a tuple of the list of its leaves and its structure and that tuple can be turned back into the pytree.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>jax.tree.flatten([<span class="fl">3.</span>, (<span class="dv">1</span>, <span class="dv">2</span>), {<span class="st">'key1'</span>: <span class="st">'val1'</span>, <span class="st">'key2'</span>: <span class="st">'val2'</span>, <span class="st">'key3'</span>: <span class="st">'val3'</span>}])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>([3.0, 1, 2, 'val1', 'val2', 'val3'],
+ PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}]))</code></pre>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>values, structure <span class="op">=</span> jax.tree.flatten([<span class="fl">3.</span>, (<span class="dv">1</span>, <span class="dv">2</span>), {<span class="st">'key1'</span>: <span class="st">'val1'</span>, <span class="st">'key2'</span>: <span class="st">'val2'</span>, <span class="st">'key3'</span>: <span class="st">'val3'</span>}])</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>jax.tree.unflatten(structure, values)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[3.0, (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]</code></pre>
+</section>
+<section id="pytree-operations" class="level2">
+<h2 class="anchored" data-anchor-id="pytree-operations">Pytree operations</h2>
+<p>JAX contain functions to run operations on pytrees.</p>
+<p>Let’s create a few pytrees to play with:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>tree1 <span class="op">=</span> {<span class="st">'key1'</span>: <span class="fl">1.</span>, <span class="st">'key2'</span>: <span class="fl">2.</span>, <span class="st">'key3'</span>: <span class="fl">3.</span>}</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>tree2 <span class="op">=</span> {<span class="st">'key1'</span>: <span class="fl">4.</span>, <span class="st">'key2'</span>: <span class="fl">5.</span>, <span class="st">'key3'</span>: <span class="fl">6.</span>}</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>tree3 <span class="op">=</span> {<span class="st">'key1'</span>: <span class="fl">7.</span>, <span class="st">'key2'</span>: <span class="fl">8.</span>, <span class="st">'key3'</span>: <span class="fl">9.</span>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>jax.tree.map</code> allows to apply functions to each leaf of a tree:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>jax.tree.<span class="bu">map</span>(<span class="kw">lambda</span> x: <span class="dv">3</span> <span class="op">*</span> x, tree1)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>{'key1': 3.0, 'key2': 6.0, 'key3': 9.0}</code></pre>
+<p>As long as pytrees share the same structure (including the same dicts keys), operations combining multiple pytrees also work:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>jax.tree.<span class="bu">map</span>(<span class="kw">lambda</span> x, y, z: x <span class="op">*</span> y <span class="op">+</span> z, tree1, tree2, tree3)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>{'key1': 11.0, 'key2': 18.0, 'key3': 27.0}</code></pre>
+<p>Here are a few more examples:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>tree4 <span class="op">=</span> [[<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>], (<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>), <span class="dv">3</span>]</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>tree5 <span class="op">=</span> [[<span class="dv">0</span>, <span class="dv">5</span>, <span class="dv">1</span>], (<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>), <span class="dv">3</span>]</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>tree6 <span class="op">=</span> [[<span class="dv">0</span>, <span class="dv">5</span>, <span class="dv">1</span>, <span class="dv">2</span>], (<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>), <span class="dv">3</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>jax.tree.<span class="bu">map</span>(<span class="kw">lambda</span> x, y: x <span class="op">+</span> y, tree4, tree5)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[[1, 6, 2], (4, 4, 4, 4), 6]</code></pre>
+<p>This won’t work though as the structures are different:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>jax.tree.<span class="bu">map</span>(<span class="kw">lambda</span> x, y: x <span class="op">+</span> y, tree5, tree6)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>ValueError: Tuple arity mismatch: 3 != 4; tuple: (2, 2, 2).</code></pre>
+</section>
+<section id="pytree-transposition" class="level2">
+<h2 class="anchored" data-anchor-id="pytree-transposition">Pytree transposition</h2>
+<p>A list of pytrees can be transposed into a pytree of lists.</p>
+<p>Let’s create a list with a few of our previous pytrees:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>trees <span class="op">=</span> [tree1, tree2, tree3]</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(trees)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[{'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}]</code></pre>
+<p>Here is how to transpose this list of pytrees:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>jax.tree.<span class="bu">map</span>(<span class="kw">lambda</span> <span class="op">*</span>x: <span class="bu">list</span>(x), <span class="op">*</span>trees)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>{'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}</code></pre>
 
 
 </section>

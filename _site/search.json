@@ -7004,7 +7004,7 @@
     "href": "ai/jx_numpy.html#differences-with-numpy",
     "title": "Relation to NumPy",
     "section": "Differences with NumPy",
-    "text": "Differences with NumPy\n\nDifferent types\ntype(np.zeros((2, 3))) == type(jnp.zeros((2, 3)))\nFalse\n\nNumpyJAX NumPy\n\n\n\ntype(np.zeros((2, 3)))\n\nnumpy.ndarray\n\n\n\n\ntype(jnp.zeros((2, 3)))\njaxlib.xla_extension.ArrayImpl\n\n\n\n\n\nDifferent default data types\n\nNumpyJAX NumPy\n\n\n\nnp.zeros((2, 3)).dtype\n\ndtype('float64')\n\n\n\n\njnp.zeros((2, 3)).dtype\ndtype('float32')\n\n\n\n\nLower numerical precision improves speed and reduces memory usage at no cost while training neural networks and is thus a net benefit. Having been built with deep learning in mind, JAX defaults align with that of other DL libraries (e.g. PyTorch, TensorFlow).\n\n\n\nFunctionally pure functions\nMore importantly, only functionally pure functions—that is, functions for which the outputs are only based on the inputs and which have no side effects—can be used with JAX.\n\nOutputs only based on inputs\nConsider the function:\ndef impure_func(x):\n    return a + x\nwhich uses the variable a from the global environment.\nThis function is not functionally pure because the outputs (the results of the function) do not solely depend on the arguments (the values given to x) passed to it. They also depend on the value of a.\nRemember how tracing works: new inputs with the same shape and dtype use the cached compiled program directly. If the value of a changes in the global environment, a new tracing is not triggered and the cached compiled program uses the old value of a (the one that was used during tracing).\nIt is only if the code is run on an input x with a different shape and/or dtype that tracing happens again and that the new value for a takes effect.\n\nTo demo this, we need to use JIT compilation that we will explain in a later section.\n\nfrom jax import jit\n\na = jnp.ones(3)\nprint(a)\n[1. 1. 1.]\ndef impure_func(x):\n    return a + x\n\nprint(jit(impure_func)(jnp.ones(3)))\n[2. 2. 2.]\n\nAll good here because this is the first run (tracing).\n\nNow, let’s change the value of a to an array of zeros:\na = jnp.zeros(3)\nprint(a)\n[0. 0. 0.]\nAnd rerun the same code:\nprint(jit(impure_func)(jnp.ones(3)))\n[2. 2. 2.]\nWe should have an array of ones, but we get the same result we got earlier. Why? because we are running a cached program with the value that a had during tracing.\nThe new value for a will only take effect if we re-trigger tracing by changing the shape and/or dtype of x:\na = jnp.zeros(4)\nprint(a)\n[0. 0. 0. 0.]\nprint(jit(impure_func)(jnp.ones(4)))\n[1. 1. 1. 1.]\nPassing to impure_func() an argument of a different shape forced retracing.\n\n\nNo side effects\nA function is said to have a side effect if it changes something outside of its local environment (if it does anything beside returning an output).\nExamples of side effects include:\n\nprinting to standard output/shell,\nreading from file/writing to file,\nmodifying a global variable.\n\nIn JAX, the side effects will happen during the first run (tracing), but will not happen on subsequent runs. You thus cannot rely on side effects in your code.\ndef impure_func(a, b):\n    print(\"Calculating sum...\")\n    return a + b\n\nprint(jit(impure_func)(jnp.arange(3), jnp.arange(3)))\nCalculating sum...\n[0 2 4]\n\nPrinting (the side effect) happened here because this is the first run.\n\nLet’s rerun the function:\nprint(jit(impure_func)(jnp.arange(3), jnp.arange(3)))\n[0 2 4]\nThis time, no printing…\n\n\n\nPseudorandom number generation\nProgramming languages usually come with automated pseudorandom number generator (PRNG) based on nondeterministic data from the operating system. They are extremely convenient, but slow, based on repeats, and problematic in parallel executions.\nJAX relies on an explicitly set random state called a key.\nfrom jax import random\n\nkey = random.PRNGKey(18)\nprint(key)\n[ 0 18]\nEach time you call a random function, you need a subkey split from your key. Keys should only ever be used once in your code. The key is what makes your code reproducible, but you don’t want to reuse it within your code as it would create spurious correlations.\nHere is the workflow:\n\nyou split your key into a new key and a subkey,\nyou discard the old key (because it was used to do the split—so its entropy budget, so to speak, has been used),\nyou use the subkey to run your random function and keep the new key for a future split.\n\nTo make sure not to reuse the old key, you can overwrite it by the new one:\nkey, subkey = random.split(key)\nprint(key)\n[4197003906 1654466292]\n\nThat’s the value of our new key for future splits.\n\nprint(subkey)\n[1685972163 1654824463]\n\nThis is the value of the subkey that we can use to call a random function.\n\nLet’s use that subkey now:\nprint(random.normal(subkey))\n1.1437175\n\n\nImmutable arrays\n\nNumpyJAX NumPy\n\n\nIn NumPy, you can modify ndarrays:\n\na = np.arange(5)\na[0] = 9\nprint(a)\n\n[9 1 2 3 4]\n\n\n\n\nJAX arrays are immutable:\na = jnp.arange(5)\na[0] = 9\nTypeError: '&lt;class 'jaxlib.xla_extension.ArrayImpl'&gt;' object does not support item assignment. JAX arrays are immutable. Instead of ``x[idx] = y``, use ``x = x.at[idx].set(y)`` or another .at[] method: https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html\nInstead, you need to create a copy of the array with the mutation. This is done with:\nb = a.at[0].set(9)\nprint(b)\n[9 1 2 3 4]\nOf course, if you want to modify the array in place, you can overwrite a:\na = a.at[0].set(9)\n\n\n\n\n\nStrict input control\n\nNumpyJAX NumPy\n\n\nNumPy’s fundamental object is the ndarray, but NumPy is very tolerant as to the type of input.\n\nnp.sum([1.0, 2.0])  # here we are using a list\n\n3.0\n\n\n\nnp.sum((1.0, 2.0))  # here is a tuple\n\n3.0\n\n\n\n\nTo avoid inefficiencies, JAX will only accept arrays.\njnp.sum([1.0, 2.0])\nTypeError: sum requires ndarray or scalar arguments, got &lt;class 'list'&gt; at position 0.\njnp.sum((1.0, 2.0))\nTypeError: sum requires ndarray or scalar arguments, got &lt;class 'tuple'&gt; at position 0.\n\n\n\n\n\nOut of bounds indexing\n\nNumpyJAX NumPy\n\n\nNumPy will warn you with an error message if you try to index out of bounds:\n\nprint(np.arange(5)[10])\n\nIndexError: index 10 is out of bounds for axis 0 with size 5\n\n\n\n\nBe aware that JAX will not raise an error. Instead, it will silently return the closest boundary:\nprint(jnp.arange(5)[10])\n4",
+    "text": "Differences with NumPy\n\nDifferent types\ntype(np.zeros((2, 3))) == type(jnp.zeros((2, 3)))\nFalse\n\nNumpyJAX NumPy\n\n\n\ntype(np.zeros((2, 3)))\n\nnumpy.ndarray\n\n\n\n\ntype(jnp.zeros((2, 3)))\njaxlib.xla_extension.ArrayImpl\n\n\n\n\n\nDifferent default data types\n\nNumpyJAX NumPy\n\n\n\nnp.zeros((2, 3)).dtype\n\ndtype('float64')\n\n\n\n\njnp.zeros((2, 3)).dtype\ndtype('float32')\n\n\n\n\nLower numerical precision improves speed and reduces memory usage at no cost while training neural networks and is thus a net benefit. Having been built with deep learning in mind, JAX defaults align with that of other DL libraries (e.g. PyTorch, TensorFlow).\n\n\n\nFunctionally pure functions\nMore importantly, only functionally pure functions—that is, functions for which the outputs are only based on the inputs and which have no side effects—can be used with JAX.\n\nOutputs only based on inputs\nConsider the function:\ndef impure_func(x):\n    return a + x\nwhich uses the variable a from the global environment.\nThis function is not functionally pure because the outputs (the results of the function) do not solely depend on the arguments (the values given to x) passed to it. They also depend on the value of a.\nRemember how tracing works: new inputs with the same shape and dtype use the cached compiled program directly. If the value of a changes in the global environment, a new tracing is not triggered and the cached compiled program uses the old value of a (the one that was used during tracing).\nIt is only if the code is run on an input x with a different shape and/or dtype that tracing happens again and that the new value for a takes effect.\n\nTo demo this, we need to use JIT compilation that we will explain in a later section.\n\nfrom jax import jit\n\na = jnp.ones(3)\nprint(a)\n[1. 1. 1.]\ndef impure_func(x):\n    return a + x\n\nprint(jit(impure_func)(jnp.ones(3)))\n[2. 2. 2.]\n\nAll good here because this is the first run (tracing).\n\nNow, let’s change the value of a to an array of zeros:\na = jnp.zeros(3)\nprint(a)\n[0. 0. 0.]\nAnd rerun the same code:\nprint(jit(impure_func)(jnp.ones(3)))\n[2. 2. 2.]\nWe should have an array of ones, but we get the same result we got earlier. Why? because we are running a cached program with the value that a had during tracing.\nThe new value for a will only take effect if we re-trigger tracing by changing the shape and/or dtype of x:\na = jnp.zeros(4)\nprint(a)\n[0. 0. 0. 0.]\nprint(jit(impure_func)(jnp.ones(4)))\n[1. 1. 1. 1.]\nPassing to impure_func() an argument of a different shape forced retracing.\n\n\nNo side effects\nA function is said to have a side effect if it changes something outside of its local environment (if it does anything beside returning an output).\nExamples of side effects include:\n\nprinting to standard output/shell,\nreading from file/writing to file,\nmodifying a global variable.\n\nIn JAX, the side effects will happen during the first run (tracing), but will not happen on subsequent runs. You thus cannot rely on side effects in your code.\ndef impure_func(a, b):\n    print(\"Calculating sum\")\n    return a + b\n\nprint(jit(impure_func)(jnp.arange(3), jnp.arange(3)))\nCalculating sum\n[0 2 4]\n\nPrinting (the side effect) happened here because this is the first run.\n\nLet’s rerun the function:\nprint(jit(impure_func)(jnp.arange(3), jnp.arange(3)))\n[0 2 4]\nThis time, no printing…\n\n\n\nPseudorandom number generation\nProgramming languages usually come with automated pseudorandom number generator (PRNG) based on nondeterministic data from the operating system. They are extremely convenient, but slow, based on repeats, and problematic in parallel executions.\nJAX relies on an explicitly set random state called a key.\nfrom jax import random\n\nkey = random.PRNGKey(18)\nprint(key)\n[ 0 18]\nEach time you call a random function, you need a subkey split from your key. Keys should only ever be used once in your code. The key is what makes your code reproducible, but you don’t want to reuse it within your code as it would create spurious correlations.\nHere is the workflow:\n\nyou split your key into a new key and a subkey,\nyou discard the old key (because it was used to do the split—so its entropy budget, so to speak, has been used),\nyou use the subkey to run your random function and keep the new key for a future split.\n\nTo make sure not to reuse the old key, you can overwrite it by the new one:\nkey, subkey = random.split(key)\nprint(key)\n[4197003906 1654466292]\n\nThat’s the value of our new key for future splits.\n\nprint(subkey)\n[1685972163 1654824463]\n\nThis is the value of the subkey that we can use to call a random function.\n\nLet’s use that subkey now:\nprint(random.normal(subkey))\n1.1437175\n\n\nImmutable arrays\n\nNumpyJAX NumPy\n\n\nIn NumPy, you can modify ndarrays:\n\na = np.arange(5)\na[0] = 9\nprint(a)\n\n[9 1 2 3 4]\n\n\n\n\nJAX arrays are immutable:\na = jnp.arange(5)\na[0] = 9\nTypeError: '&lt;class 'jaxlib.xla_extension.ArrayImpl'&gt;' object does not support item assignment. JAX arrays are immutable. Instead of ``x[idx] = y``, use ``x = x.at[idx].set(y)`` or another .at[] method: https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html\nInstead, you need to create a copy of the array with the mutation. This is done with:\nb = a.at[0].set(9)\nprint(b)\n[9 1 2 3 4]\nOf course, if you want to modify the array in place, you can overwrite a:\na = a.at[0].set(9)\n\n\n\n\n\nStrict input control\n\nNumpyJAX NumPy\n\n\nNumPy’s fundamental object is the ndarray, but NumPy is very tolerant as to the type of input.\n\nnp.sum([1.0, 2.0])  # here we are using a list\n\n3.0\n\n\n\nnp.sum((1.0, 2.0))  # here is a tuple\n\n3.0\n\n\n\n\nTo avoid inefficiencies, JAX will only accept arrays.\njnp.sum([1.0, 2.0])\nTypeError: sum requires ndarray or scalar arguments, got &lt;class 'list'&gt; at position 0.\njnp.sum((1.0, 2.0))\nTypeError: sum requires ndarray or scalar arguments, got &lt;class 'tuple'&gt; at position 0.\n\n\n\n\n\nOut of bounds indexing\n\nNumpyJAX NumPy\n\n\nNumPy will warn you with an error message if you try to index out of bounds:\n\nprint(np.arange(5)[10])\n\nIndexError: index 10 is out of bounds for axis 0 with size 5\n\n\n\n\nBe aware that JAX will not raise an error. Instead, it will silently return the closest boundary:\nprint(jnp.arange(5)[10])\n4",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -7373,14 +7373,14 @@
     "href": "ai/jx_parallel.html#vectorization",
     "title": "Parallel computing",
     "section": "Vectorization",
-    "text": "Vectorization\nRemember how a number of transformations are applied to Jaxprs. We already saw one of JAX’s main transformations: JIT compilation with jax.jit(). Vectorization with jax.vmap() is another one.\nIt automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).\nHere is an example from JAX 101 commonly encountered in deep learning:\nimport jax\nimport jax.numpy as jnp\n\nx = jnp.arange(5)\nw = jnp.array([2., 3., 4.])\n\ndef convolve(x, w):\n    output = []\n    for i in range(1, len(x)-1):\n        output.append(jnp.dot(x[i-1:i+2], w))\n    return jnp.array(output)\n\nconvolve(x, w)\nArray([11., 20., 29.], dtype=float32)\nHow can you apply the function convolve() on a batch of weights w and vectors x.\nxs = jnp.stack([x, x])\nws = jnp.stack([w, w])\nWe apply the jax.vmap() transformation to the convolve() function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:\nauto_batch_convolve = jax.vmap(convolve)\nauto_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)\nTransformations can be composed:\njitted_batch_convolve = jax.jit(auto_batch_convolve)\njitted_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)"
+    "text": "Vectorization\n\nRemember how a number of transformations are applied to Jaxprs. We already saw one of JAX’s main transformations: JIT compilation with jax.jit(). Vectorization with jax.vmap() is another one.\nIt automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).\nHere is an example from JAX 101 commonly encountered in deep learning:\nimport jax\nimport jax.numpy as jnp\n\nx = jnp.arange(5)\nw = jnp.array([2., 3., 4.])\n\ndef convolve(x, w):\n    output = []\n    for i in range(1, len(x)-1):\n        output.append(jnp.dot(x[i-1:i+2], w))\n    return jnp.array(output)\n\nconvolve(x, w)\nArray([11., 20., 29.], dtype=float32)\nHow can you apply the function convolve() on a batch of weights w and vectors x.\nxs = jnp.stack([x, x])\nws = jnp.stack([w, w])\nWe apply the jax.vmap() transformation to the convolve() function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:\nauto_batch_convolve = jax.vmap(convolve)\nauto_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)\nTransformations can be composed:\njitted_batch_convolve = jax.jit(auto_batch_convolve)\njitted_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)"
   },
   {
     "objectID": "ai/jx_parallel.html#data-parallelism",
     "href": "ai/jx_parallel.html#data-parallelism",
     "title": "Parallel computing",
     "section": "Data parallelism",
-    "text": "Data parallelism\nThe jax.pmap() transformation does the same thing but each computation runs on a different device, allowing to scale things up dramatically."
+    "text": "Data parallelism\n\nThe jax.pmap() transformation does the same thing but each computation runs on a different device, allowing to scale things up dramatically."
   },
   {
     "objectID": "ai/jx_parallel.html#sharding",
@@ -7394,7 +7394,7 @@
     "href": "ai/jx_parallel.html#multi-host-communication",
     "title": "Parallel computing",
     "section": "Multi-host communication",
-    "text": "Multi-host communication\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides it."
+    "text": "Multi-host communication\n\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides it."
   },
   {
     "objectID": "ai/pt_autograd.html",
@@ -12906,7 +12906,115 @@
     "href": "ai/jx_pytree.html#a-structure-for-handling-data-and-parameters",
     "title": "Pytrees",
     "section": "A structure for handling data and parameters",
-    "text": "A structure for handling data and parameters",
+    "text": "A structure for handling data and parameters\nThe pytree container registry contains, by default, lists, tuples, and dicts. It can be extended to other containers.\nObjects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).\n\nExamples of pytrees:\n\n(1, 2, 3),\n[1, 1., \"string\", True],\njnp.arange(2),\n{'key1': 3.4, 'key2': 6.},\n[3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n(3, 2, (6, 0), 2, ()),\njnp.zeros(3)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#examples",
+    "href": "ai/jx_pytree.html#examples",
+    "title": "Pytrees",
+    "section": "Examples",
+    "text": "Examples\nLet’s create a list of pytrees:\nimport jax\nimport jax.numpy as jnp\n\ntrees = [\n    (1, 2, 3),\n    [1, 1., \"string\", True],\n    jnp.arange(2),\n    {'key1': 3.4, 'key2': 6.},\n    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n    (3, 2, (6, 0), 2, ())\n    ]\nfor pytree in trees:\n  leaves = jax.tree.leaves(pytree)\n  print(f\"{len(leaves)} leaves: {leaves}\")\n3 leaves: [1, 2, 3]\n4 leaves: [1, 1.0, 'string', True]\n1 leaves: [Array([0, 1], dtype=int32)]\n2 leaves: [3.4, 6.0]\n6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']\n5 leaves: [3, 2, 6, 0, 2]",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#section",
+    "href": "ai/jx_pytree.html#section",
+    "title": "Pytrees",
+    "section": "",
+    "text": "tree1 = {'key1': 1., 'key2': 2., 'key3': 3.}\ntree2 = {'key1': 1., 'key2': 2., 'key3': 3.}\ntree3 = {'key1': 1., 'key2': 2., 'key3': 3.}\njax.tree.map(lambda x: 3 * x, tree1)\n{'key1': 3.0, 'key2': 6.0, 'key3': 9.0}\njax.tree.map(lambda x, y, z: x * y + z, tree1, tree2, tree3)\n{'key1': 2.0, 'key2': 6.0, 'key3': 12.0}\ntree4 = [[1, 1, 1], (2, 2, 2, 2), 3]\ntree5 = [[0, 5, 1], (2, 2, 2, 2), 3]\ntree6 = [[0, 5, 1, 2], (2, 2, 2), 3]\njax.tree.map(lambda x, y: x + y, tree4, tree5)\n[[1, 6, 2], (4, 4, 4, 4), 6]\njax.tree.map(lambda x, y: x + y, tree4, tree6)\nValueError: Tuple arity mismatch: 3 != 4; tuple: (2, 2, 2).\ntrees = [tree1, tree2, tree3]\nprint(trees)\n[{'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}]\njax.tree.map(lambda *x: list(x), *trees)\n{'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#extract-leaves",
+    "href": "ai/jx_pytree.html#extract-leaves",
+    "title": "Pytrees",
+    "section": "Extract leaves",
+    "text": "Extract leaves\nTrees can be flattened and their leaves extracted and returned as a list with jax.tree.leaves:\njax.tree.leaves([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n[3.0, 1, 2, 'val1', 'val2', 'val3']\nLet’s create a list of pytrees and extract their leaves to look at more examples:\nimport jax\nimport jax.numpy as jnp\n\ntrees = [\n    (1, 2, 3),\n    [1, 1., \"string\", True],\n    jnp.arange(2),\n    {'key1': 3.4, 'key2': 6.},\n    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n    (3, 2, (6, 0), 2, ()),\n    jnp.zeros(3)\n    ]\n\nfor pytree in trees:\n  leaves = jax.tree.leaves(pytree)\n  print(f\"{len(leaves)} leaves: {leaves}\")\n3 leaves: [1, 2, 3]\n4 leaves: [1, 1.0, 'string', True]\n1 leaves: [Array([0, 1], dtype=int32)]\n2 leaves: [3.4, 6.0]\n6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']\n5 leaves: [3, 2, 6, 0, 2]\n1 leaves: [Array([0., 0., 0.], dtype=float32)]",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html",
+    "href": "ai/jx_pytree.html",
+    "title": "Pytrees",
+    "section": "",
+    "text": "It is convenient to store data, model parameters, gradients, etc. in container structures such as lists or dicts. JAX has a container-like structure, the pytree that is flexible, can be nested, and is supported by many JAX functions, making for convenient workflows.\nThis section introduces pytrees and their functioning.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#a-tree-like-structure",
+    "href": "ai/jx_pytree.html#a-tree-like-structure",
+    "title": "Pytrees",
+    "section": "A tree-like structure",
+    "text": "A tree-like structure\nThe pytree container registry contains, by default, lists, tuples, and dicts. It can be extended to other containers.\nObjects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).\nPytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.\n\nExamples of pytrees:\n\n(1, 2, 3),\n[1, 1., \"string\", True],\njnp.arange(2),\n{'key1': 3.4, 'key2': 6.},\n[3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n(3, 2, (6, 0), 2, ()),\njnp.zeros(3)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#extracting-leaves",
+    "href": "ai/jx_pytree.html#extracting-leaves",
+    "title": "Pytrees",
+    "section": "Extracting leaves",
+    "text": "Extracting leaves\nTrees can be flattened and their leaves extracted into a list with jax.tree.leaves:\njax.tree.leaves([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n[3.0, 1, 2, 'val1', 'val2', 'val3']\nLet’s create a list of pytrees and extract their leaves to look at more examples:\nimport jax\nimport jax.numpy as jnp\n\ntrees = [\n    (1, 2, 3),\n    [1, 1., \"string\", True],\n    jnp.arange(2),\n    {'key1': 3.4, 'key2': 6.},\n    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n    (3, 2, (6, 0), 2, ()),\n    jnp.zeros(3)\n    ]\n\nfor pytree in trees:\n  leaves = jax.tree.leaves(pytree)\n  print(f\"{len(leaves)} leaves: {leaves}\")\n3 leaves: [1, 2, 3]\n4 leaves: [1, 1.0, 'string', True]\n1 leaves: [Array([0, 1], dtype=int32)]\n2 leaves: [3.4, 6.0]\n6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']\n5 leaves: [3, 2, 6, 0, 2]\n1 leaves: [Array([0., 0., 0.], dtype=float32)]",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#structure-of-pytrees",
+    "href": "ai/jx_pytree.html#structure-of-pytrees",
+    "title": "Pytrees",
+    "section": "Structure of pytrees",
+    "text": "Structure of pytrees\nAs we just saw, JAX can extract the leaves of pytrees. This is useful to run functions on them. But JAX also records their structure and is able to recreate them. The structure can be obtained with jax.tree.structure:\njax.tree.structure([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\nPyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}])\nSo each pytree can be turned into a tuple of the list of its leaves and its structure and that tuple can be turned back into the pytree.\njax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n([3.0, 1, 2, 'val1', 'val2', 'val3'],\n PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}]))\nvalues, structure = jax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\njax.tree.unflatten(structure, values)\n[3.0, (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#pytree-operations",
+    "href": "ai/jx_pytree.html#pytree-operations",
+    "title": "Pytrees",
+    "section": "Pytree operations",
+    "text": "Pytree operations\nJAX contain functions to run operations on pytrees.\nLet’s create a few pytrees to play with:\ntree1 = {'key1': 1., 'key2': 2., 'key3': 3.}\ntree2 = {'key1': 4., 'key2': 5., 'key3': 6.}\ntree3 = {'key1': 7., 'key2': 8., 'key3': 9.}\njax.tree.map allows to apply functions to each leaf of a tree:\njax.tree.map(lambda x: 3 * x, tree1)\n{'key1': 3.0, 'key2': 6.0, 'key3': 9.0}\nAs long as pytrees share the same structure (including the same dicts keys), operations combining multiple pytrees also work:\njax.tree.map(lambda x, y, z: x * y + z, tree1, tree2, tree3)\n{'key1': 11.0, 'key2': 18.0, 'key3': 27.0}\nHere are a few more examples:\ntree4 = [[1, 1, 1], (2, 2, 2, 2), 3]\ntree5 = [[0, 5, 1], (2, 2, 2, 2), 3]\ntree6 = [[0, 5, 1, 2], (2, 2, 2), 3]\njax.tree.map(lambda x, y: x + y, tree4, tree5)\n[[1, 6, 2], (4, 4, 4, 4), 6]\nThis won’t work though as the structures are different:\njax.tree.map(lambda x, y: x + y, tree5, tree6)\nValueError: Tuple arity mismatch: 3 != 4; tuple: (2, 2, 2).",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx_pytree.html#pytree-transposition",
+    "href": "ai/jx_pytree.html#pytree-transposition",
+    "title": "Pytrees",
+    "section": "Pytree transposition",
+    "text": "Pytree transposition\nA list of pytrees can be transposed into a pytree of lists.\nLet’s create a list with a few of our previous pytrees:\ntrees = [tree1, tree2, tree3]\nprint(trees)\n[{'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}]\nHere is how to transpose this list of pytrees:\njax.tree.map(lambda *x: list(x), *trees)\n{'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",

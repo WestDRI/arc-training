@@ -178,12 +178,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title"><em>On this page:</em></h2>
    
   <ul>
-  <li><a href="#asynchronous-dispatch" id="toc-asynchronous-dispatch" class="nav-link active" data-scroll-target="#asynchronous-dispatch">Asynchronous dispatch</a>
-  <ul>
-  <li><a href="#advantage" id="toc-advantage" class="nav-link" data-scroll-target="#advantage">Advantage</a></li>
-  <li><a href="#consequence-on-benchmarking" id="toc-consequence-on-benchmarking" class="nav-link" data-scroll-target="#consequence-on-benchmarking">Consequence on benchmarking</a></li>
-  </ul></li>
-  <li><a href="#vectorization" id="toc-vectorization" class="nav-link" data-scroll-target="#vectorization">Vectorization</a></li>
+  <li><a href="#vectorization" id="toc-vectorization" class="nav-link active" data-scroll-target="#vectorization">Vectorization</a></li>
   <li><a href="#data-parallelism" id="toc-data-parallelism" class="nav-link" data-scroll-target="#data-parallelism">Data parallelism</a></li>
   <li><a href="#sharding" id="toc-sharding" class="nav-link" data-scroll-target="#sharding">Sharding</a></li>
   <li><a href="#multi-host-communication" id="toc-multi-host-communication" class="nav-link" data-scroll-target="#multi-host-communication">Multi-host communication</a></li>
@@ -221,76 +216,43 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="def">
 <p>With performance in mind, JAX is built for parallel computing at all levels. This section gives an overview of the various parallel implementations.</p>
 </div>
-<section id="asynchronous-dispatch" class="level2">
-<h2 class="anchored" data-anchor-id="asynchronous-dispatch">Asynchronous dispatch</h2>
-<p>One of the efficiencies of JAX is its use of <a href="https://en.wikipedia.org/wiki/Asynchrony_(computer_programming)">asynchronous execution</a>.</p>
-<section id="advantage" class="level3">
-<h3 class="anchored" data-anchor-id="advantage">Advantage</h3>
-<p>Let’s consider the code:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> jax <span class="im">import</span> random</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> random.normal(random.PRNGKey(<span class="dv">0</span>), (<span class="dv">1000</span>, <span class="dv">1000</span>))</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> random.normal(random.PRNGKey(<span class="dv">0</span>), (<span class="dv">1000</span>, <span class="dv">1000</span>))</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>z <span class="op">=</span> jnp.dot(x, y)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Instead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a <a href="https://en.wikipedia.org/wiki/Futures_and_promises">future</a> is created. This future is a <a href="https://jax.readthedocs.io/en/latest/jax.html#jax-array-jax-array">jax.Array</a> and can be passed to further computations immediately.</p>
-<p>Of course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.</p>
-</section>
-<section id="consequence-on-benchmarking" class="level3">
-<h3 class="anchored" data-anchor-id="consequence-on-benchmarking">Consequence on benchmarking</h3>
-<p>Timing <code>jnp.dot(x, y)</code> would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.</p>
-<p>On my laptop, running the computation on one GPU, I get:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> timeit</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>timeit.timeit(<span class="st">"jnp.dot(x, y)"</span>,</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>              number<span class="op">=</span><span class="dv">1000</span>, <span class="bu">globals</span><span class="op">=</span><span class="bu">globals</span>())<span class="op">/</span><span class="dv">1000</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>0.0005148850770000308</code></pre>
-<p>To get a proper timing, we need to make sure that the future is resolved using the <code>block_until_ready()</code> method: <code>jnp.dot(x, y).block_until_ready()</code>.</p>
-<p>On the same machine:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>timeit.timeit(<span class="st">"jnp.dot(x, y).block_until_ready()"</span>,</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>              number<span class="op">=</span><span class="dv">1000</span>, <span class="bu">globals</span><span class="op">=</span><span class="bu">globals</span>())<span class="op">/</span><span class="dv">1000</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>0.0005967016279998916</code></pre>
-<p>The difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.</p>
-<div class="note">
-<p>If you are running small computations such as this one without accelerator, the dispatch will be on the same thread as the overhead of the asynchronous execution is larger than the speedup. Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use <code>block_until_ready()</code> in your benchmarks.</p>
-</div>
-</section>
-</section>
 <section id="vectorization" class="level2">
 <h2 class="anchored" data-anchor-id="vectorization">Vectorization</h2>
+<!-- multithreading -->
 <p><a href="https://mint.westdri.ca/ai/jx_map#map">Remember how a number of transformations are applied to Jaxprs</a>. We already saw one of JAX’s main transformations: JIT compilation with <code>jax.jit()</code>. Vectorization with <code>jax.vmap()</code> is another one.</p>
 <p>It automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).</p>
 <p>Here is an example from <a href="https://jax.readthedocs.io/en/latest/jax-101/index.html">JAX 101</a> commonly encountered in deep learning:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> jnp.arange(<span class="dv">5</span>)</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>w <span class="op">=</span> jnp.array([<span class="fl">2.</span>, <span class="fl">3.</span>, <span class="fl">4.</span>])</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> convolve(x, w):</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> []</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(x)<span class="op">-</span><span class="dv">1</span>):</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        output.append(jnp.dot(x[i<span class="op">-</span><span class="dv">1</span>:i<span class="op">+</span><span class="dv">2</span>], w))</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> jnp.array(output)</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>convolve(x, w)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> jnp.arange(<span class="dv">5</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>w <span class="op">=</span> jnp.array([<span class="fl">2.</span>, <span class="fl">3.</span>, <span class="fl">4.</span>])</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> convolve(x, w):</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> []</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(x)<span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        output.append(jnp.dot(x[i<span class="op">-</span><span class="dv">1</span>:i<span class="op">+</span><span class="dv">2</span>], w))</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> jnp.array(output)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>convolve(x, w)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>Array([11., 20., 29.], dtype=float32)</code></pre>
 <p>How can you apply the function <code>convolve()</code> on a batch of weights <code>w</code> and vectors <code>x</code>.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>xs <span class="op">=</span> jnp.stack([x, x])</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>ws <span class="op">=</span> jnp.stack([w, w])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>xs <span class="op">=</span> jnp.stack([x, x])</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>ws <span class="op">=</span> jnp.stack([w, w])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>We apply the <code>jax.vmap()</code> transformation to the <code>convolve()</code> function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>auto_batch_convolve <span class="op">=</span> jax.vmap(convolve)</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>auto_batch_convolve(xs, ws)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>auto_batch_convolve <span class="op">=</span> jax.vmap(convolve)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>auto_batch_convolve(xs, ws)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>Array([[11., 20., 29.],
        [11., 20., 29.]], dtype=float32)</code></pre>
 <p>Transformations can be composed:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>jitted_batch_convolve <span class="op">=</span> jax.jit(auto_batch_convolve)</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>jitted_batch_convolve(xs, ws)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>jitted_batch_convolve <span class="op">=</span> jax.jit(auto_batch_convolve)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>jitted_batch_convolve(xs, ws)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>Array([[11., 20., 29.],
        [11., 20., 29.]], dtype=float32)</code></pre>
 </section>
 <section id="data-parallelism" class="level2">
 <h2 class="anchored" data-anchor-id="data-parallelism">Data parallelism</h2>
+<!-- multiple GPUs on one node -->
 <p>The <code>jax.pmap()</code> transformation does the same thing but each computation runs on a different device, allowing to scale things up dramatically.</p>
 </section>
 <section id="sharding" class="level2">
@@ -299,6 +261,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="multi-host-communication" class="level2">
 <h2 class="anchored" data-anchor-id="multi-host-communication">Multi-host communication</h2>
+<!-- distributed parallelism -->
 <p>JAX does not have the ability to scale things up to the level of multi-node clusters, but the <a href="https://github.com/mpi4jax/mpi4jax">mpi4jax</a> extension provides it.</p>
 
 
