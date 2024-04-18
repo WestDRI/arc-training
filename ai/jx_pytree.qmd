@@ -3,4 +3,192 @@ title: Pytrees
 author: Marie-Hélène Burle
 ---
 
+:::{.def}
 
+It is convenient to store data, model parameters, gradients, etc. in container structures such as lists or dicts. JAX has a container-like structure, the *pytree* that is flexible, can be nested, and is supported by many JAX functions, making for convenient workflows.
+
+This section introduces pytrees and their functioning.
+
+:::
+
+## A tree-like structure
+
+The pytree container registry contains, by default, *lists*, *tuples*, and *dicts*. It can be extended to other containers.
+
+Objects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).
+
+Pytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.
+
+:::{.example}
+
+Examples of pytrees:
+
+:::
+
+```{.python}
+(1, 2, 3),
+[1, 1., "string", True],
+jnp.arange(2),
+{'key1': 3.4, 'key2': 6.},
+[3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],
+(3, 2, (6, 0), 2, ()),
+jnp.zeros(3)
+```
+
+## Extracting leaves
+
+Trees can be flattened and their leaves extracted into a list with `jax.tree.leaves`:
+
+```{.python}
+jax.tree.leaves([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])
+```
+
+```
+[3.0, 1, 2, 'val1', 'val2', 'val3']
+```
+
+Let's create a list of pytrees and extract their leaves to look at more examples:
+
+```{.python}
+import jax
+import jax.numpy as jnp
+
+trees = [
+    (1, 2, 3),
+    [1, 1., "string", True],
+    jnp.arange(2),
+    {'key1': 3.4, 'key2': 6.},
+    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],
+    (3, 2, (6, 0), 2, ()),
+    jnp.zeros(3)
+    ]
+
+for pytree in trees:
+  leaves = jax.tree.leaves(pytree)
+  print(f"{len(leaves)} leaves: {leaves}")
+```
+
+```
+3 leaves: [1, 2, 3]
+4 leaves: [1, 1.0, 'string', True]
+1 leaves: [Array([0, 1], dtype=int32)]
+2 leaves: [3.4, 6.0]
+6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']
+5 leaves: [3, 2, 6, 0, 2]
+1 leaves: [Array([0., 0., 0.], dtype=float32)]
+```
+
+## Structure of pytrees
+
+As we just saw, JAX can extract the leaves of pytrees. This is useful to run functions on them. But JAX also records their structure and is able to recreate them. The structure can be obtained with `jax.tree.structure`:
+
+```{.python}
+jax.tree.structure([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])
+```
+
+```
+PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}])
+```
+
+So each pytree can be turned into a tuple of the list of its leaves and its structure and that tuple can be turned back into the pytree.
+
+```{.python}
+jax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])
+```
+
+```
+([3.0, 1, 2, 'val1', 'val2', 'val3'],
+ PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}]))
+```
+
+```{.python}
+values, structure = jax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])
+jax.tree.unflatten(structure, values)
+```
+
+```
+[3.0, (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]
+```
+
+## Pytree operations
+
+JAX contain functions to run operations on pytrees.
+
+Let's create a few pytrees to play with:
+
+```{.python}
+tree1 = {'key1': 1., 'key2': 2., 'key3': 3.}
+tree2 = {'key1': 4., 'key2': 5., 'key3': 6.}
+tree3 = {'key1': 7., 'key2': 8., 'key3': 9.}
+```
+
+`jax.tree.map` allows to apply functions to each leaf of a tree:
+
+```{.python}
+jax.tree.map(lambda x: 3 * x, tree1)
+```
+
+```
+{'key1': 3.0, 'key2': 6.0, 'key3': 9.0}
+```
+
+As long as pytrees share the same structure (including the same dicts keys), operations combining multiple pytrees also work:
+
+```{.python}
+jax.tree.map(lambda x, y, z: x * y + z, tree1, tree2, tree3)
+```
+
+```
+{'key1': 11.0, 'key2': 18.0, 'key3': 27.0}
+```
+
+Here are a few more examples:
+
+```{.python}
+tree4 = [[1, 1, 1], (2, 2, 2, 2), 3]
+tree5 = [[0, 5, 1], (2, 2, 2, 2), 3]
+tree6 = [[0, 5, 1, 2], (2, 2, 2), 3]
+```
+
+```{.python}
+jax.tree.map(lambda x, y: x + y, tree4, tree5)
+```
+
+```
+[[1, 6, 2], (4, 4, 4, 4), 6]
+```
+
+This won't work though as the structures are different:
+
+```{.python}
+jax.tree.map(lambda x, y: x + y, tree5, tree6)
+```
+
+```
+ValueError: Tuple arity mismatch: 3 != 4; tuple: (2, 2, 2).
+```
+
+## Pytree transposition
+
+A list of pytrees can be transposed into a pytree of lists.
+
+Let's create a list with a few of our previous pytrees:
+
+```{.python}
+trees = [tree1, tree2, tree3]
+print(trees)
+```
+
+```
+[{'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}]
+```
+
+Here is how to transpose this list of pytrees:
+
+```{.python}
+jax.tree.map(lambda *x: list(x), *trees)
+```
+
+```
+{'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}
+```
