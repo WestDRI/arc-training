@@ -25,7 +25,19 @@ Let's load the latest module:
 module load ipython-kernel/3.11
 ```
 
-Now we can launch IPython:
+Let's start an interactive job:
+
+```{.bash}
+salloc --time=1:0:0 --mem-per-cpu=3500M
+```
+
+Now that we are on a compute node, we can active the virtual python environment:
+
+```{.bash}
+source /project/60055/env/bin/activate
+```
+
+And we can launch IPython:
 
 ```{.bash}
 ipython
@@ -220,7 +232,7 @@ More importantly, only functionally pure functions—that is, functions for whic
 Consider the function:
 
 ```{.python}
-def impure_func(x):
+def f(x):
     return a + x
 ```
 
@@ -250,10 +262,10 @@ print(a)
 ```
 
 ```{.python}
-def impure_func(x):
+def f(x):
     return a + x
 
-print(jit(impure_func)(jnp.ones(3)))
+print(jit(f)(jnp.ones(3)))
 ```
 
 ```
@@ -280,7 +292,7 @@ print(a)
 And rerun the same code:
 
 ```{.python}
-print(jit(impure_func)(jnp.ones(3)))
+print(jit(f)(jnp.ones(3)))
 ```
 
 ```
@@ -301,14 +313,14 @@ print(a)
 ```
 
 ```{.python}
-print(jit(impure_func)(jnp.ones(4)))
+print(jit(f)(jnp.ones(4)))
 ```
 
 ```
 [1. 1. 1. 1.]
 ```
 
-Passing to `impure_func()` an argument of a different shape forced retracing.
+Passing an argument of a different shape to `f` forced recompilation. Using a different data type (e.g. with `jnp.arange(3)`) would have done the same.
 
 #### No side effects
 
@@ -323,15 +335,15 @@ Examples of side effects include:
 In JAX, the side effects will happen during the first run (tracing), but will not happen on subsequent runs. You thus cannot rely on side effects in your code.
 
 ```{.python}
-def impure_func(a, b):
-    print("Calculating sum...")
+def f(a, b):
+    print("Calculating sum")
     return a + b
 
-print(jit(impure_func)(jnp.arange(3), jnp.arange(3)))
+print(jit(f)(jnp.arange(3), jnp.arange(3)))
 ```
 
 ```
-Calculating sum...
+Calculating sum
 [0 2 4]
 ```
 
@@ -344,7 +356,7 @@ Printing (the side effect) happened here because this is the first run.
 Let's rerun the function:
 
 ```{.python}
-print(jit(impure_func)(jnp.arange(3), jnp.arange(3)))
+print(jit(f)(jnp.arange(3), jnp.arange(3)))
 ```
 
 ```
@@ -374,9 +386,15 @@ Each time you call a random function, you need a subkey split from your key. **K
 
 Here is the workflow:
 
-- you split your key into a new key and a subkey,
+- you split your key into a new key and one or multiple subkeys,
 - you discard the old key (because it was used to do the split—so its entropy budget, so to speak, has been used),
-- you use the subkey to run your random function and keep the new key for a future split.
+- you use the subkey(s) to run your random function(s) and keep the new key for a future split.
+
+:::{.note}
+
+Subkeys are of the same nature as keys. This is just a terminology.
+
+:::
 
 To make sure not to reuse the old key, you can overwrite it by the new one:
 
@@ -422,6 +440,16 @@ print(random.normal(subkey))
 1.1437175
 ```
 
+:::{.note}
+
+To split your key into more subkeys, pass an argument to `random.split`:
+
+```{.python}
+key, subkey1, subkey2, subkey3 = random.split(key, 4)
+```
+
+:::
+
 ### Immutable arrays
 
 :::{.panel-tabset}
@@ -460,7 +488,7 @@ print(b)
 [9 1 2 3 4]
 ```
 
-Of course, if you want to modify the array in place, you can overwrite `a`:
+Of course, you can overwrite `a`:
 
 ```{.python}
 a = a.at[0].set(9)
