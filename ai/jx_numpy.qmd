@@ -223,6 +223,201 @@ Lower numerical precision improves speed and reduces memory usage at no cost whi
 
 :::
 
+### Immutable arrays
+
+:::{.panel-tabset}
+
+#### Numpy
+
+In NumPy, you can modify ndarrays:
+
+```{python}
+a = np.arange(5)
+a[0] = 9
+print(a)
+```
+
+#### JAX NumPy
+
+JAX arrays are immutable:
+
+```{.python}
+a = jnp.arange(5)
+a[0] = 9
+```
+
+```
+TypeError: '<class 'jaxlib.xla_extension.ArrayImpl'>' object does not support item assignment. JAX arrays are immutable. Instead of ``x[idx] = y``, use ``x = x.at[idx].set(y)`` or another .at[] method: https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html
+```
+
+Instead, you need to create a copy of the array with the mutation. This is done with:
+
+```{.python}
+b = a.at[0].set(9)
+print(b)
+```
+
+```
+[9 1 2 3 4]
+```
+
+Of course, you can overwrite `a`:
+
+```{.python}
+a = a.at[0].set(9)
+```
+
+:::
+
+### Pseudorandom number generation
+
+Programming languages usually come with automated [pseudorandom number generator (PRNG)](https://en.wikipedia.org/wiki/Pseudorandom_number_generator) based on nondeterministic data from the operating system. They are extremely convenient, but slow, based on repeats, and problematic in parallel executions.
+
+JAX relies on an explicitly set random state called a *key*.
+
+```{.python}
+from jax import random
+
+key = random.PRNGKey(18)
+print(key)
+```
+
+```
+[ 0 18]
+```
+
+Each time you call a random function, you need a subkey split from your key. **Keys should only ever be used once in your code.** The key is what makes your code reproducible, but you don't want to reuse it within your code as it would create spurious correlations.
+
+Here is the workflow:
+
+- you split your key into a new key and one or multiple subkeys,
+- you discard the old key (because it was used to do the split—so its entropy budget, so to speak, has been used),
+- you use the subkey(s) to run your random function(s) and keep the new key for a future split.
+
+:::{.note}
+
+Subkeys are of the same nature as keys. This is just a terminology.
+
+:::
+
+To make sure not to reuse the old key, you can overwrite it by the new one:
+
+```{.python}
+key, subkey = random.split(key)
+```
+
+```{.python}
+print(key)
+```
+
+```
+[4197003906 1654466292]
+```
+
+:::{.note}
+
+That's the value of our new key for future splits.
+
+:::
+
+```{.python}
+print(subkey)
+```
+
+```
+[1685972163 1654824463]
+```
+
+:::{.note}
+
+This is the value of the subkey that we can use to call a random function.
+
+:::
+
+Let's use that subkey now:
+
+```{.python}
+print(random.normal(subkey))
+```
+
+```
+1.1437175
+```
+
+:::{.note}
+
+To split your key into more subkeys, pass an argument to `random.split`:
+
+```{.python}
+key, subkey1, subkey2, subkey3 = random.split(key, 4)
+```
+
+:::
+
+### Strict input control
+
+:::{.panel-tabset}
+
+#### Numpy
+
+NumPy's fundamental object is the ndarray, but NumPy is very tolerant as to the type of input.
+
+```{python}
+np.sum([1.0, 2.0])  # here we are using a list
+```
+
+```{python}
+np.sum((1.0, 2.0))  # here is a tuple
+```
+
+#### JAX NumPy
+
+To avoid inefficiencies, JAX will only accept arrays.
+
+```{.python}
+jnp.sum([1.0, 2.0])
+```
+
+```
+TypeError: sum requires ndarray or scalar arguments, got <class 'list'> at position 0.
+```
+
+```{.python}
+jnp.sum((1.0, 2.0))
+```
+
+```
+TypeError: sum requires ndarray or scalar arguments, got <class 'tuple'> at position 0.
+```
+
+:::
+
+### Out of bounds indexing
+
+:::{.panel-tabset}
+
+#### Numpy
+
+NumPy will warn you with an error message if you try to index out of bounds:
+
+```{python}
+print(np.arange(5)[10])
+```
+
+#### JAX NumPy
+
+**Be aware that JAX will not raise an error.** Instead, it will silently return the closest boundary:
+
+```{.python}
+print(jnp.arange(5)[10])
+```
+
+```
+4
+```
+
+:::
+
 ### Functionally pure functions
 
 More importantly, only functionally pure functions—that is, functions for which the outputs are only based on the inputs and which have no side effects—can be used with JAX.
@@ -414,201 +609,6 @@ jax.make_jaxpr(f)(x, y)
 ```
 
 The jaxpr is exactly the same. This is why printing will happen during tracing (when the Python code is run), but not afterwards (when the compiled code using the jaxpr is run).
-
-:::
-
-### Pseudorandom number generation
-
-Programming languages usually come with automated [pseudorandom number generator (PRNG)](https://en.wikipedia.org/wiki/Pseudorandom_number_generator) based on nondeterministic data from the operating system. They are extremely convenient, but slow, based on repeats, and problematic in parallel executions.
-
-JAX relies on an explicitly set random state called a *key*.
-
-```{.python}
-from jax import random
-
-key = random.PRNGKey(18)
-print(key)
-```
-
-```
-[ 0 18]
-```
-
-Each time you call a random function, you need a subkey split from your key. **Keys should only ever be used once in your code.** The key is what makes your code reproducible, but you don't want to reuse it within your code as it would create spurious correlations.
-
-Here is the workflow:
-
-- you split your key into a new key and one or multiple subkeys,
-- you discard the old key (because it was used to do the split—so its entropy budget, so to speak, has been used),
-- you use the subkey(s) to run your random function(s) and keep the new key for a future split.
-
-:::{.note}
-
-Subkeys are of the same nature as keys. This is just a terminology.
-
-:::
-
-To make sure not to reuse the old key, you can overwrite it by the new one:
-
-```{.python}
-key, subkey = random.split(key)
-```
-
-```{.python}
-print(key)
-```
-
-```
-[4197003906 1654466292]
-```
-
-:::{.note}
-
-That's the value of our new key for future splits.
-
-:::
-
-```{.python}
-print(subkey)
-```
-
-```
-[1685972163 1654824463]
-```
-
-:::{.note}
-
-This is the value of the subkey that we can use to call a random function.
-
-:::
-
-Let's use that subkey now:
-
-```{.python}
-print(random.normal(subkey))
-```
-
-```
-1.1437175
-```
-
-:::{.note}
-
-To split your key into more subkeys, pass an argument to `random.split`:
-
-```{.python}
-key, subkey1, subkey2, subkey3 = random.split(key, 4)
-```
-
-:::
-
-### Immutable arrays
-
-:::{.panel-tabset}
-
-#### Numpy
-
-In NumPy, you can modify ndarrays:
-
-```{python}
-a = np.arange(5)
-a[0] = 9
-print(a)
-```
-
-#### JAX NumPy
-
-JAX arrays are immutable:
-
-```{.python}
-a = jnp.arange(5)
-a[0] = 9
-```
-
-```
-TypeError: '<class 'jaxlib.xla_extension.ArrayImpl'>' object does not support item assignment. JAX arrays are immutable. Instead of ``x[idx] = y``, use ``x = x.at[idx].set(y)`` or another .at[] method: https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html
-```
-
-Instead, you need to create a copy of the array with the mutation. This is done with:
-
-```{.python}
-b = a.at[0].set(9)
-print(b)
-```
-
-```
-[9 1 2 3 4]
-```
-
-Of course, you can overwrite `a`:
-
-```{.python}
-a = a.at[0].set(9)
-```
-
-:::
-
-### Strict input control
-
-:::{.panel-tabset}
-
-#### Numpy
-
-NumPy's fundamental object is the ndarray, but NumPy is very tolerant as to the type of input.
-
-```{python}
-np.sum([1.0, 2.0])  # here we are using a list
-```
-
-```{python}
-np.sum((1.0, 2.0))  # here is a tuple
-```
-
-#### JAX NumPy
-
-To avoid inefficiencies, JAX will only accept arrays.
-
-```{.python}
-jnp.sum([1.0, 2.0])
-```
-
-```
-TypeError: sum requires ndarray or scalar arguments, got <class 'list'> at position 0.
-```
-
-```{.python}
-jnp.sum((1.0, 2.0))
-```
-
-```
-TypeError: sum requires ndarray or scalar arguments, got <class 'tuple'> at position 0.
-```
-
-:::
-
-### Out of bounds indexing
-
-:::{.panel-tabset}
-
-#### Numpy
-
-NumPy will warn you with an error message if you try to index out of bounds:
-
-```{python}
-print(np.arange(5)[10])
-```
-
-#### JAX NumPy
-
-**Be aware that JAX will not raise an error.** Instead, it will silently return the closest boundary:
-
-```{.python}
-print(jnp.arange(5)[10])
-```
-
-```
-4
-```
 
 :::
 
