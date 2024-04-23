@@ -514,15 +514,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#different-types" id="toc-different-types" class="nav-link" data-scroll-target="#different-types">Different types</a></li>
   <li><a href="#different-default-data-types" id="toc-different-default-data-types" class="nav-link" data-scroll-target="#different-default-data-types">Different default data types</a></li>
+  <li><a href="#immutable-arrays" id="toc-immutable-arrays" class="nav-link" data-scroll-target="#immutable-arrays">Immutable arrays</a></li>
+  <li><a href="#pseudorandom-number-generation" id="toc-pseudorandom-number-generation" class="nav-link" data-scroll-target="#pseudorandom-number-generation">Pseudorandom number generation</a></li>
+  <li><a href="#strict-input-control" id="toc-strict-input-control" class="nav-link" data-scroll-target="#strict-input-control">Strict input control</a></li>
+  <li><a href="#out-of-bounds-indexing" id="toc-out-of-bounds-indexing" class="nav-link" data-scroll-target="#out-of-bounds-indexing">Out of bounds indexing</a></li>
   <li><a href="#functionally-pure-functions" id="toc-functionally-pure-functions" class="nav-link" data-scroll-target="#functionally-pure-functions">Functionally pure functions</a>
   <ul>
   <li><a href="#outputs-only-based-on-inputs" id="toc-outputs-only-based-on-inputs" class="nav-link" data-scroll-target="#outputs-only-based-on-inputs">Outputs only based on inputs</a></li>
   <li><a href="#no-side-effects" id="toc-no-side-effects" class="nav-link" data-scroll-target="#no-side-effects">No side effects</a></li>
   </ul></li>
-  <li><a href="#pseudorandom-number-generation" id="toc-pseudorandom-number-generation" class="nav-link" data-scroll-target="#pseudorandom-number-generation">Pseudorandom number generation</a></li>
-  <li><a href="#immutable-arrays" id="toc-immutable-arrays" class="nav-link" data-scroll-target="#immutable-arrays">Immutable arrays</a></li>
-  <li><a href="#strict-input-control" id="toc-strict-input-control" class="nav-link" data-scroll-target="#strict-input-control">Strict input control</a></li>
-  <li><a href="#out-of-bounds-indexing" id="toc-out-of-bounds-indexing" class="nav-link" data-scroll-target="#out-of-bounds-indexing">Out of bounds indexing</a></li>
   </ul></li>
   <li><a href="#why-all-these-constraints" id="toc-why-all-these-constraints" class="nav-link" data-scroll-target="#why-all-these-constraints">Why all these constraints?</a></li>
   </ul>
@@ -720,116 +720,45 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Lower numerical precision improves speed and reduces memory usage at no cost while training neural networks and is thus a net benefit. Having been built with deep learning in mind, JAX defaults align with that of other DL libraries (e.g.&nbsp;PyTorch, TensorFlow).</p>
 </div>
 </section>
-<section id="functionally-pure-functions" class="level3">
-<h3 class="anchored" data-anchor-id="functionally-pure-functions">Functionally pure functions</h3>
-<p>More importantly, only functionally pure functions—that is, functions for which the outputs are only based on the inputs and which have no side effects—can be used with JAX.</p>
-<section id="outputs-only-based-on-inputs" class="level4">
-<h4 class="anchored" data-anchor-id="outputs-only-based-on-inputs">Outputs only based on inputs</h4>
-<p>Consider the function:</p>
-<div class="sourceCode" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x):</span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a <span class="op">+</span> x</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>which uses the variable <code>a</code> from the global environment.</p>
-<p>This function is not functionally pure because the outputs (the results of the function) do not solely depend on the arguments (the values given to <code>x</code>) passed to it. They also depend on the value of <code>a</code>.</p>
-<p>Remember how tracing works: new inputs with the same shape and dtype use the cached compiled program directly. If the value of <code>a</code> changes in the global environment, a new tracing is not triggered and the cached compiled program uses the old value of <code>a</code> (the one that was used during tracing).</p>
-<p>It is only if the code is run on an input <code>x</code> with a different shape and/or dtype that tracing happens again and that the new value for <code>a</code> takes effect.</p>
-<div class="note">
-<p>To demo this, we need to use JIT compilation that we will explain in a later section.</p>
+<section id="immutable-arrays" class="level3">
+<h3 class="anchored" data-anchor-id="immutable-arrays">Immutable arrays</h3>
+<div class="tabset-margin-container"></div><div class="panel-tabset">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-4-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-1" role="tab" aria-controls="tabset-4-1" aria-selected="true">Numpy</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-4-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-2" role="tab" aria-controls="tabset-4-2" aria-selected="false">JAX NumPy</a></li></ul>
+<div class="tab-content">
+<div id="tabset-4-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-4-1-tab">
+<p>In NumPy, you can modify ndarrays:</p>
+<div id="ea9011ec" class="cell" data-execution_count="11">
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> np.arange(<span class="dv">5</span>)</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>a[<span class="dv">0</span>] <span class="op">=</span> <span class="dv">9</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[9 1 2 3 4]</code></pre>
 </div>
-<div class="sourceCode" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> jax <span class="im">import</span> jit</span>
-<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.ones(<span class="dv">3</span>)</span>
-<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[1. 1. 1.]</code></pre>
-<div class="sourceCode" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x):</span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a <span class="op">+</span> x</span>
-<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.ones(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[2. 2. 2.]</code></pre>
-<div class="note">
-<p>All good here because this is the first run (tracing).</p>
 </div>
-<p>Now, let’s change the value of <code>a</code> to an array of zeros:</p>
-<div class="sourceCode" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.zeros(<span class="dv">3</span>)</span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[0. 0. 0.]</code></pre>
-<p>And rerun the same code:</p>
-<div class="sourceCode" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.ones(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[2. 2. 2.]</code></pre>
-<p>We should have an array of ones, but we get the same result we got earlier. Why? because we are running a cached program with the value that <code>a</code> had during tracing.</p>
-<p>The new value for <code>a</code> will only take effect if we re-trigger tracing by changing the shape and/or dtype of <code>x</code>:</p>
-<div class="sourceCode" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.zeros(<span class="dv">4</span>)</span>
-<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[0. 0. 0. 0.]</code></pre>
-<div class="sourceCode" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.ones(<span class="dv">4</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[1. 1. 1. 1.]</code></pre>
-<p>Passing an argument of a different shape to <code>f</code> forced recompilation. Using a different data type (e.g.&nbsp;with <code>jnp.arange(3)</code>) would have done the same.</p>
-</section>
-<section id="no-side-effects" class="level4">
-<h4 class="anchored" data-anchor-id="no-side-effects">No side effects</h4>
-<p>A function is said to have a side effect if it changes something outside of its local environment (if it does anything beside returning an output).</p>
-<p>Examples of side effects include:</p>
-<ul>
-<li>printing to standard output/shell,</li>
-<li>reading from file/writing to file,</li>
-<li>modifying a global variable.</li>
-</ul>
-<p>In JAX, the side effects will happen during the first run (tracing), but will not happen on subsequent runs. You thus cannot rely on side effects in your code.</p>
-<div class="sourceCode" id="cb55"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(a, b):</span>
-<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Calculating sum"</span>)</span>
-<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a <span class="op">+</span> b</span>
-<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.arange(<span class="dv">3</span>), jnp.arange(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>Calculating sum
-[0 2 4]</code></pre>
-<div class="note">
-<p>Printing (the side effect) happened here because this is the first run.</p>
 </div>
-<p>Let’s rerun the function:</p>
-<div class="sourceCode" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.arange(<span class="dv">3</span>), jnp.arange(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[0 2 4]</code></pre>
-<p>This time, no printing.</p>
-<div class="info">
-<p><strong>Understanding jaxprs</strong></p>
-<p>Jaxprs are created by tracers wrapping the Python code during compilation (the first run). They contain information on the shape and data type of arrays as well as the operations performed on these arrays. Jaxprs do not however contain information on values: this allows the compiled program to be general enough to be rerun with any new arrays of the same shape and data type without having to rerun the slow Python code and recompile.</p>
-<p>Jaxprs also do not contain any information on elements that are not part of the inputs such as external variables, nor do they contain information on side effects.</p>
-<p>Jaxprs can be visualized with the <code>jax.make_jaxpr</code> function:</p>
-<div class="sourceCode" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
-<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> jnp.array([<span class="fl">1.</span>, <span class="fl">4.</span>, <span class="fl">3.</span>])</span>
-<span id="cb59-4"><a href="#cb59-4" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> jnp.array([<span class="fl">8.</span>, <span class="fl">1.</span>, <span class="fl">2.</span>])</span>
-<span id="cb59-5"><a href="#cb59-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x, y):</span>
-<span id="cb59-7"><a href="#cb59-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">2</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> y</span>
-<span id="cb59-8"><a href="#cb59-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb59-9"><a href="#cb59-9" aria-hidden="true" tabindex="-1"></a>jax.make_jaxpr(f)(x, y) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>{ lambda ; a:f32[3] b:f32[3]. let
-    c:f32[3] = integer_pow[y=2] a
-    d:f32[3] = mul 2.0 c
-    e:f32[3] = add d b
-  in (e,) }</code></pre>
-<p>Let’s add a print function to <code>f</code>:</p>
-<div class="sourceCode" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x, y):</span>
-<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"This is a function with side-effect"</span>)</span>
-<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">2</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> y</span>
-<span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb61-5"><a href="#cb61-5" aria-hidden="true" tabindex="-1"></a>jax.make_jaxpr(f)(x, y)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>{ lambda ; a:f32[3] b:f32[3]. let
-    c:f32[3] = integer_pow[y=2] a
-    d:f32[3] = mul 2.0 c
-    e:f32[3] = add d b
-  in (e,) }</code></pre>
-<p>The jaxpr is exactly the same. This is why printing will happen during tracing (when the Python code is run), but not afterwards (when the compiled code using the jaxpr is run).</p>
+<div id="tabset-4-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-4-2-tab">
+<p>JAX arrays are immutable:</p>
+<div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.arange(<span class="dv">5</span>)</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>a[<span class="dv">0</span>] <span class="op">=</span> <span class="dv">9</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>TypeError: '&lt;class 'jaxlib.xla_extension.ArrayImpl'&gt;' object does not support item assignment. JAX arrays are immutable. Instead of ``x[idx] = y``, use ``x = x.at[idx].set(y)`` or another .at[] method: https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html</code></pre>
+<p>Instead, you need to create a copy of the array with the mutation. This is done with:</p>
+<div class="sourceCode" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> a.at[<span class="dv">0</span>].<span class="bu">set</span>(<span class="dv">9</span>)</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(b)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[9 1 2 3 4]</code></pre>
+<p>Of course, you can overwrite <code>a</code>:</p>
+<div class="sourceCode" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> a.at[<span class="dv">0</span>].<span class="bu">set</span>(<span class="dv">9</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-</section>
+</div>
+</div>
 </section>
 <section id="pseudorandom-number-generation" class="level3">
 <h3 class="anchored" data-anchor-id="pseudorandom-number-generation">Pseudorandom number generation</h3>
 <p>Programming languages usually come with automated <a href="https://en.wikipedia.org/wiki/Pseudorandom_number_generator">pseudorandom number generator (PRNG)</a> based on nondeterministic data from the operating system. They are extremely convenient, but slow, based on repeats, and problematic in parallel executions.</p>
 <p>JAX relies on an explicitly set random state called a <em>key</em>.</p>
-<div class="sourceCode" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> jax <span class="im">import</span> random</span>
-<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>key <span class="op">=</span> random.PRNGKey(<span class="dv">18</span>)</span>
-<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(key)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> jax <span class="im">import</span> random</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>key <span class="op">=</span> random.PRNGKey(<span class="dv">18</span>)</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(key)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[ 0 18]</code></pre>
 <p>Each time you call a random function, you need a subkey split from your key. <strong>Keys should only ever be used once in your code.</strong> The key is what makes your code reproducible, but you don’t want to reuse it within your code as it would create spurious correlations.</p>
 <p>Here is the workflow:</p>
@@ -842,54 +771,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Subkeys are of the same nature as keys. This is just a terminology.</p>
 </div>
 <p>To make sure not to reuse the old key, you can overwrite it by the new one:</p>
-<div class="sourceCode" id="cb65"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a>key, subkey <span class="op">=</span> random.split(key)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="sourceCode" id="cb66"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(key)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>key, subkey <span class="op">=</span> random.split(key)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb52"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(key)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[4197003906 1654466292]</code></pre>
 <div class="note">
 <p>That’s the value of our new key for future splits.</p>
 </div>
-<div class="sourceCode" id="cb68"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(subkey)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb54"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(subkey)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>[1685972163 1654824463]</code></pre>
 <div class="note">
 <p>This is the value of the subkey that we can use to call a random function.</p>
 </div>
 <p>Let’s use that subkey now:</p>
-<div class="sourceCode" id="cb70"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(random.normal(subkey))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(random.normal(subkey))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>1.1437175</code></pre>
 <div class="note">
 <p>To split your key into more subkeys, pass an argument to <code>random.split</code>:</p>
-<div class="sourceCode" id="cb72"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a>key, subkey1, subkey2, subkey3 <span class="op">=</span> random.split(key, <span class="dv">4</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="immutable-arrays" class="level3">
-<h3 class="anchored" data-anchor-id="immutable-arrays">Immutable arrays</h3>
-<div class="tabset-margin-container"></div><div class="panel-tabset">
-<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-4-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-1" role="tab" aria-controls="tabset-4-1" aria-selected="true">Numpy</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-4-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-2" role="tab" aria-controls="tabset-4-2" aria-selected="false">JAX NumPy</a></li></ul>
-<div class="tab-content">
-<div id="tabset-4-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-4-1-tab">
-<p>In NumPy, you can modify ndarrays:</p>
-<div id="ea9011ec" class="cell" data-execution_count="11">
-<div class="sourceCode cell-code" id="cb73"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> np.arange(<span class="dv">5</span>)</span>
-<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>a[<span class="dv">0</span>] <span class="op">=</span> <span class="dv">9</span></span>
-<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[9 1 2 3 4]</code></pre>
-</div>
-</div>
-</div>
-<div id="tabset-4-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-4-2-tab">
-<p>JAX arrays are immutable:</p>
-<div class="sourceCode" id="cb75"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.arange(<span class="dv">5</span>)</span>
-<span id="cb75-2"><a href="#cb75-2" aria-hidden="true" tabindex="-1"></a>a[<span class="dv">0</span>] <span class="op">=</span> <span class="dv">9</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>TypeError: '&lt;class 'jaxlib.xla_extension.ArrayImpl'&gt;' object does not support item assignment. JAX arrays are immutable. Instead of ``x[idx] = y``, use ``x = x.at[idx].set(y)`` or another .at[] method: https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html</code></pre>
-<p>Instead, you need to create a copy of the array with the mutation. This is done with:</p>
-<div class="sourceCode" id="cb77"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> a.at[<span class="dv">0</span>].<span class="bu">set</span>(<span class="dv">9</span>)</span>
-<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(b)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>[9 1 2 3 4]</code></pre>
-<p>Of course, you can overwrite <code>a</code>:</p>
-<div class="sourceCode" id="cb79"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> a.at[<span class="dv">0</span>].<span class="bu">set</span>(<span class="dv">9</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
+<div class="sourceCode" id="cb58"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>key, subkey1, subkey2, subkey3 <span class="op">=</span> random.split(key, <span class="dv">4</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="strict-input-control" class="level3">
@@ -900,13 +798,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="tabset-5-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-5-1-tab">
 <p>NumPy’s fundamental object is the ndarray, but NumPy is very tolerant as to the type of input.</p>
 <div id="6c2bcd88" class="cell" data-execution_count="12">
-<div class="sourceCode cell-code" id="cb80"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a>np.<span class="bu">sum</span>([<span class="fl">1.0</span>, <span class="fl">2.0</span>])  <span class="co"># here we are using a list</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>np.<span class="bu">sum</span>([<span class="fl">1.0</span>, <span class="fl">2.0</span>])  <span class="co"># here we are using a list</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="42">
 <pre><code>3.0</code></pre>
 </div>
 </div>
 <div id="da40c238" class="cell" data-execution_count="13">
-<div class="sourceCode cell-code" id="cb82"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a>np.<span class="bu">sum</span>((<span class="fl">1.0</span>, <span class="fl">2.0</span>))  <span class="co"># here is a tuple</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>np.<span class="bu">sum</span>((<span class="fl">1.0</span>, <span class="fl">2.0</span>))  <span class="co"># here is a tuple</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="43">
 <pre><code>3.0</code></pre>
 </div>
@@ -914,9 +812,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <div id="tabset-5-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-2-tab">
 <p>To avoid inefficiencies, JAX will only accept arrays.</p>
-<div class="sourceCode" id="cb84"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a>jnp.<span class="bu">sum</span>([<span class="fl">1.0</span>, <span class="fl">2.0</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a>jnp.<span class="bu">sum</span>([<span class="fl">1.0</span>, <span class="fl">2.0</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>TypeError: sum requires ndarray or scalar arguments, got &lt;class 'list'&gt; at position 0.</code></pre>
-<div class="sourceCode" id="cb86"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a>jnp.<span class="bu">sum</span>((<span class="fl">1.0</span>, <span class="fl">2.0</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb65"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a>jnp.<span class="bu">sum</span>((<span class="fl">1.0</span>, <span class="fl">2.0</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>TypeError: sum requires ndarray or scalar arguments, got &lt;class 'tuple'&gt; at position 0.</code></pre>
 </div>
 </div>
@@ -930,7 +828,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="tabset-6-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-6-1-tab">
 <p>NumPy will warn you with an error message if you try to index out of bounds:</p>
 <div id="a3a67314" class="cell" data-execution_count="14">
-<div class="sourceCode cell-code" id="cb88"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(np.arange(<span class="dv">5</span>)[<span class="dv">10</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb67"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(np.arange(<span class="dv">5</span>)[<span class="dv">10</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-error">
 <pre><code>IndexError: index 10 is out of bounds for axis 0 with size 5</code></pre>
 </div>
@@ -938,11 +836,113 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <div id="tabset-6-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-2-tab">
 <p><strong>Be aware that JAX will not raise an error.</strong> Instead, it will silently return the closest boundary:</p>
-<div class="sourceCode" id="cb90"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jnp.arange(<span class="dv">5</span>)[<span class="dv">10</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb69"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jnp.arange(<span class="dv">5</span>)[<span class="dv">10</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>4</code></pre>
 </div>
 </div>
 </div>
+</section>
+<section id="functionally-pure-functions" class="level3">
+<h3 class="anchored" data-anchor-id="functionally-pure-functions">Functionally pure functions</h3>
+<p>More importantly, only functionally pure functions—that is, functions for which the outputs are only based on the inputs and which have no side effects—can be used with JAX.</p>
+<section id="outputs-only-based-on-inputs" class="level4">
+<h4 class="anchored" data-anchor-id="outputs-only-based-on-inputs">Outputs only based on inputs</h4>
+<p>Consider the function:</p>
+<div class="sourceCode" id="cb71"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x):</span>
+<span id="cb71-2"><a href="#cb71-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a <span class="op">+</span> x</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>which uses the variable <code>a</code> from the global environment.</p>
+<p>This function is not functionally pure because the outputs (the results of the function) do not solely depend on the arguments (the values given to <code>x</code>) passed to it. They also depend on the value of <code>a</code>.</p>
+<p>Remember how tracing works: new inputs with the same shape and dtype use the cached compiled program directly. If the value of <code>a</code> changes in the global environment, a new tracing is not triggered and the cached compiled program uses the old value of <code>a</code> (the one that was used during tracing).</p>
+<p>It is only if the code is run on an input <code>x</code> with a different shape and/or dtype that tracing happens again and that the new value for <code>a</code> takes effect.</p>
+<div class="note">
+<p>To demo this, we need to use JIT compilation that we will explain in a later section.</p>
+</div>
+<div class="sourceCode" id="cb72"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> jax <span class="im">import</span> jit</span>
+<span id="cb72-2"><a href="#cb72-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb72-3"><a href="#cb72-3" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.ones(<span class="dv">3</span>)</span>
+<span id="cb72-4"><a href="#cb72-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[1. 1. 1.]</code></pre>
+<div class="sourceCode" id="cb74"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x):</span>
+<span id="cb74-2"><a href="#cb74-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a <span class="op">+</span> x</span>
+<span id="cb74-3"><a href="#cb74-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb74-4"><a href="#cb74-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.ones(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[2. 2. 2.]</code></pre>
+<div class="note">
+<p>All good here because this is the first run (tracing).</p>
+</div>
+<p>Now, let’s change the value of <code>a</code> to an array of zeros:</p>
+<div class="sourceCode" id="cb76"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.zeros(<span class="dv">3</span>)</span>
+<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[0. 0. 0.]</code></pre>
+<p>And rerun the same code:</p>
+<div class="sourceCode" id="cb78"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.ones(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[2. 2. 2.]</code></pre>
+<p>We should have an array of ones, but we get the same result we got earlier. Why? because we are running a cached program with the value that <code>a</code> had during tracing.</p>
+<p>The new value for <code>a</code> will only take effect if we re-trigger tracing by changing the shape and/or dtype of <code>x</code>:</p>
+<div class="sourceCode" id="cb80"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> jnp.zeros(<span class="dv">4</span>)</span>
+<span id="cb80-2"><a href="#cb80-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[0. 0. 0. 0.]</code></pre>
+<div class="sourceCode" id="cb82"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.ones(<span class="dv">4</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[1. 1. 1. 1.]</code></pre>
+<p>Passing an argument of a different shape to <code>f</code> forced recompilation. Using a different data type (e.g.&nbsp;with <code>jnp.arange(3)</code>) would have done the same.</p>
+</section>
+<section id="no-side-effects" class="level4">
+<h4 class="anchored" data-anchor-id="no-side-effects">No side effects</h4>
+<p>A function is said to have a side effect if it changes something outside of its local environment (if it does anything beside returning an output).</p>
+<p>Examples of side effects include:</p>
+<ul>
+<li>printing to standard output/shell,</li>
+<li>reading from file/writing to file,</li>
+<li>modifying a global variable.</li>
+</ul>
+<p>In JAX, the side effects will happen during the first run (tracing), but will not happen on subsequent runs. You thus cannot rely on side effects in your code.</p>
+<div class="sourceCode" id="cb84"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(a, b):</span>
+<span id="cb84-2"><a href="#cb84-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Calculating sum"</span>)</span>
+<span id="cb84-3"><a href="#cb84-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a <span class="op">+</span> b</span>
+<span id="cb84-4"><a href="#cb84-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-5"><a href="#cb84-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.arange(<span class="dv">3</span>), jnp.arange(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>Calculating sum
+[0 2 4]</code></pre>
+<div class="note">
+<p>Printing (the side effect) happened here because this is the first run.</p>
+</div>
+<p>Let’s rerun the function:</p>
+<div class="sourceCode" id="cb86"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(jit(f)(jnp.arange(<span class="dv">3</span>), jnp.arange(<span class="dv">3</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[0 2 4]</code></pre>
+<p>This time, no printing.</p>
+<div class="info">
+<p><strong>Understanding jaxprs</strong></p>
+<p>Jaxprs are created by tracers wrapping the Python code during compilation (the first run). They contain information on the shape and data type of arrays as well as the operations performed on these arrays. Jaxprs do not however contain information on values: this allows the compiled program to be general enough to be rerun with any new arrays of the same shape and data type without having to rerun the slow Python code and recompile.</p>
+<p>Jaxprs also do not contain any information on elements that are not part of the inputs such as external variables, nor do they contain information on side effects.</p>
+<p>Jaxprs can be visualized with the <code>jax.make_jaxpr</code> function:</p>
+<div class="sourceCode" id="cb88"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
+<span id="cb88-2"><a href="#cb88-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-3"><a href="#cb88-3" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> jnp.array([<span class="fl">1.</span>, <span class="fl">4.</span>, <span class="fl">3.</span>])</span>
+<span id="cb88-4"><a href="#cb88-4" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> jnp.array([<span class="fl">8.</span>, <span class="fl">1.</span>, <span class="fl">2.</span>])</span>
+<span id="cb88-5"><a href="#cb88-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-6"><a href="#cb88-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x, y):</span>
+<span id="cb88-7"><a href="#cb88-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">2</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> y</span>
+<span id="cb88-8"><a href="#cb88-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-9"><a href="#cb88-9" aria-hidden="true" tabindex="-1"></a>jax.make_jaxpr(f)(x, y) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>{ lambda ; a:f32[3] b:f32[3]. let
+    c:f32[3] = integer_pow[y=2] a
+    d:f32[3] = mul 2.0 c
+    e:f32[3] = add d b
+  in (e,) }</code></pre>
+<p>Let’s add a print function to <code>f</code>:</p>
+<div class="sourceCode" id="cb90"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(x, y):</span>
+<span id="cb90-2"><a href="#cb90-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"This is a function with side-effect"</span>)</span>
+<span id="cb90-3"><a href="#cb90-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">2</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> y</span>
+<span id="cb90-4"><a href="#cb90-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb90-5"><a href="#cb90-5" aria-hidden="true" tabindex="-1"></a>jax.make_jaxpr(f)(x, y)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>{ lambda ; a:f32[3] b:f32[3]. let
+    c:f32[3] = integer_pow[y=2] a
+    d:f32[3] = mul 2.0 c
+    e:f32[3] = add d b
+  in (e,) }</code></pre>
+<p>The jaxpr is exactly the same. This is why printing will happen during tracing (when the Python code is run), but not afterwards (when the compiled code using the jaxpr is run).</p>
+</div>
+</section>
 </section>
 </section>
 <section id="why-all-these-constraints" class="level2">
