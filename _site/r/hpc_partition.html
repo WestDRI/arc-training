@@ -635,7 +635,7 @@ In mccollect(jobs = jobs, wait = TRUE) :
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Then launch R</span></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="ex">R</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>First, we load the packages that are running in the main session:</p>
-<div class="cell" data-hash="hpc_partition_cache/html/unnamed-chunk-1_b177b4349761eaf5e899ea24d1a34f9d">
+<div class="cell">
 <div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(multidplyr)</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr, <span class="at">warn.conflicts =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
@@ -644,7 +644,7 @@ In mccollect(jobs = jobs, wait = TRUE) :
 <p>Notice that we aren’t loading the <code>randomForest</code> package yet: that’s because we will use it on workers, not in the main session.</p>
 </div>
 <p>Then we need to create a cluster of workers. Let’s use 4 workers that we will run on a full node:</p>
-<div class="cell" data-hash="hpc_partition_cache/html/unnamed-chunk-2_45065a87e46f1777cea297fd012266fa">
+<div class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>cl <span class="ot">&lt;-</span> <span class="fu">new_cluster</span>(<span class="dv">4</span>)</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>cl</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
@@ -662,13 +662,13 @@ The following object is masked from ‘package:dplyr’:
 
     combine</code></pre>
 <p>Of course, we need to generate our big dataset:</p>
-<div class="cell" data-hash="hpc_partition_cache/html/unnamed-chunk-3_28d73983e15a565a1a96bafcdcbf0fbb">
+<div class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>bigger_iris <span class="ot">&lt;-</span> iris[<span class="fu">rep</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(iris)), <span class="at">each =</span> <span class="fl">1e3</span>), ]</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(bigger_iris) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Then we create a partitioned data frame on the workers with the <code>partition()</code> function. The function will try to split the data as heavenly as possible among workers.</p>
 <p>If you group observations by some variable (with <code>dplyr::group_by()</code>) beforehand, <code>multidplyr</code> will ensure that all data points in a group end up on the same worker. This is very convenient in a lot of cases, but is not relevant here. Without grouping observations first, it is unclear how <code>partition()</code> chooses which observation goes to which worker. In our data, we have all the <code>setosa</code> observations first, then all the <code>versicolor</code>, and finally all the <code>virginica</code>. We want to make sure that the <code>randomForest()</code> function runs on a sample of all 3 species. We will thus randomly shuffle the data before partitioning it (when we were parallelizing by splitting the trees, we didn’t have to worry about that since each subset of trees was running on the entire dataset):</p>
-<div class="cell" data-hash="hpc_partition_cache/html/unnamed-chunk-4_e4c18e508b75aeaa89f7d56a7a5e8619">
+<div class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Shuffle the rows of the data frame randomly</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">11</span>)</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>bigger_iris_shuffled <span class="ot">&lt;-</span> bigger_iris[<span class="fu">sample</span>(<span class="fu">nrow</span>(bigger_iris)), ]</span>
