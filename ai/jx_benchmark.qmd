@@ -19,49 +19,51 @@ Let's consider the code:
 import jax.numpy as jnp
 from jax import random
 
-x = random.normal(random.PRNGKey(0), (1000, 1000))
-y = random.normal(random.PRNGKey(0), (1000, 1000))
+key = random.PRNGKey(11)
+key, subkey1, subkey2 = random.split(key, 3)
+
+x = random.normal(subkey1, (1000, 1000))
+y = random.normal(subkey2, (1000, 1000))
+
 z = jnp.dot(x, y)
 ```
 
 Instead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a [future](https://en.wikipedia.org/wiki/Futures_and_promises) is created. This future is a [jax.Array](https://jax.readthedocs.io/en/latest/jax.html#jax-array-jax-array) and can be passed to further computations immediately.
 
-Of course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.
+Of course, if you print the result or convert it to a NumPy ndarray, JAX forces Python to wait for the result of the computation.
 
 ## Consequence for benchmarking
 
 Timing `jnp.dot(x, y)` would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.
 
-On my laptop, running the computation on one GPU, I get:
+On my laptop which has one dedicated GPU I get:
 
 ```{.python}
-import timeit
-
-timeit.timeit("jnp.dot(x, y)",
-              number=1000, globals=globals())/1000
+%timeit jnp.dot(x, y)
 ```
 
 ```
-0.0005148850770000308
+496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
 ```
 
-To get a proper timing, we need to make sure that the future is resolved using the `block_until_ready()` method: `jnp.dot(x, y).block_until_ready()`.
+To get a proper timing, we need to make sure that the future is resolved using the `block_until_ready()` method:
 
 On the same machine:
 
 ```{.python}
-timeit.timeit("jnp.dot(x, y).block_until_ready()",
-              number=1000, globals=globals())/1000
+%timeit jnp.dot(x, y).block_until_ready()
 ```
 
 ```
-0.0005967016279998916
+598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
 ```
 
 The difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.
 
 :::{.note}
 
-If you are running small computations such as this one without accelerator, the dispatch will be on the same thread as the overhead of the asynchronous execution is larger than the speedup. Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use `block_until_ready()` in your benchmarks.
+If you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without `block_until_ready()`.
+
+Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use `block_until_ready()` in your benchmarks.
 
 :::
