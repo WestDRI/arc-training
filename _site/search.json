@@ -7402,7 +7402,7 @@
     "href": "ai/jx_benchmark.html#consequence-for-benchmarking",
     "title": "Benchmarking JAX code",
     "section": "Consequence for benchmarking",
-    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready().\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready() in your benchmarks.",
+    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready.\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready in your benchmarks.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -12897,5 +12897,17 @@
     "title": "The Linen API",
     "section": "",
     "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
+  },
+  {
+    "objectID": "ai/jx_numpy.html#why-the-constraints",
+    "href": "ai/jx_numpy.html#why-the-constraints",
+    "title": "Relation to NumPy",
+    "section": "Why the constraints?",
+    "text": "Why the constraints?\nThe more constraints you add to a programming language, the more optimization you can get from the compiler. Speed comes at the cost of convenience.\nFor instance, consider a Python list. It is an extremely convenient and flexible object: heterogeneous, mutable… You can do anything with it. But computations on lists are extremely slow.\nNumPy’s ndarrays are more constrained (homogeneous), but the type constraint permits the creation of a much faster language (NumPy is written in C and Fortran as well as Python) with vectorization, optimizations, and a greatly improved performance.\nJAX takes it further: by using an intermediate representation and very strict constraints on type, pure functional programming, etc., yet more optimizations can be achieved and you can optimize your own functions with JIT compilation and the XLA. Ultimately, this is what makes JAX so fast.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Relation to NumPy"
+    ]
   }
 ]
