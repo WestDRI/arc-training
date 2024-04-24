@@ -7390,7 +7390,7 @@
     "href": "ai/jx_benchmark.html#asynchronous-dispatch",
     "title": "Benchmarking JAX code",
     "section": "Asynchronous dispatch",
-    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nx = random.normal(random.PRNGKey(0), (1000, 1000))\ny = random.normal(random.PRNGKey(0), (1000, 1000))\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, then JAX forces Python to wait for the result of the computation.",
+    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nkey = random.PRNGKey(11)\nkey, subkey1, subkey2 = random.split(key, 3)\n\nx = random.normal(subkey1, (1000, 1000))\ny = random.normal(subkey2, (1000, 1000))\n\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, JAX forces Python to wait for the result of the computation.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -7402,7 +7402,7 @@
     "href": "ai/jx_benchmark.html#consequence-for-benchmarking",
     "title": "Benchmarking JAX code",
     "section": "Consequence for benchmarking",
-    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop, running the computation on one GPU, I get:\nimport timeit\n\ntimeit.timeit(\"jnp.dot(x, y)\",\n              number=1000, globals=globals())/1000\n0.0005148850770000308\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method: jnp.dot(x, y).block_until_ready().\nOn the same machine:\ntimeit.timeit(\"jnp.dot(x, y).block_until_ready()\",\n              number=1000, globals=globals())/1000\n0.0005967016279998916\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the dispatch will be on the same thread as the overhead of the asynchronous execution is larger than the speedup. Nevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready() in your benchmarks.",
+    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready() method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready().\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready() in your benchmarks.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -12883,5 +12883,19 @@
       "<b><em>Webinars</em></b>",
       "More command line tools"
     ]
+  },
+  {
+    "objectID": "ai/fl_linen.html",
+    "href": "ai/fl_linen.html",
+    "title": "The Linen API",
+    "section": "",
+    "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
+  },
+  {
+    "objectID": "ai/fl_linen.html#the-linen-api",
+    "href": "ai/fl_linen.html#the-linen-api",
+    "title": "The Linen API",
+    "section": "",
+    "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
   }
 ]
