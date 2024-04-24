@@ -1,0 +1,211 @@
+---
+title: DataFrames with Polars
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+[Polars](https://pola.rs/) is a Python library built to manipulate data frames and time series.
+
+:::
+
+For this section, we will use the Covid-19 data from the [Johns Hopkins University CSSE repository](https://github.com/CSSEGISandData/COVID-19).
+
+You can visualize this data in [a dashboard](https://www.arcgis.com/apps/dashboards/bda7594740fd40299423467b48e9ecf6) created by the Johns Hopkins University Center for Systems Science and Engineering.
+
+## Setup
+
+First, we need to load the `polars` library and read in the data from the web:
+
+```{python}
+# Load the Polars library and create a shorter name for it
+import polars as pl
+
+# The global confirmed cases are available in CSV format at the url:
+url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+
+# Polars allows to read in data from the web directly
+cases = pl.read_csv(url)
+```
+
+## First look at the data
+
+What does our data look like?
+
+```{python}
+cases
+```
+
+```{python}
+# Quick summary of the data
+cases.describe()
+```
+
+:::{.note}
+
+Of course, this value is meaningless for `Lat` and `Long`!
+
+:::
+
+```{python}
+# Data types of the various columns
+# cases.dtypes
+```
+
+```{python}
+# cases.info()
+```
+
+```{python}
+cases.shape
+```
+
+## Cases per country by date
+
+The dataset is a time series: this means that we have the cumulative numbers up to each date.
+
+```{python}
+# Let's get rid of the latitude and longitude to simplify our data
+simple = cases.drop(columns=['Lat', 'Long'])
+simple
+```
+<br>
+Some countries (e.g. Australia) are split between several provinces or states so we will have to add the values of all their provinces/states to get their totals.
+
+[Here is how to make the sum for all Australian states:]{.underline}
+
+Let's first select all the data for Australia: we want all the rows for which the `Country/Region` column is equal to `Australia`.
+
+First, we want to select the `Country/Region` column. There are several ways to index in Polars.
+
+When indexing columns, one can use square brackets directly after the DataFrame to index:
+
+```{python}
+simple['Country/Region']
+```
+
+However, it is more efficient to use the `.loc` or `.iloc` methods.
+
+- Use `.loc` when using labels or booleans:
+
+```{python}
+# simple.loc[:, 'Country/Region']
+```
+
+-  Use `.iloc` when using indices:
+
+```{python}
+# simple.iloc[:, 1]
+```
+
+:::{.note}
+
+`Country/Region` is the 2nd column, but indexing starts at 0 in Python.
+
+:::
+
+Then we need a conditional to filter the rows for which the value is equal to `Australia`:
+
+```{python}
+# simple.loc[:, 'Country/Region'] == 'Australia'
+```
+
+Finally, we index, out of our entire data frame, the rows for which that condition returns `True`:
+
+```{python}
+# simple.loc[simple.loc[:, 'Country/Region'] == 'Australia']
+```
+
+:::{.note}
+
+Here we use `.loc` to index based on a boolean array.
+
+:::
+
+We can now make the sum for all of Australia for each day:
+
+```{python}
+total_australia = simple.loc[simple.loc[:, 'Country/Region'] == 'Australia'].sum(numeric_only=True)
+total_australia
+```
+
+[We can do this for all countries by grouping them:]{.underline}
+
+```{python}
+totals = simple.groupby('Country/Region').sum(numeric_only=True)
+totals
+```
+<br>
+Now, we can look at the totals for any date:
+
+```{python}
+totals.loc[:, '6/12/21']
+```
+
+To make it easier to read, let's order those numbers by decreasing order:
+
+```{python}
+totals.loc[:, '6/12/21'].sort_values(ascending=False)
+```
+
+We can also index the data for a particular country by indexing a row instead of a column:
+
+```{python}
+totals.loc['Albania', :]
+```
+
+When indexing rows, this syntax can be simplified to:
+
+```{python}
+totals.loc['Albania']
+```
+
+## Global totals
+
+Now, what if we want to have the world totals for each day? We calculate the columns totals (i.e. the sum across countries):
+
+```{python}
+totals.sum()
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+How many confirmed cases were there in Venezuela by March 10, 2021?
+
+:::
+
+:::{.callout-warning collapse="true"}
+
+## Solution
+
+First, we need to select the data for Venezuela:
+
+```{python}
+venez = totals.loc['Venezuela']
+venez
+```
+
+Then, we need to select for the proper date:
+
+```{python}
+answer = venez.loc['3/10/21']
+answer
+```
+
+We could have done it at once by indexing the row and column:
+
+```{python}
+totals.loc['Venezuela', '3/10/21']
+```
+
+:::
+
+## Polars documentation
+
+
