@@ -1,0 +1,159 @@
+---
+title: Accelerators
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+
+
+:::
+
+## Auto-detection
+
+One of the convenience of the XLA used by JAX (and TensorFlow) is that the same code runs on any device without modification.
+
+:::{.note}
+
+This is in contrast with PyTorch where tensors are created on the CPU by default and can be moved to the GPU using the `.to` method.
+
+Or tensors need to be created explicitly on a device (e.g. for GPU, `x = torch.ones(2, 4, device='cuda')`).
+
+Alternatively, the code can be made more robust with the creation of a device handle which will allow it to run without modification on CPU or GPU:
+
+```{.python}
+import torch
+
+if torch.cuda.is_available():
+    my_device = torch.device('cuda')
+else:
+    my_device = torch.device('cpu')
+
+x = torch.ones(2, 4, device=my_device)
+```
+
+And there are methods to run PyTorch on TPU [with the `torch_xla` package](https://pytorch.org/xla/release/2.1/index.html), with [tricks of scalability](https://pytorch.org/blog/scaling-pytorch-models-on-cloud-tpus-with-fsdp/).
+
+:::
+
+## Interactive job with a GPU
+
+The Alliance wiki [documents how to use GPUs on Alliance clusters](https://docs.alliancecan.ca/wiki/Using_GPUs_with_Slurm).
+
+For today, first, [we need to relinquish our current interactive job]{.emph}. It is important not to run nested jobs by running `salloc` inside a running job.
+
+Kill the current job by running (from Bash, not from ipython):
+
+```{.bash}
+exit
+```
+
+Now, we can start an interactive job with a GPU:
+
+```{.bash}
+salloc --time=1:0:0 --gpus-per-node=1 --mem=22000M
+```
+
+Reload the ipython module:
+
+```{.bash}
+module load ipython-kernel/3.11
+```
+
+Re-activate the virtual python environment:
+
+```{.bash}
+source /project/60055/env/bin/activate
+```
+
+Relaunch IPython:
+
+```{.bash}
+ipython
+```
+
+## Effect on timing
+
+Here is an example of the difference that a GPU makes compared to CPUs for a simple computation.
+
+*The following times are on my laptop which has one dedicated GPU.*
+
+First, let's set things up:
+
+```{.python}
+import jax. numpy as jnp
+from jax import random, device_put
+import numpy as np
+
+seed = 0
+key = random.PRNGKey(seed)
+key, subkey = random.split(key)
+
+size = 3000
+```
+
+Now, let's time a dot product of two arrays using NumPy (which only uses CPUs):
+
+```{.python}
+x_np = np.random.normal(size=(size, size)).astype(np.float32)
+%timeit np.dot(x_np, x_np.T)
+```
+
+```
+84.1 ms ± 3.12 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+```
+
+Note that re-running the code makes no difference whatsoever:
+
+```{.python}
+%timeit np.dot(x_np, x_np.T)
+```
+
+```
+83.4 ms ± 4.55 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+```
+
+We can use the NumPy ndarrays in a JAX dot product function (remember that whenever you benchmark JAX computations, [you need to use the `block_until_ready` method](https://mint.westdri.ca/ai/jx/jx_benchmark), due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a [future](https://en.wikipedia.org/wiki/Futures_and_promises)):
+
+```{.python}
+%timeit jnp.dot(x_np, x_np.T).block_until_ready()
+```
+
+```
+33.4 ms ± 2.01 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+```
+
+:::{.note}
+
+A bit faster.
+
+:::
+
+If you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the `device_put` method:
+
+```{.python}
+x_to_gpu = device_put(x_np)
+%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()
+```
+
+```
+14.2 ms ± 55.5 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+```
+
+:::{.note}
+
+This is much faster.
+
+:::
+
+The full JAX code would be:
+
+```{.python}
+x_jx = random.normal(key, (size, size), dtype=jnp.float32)
+
+%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()
+```
+
+```
+14.2 ms ± 27.8 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+```
