@@ -7785,7 +7785,7 @@
     "href": "ai/jx/jx_pytree.html#a-tree-like-structure",
     "title": "Pytrees",
     "section": "A tree-like structure",
-    "text": "A tree-like structure\nThe pytree container registry contains, by default, lists, tuples, and dicts. It can be extended to other containers.\nObjects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).\nPytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.\n\nExamples of pytrees:\n\n(1, 2, 3),\n[1, 1., \"string\", True],\njnp.arange(2),\n{'key1': 3.4, 'key2': 6.},\n[3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n(3, 2, (6, 0), 2, ()),\njnp.zeros(3)",
+    "text": "A tree-like structure\nThe pytree container registry contains, by default, lists, tuples, and dicts. It can be extended to other containers.\nObjects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).\nPytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.\n\nExamples of pytrees:\n\n(1, 2, 3),\n[1, 1., \"string\", True],\njnp.arange(2),\n{'key1': 3.4, 'key2': 6.},\n[3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n(3, 2, (6, 0), 2, ()),\njnp.zeros(3)\n\n\n\n\n\n\nCluster setup\n\n\n\n\n\nLet’s setup our cluster again for today.\nStart an interactive job:\nsalloc --time=2:0:0 --mem-per-cpu=5500M\nLoad the ipython module:\nmodule load ipython-kernel/3.11\nActivate the virtual python environment:\nsource /project/60055/env/bin/activate\nLaunch IPython:\nipython",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -12813,6 +12813,97 @@
       "Tools",
       "<b><em>Webinars</em></b>",
       "More command line tools"
+    ]
+  },
+  {
+    "objectID": "ai/jx_examples.html#accelerators",
+    "href": "ai/jx_examples.html#accelerators",
+    "title": "Examples",
+    "section": "Accelerators",
+    "text": "Accelerators\nimport numpy as np\n\nsize = 3000\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n\n%timeit np.dot(x_np, x_np.T)\nimport jax.numpy as jnp\n\nx_jnp = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jnp, x_jnp.T).block_until_ready()\n\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n\nx_np_device = device_put(x_np)\n%timeit jnp.dot(x_np_device, x_np_device.T).block_until_ready()"
+  },
+  {
+    "objectID": "ai/jx/jx_examples.html#accelerators",
+    "href": "ai/jx/jx_examples.html#accelerators",
+    "title": "Examples",
+    "section": "Accelerators",
+    "text": "Accelerators\nOne of the strengths of JAX is that the same code can be run on any device.\n\nThis is in contrast with, for instance, PyTorch where tensors are created by default on the CPU and can be moved to the GPU using the .to method.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Examples"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_examples.html#auto-detection",
+    "href": "ai/jx/jx_examples.html#auto-detection",
+    "title": "Accelerators",
+    "section": "Auto-detection",
+    "text": "Auto-detection\nOne of the strengths of JAX is that the same code can be run on any device without any modification.\n\nThis is in contrast with, for instance, PyTorch where tensors are created by default on the CPU and can be moved to the GPU using the .to method.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Examples"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_examples.html#effect-on-timing",
+    "href": "ai/jx/jx_examples.html#effect-on-timing",
+    "title": "Accelerators",
+    "section": "Effect on timing",
+    "text": "Effect on timing\nThe following times are on my laptop which has one dedicated GPU.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n84.1 ms ± 3.12 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nNote that re-running the code makes no difference whatsoever:\n%timeit np.dot(x_np, x_np.T)\n83.4 ms ± 4.55 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function (remember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future):\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n33.4 ms ± 2.01 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nA bit faster.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_np_device = device_put(x_np)\n%timeit jnp.dot(x_np_device, x_np_device.T).block_until_ready()\n14.2 ms ± 55.5 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\n\nThis is much faster.\n\nThe full JAX code would be:\nx_jnp = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jnp, x_jnp.T).block_until_ready()\n14.2 ms ± 27.8 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Examples"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html#auto-detection",
+    "href": "ai/jx/jx_accelerator.html#auto-detection",
+    "title": "Accelerators",
+    "section": "Auto-detection",
+    "text": "Auto-detection\nOne of the convenience of the XLA used by JAX (and TensorFlow) is that the same code runs on any device without modification.\n\nThis is in contrast with PyTorch where tensors are created on the CPU by default and can be moved to the GPU using the .to method.\nOr tensors need to be created explicitly on a device (e.g. for GPU, x = torch.ones(2, 4, device='cuda')).\nAlternatively, the code can be made more robust with the creation of a device handle which will allow it to run without modification on CPU or GPU:\nimport torch\n\nif torch.cuda.is_available():\n    my_device = torch.device('cuda')\nelse:\n    my_device = torch.device('cpu')\n\nx = torch.ones(2, 4, device=my_device)\nAnd there are methods to run PyTorch on TPU with the torch_xla package, with tricks of scalability.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html#effect-on-timing",
+    "href": "ai/jx/jx_accelerator.html#effect-on-timing",
+    "title": "Accelerators",
+    "section": "Effect on timing",
+    "text": "Effect on timing\nHere is an example of the difference that a GPU makes compared to CPUs for a simple computation.\nThe following times are on my laptop which has one dedicated GPU.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n84.1 ms ± 3.12 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nNote that re-running the code makes no difference whatsoever:\n%timeit np.dot(x_np, x_np.T)\n83.4 ms ± 4.55 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function (remember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future):\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n33.4 ms ± 2.01 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nA bit faster.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_to_gpu = device_put(x_np)\n%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()\n14.2 ms ± 55.5 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\n\nThis is much faster.\n\nThe full JAX code would be:\nx_jx = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()\n14.2 ms ± 27.8 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html#using-gpus-on-alliance-clusters",
+    "href": "ai/jx/jx_accelerator.html#using-gpus-on-alliance-clusters",
+    "title": "Accelerators",
+    "section": "Using GPUs on Alliance clusters",
+    "text": "Using GPUs on Alliance clusters\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nFor today, first, we need to relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\nexit\nNow, we can start an interactive job with a GPU:\nsalloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nWe need to re-activate the virtual python environment:\nsource /project/60055/env/bin/activate\nAnd we can relaunch IPython:\nipython",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
+    "href": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
+    "title": "Accelerators",
+    "section": "Interactive job with a GPU",
+    "text": "Interactive job with a GPU\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nFor today, first, we need to relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\nexit\nNow, we can start an interactive job with a GPU:\nsalloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nReload the ipython module:\nmodule load ipython-kernel/3.11\nRe-activate the virtual python environment:\nsource /project/60055/env/bin/activate\nRelaunch IPython:\nipython",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
     ]
   }
 ]
