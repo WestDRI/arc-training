@@ -519,6 +519,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#structure-of-pytrees" id="toc-structure-of-pytrees" class="nav-link" data-scroll-target="#structure-of-pytrees">Structure of pytrees</a></li>
   <li><a href="#pytree-operations" id="toc-pytree-operations" class="nav-link" data-scroll-target="#pytree-operations">Pytree operations</a></li>
   <li><a href="#pytree-transposition" id="toc-pytree-transposition" class="nav-link" data-scroll-target="#pytree-transposition">Pytree transposition</a></li>
+  <li><a href="#pytrees-in-nn" id="toc-pytrees-in-nn" class="nav-link" data-scroll-target="#pytrees-in-nn">Pytrees in NN</a></li>
   </ul>
 </nav>
     </div>
@@ -679,6 +680,66 @@ Cluster setup
 <p>Here is how to transpose this list of pytrees:</p>
 <div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>jax.tree.<span class="bu">map</span>(<span class="kw">lambda</span> <span class="op">*</span>x: <span class="bu">list</span>(x), <span class="op">*</span>trees)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>{'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}</code></pre>
+</section>
+<section id="pytrees-in-nn" class="level2">
+<h2 class="anchored" data-anchor-id="pytrees-in-nn">Pytrees in NN</h2>
+<p>Pytrees are very useful when using JAX for deep learning. <a href="https://mint.westdri.ca/ai/top_fl">Our course on DL with Flax</a> will show this, but below is a basic example modified from <a href="https://jax.readthedocs.io/en/latest/jax-101/05.1-pytrees.html#example-ml-model-parameters">the JAX documentation</a>.</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> jax <span class="im">import</span> random</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The parameters of a multi-layer perceptron can be initialized with:</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> init_params(layer_width):</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>  params <span class="op">=</span> []</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>  key <span class="op">=</span> random.PRNGKey(<span class="dv">11</span>)</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>  key, subkey <span class="op">=</span> random.split(key)</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> n_in, n_out <span class="kw">in</span> <span class="bu">zip</span>(layer_width[:<span class="op">-</span><span class="dv">1</span>], layer_width[<span class="dv">1</span>:]):</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    params.append(</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">dict</span>(weights<span class="op">=</span>random.normal(subkey, (n_in, n_out)) <span class="op">*</span> jnp.sqrt(<span class="dv">2</span><span class="op">/</span>n_in),</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>             biases<span class="op">=</span>jnp.ones(n_out)</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> params</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> init_params([<span class="dv">1</span>, <span class="dv">128</span>, <span class="dv">128</span>, <span class="dv">1</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>params</code> is a pytree:</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>jax.tree.<span class="bu">map</span>(<span class="kw">lambda</span> x: x.shape, params)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>[{'biases': (128,), 'weights': (1, 128)},
+ {'biases': (128,), 'weights': (128, 128)},
+ {'biases': (1,), 'weights': (128, 1)}]</code></pre>
+<p>To train our MLP, we need to define a function for the forward pass:</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="at">@jax.jit</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(params, x):</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="op">*</span>hidden, last <span class="op">=</span> params</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> layer <span class="kw">in</span> hidden:</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> jax.nn.relu(x <span class="op">@</span> layer[<span class="st">'weights'</span>] <span class="op">+</span> layer[<span class="st">'biases'</span>])</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> x <span class="op">@</span> last[<span class="st">'weights'</span>] <span class="op">+</span> last[<span class="st">'biases'</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>And a loss function:</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="at">@jax.jit</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loss_fn(params, x, y):</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> jnp.mean((forward(params, x) <span class="op">-</span> y) <span class="op">**</span> <span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Then we choose a learning rate and define a function for the backpropagation:</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>lr <span class="op">=</span> <span class="fl">0.0001</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="at">@jax.jit</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> update(params, x, y):</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>  grads <span class="op">=</span> jax.grad(loss_fn)(params, x, y)</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> jax.tree.<span class="bu">map</span>(</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>      <span class="kw">lambda</span> p, g: p <span class="op">-</span> lr <span class="op">*</span> g, params, grads</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="note">
+<p>Because <code>jax.grad</code> can accept pytrees, we can create a new pytree <code>grads</code> by passing the <code>params</code> pytree to it.</p>
+<p>The gradient descent can be applied using both pytrees thanks to <code>jax.tree.map</code>.</p>
+</div>
+<p>Then of course we could train our model:</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>key <span class="op">=</span> random.PRNGKey(<span class="dv">3</span>)</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>key, subkey <span class="op">=</span> random.split(key)</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> random.normal(subkey, (<span class="dv">128</span>, <span class="dv">1</span>))</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> x <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1000</span>):</span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>  params <span class="op">=</span> update(params, x, y)</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>  <span class="bu">print</span>(params)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>

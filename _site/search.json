@@ -12862,5 +12862,29 @@
       "<b><em>Webinars</em></b>",
       "More command line tools"
     ]
+  },
+  {
+    "objectID": "ai/jx/jx_pytree.html#pytorch-in-nn",
+    "href": "ai/jx/jx_pytree.html#pytorch-in-nn",
+    "title": "Pytrees",
+    "section": "PyTorch in NN",
+    "text": "PyTorch in NN\nimport jax\nimport jax.numpy as jnp\nfrom jax import random\n\ndef init_params(layer_width):\n\n  params = []\n  key = random.PRNGKey(11)\n  key, subkey = random.split(key)\n  for n_in, n_out in zip(layer_width[:-1], layer_width[1:]):\n    params.append(\n        dict(weights=random.normal(subkey, (n_in, n_out)) * jnp.sqrt(2/n_in),\n             biases=jnp.ones(n_out)\n            )\n    )\n  return params\n\nparams = init_params([1, 128, 128, 1])\njax.tree.map(lambda x: x.shape, params)\n[{'biases': (128,), 'weights': (1, 128)},\n {'biases': (128,), 'weights': (128, 128)},\n {'biases': (1,), 'weights': (128, 1)}]\ndef forward(params, x):\n  *hidden, last = params\n  for layer in hidden:\n    x = jax.nn.relu(x @ layer['weights'] + layer['biases'])\n  return x @ last['weights'] + last['biases']\n\ndef loss_fn(params, x, y):\n  return jnp.mean((forward(params, x) - y) ** 2)\n\nlr = 0.0001\n\n@jax.jit\ndef update(params, x, y):\n  grads = jax.grad(loss_fn)(params, x, y)\n  return jax.tree.map(\n      lambda p, g: p - lr * g, params, grads\n  )\nkey = random.PRNGKey(3)\nkey, subkey = random.split(key)\n\nx = random.normal(subkey, (128, 1))\ny = x ** 2\n\nfor _ in range(1000):\n  params = update(params, x, y)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_pytree.html#pytrees-in-nn",
+    "href": "ai/jx/jx_pytree.html#pytrees-in-nn",
+    "title": "Pytrees",
+    "section": "Pytrees in NN",
+    "text": "Pytrees in NN\nPytrees are very useful when using JAX for deep learning. Our course on DL with Flax will show this, but below is a basic example modified from the JAX documentation.\nimport jax\nimport jax.numpy as jnp\nfrom jax import random\nThe parameters of a multi-layer perceptron can be initialized with:\ndef init_params(layer_width):\n  params = []\n  key = random.PRNGKey(11)\n  key, subkey = random.split(key)\n  for n_in, n_out in zip(layer_width[:-1], layer_width[1:]):\n    params.append(\n        dict(weights=random.normal(subkey, (n_in, n_out)) * jnp.sqrt(2/n_in),\n             biases=jnp.ones(n_out)\n            )\n    )\n  return params\n\nparams = init_params([1, 128, 128, 1])\nparams is a pytree:\njax.tree.map(lambda x: x.shape, params)\n[{'biases': (128,), 'weights': (1, 128)},\n {'biases': (128,), 'weights': (128, 128)},\n {'biases': (1,), 'weights': (128, 1)}]\nTo train our MLP, we need to define a function for the forward pass:\n@jax.jit\ndef forward(params, x):\n  *hidden, last = params\n  for layer in hidden:\n    x = jax.nn.relu(x @ layer['weights'] + layer['biases'])\n  return x @ last['weights'] + last['biases']\nAnd a loss function:\n@jax.jit\ndef loss_fn(params, x, y):\n  return jnp.mean((forward(params, x) - y) ** 2)\nThen we choose a learning rate and define a function for the backpropagation:\nlr = 0.0001\n\n@jax.jit\ndef update(params, x, y):\n  grads = jax.grad(loss_fn)(params, x, y)\n  return jax.tree.map(\n      lambda p, g: p - lr * g, params, grads\n  )\n\nBecause jax.grad can accept pytrees, we can create a new pytree grads by passing the params pytree to it.\nThe gradient descent can be applied using both pytrees thanks to jax.tree.map.\n\nThen of course we could train our model:\nkey = random.PRNGKey(3)\nkey, subkey = random.split(key)\n\nx = random.normal(subkey, (128, 1))\ny = x ** 2\n\nfor _ in range(1000):\n  params = update(params, x, y)\n  print(params)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
   }
 ]
