@@ -548,7 +548,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 <div class="def">
-
+<p>One of the efficiencies of JAX is its use of accelerators. In this section, we can see how easily this is done.</p>
 </div>
 <section id="auto-detection" class="level2">
 <h2 class="anchored" data-anchor-id="auto-detection">Auto-detection</h2>
@@ -600,28 +600,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Now, let’s time a dot product of two arrays using NumPy (which only uses CPUs):</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>x_np <span class="op">=</span> np.random.normal(size<span class="op">=</span>(size, size)).astype(np.float32)</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit np.dot(x_np, x_np.T)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>84.1 ms ± 3.12 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)</code></pre>
-<p>Note that re-running the code makes no difference whatsoever:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit np.dot(x_np, x_np.T)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>83.4 ms ± 4.55 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)</code></pre>
-<p>We can use the NumPy ndarrays in a JAX dot product function (remember that whenever you benchmark JAX computations, <a href="https://mint.westdri.ca/ai/jx/jx_benchmark">you need to use the <code>block_until_ready</code> method</a>, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a <a href="https://en.wikipedia.org/wiki/Futures_and_promises">future</a>):</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit jnp.dot(x_np, x_np.T).block_until_ready()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>33.4 ms ± 2.01 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)</code></pre>
+<pre><code>58.6 ms ± 2.67 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)</code></pre>
+<p>We can use the NumPy ndarrays in a JAX dot product function:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit jnp.dot(x_np, x_np.T).block_until_ready()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>31.1 ms ± 1.82 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)</code></pre>
 <div class="note">
-<p>A bit faster.</p>
+<p>Remember that whenever you benchmark JAX computations, <a href="https://mint.westdri.ca/ai/jx/jx_benchmark">you need to use the <code>block_until_ready</code> method</a>, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a <a href="https://en.wikipedia.org/wiki/Futures_and_promises">future</a>.</p>
 </div>
 <p>If you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the <code>device_put</code> method:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>x_to_gpu <span class="op">=</span> device_put(x_np)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>14.2 ms ± 55.5 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)</code></pre>
-<div class="note">
-<p>This is much faster.</p>
-</div>
-<p>The full JAX code would be:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>x_jx <span class="op">=</span> random.normal(key, (size, size), dtype<span class="op">=</span>jnp.float32)</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit jnp.dot(x_jx, x_jx.T).block_until_ready()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<pre><code>14.2 ms ± 27.8 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)</code></pre>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>x_to_gpu <span class="op">=</span> device_put(x_np)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>13.2 ms ± 27.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)</code></pre>
+<p>This is much faster and similar to the full JAX code would be:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>x_jx <span class="op">=</span> random.normal(key, (size, size), dtype<span class="op">=</span>jnp.float32)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>timeit jnp.dot(x_jx, x_jx.T).block_until_ready()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>13.3 ms ± 33.3 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)</code></pre>
 
 
 </section>

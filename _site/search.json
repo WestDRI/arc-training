@@ -7300,7 +7300,7 @@
     "href": "ai/jx/jx_parallel.html",
     "title": "Parallel computing",
     "section": "",
-    "text": "JAX is designed for DNN and linear algebra at scale. Processing vast amounts of data in parallel is crucial to its goal. Moreover, accelerators (GPUs and TPUs) excel at running simple calculations in parallel.\nTwo of JAX’s transformations allow to turn linear code into parallel code very easily.",
+    "text": "JAX is designed for DNN and linear algebra at scale. Processing vast amounts of data in parallel is crucial to its goal. Two of JAX’s transformations allow to turn linear code into parallel code very easily.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -7312,7 +7312,7 @@
     "href": "ai/jx/jx_parallel.html#vectorization",
     "title": "Parallel computing",
     "section": "Vectorization",
-    "text": "Vectorization\nRemember how a number of transformations are applied to Jaxprs. We already saw one of JAX’s main transformations: JIT compilation with jax.jit(). Vectorization with jax.vmap() is another one.\nIt automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).\nHere is an example from JAX 101 commonly encountered in deep learning:\nimport jax\nimport jax.numpy as jnp\n\nx = jnp.arange(5)\nw = jnp.array([2., 3., 4.])\n\ndef convolve(x, w):\n    output = []\n    for i in range(1, len(x)-1):\n        output.append(jnp.dot(x[i-1:i+2], w))\n    return jnp.array(output)\n\nconvolve(x, w)\nArray([11., 20., 29.], dtype=float32)\nHow can you apply the function convolve() on a batch of weights w and vectors x.\nxs = jnp.stack([x, x])\nws = jnp.stack([w, w])\nWe apply the jax.vmap() transformation to the convolve() function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:\nauto_batch_convolve = jax.vmap(convolve)\nauto_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)\nTransformations can be composed:\njitted_batch_convolve = jax.jit(auto_batch_convolve)\njitted_batch_convolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)",
+    "text": "Vectorization\nRemember how a number of transformations are applied to jaxprs. We already saw one of JAX’s main transformations: JIT compilation with jax.jit(). Vectorization with jax.vmap() is another one.\nIt automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).\nHere is an example from JAX 101 commonly encountered in deep learning:\nimport jax\nimport jax.numpy as jnp\n\nx = jnp.arange(5)\nw = jnp.array([2., 3., 4.])\n\ndef convolve(x, w):\n    output = []\n    for i in range(1, len(x)-1):\n        output.append(jnp.dot(x[i-1:i+2], w))\n    return jnp.array(output)\n\nconvolve(x, w)\nArray([11., 20., 29.], dtype=float32)\nYou will probably want to apply the function convolve() to a batch of weights w and vectors x.\nxs = jnp.stack([x, x, x])\nws = jnp.stack([w, w, w])\nWe apply the jax.vmap() transformation to the convolve() function and pass the batches to it:\nvconvolve = jax.vmap(convolve)\nvconvolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)\n\nTransformations can be composed:\nvconvolve_jit = jax.jit(vconvolve)\nvconvolve_jit(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -7324,7 +7324,7 @@
     "href": "ai/jx/jx_parallel.html#parallel-runs-across-devices",
     "title": "Parallel computing",
     "section": "Parallel runs across devices",
-    "text": "Parallel runs across devices\nThe jax.pmap() transformation does the same thing but each computation runs on a different device (e.g. a different GPU) on the same node, allowing to scale things up further.\n\n\nJAX is also capable of running arrays across multiple devices through sharding.\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides multi-host communication for distributed parallelism.",
+    "text": "Parallel runs across devices\nThe jax.pmap() transformation does the same thing but each computation runs on a different device (e.g. a different GPU) on the same node, allowing to scale things up further:\njax.pmap(convolve)(xs, ws)\njax.pmap automatically JIT compiles the code, so it is unnecessary to pass this to jax.jit.\n\nJAX is also capable of running distributed arrays across multiple devices through sharding.\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides multi-host communication for distributed parallelism.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -7456,7 +7456,7 @@
     "href": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
     "title": "Benchmarking JAX code",
     "section": "Consequence for benchmarking",
-    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready.\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready in your benchmarks.",
+    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\n\n%timeit is an IPython built-in magic command. In Python, you would have to use the timeit module.\n\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready.\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready in your benchmarks.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -12875,7 +12875,7 @@
     "href": "ai/jx/jx_accelerator.html#effect-on-timing",
     "title": "Accelerators",
     "section": "Effect on timing",
-    "text": "Effect on timing\nHere is an example of the difference that a GPU makes compared to CPUs for a simple computation.\nThe following times are on my laptop which has one dedicated GPU.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n84.1 ms ± 3.12 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nNote that re-running the code makes no difference whatsoever:\n%timeit np.dot(x_np, x_np.T)\n83.4 ms ± 4.55 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function (remember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future):\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n33.4 ms ± 2.01 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nA bit faster.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_to_gpu = device_put(x_np)\n%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()\n14.2 ms ± 55.5 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\n\nThis is much faster.\n\nThe full JAX code would be:\nx_jx = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()\n14.2 ms ± 27.8 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
+    "text": "Effect on timing\nHere is an example of the difference that a GPU makes compared to CPUs for a simple computation.\nThe following times are on my laptop which has one dedicated GPU.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n58.6 ms ± 2.67 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function:\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n31.1 ms ± 1.82 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nRemember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_to_gpu = device_put(x_np)\n%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()\n13.2 ms ± 27.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\nThis is much faster and similar to the full JAX code would be:\nx_jx = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()\n13.3 ms ± 33.3 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
@@ -12900,6 +12900,18 @@
     "title": "Accelerators",
     "section": "Interactive job with a GPU",
     "text": "Interactive job with a GPU\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nFor today, first, we need to relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\nexit\nNow, we can start an interactive job with a GPU:\nsalloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nReload the ipython module:\nmodule load ipython-kernel/3.11\nRe-activate the virtual python environment:\nsource /project/60055/env/bin/activate\nRelaunch IPython:\nipython",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html",
+    "href": "ai/jx/jx_accelerator.html",
+    "title": "Accelerators",
+    "section": "",
+    "text": "One of the efficiencies of JAX is its use of accelerators. In this section, we can see how easily this is done.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
