@@ -7233,7 +7233,7 @@
     "href": "ai/jx/wb_jax_slides.html#pallas-extension-to-write-gpu-and-tpu-kernels",
     "title": "Accelerated array computing and flexible differentiation with",
     "section": "Pallas: extension to write GPU and TPU kernels",
-    "text": "Pallas: extension to write GPU and TPU kernels\n\n\n\n\n\n\n\n\n\ntracer\n\nTracing\n\n\n\njaxpr\n\nJaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\n Just-in-time \n(JIT)\ncompilation\n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\ntriton\n\nTriton\n\n\n\nGPU\n\nGPU\n\n\n\ntriton-&gt;GPU\n\n\n\n\n\nmosaic\n\nMosaic\n\n\n\nTPU\n\nTPU\n\n\n\nmosaic-&gt;TPU\n\n\n\n\n\ntransform\n\nVectorization\nParallelization\n   Differentiation  \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;triton\n\n\n\n\nhlo-&gt;mosaic\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Back to webinar page"
+    "text": "Pallas: extension to write GPU and TPU kernels\n\n\n\n\n\n\n\n\n\ntracer\n\nTracing\n\n\n\njaxpr\n\nJaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\n Just-in-time \n(JIT)\ncompilation\n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\ntriton\n\nTriton\n\n\n\nGPU\n\nGPU\n\n\n\ntriton-&gt;GPU\n\n\n\n\n\nmosaic\n\nMosaic\n\n\n\nTPU\n\nTPU\n\n\n\nmosaic-&gt;TPU\n\n\n\n\n\ntransform\n\nVectorization\nParallelization\n   Differentiation  \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;triton\n\n\n\n\nhlo-&gt;mosaic\n\n\n\n\n\n\n\n\n\n\n\n\n\n Back to webinar page"
   },
   {
     "objectID": "ai/jx/jx_why.html",
@@ -7296,40 +7296,95 @@
     ]
   },
   {
-    "objectID": "ai/jx/jx_parallel.html",
-    "href": "ai/jx/jx_parallel.html",
-    "title": "Parallel computing",
+    "objectID": "ai/jx/jx_pytree.html",
+    "href": "ai/jx/jx_pytree.html",
+    "title": "Pytrees",
     "section": "",
-    "text": "JAX is designed for DNN and linear algebra at scale. Processing vast amounts of data in parallel is crucial to its goal. Two of JAX’s transformations allow to turn linear code into parallel code very easily.",
+    "text": "It is convenient to store data, model parameters, gradients, etc. in container structures such as lists or dicts. JAX has a container-like structure, the pytree that is flexible, can be nested, and is supported by many JAX functions, making for convenient workflows.\nThis section introduces pytrees and their functioning.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Parallel computing"
+      "Pytrees"
     ]
   },
   {
-    "objectID": "ai/jx/jx_parallel.html#vectorization",
-    "href": "ai/jx/jx_parallel.html#vectorization",
-    "title": "Parallel computing",
-    "section": "Vectorization",
-    "text": "Vectorization\nRemember how a number of transformations are applied to jaxprs. We already saw two of JAX’s main transformations: JIT compilation with jax.jit and automatic differentiation with jax.grad. Vectorization with jax.vmap is another one.\nIt automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).\nHere is an example from JAX 101 commonly encountered in deep learning:\nimport jax\nimport jax.numpy as jnp\n\nx = jnp.arange(5)\nw = jnp.array([2., 3., 4.])\n\ndef convolve(x, w):\n    output = []\n    for i in range(1, len(x)-1):\n        output.append(jnp.dot(x[i-1:i+2], w))\n    return jnp.array(output)\n\nconvolve(x, w)\nArray([11., 20., 29.], dtype=float32)\n\nSee this great post for explanations of convolutions.\n\nYou will probably want to apply the function convolve() to a batch of weights w and vectors x.\nxs = jnp.stack([x, x, x])\nws = jnp.stack([w, w, w])\nWe apply the jax.vmap() transformation to the convolve() function and pass the batches to it:\nvconvolve = jax.vmap(convolve)\nvconvolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)\n\nAs we already saw, transformations can be composed:\nvconvolve_jit = jax.jit(vconvolve)\nvconvolve_jit(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)",
+    "objectID": "ai/jx/jx_pytree.html#a-tree-like-structure",
+    "href": "ai/jx/jx_pytree.html#a-tree-like-structure",
+    "title": "Pytrees",
+    "section": "A tree-like structure",
+    "text": "A tree-like structure\nThe pytree container registry contains, by default, lists, tuples, and dicts. It can be extended to other containers.\nObjects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive).\nPytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.\n\nExamples of pytrees:\n\n(1, 2, 3),\n[1, 1., \"string\", True],\njnp.arange(2),\n{'key1': 3.4, 'key2': 6.},\n[3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n(3, 2, (6, 0), 2, ()),\njnp.zeros(3)\n\n\n\n\n\n\nCluster setup\n\n\n\n\n\nLet’s setup our cluster again for today.\nStart an interactive job:\nsalloc --time=2:0:0 --mem-per-cpu=5500M\n\nOur cluster today has more memory per CPU.\n\nLoad the ipython module:\nmodule load ipython-kernel/3.11\nActivate the virtual python environment:\nsource /project/60055/env/bin/activate\nLaunch IPython:\nipython",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Parallel computing"
+      "Pytrees"
     ]
   },
   {
-    "objectID": "ai/jx/jx_parallel.html#parallel-runs-across-devices",
-    "href": "ai/jx/jx_parallel.html#parallel-runs-across-devices",
-    "title": "Parallel computing",
-    "section": "Parallel runs across devices",
-    "text": "Parallel runs across devices\nThe jax.pmap transformation does the same thing but each computation runs on a different device (e.g. a different GPU) on the same node, allowing to scale things up further:\njax.pmap(convolve)(xs, ws)\njax.pmap automatically JIT compiles the code, so it is unnecessary to pass this to jax.jit.\n\nJAX is also capable of running distributed arrays across multiple devices through sharding.\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides multi-host communication for distributed parallelism.",
+    "objectID": "ai/jx/jx_pytree.html#extracting-leaves",
+    "href": "ai/jx/jx_pytree.html#extracting-leaves",
+    "title": "Pytrees",
+    "section": "Extracting leaves",
+    "text": "Extracting leaves\nTrees can be flattened and their leaves extracted into a list with jax.tree.leaves:\njax.tree.leaves([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n[3.0, 1, 2, 'val1', 'val2', 'val3']\nLet’s create a list of pytrees and extract their leaves to look at more examples:\nimport jax\nimport jax.numpy as jnp\n\nlist_trees = [\n    (1, 2, 3),\n    [1, 1., \"string\", True],\n    jnp.arange(2),\n    {'key1': 3.4, 'key2': 6.},\n    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n    (3, 2, (6, 0, 9), 2, ()),\n    jnp.zeros(3)\n    ]\n\nfor pytree in list_trees:\n  leaves = jax.tree.leaves(pytree)\n  print(f\"{len(leaves)} leaves: {leaves}\")\n3 leaves: [1, 2, 3]\n4 leaves: [1, 1.0, 'string', True]\n1 leaves: [Array([0, 1], dtype=int32)]\n2 leaves: [3.4, 6.0]\n6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']\n5 leaves: [3, 2, 6, 0, 9, 2]\n1 leaves: [Array([0., 0., 0.], dtype=float32)]\n\nBe careful that leaves are not the same as container elements:\n\nwhile an array contains many elements, it is a single leaf,\nwhile a nested list or tuple represent a single element of the parent container, all the elements of nested tuples and lists are leaves,\nan empty tuple or list is a pytree without children and is not counted as a leaf.\n\nContrast this with the length (i.e. the number of elements of containers):\nfor pytree in list_trees:\n  print(f\"{len(pytree)} elements\")\n3 elements\n4 elements\n2 elements\n2 elements\n3 elements\n5 elements\n3 elements",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Parallel computing"
+      "Pytrees"
     ]
+  },
+  {
+    "objectID": "ai/jx/jx_pytree.html#structure-of-pytrees",
+    "href": "ai/jx/jx_pytree.html#structure-of-pytrees",
+    "title": "Pytrees",
+    "section": "Structure of pytrees",
+    "text": "Structure of pytrees\nAs we just saw, JAX can extract the leaves of pytrees. This is useful to run functions on them. But JAX also records their structure and is able to recreate them. The structure can be obtained with jax.tree.structure:\njax.tree.structure([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\nPyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}])\nSo each pytree can be turned into a tuple of the list of its leaves and its structure and that tuple can be turned back into the pytree.\njax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n([3.0, 1, 2, 'val1', 'val2', 'val3'],\n PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}]))\nvalues, structure = jax.tree.flatten(\n    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]\n)\njax.tree.unflatten(structure, values)\n[3.0, (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]\nThe path to each leaf can be obtained with jax.tree_util.tree_flatten_with_path:\njax.tree_util.tree_flatten_with_path(\n    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]\n)\n([((SequenceKey(idx=0),), 3.0),\n  ((SequenceKey(idx=1), SequenceKey(idx=0)), 1),\n  ((SequenceKey(idx=1), SequenceKey(idx=1)), 2),\n  ((SequenceKey(idx=2), DictKey(key='key1')), 'val1'),\n  ((SequenceKey(idx=2), DictKey(key='key2')), 'val2'),\n  ((SequenceKey(idx=2), DictKey(key='key3')), 'val3')],\n PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}]))",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_pytree.html#pytree-operations",
+    "href": "ai/jx/jx_pytree.html#pytree-operations",
+    "title": "Pytrees",
+    "section": "Pytree operations",
+    "text": "Pytree operations\nJAX can run operations on pytrees. Let’s create a few pytrees to play with:\ntree1 = {'key1': 1., 'key2': 2., 'key3': 3.}\ntree2 = {'key1': 4., 'key2': 5., 'key3': 6.}\ntree3 = {'key1': 7., 'key2': 8., 'key3': 9.}\njax.tree.map allows to apply functions to each leaf of a tree:\njax.tree.map(lambda x: 3 * x, tree1)\n{'key1': 3.0, 'key2': 6.0, 'key3': 9.0}\nAs long as pytrees share the same structure (including the same dicts keys), operations combining multiple pytrees also work:\njax.tree.map(lambda x, y, z: x * y + z, tree1, tree2, tree3)\n{'key1': 11.0, 'key2': 18.0, 'key3': 27.0}\nHere are a few more examples:\ntree4 = [[1, 1, 1], (2, 2, 2, 2), 3]\ntree5 = [[0, 5, 1], (2, 2, 2, 2), 3]\ntree6 = [[0, 5, 1, 2], (2, 2, 2), 3]\njax.tree.map(lambda x, y: x + y, tree4, tree5)\n[[1, 6, 2], (4, 4, 4, 4), 6]\nThis won’t work though as the structures are different:\njax.tree.map(lambda x, y: x + y, tree5, tree6)\nValueError: Tuple arity mismatch: 3 != 4; tuple: (2, 2, 2).",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_pytree.html#pytree-transposition",
+    "href": "ai/jx/jx_pytree.html#pytree-transposition",
+    "title": "Pytrees",
+    "section": "Pytree transposition",
+    "text": "Pytree transposition\nA list of pytrees can be transposed into a pytree of lists.\nLet’s create a list with a few of our previous pytrees:\ntrees = [tree1, tree2, tree3]\nprint(trees)\n[{'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}]\nHere is how to transpose this list of pytrees:\njax.tree.map(lambda *x: list(x), *trees)\n{'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_pytree.html#pytrees-in-nn",
+    "href": "ai/jx/jx_pytree.html#pytrees-in-nn",
+    "title": "Pytrees",
+    "section": "Pytrees in NN",
+    "text": "Pytrees in NN\nPytrees are very useful when using JAX for deep learning. Our course on DL with Flax will show this, but below is a basic example modified from the JAX documentation.\nimport jax\nimport jax.numpy as jnp\nfrom jax import random\nThe parameters of a multi-layer perceptron can be initialized with:\ndef init_params(layer_width):\n  params = []\n  key = random.PRNGKey(11)\n  key, subkey = random.split(key)\n  for n_in, n_out in zip(layer_width[:-1], layer_width[1:]):\n    params.append(\n        dict(weights=random.normal(subkey, (n_in, n_out)) * jnp.sqrt(2/n_in),\n             biases=jnp.ones(n_out)\n            )\n    )\n  return params\n\nparams = init_params([1, 128, 128, 1])\nparams is a pytree:\njax.tree.map(lambda x: x.shape, params)\n[{'biases': (128,), 'weights': (1, 128)},\n {'biases': (128,), 'weights': (128, 128)},\n {'biases': (1,), 'weights': (128, 1)}]\nTo train our MLP, we need to define a function for the forward pass:\n@jax.jit\ndef forward(params, x):\n  *hidden, last = params\n  for layer in hidden:\n    x = jax.nn.relu(x @ layer['weights'] + layer['biases'])\n  return x @ last['weights'] + last['biases']\nAnd a loss function:\n@jax.jit\ndef loss_fn(params, x, y):\n  return jnp.mean((forward(params, x) - y) ** 2)\nThen we choose a learning rate and define a function for the backpropagation:\nlr = 0.0001\n\n@jax.jit\ndef update(params, x, y):\n  grads = jax.grad(loss_fn)(params, x, y)\n  return jax.tree.map(\n      lambda p, g: p - lr * g, params, grads\n  )\n\nBecause jax.grad can accept pytrees, we can create a new pytree grads by passing the params pytree to it.\nThe gradient descent can be applied using both pytrees thanks to jax.tree.map.\n\nThen of course we could train our model:\nkey = random.PRNGKey(3)\nkey, subkey = random.split(key)\n\nx = random.normal(subkey, (128, 1))\ny = x ** 2\n\nfor _ in range(1000):\n  params = update(params, x, y)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pytrees"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_pallas.html",
+    "href": "ai/jx/jx_pallas.html",
+    "title": "Pallas",
+    "section": "",
+    "text": "tracer\n\nTracing\n\n\n\njaxpr\n\nJaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\n Just-in-time \n(JIT)\ncompilation\n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\ntriton\n\nTriton\n\n\n\nGPU\n\nGPU\n\n\n\ntriton-&gt;GPU\n\n\n\n\n\nmosaic\n\nMosaic\n\n\n\nTPU\n\nTPU\n\n\n\nmosaic-&gt;TPU\n\n\n\n\n\ntransform\n\nVectorization\nParallelization\n   Differentiation  \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;triton\n\n\n\n\nhlo-&gt;mosaic"
   },
   {
     "objectID": "ai/jx/jx_numpy.html",
@@ -7380,51 +7435,277 @@
     ]
   },
   {
-    "objectID": "ai/jx/jx_jobs.html",
-    "href": "ai/jx/jx_jobs.html",
-    "title": "Running jobs",
+    "objectID": "ai/jx/jx_jit.html",
+    "href": "ai/jx/jx_jit.html",
+    "title": "JIT compilation",
     "section": "",
-    "text": "This section is a quick review on how to submit jobs to the scheduler (Slurm) on the Alliance clusters. For more detailed information, please visit our wiki.\n\nThere are two types of jobs that can be launched on an Alliance cluster: interactive jobs and batch jobs.\n\nDon’t run computations on the login node: those are very small nodes not designed to handle anything heavy.\n\n\nInteractive jobs\nTo run Python interactively, you should launch an salloc session.\n\nExample:\n\nsalloc --time=xxx --mem-per-cpu=xxx --cpus-per-task=xxx\nThis takes you to a compute node where you can now launch Python (or even better IPython) to run computations:\nipython\n\nNote that while interactive jobs are great for code development, they are not resource efficient: all the resources that you requested are blocked for you while your job is running, whether you are making use of them (running heavy computations) or not (thinking, typing code, running computations that use only a fraction of the requested resources).\nBest to use this on sample data using few resources.\n\n\n\nScripts\nOnce you have a working and tested program, you should run a batch job on the resources you need to get your results. To run a Python script called &lt;your_script&gt;.py, you first need to write a job script:\n\nExample:\n\n\n&lt;your_job&gt;.sh\n\n#!/bin/bash\n#SBATCH --account=def-&lt;your_account&gt;\n#SBATCH --time=xxx\n#SBATCH --mem-per-cpu=xxx\n#SBATCH --cpus-per-task=xxx\n#SBATCH --job-name=\"&lt;your_job&gt;\"\n\nsource ~/env/bin/activate\npython &lt;your_script&gt;.py\n\n\nThen launch your job with:\nsbatch &lt;your_job&gt;.sh\nYou can monitor your job with sq (an alias for squeue -u $USER $@).\n\nBatch jobs are the best approach to run heavy computations requiring a lot of hardware.\nIt will save you lots of waiting time (Alliance clusters) or money (commercial clusters).",
+    "text": "JIT compilation is a key component to JAX efficiency. For the most part, it is very easy to use, but there are subtleties to be aware of.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Running jobs"
+      "JIT compilation"
     ]
   },
   {
-    "objectID": "ai/jx/jx_install.html",
-    "href": "ai/jx/jx_install.html",
-    "title": "Installing JAX",
+    "objectID": "ai/jx/jx_jit.html#jit",
+    "href": "ai/jx/jx_jit.html#jit",
+    "title": "JIT compilation",
+    "section": "JIT",
+    "text": "JIT\nJAX functions are already compiled and optimized, but user functions can also be optimized for the XLA by JIT compilation which will combine computations.\nRemember the map of JAX functioning:\n\n\n\n\n\n\n\n\n\ntracer\n\nTracing\n\n\n\njaxpr\n\nJaxpr\n(JAX expression)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\nJIT\n compilation \n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\nxla\n\nAccelerated\n Linear Algebra \n(XLA)\n\n\n\nCPU\n\nCPU\n\n\n\nxla-&gt;CPU\n\n\n\n\n\nGPU\n\nGPU\n\n\n\nxla-&gt;GPU\n\n\n\n\n\nTPU\n\nTPU\n\n\n\nxla-&gt;TPU\n\n\n\n\n\ntransform\n\n Transformations \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;xla\n\n\n\n\n\n\n\n\n\nThis is done by the jax.jit() function or the equivalent decorator @jit.\nLet’s consider this code:\nimport jax.numpy as jnp\nfrom jax import jit\nfrom jax import random\n\nkey = random.PRNGKey(8)\nkey, subkey1, subkey2 = random.split(key, 3)\n\na = random.normal(subkey1, (500, 500))\nb = random.normal(subkey2, (500, 500))\n\ndef sum_squared_error(a, b):\n    return jnp.sum((a-b)**2)\nOur function can simply be used as:\nprint(sum_squared_error(a, b))\nOur code will run faster if we create a JIT compiled version and use that instead (we will see how to benchmark JAX code later in the course. There are some subtleties for that too, so for now, just believe that it is faster. You will be able to test it later):\nsum_squared_error_jit = jit(sum_squared_error)\nprint(sum_squared_error_jit(a, b))\n502084.75\nAlternatively, this can be written as:\nprint(jit(sum_squared_error)(a, b))\n502084.75\nOr as:\n@jit\ndef sum_squared_error(a, b):\n    return jnp.sum((a - b) ** 2)\n\nprint(sum_squared_error(a, b))\n502084.75\n\nUnderstanding jaxprs\nLet’s have a look at the jaxpr of a jit-compiled function.\nThis is what the jaxpr of the non-jit-compiled function looks like:\nimport jax\n\ndef sum_squared_error(a, b):\n    return jnp.sum((a - b) ** 2)\n\njax.make_jaxpr(sum_squared_error)(x, y)\n{ lambda ; a:f32[3] b:f32[3]. let\n    c:f32[3] = sub a b\n    d:f32[3] = integer_pow[y=2] c\n    e:f32[] = reduce_sum[axes=(0,)] d\n  in (e,) }\nThe jaxpr of the jit-compiled function looks like this:\n@jit\ndef sum_squared_error(a, b):\n    return jnp.sum((a - b) ** 2)\n\njax.make_jaxpr(sum_squared_error)(x, y)\n{ lambda ; a:f32[3] b:f32[3]. let\n    c:f32[] = pjit[\n      name=sum_squared_error\n      jaxpr={ lambda ; d:f32[3] e:f32[3]. let\n          f:f32[3] = sub d e\n          g:f32[3] = integer_pow[y=2] f\n          h:f32[] = reduce_sum[axes=(0,)] g\n        in (h,) }\n    ] a b\n  in (c,) }",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "JIT compilation"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_jit.html#jit-constraints",
+    "href": "ai/jx/jx_jit.html#jit-constraints",
+    "title": "JIT compilation",
+    "section": "JIT constraints",
+    "text": "JIT constraints\nUsing jit in the example above was very easy. There are situations however in which tracing will fail.\n\nControl flow\nOne example can arise with control flow:\n@jit\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\nprint(cond_func(1.0))\njax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[]..\nThe error occurred while tracing the function cond_func at jx_jit.qmd:85 for jit. This concrete value was not available in Python because it depends on the value of the argument x.\nSee https://jax.readthedocs.io/en/latest/errors.html#jax.errors.TracerBoolConversionError\nJIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics. The tracer objects are not real values but abstract representation that are more general. In control flow situations such as the one we have here, an abstract general value does not work as it wouldn’t know which branch to take.\n\nStatic variables\nOne solution is to tell jit() to exclude the problematic arguments (in our example the argument: x) from tracing (i.e. to consider them as static). Of course, those elements will not be optimized, but the rest of the code will, so it is a lot better than not JIT compiling the function at all.\nYou can either use the static_argnums parameter which takes an integer or a collection of integers to specify the position of the arguments to treat as static:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit = jit(cond_func, static_argnums=(0,))\n\nprint(cond_func_jit(2.0))\nprint(cond_func_jit(-2.0))\n8.0\n4.0\nOr you can use static_argnames which accepts argument names:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit_alt = jit(cond_func, static_argnames='x')\n\nprint(cond_func_jit_alt(2.0))\nprint(cond_func_jit_alt(-2.0))\n8.0\n4.0\nYou cannot use the @jit decorator when you need to pass arguments to the jit function, but you can still use a decorator:\nfrom functools import partial\n\n@partial(jit, static_argnums=(0,))\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\nor:\n@partial(jit, static_argnames=['x'])\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\n\nControl flow primitives\nIf you don’t want the code to recompile for each new value, another solution, is to use one of the structured control flow primitives:\nfrom jax import lax\n\nlax.cond(False, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([2.]))\nArray([8.], dtype=float32)\nlax.cond(True, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([-2.]))\nArray([4.], dtype=float32)\nThere are other control flow primitives:\n\nlax.while_loop\nlax.fori_loop\nlax.scan\n\nand other pseudo dynamic control flow functions:\n\nlax.select (NumPy API jnp.where and jnp.select)\nlax.switch (NumPy API jnp.piecewise)\n\n\n\n\nStatic operations\nSimilarly, you will need to mark problematic operations as static so that they don’t get traced during JIT compilation:\n@jit\ndef f(x):\n    return x.reshape(jnp.array(x.shape).prod())\n\nx = jnp.ones((2, 3))\nprint(f(x))\nTypeError: Shapes must be 1D sequences of concrete values of integer type, got [Traced&lt;ShapedArray(int32[])&gt;with&lt;DynamicJaxprTrace(level=1/0)&gt;].\nIf using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.\nThe problem here is that the shape of the argument to jnp.reshape is traced while it needs to be static.\nOne solution is to use the NumPy version of prod which will not create a traced result:\nimport numpy as np\n\n@jit\ndef f(x):\n    return x.reshape(np.prod(x.shape))\n\nprint(f(x))\n[1. 1. 1. 1. 1. 1.]",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "JIT compilation"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_benchmark.html",
+    "href": "ai/jx/jx_benchmark.html",
+    "title": "Benchmarking JAX code",
     "section": "",
-    "text": "In this section, we will access a virtual training cluster through SSH and make JAX accessible.\nWe will also cover how to install JAX in the Alliance production clusters.\nUnless you aren’t planning to use accelerators, JAX relies on GPUs/TPUs dependencies determined by your OS and hardware (e.g. CUDA and CUDNN). Making sure that the dependencies are installed, compatible, and working with JAX can be finicky, so it is a lot easier to install JAX from pip wheels.",
+    "text": "You have to be careful when benchmarking JAX code to actually measure the computation time and not the dispatch time.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Installation"
+      "Benchmarking JAX code"
     ]
   },
   {
-    "objectID": "ai/jx/jx_install.html#on-your-computer",
-    "href": "ai/jx/jx_install.html#on-your-computer",
-    "title": "Installing JAX",
-    "section": "On your computer",
-    "text": "On your computer\nOn your personal computer, use the wheel installation command from the official JAX site corresponding to your system.\n\nOn Windows, GPUs are only supported via Windows Subsystem for Linux 2.\n\nBecause JAX is designed for large array computations and machine learning, you will most likely want to use it on supercomputers. In this course, we will thus use a virtual Alliance cluster.",
+    "objectID": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
+    "href": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
+    "title": "Benchmarking JAX code",
+    "section": "Asynchronous dispatch",
+    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nkey = random.PRNGKey(11)\nkey, subkey1, subkey2 = random.split(key, 3)\n\nx = random.normal(subkey1, (1000, 1000))\ny = random.normal(subkey2, (1000, 1000))\n\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, JAX forces Python to wait for the result of the computation.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Installation"
+      "Benchmarking JAX code"
     ]
   },
   {
-    "objectID": "ai/jx/jx_install.html#on-an-alliance-cluster",
-    "href": "ai/jx/jx_install.html#on-an-alliance-cluster",
-    "title": "Installing JAX",
-    "section": "On an Alliance cluster",
-    "text": "On an Alliance cluster\n\nLogging in through SSH\n\nOpen a terminal emulator\nWindows users:  Install the free version of MobaXTerm and launch it.\nMacOS users:   Launch Terminal.\nLinux users:     Open the terminal emulator of your choice.\n\n\nAccess the cluster through secure shell\n\nWindows users\nFollow the first 18% of this demo.\nFor “Remote host”, use the hostname we gave you.\nSelect the box “Specify username” and provide your username.\n\nNote that the password is entered through blind typing, meaning that you will not see anything happening as you type it. This is a Linux feature. While it is a little disturbing at first, do know that it is working. Make sure to type it slowly to avoid typos, then press the “enter” key on your keyboard.\n\n\n\nMacOS and Linux users\nIn the terminal, run:\nssh &lt;username&gt;@&lt;hostname&gt;\n\nReplace the username and hostname by their values. For instance:\nssh user21@somecluster.c3.ca\n\nYou will be asked a question, answer “Yes”.\nWhen prompted, type the password.\n\nNote that the password is entered through blind typing, meaning that you will not see anything happening as you type it. This is a Linux feature. While it is a little disturbing at first, do know that it is working. Make sure to type it slowly to avoid typos, then press the “enter” key on your keyboard.\n\n\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.\n\n\n\nInstall JAX\n\nWe already created a Python virtual environment and installed JAX to save time. The instructions for today thus differ from what you would normally do, but I include the normal instructions in a separate tab for your future reference.\n\n\nTodayProduction cluster\n\n\nI already created a virtual Python environment under /project and installed JAX in it to save time and space. All you have to do is activate it:\nsource /project/60055/env/bin/activate\n\n\nLook for available Python modules:\nmodule spider python\nLoad the version of your choice:\nmodule load python/3.11.5\nCreate a Python virtual environment:\npython -m venv ~/env\nActivate it:\nsource ~/env/bin/activate\nUpdate pip from wheel:\npython -m pip install --upgrade pip --no-index\n\nWhenever a Python wheel for a package is available on the Alliance clusters, you should use it instead of downloading the package from PyPI. To do this, simply add the --no-index flag to the install command.\nYou can see whether a wheel is available with avail_wheels &lt;package&gt; or look at the list of available wheels.\nAdvantages of wheels:\n\ncompiled for the clusters hardware,\nensures no missing or conflicting dependencies,\nmuch faster installation.\n\n\nInstall JAX from wheel:\npython -m pip install jax --no-index\n\nDon’t forget the --no-index flag here: the wheel will save you from having to deal with the CUDA and CUDNN dependencies, making your life a lot easier.",
+    "objectID": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
+    "href": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
+    "title": "Benchmarking JAX code",
+    "section": "Consequence for benchmarking",
+    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\n\n%timeit is an IPython built-in magic command. In Python, you would have to use the timeit module.\n\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready.\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready in your benchmarks.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Installation"
+      "Benchmarking JAX code"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html",
+    "href": "ai/jx/jx_accelerator.html",
+    "title": "Accelerators",
+    "section": "",
+    "text": "One of the efficiencies of JAX is its use of accelerators. In this section, we can see how easily this is done.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html#auto-detection",
+    "href": "ai/jx/jx_accelerator.html#auto-detection",
+    "title": "Accelerators",
+    "section": "Auto-detection",
+    "text": "Auto-detection\nOne of the convenience of the XLA used by JAX (and TensorFlow) is that the same code runs on any device without modification.\n\nThis is in contrast with PyTorch where tensors are created on the CPU by default and can be moved to the GPU using the .to method.\nOr tensors need to be created explicitly on a device (e.g. for GPU, x = torch.ones(2, 4, device='cuda')).\nAlternatively, the code can be made more robust with the creation of a device handle which will allow it to run without modification on CPU or GPU:\nimport torch\n\nif torch.cuda.is_available():\n    my_device = torch.device('cuda')\nelse:\n    my_device = torch.device('cpu')\n\nx = torch.ones(2, 4, device=my_device)\nAnd there are methods to run PyTorch on TPU with the torch_xla package, with tricks of scalability.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
+    "href": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
+    "title": "Accelerators",
+    "section": "Interactive job with a GPU",
+    "text": "Interactive job with a GPU\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nI had planned to use vGPUs for this part of the course. Unfortunately, our training cluster is a virtual cluster which runs on the Alliance cloud and the CUDA drivers are in the process of being updated. The update won’t be live until June and the updated drivers are needed by JAX.\nThis is what we would have done, had we had functioning GPUs:\nFirst, relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\n# exit\nThen, start an interactive job with a GPU:\n# salloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nReload the ipython module:\n# module load ipython-kernel/3.11\nRe-activate the virtual python environment:\n# source /project/60055/env/bin/activate\nFinally, relaunch IPython:\n# ipython\nBut as things are right now, do not do this as JAX only runs on CPUs in the Alliance cloud.\n\nGPUs on the production clusters totally support JAX, so you can absolutely use GPUs with JAX when you submit jobs on Cedar, etc. The current limitation is only for the cloud.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_accelerator.html#effect-on-timing",
+    "href": "ai/jx/jx_accelerator.html#effect-on-timing",
+    "title": "Accelerators",
+    "section": "Effect on timing",
+    "text": "Effect on timing\nHere is an example of the difference that a GPU makes compared to CPUs for a simple computation.\nThe following times are on my laptop which has one dedicated GPU. We won’t be able to test this live today due to the cloud CUDA drivers.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n58.6 ms ± 2.67 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function:\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n31.1 ms ± 1.82 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nRemember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_to_gpu = device_put(x_np)\n%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()\n13.2 ms ± 27.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\nThis is much faster and similar to the full JAX code would be:\nx_jx = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()\n13.3 ms ± 33.3 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_linen.html",
+    "href": "ai/jx/fl_linen.html",
+    "title": "The Linen API",
+    "section": "",
+    "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
+  },
+  {
+    "objectID": "ai/jx/fl_linen.html#the-linen-api",
+    "href": "ai/jx/fl_linen.html#the-linen-api",
+    "title": "The Linen API",
+    "section": "",
+    "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
+  },
+  {
+    "objectID": "ai/jx/fl_dataset.html",
+    "href": "ai/jx/fl_dataset.html",
+    "title": "Loading datasets",
+    "section": "",
+    "text": "Neither JAX nor Flax implement methods to load datasets since PyTorch, TensorFlow, and Hugging Face already provide great APIs for this.\nLet’s use one of the most classic of all deep learning datasets—the MNIST (LeCun, Cortes, and Burges 2010)—to see how these APIs work.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Loading datasets"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_dataset.html#hugging-face-datasets",
+    "href": "ai/jx/fl_dataset.html#hugging-face-datasets",
+    "title": "Loading datasets",
+    "section": "Hugging Face Datasets",
+    "text": "Hugging Face Datasets\nThe Datasets library from 🤗 is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\n\nSearch dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community.\n\n\nInspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nModuleNotFoundError: No module named 'datasets'\n\n\nGet a description of the dataset:\n\nds_builder.info.description\n\nNameError: name 'ds_builder' is not defined\n\n\nGet information on the features:\n\nds_builder.info.features\n\nNameError: name 'ds_builder' is not defined\n\n\n\n\nDownload dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nModuleNotFoundError: No module named 'datasets'\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\nNameError: name 'ds' is not defined\n\n\n\nds.keys()\n\nNameError: name 'ds' is not defined\n\n\n\nds['train']\n\nNameError: name 'ds' is not defined\n\n\n\nlen(ds['train'])\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0]\n\nNameError: name 'ds' is not defined\n\n\n\nlen(ds['train'][0])\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0].keys()\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0]['image']\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0]['label']\n\nNameError: name 'ds' is not defined\n\n\n\n\nConvert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\ndsj['train']['label'][:10]\nArray([5, 0, 4, 1, 9, 2, 1, 3, 1, 4], dtype=int32)\nWe can shuffle the data:\nds_shuffled = dsj.shuffle(seed=123)\nds_shuffled['train']['label'][:10]\nArray([4, 4, 4, 1, 7, 8, 5, 2, 8, 3], dtype=int32)\nFor normalization and more complex operations, you will need the Hugging Face transformers package.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Loading datasets"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_dataset.html#pytorch",
+    "href": "ai/jx/fl_dataset.html#pytorch",
+    "title": "Loading datasets",
+    "section": "PyTorch",
+    "text": "PyTorch\nIf you are familiar with PyTorch DataLoaders, this is an equally great option:\nimport torch\nfrom torchvision import datasets, transforms\n\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])\n\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\n\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)\n\n# create DataLoaders\ntrain_loader = torch.utils.data.DataLoader(\n    train_data, batch_size=20, shuffle=True)\n\ntest_loader = torch.utils.data.DataLoader(\n    test_data, batch_size=20, shuffle=False)\nYou can find more details in our PyTorch course.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Loading datasets"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_dataset.html#tensorflow-datasets",
+    "href": "ai/jx/fl_dataset.html#tensorflow-datasets",
+    "title": "Loading datasets",
+    "section": "TensorFlow Datasets",
+    "text": "TensorFlow Datasets\nFor those familiar with TensorFlow, here is an example from the Flax Quick start:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n    \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n\n    train_ds = tfds.load('mnist', split='train')\n    test_ds = tfds.load('mnist', split='test')\n    \n    # normalize train set\n    train_ds = train_ds.map(\n        lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                        'label': sample['label']})\n    # normalize test set\n    test_ds = test_ds.map(\n        lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                        'label': sample['label']})\n    \n    # create shuffled dataset by allocating a buffer size of 1024\n    # to randomly draw elements from\n    train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n    # group into batches of batch_size and skip incomplete batch,\n    # prefetch the next sample to improve latency\n    train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n    # create shuffled dataset by allocating a buffer size of 1024\n    # to randomly draw elements from\n    test_ds = test_ds.shuffle(1024)\n\n    # group into batches of batch_size and skip incomplete batch,\n    # prefetch the next sample to improve latency\n    test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n    return train_ds, test_ds\nThere is nothing wrong with using utilities from different libraries! Pick and choose the tools that serve your needs best.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Loading datasets"
+    ]
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About this site",
+    "section": "",
+    "text": "This site contains Marie-Hélène Burle’s latest content.\nHer older training material can be found on the archived sites:"
+  },
+  {
+    "objectID": "about.html#main-training-website",
+    "href": "about.html#main-training-website",
+    "title": "About this site",
+    "section": "Main training website",
+    "text": "Main training website\nThis is the mint (“mint is not training”) website.\nTo view all our training material, please visit our main training website."
+  },
+  {
+    "objectID": "about.html#other-websites",
+    "href": "about.html#other-websites",
+    "title": "About this site",
+    "section": "Other websites",
+    "text": "Other websites\nIn addition, here are a few of our websites for various training events:\n\nAutumn School 2022\nTraining Modules 2022\nTraining Modules 2021\nSummer School 2020\nCoding Fundamentals for Humanists 2022 for the Digital Humanities Summer Institute\nCoding Fundamentals for Humanists 2021 for the Digital Humanities Summer Institute\nHSS Winter Series 2023\nHSS Winter Series 2022"
+  },
+  {
+    "objectID": "ai/index.html",
+    "href": "ai/index.html",
+    "title": "AI",
+    "section": "",
+    "text": "Getting started with  \nAn intro course to DL with PyTorch\n\n\n\n\nFast computing with \nAn intro course to JAX\n\n\n\n\n\n\nJAX NN with \nA DL course with Flax\n\n\n\n\nA brief overview of  \nTraditional ML with scikit-learn\n\n\n\n\n\n\nWorkshops\nVarious DL topics\n\n\n\n\n60 min webinars\nVarious DL topics",
+    "crumbs": [
+      "AI",
+      "<br>&nbsp;<em><b>AI</b></em><br><br>"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_jaxdl.html",
+    "href": "ai/jx/fl_jaxdl.html",
+    "title": "Deep learning with JAX",
+    "section": "",
+    "text": "JAX is perfect for developing deep learning models:\n\nit deals with multi-dimensional arrays,\nit is extremely fast,\nit is optimized for accelerators,\nand it is capable of flexible automatic differentiation.\n\nJAX is however not a DL library. While it is possible to create neural networks directly in JAX, it makes more sense to use libraries built on JAX that provide the toolkit necessary to build and train neural networks.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Deep learning with JAX"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_jaxdl.html#deep-learning-workflow",
+    "href": "ai/jx/fl_jaxdl.html#deep-learning-workflow",
+    "title": "Deep learning with JAX",
+    "section": "Deep learning workflow",
+    "text": "Deep learning workflow\nTraining a neural network from scratch requires a number of steps:\n\n\n\n\n\n\n\n\n\nLoad\\ndataset\n\nLoad\ndataset\n\n\n\nDefine\\narchitecture\n\nDefine\narchitecture\n\n\n\nLoad\\ndataset-&gt;Define\\narchitecture\n\n\n\n\n\nTrain\n\nTrain\n\n\n\nDefine\\narchitecture-&gt;Train\n\n\n\n\n\nTest\n\nTest\n\n\n\nTrain-&gt;Test\n\n\n\n\n\nSave\\nmodel\n\nSave\nmodel\n\n\n\nTest-&gt;Save\\nmodel\n\n\n\n\n\n\n\n\n\n\n Pretrained models can also be used for feature extraction or transfer learning.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Deep learning with JAX"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
+    "href": "ai/jx/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
+    "title": "Deep learning with JAX",
+    "section": "Deep learning ecosystem for JAX",
+    "text": "Deep learning ecosystem for JAX\nHere is a classic ecosystem of libraries for deep learning with JAX:\n\nLoad datasets\nThere are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX did not worry about creating its own implementation.\nDefine network architecture\nNeural networks can be build in JAX from scratch, but a number of packages built on JAX provide the necessary toolkit. Flax is a popular option and the one we will use in this course.\nTrain\nTraining a model requires optimization functions. These can be implemented in JAX from scratch but the library Optax provides the core components.\nTest\nTesting a model is easy to do directly in JAX.\nSave model\nFlax provides methods to save a model.\n\n To sum up, here is a common ecosystem of libraries to use JAX for neural networks:\n\n\n\n\n\n\n\n\n\nLoad\\ndataset\nLoad\ndataset\n\n\n\nDefine\\narchitecture\nDefine\narchitecture\n\n\n\n\nPyTorch\n\nPyTorch\n\n\n\n\nTrain\nTrain\n\n\n\n\nflax1\n\nFlax\n\n\n\n\nTest\nTest\n\n\n\n\nSave\\nmodel\nSave\nmodel\n\n\n\n\nTensorFlow\n\nTensorFlow\n\n\n\n\nPyTorch-&gt;flax1\n\n\n\n\n\nHugging Face\n\nHugging Face\n\n\n\n\nTensorFlow-&gt;flax1\n\n\n\n\n\nHugging Face-&gt;flax1\n\n\n\n\n\njax1\n\nJAX\n+ \nOptax\n\n\n\nflax1-&gt;jax1\n\n\n\n\n\nFlax\n\nFlax\n\n\n\nJAX\n\nJAX\n\n\n\njax1-&gt;JAX\n\n\n\n\n\nJAX-&gt;Flax\n\n\n\n\n\n\n\n\n\n\n When working from pretrained models, Hugging Face also provides a great API to download from thousands of pretrained models.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Deep learning with JAX"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_state.html",
+    "href": "ai/jx/fl_state.html",
+    "title": "Stateless models in Flax",
+    "section": "",
+    "text": "Deep learning models can be split into two big categories depending on the deep learning frameworks used to train them: stateful and stateless models.\nWhat does this mean and where does Flax stand?",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Stateless models"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_state.html#stateful-vs-stateless-models",
+    "href": "ai/jx/fl_state.html#stateful-vs-stateless-models",
+    "title": "Stateless models in Flax",
+    "section": "Stateful vs stateless models",
+    "text": "Stateful vs stateless models\n\nStateful models\nIn frameworks such as PyTorch or the Julia package Flux, model parameters and optimizer state are stored within the model instance. Instantiating a PyTorch model allocates memory for the model parameters. The model can then be described as stateful.\nDuring the forward pass, only the inputs are passed through the model. The outputs depend on the inputs and on the state of the model.\nDuring training, you will see code such as:\nloss.backward()\nto calculate the gradients or:\noptimizer.step()\nto optimize the parameters.\n\nFor more information, you can have a look at our PyTorch course.\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nStateless models\nJAX JIT compilation requires that functions be without side effects since side effects are only executed once, during tracing.\nUpdating model parameters and optimizer state thus cannot be done as a side-effect. The state cannot be part of the model instance—it needs to be explicit, that is, separated from the model. During instantiation, no memory is allocated for the parameters. During the forward pass, the state will pass, along with the inputs, through the model. The model is thus stateless and the constrains of pure functional programming are met (inputs lead to outputs without external influence or side effects).\nHere is a very basic example from the JAX documentation.\n\nStateful approach (and why it doesn’t work with JAX)\n\nWe will define a new class called Counter with three functions to initialize, use, and reset a counter:\nimport jax\nimport jax.numpy as jnp\n\nclass Counter:\n    \"\"\"A simple counter.\"\"\"\n    \n    def __init__(self):\n        self.n = 0\n      \n    def count(self) -&gt; int:\n        \"\"\"Increments the counter and returns the new value.\"\"\"\n        self.n += 1\n        return self.n\n  \n    def reset(self):\n        \"\"\"Resets the counter to zero.\"\"\"\n        self.n = 0\nNow we can create an instance called counter of the Counter class.\ncounter = Counter()\nWe can use the counter:\nfor _ in range(3):\n    print(counter.count())\n1\n2\n3\nWe can use it further:\nfor _ in range(3):\n    print(counter.count())\n4\n5\n6\nUsually, within a neural network, you want to reset parameters at each run, so we can reset our counter:\ncounter.reset()\n\nfor _ in range(3):\n    print(counter.count())\n1\n2\n3\nNow, what happens when we apply a transformation on the count() function? Let’s reset our counter and create a JIT compiled version of count():\ncounter.reset()\nfast_count = jax.jit(counter.count)\nAnd now let’s use the JIT compiled version:\nfor _ in range(3):\n    print(fast_count())\n1\n1\n1\nFor this to work, we need to initialize an explicit state and pass it as an argument to our count() function:\nCounterState = int\n\nclass CounterV2:\n    \n    def count(self, n: CounterState) -&gt; tuple[int, CounterState]:\n        # You could just return n+1, but here we separate its role as \n        # the output and as the counter state for didactic purposes.\n        return n+1, n+1\n    \n    def reset(self) -&gt; CounterState:\n        return 0\n\ncounter = CounterV2()\nstate = counter.reset()\n\nfor _ in range(3):\n    value, state = counter.count(state)\n    print(value)\n1\n2\n3\nFrameworks based on JAX such as Flax as well as the Julia package Lux (a modern rewrite of Flux with explicit model parameters and a philosophy similar to JAX’s) follow this functional programming approach.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Stateless models"
     ]
   },
   {
@@ -7476,277 +7757,51 @@
     ]
   },
   {
-    "objectID": "ai/jx/fl_state.html",
-    "href": "ai/jx/fl_state.html",
-    "title": "Stateless models in Flax",
+    "objectID": "ai/jx/jx_install.html",
+    "href": "ai/jx/jx_install.html",
+    "title": "Installing JAX",
     "section": "",
-    "text": "Deep learning models can be split into two big categories depending on the deep learning frameworks used to train them: stateful and stateless models.\nWhat does this mean and where does Flax stand?",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Stateless models"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_state.html#stateful-vs-stateless-models",
-    "href": "ai/jx/fl_state.html#stateful-vs-stateless-models",
-    "title": "Stateless models in Flax",
-    "section": "Stateful vs stateless models",
-    "text": "Stateful vs stateless models\n\nStateful models\nIn frameworks such as PyTorch or the Julia package Flux, model parameters and optimizer state are stored within the model instance. Instantiating a PyTorch model allocates memory for the model parameters. The model can then be described as stateful.\nDuring the forward pass, only the inputs are passed through the model. The outputs depend on the inputs and on the state of the model.\nDuring training, you will see code such as:\nloss.backward()\nto calculate the gradients or:\noptimizer.step()\nto optimize the parameters.\n\nFor more information, you can have a look at our PyTorch course.\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nStateless models\nJAX JIT compilation requires that functions be without side effects since side effects are only executed once, during tracing.\nUpdating model parameters and optimizer state thus cannot be done as a side-effect. The state cannot be part of the model instance—it needs to be explicit, that is, separated from the model. During instantiation, no memory is allocated for the parameters. During the forward pass, the state will pass, along with the inputs, through the model. The model is thus stateless and the constrains of pure functional programming are met (inputs lead to outputs without external influence or side effects).\nHere is a very basic example from the JAX documentation.\n\nStateful approach (and why it doesn’t work with JAX)\n\nWe will define a new class called Counter with three functions to initialize, use, and reset a counter:\nimport jax\nimport jax.numpy as jnp\n\nclass Counter:\n    \"\"\"A simple counter.\"\"\"\n    \n    def __init__(self):\n        self.n = 0\n      \n    def count(self) -&gt; int:\n        \"\"\"Increments the counter and returns the new value.\"\"\"\n        self.n += 1\n        return self.n\n  \n    def reset(self):\n        \"\"\"Resets the counter to zero.\"\"\"\n        self.n = 0\nNow we can create an instance called counter of the Counter class.\ncounter = Counter()\nWe can use the counter:\nfor _ in range(3):\n    print(counter.count())\n1\n2\n3\nWe can use it further:\nfor _ in range(3):\n    print(counter.count())\n4\n5\n6\nUsually, within a neural network, you want to reset parameters at each run, so we can reset our counter:\ncounter.reset()\n\nfor _ in range(3):\n    print(counter.count())\n1\n2\n3\nNow, what happens when we apply a transformation on the count() function? Let’s reset our counter and create a JIT compiled version of count():\ncounter.reset()\nfast_count = jax.jit(counter.count)\nAnd now let’s use the JIT compiled version:\nfor _ in range(3):\n    print(fast_count())\n1\n1\n1\nFor this to work, we need to initialize an explicit state and pass it as an argument to our count() function:\nCounterState = int\n\nclass CounterV2:\n    \n    def count(self, n: CounterState) -&gt; tuple[int, CounterState]:\n        # You could just return n+1, but here we separate its role as \n        # the output and as the counter state for didactic purposes.\n        return n+1, n+1\n    \n    def reset(self) -&gt; CounterState:\n        return 0\n\ncounter = CounterV2()\nstate = counter.reset()\n\nfor _ in range(3):\n    value, state = counter.count(state)\n    print(value)\n1\n2\n3\nFrameworks based on JAX such as Flax as well as the Julia package Lux (a modern rewrite of Flux with explicit model parameters and a philosophy similar to JAX’s) follow this functional programming approach.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Stateless models"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_jaxdl.html",
-    "href": "ai/jx/fl_jaxdl.html",
-    "title": "Deep learning with JAX",
-    "section": "",
-    "text": "JAX is perfect for developing deep learning models:\n\nit deals with multi-dimensional arrays,\nit is extremely fast,\nit is optimized for accelerators,\nand it is capable of flexible automatic differentiation.\n\nJAX is however not a DL library. While it is possible to create neural networks directly in JAX, it makes more sense to use libraries built on JAX that provide the toolkit necessary to build and train neural networks.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Deep learning with JAX"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_jaxdl.html#deep-learning-workflow",
-    "href": "ai/jx/fl_jaxdl.html#deep-learning-workflow",
-    "title": "Deep learning with JAX",
-    "section": "Deep learning workflow",
-    "text": "Deep learning workflow\nTraining a neural network from scratch requires a number of steps:\n\n\n\n\n\n\n\n\n\nLoad\\ndataset\n\nLoad\ndataset\n\n\n\nDefine\\narchitecture\n\nDefine\narchitecture\n\n\n\nLoad\\ndataset-&gt;Define\\narchitecture\n\n\n\n\n\nTrain\n\nTrain\n\n\n\nDefine\\narchitecture-&gt;Train\n\n\n\n\n\nTest\n\nTest\n\n\n\nTrain-&gt;Test\n\n\n\n\n\nSave\\nmodel\n\nSave\nmodel\n\n\n\nTest-&gt;Save\\nmodel\n\n\n\n\n\n\n\n\n\n\n Pretrained models can also be used for feature extraction or transfer learning.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Deep learning with JAX"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
-    "href": "ai/jx/fl_jaxdl.html#deep-learning-ecosystem-for-jax",
-    "title": "Deep learning with JAX",
-    "section": "Deep learning ecosystem for JAX",
-    "text": "Deep learning ecosystem for JAX\nHere is a classic ecosystem of libraries for deep learning with JAX:\n\nLoad datasets\nThere are already good tools to load datasets (e.g. PyTorch, TensorFlow, Hugging Face), so JAX did not worry about creating its own implementation.\nDefine network architecture\nNeural networks can be build in JAX from scratch, but a number of packages built on JAX provide the necessary toolkit. Flax is a popular option and the one we will use in this course.\nTrain\nTraining a model requires optimization functions. These can be implemented in JAX from scratch but the library Optax provides the core components.\nTest\nTesting a model is easy to do directly in JAX.\nSave model\nFlax provides methods to save a model.\n\n To sum up, here is a common ecosystem of libraries to use JAX for neural networks:\n\n\n\n\n\n\n\n\n\nLoad\\ndataset\nLoad\ndataset\n\n\n\nDefine\\narchitecture\nDefine\narchitecture\n\n\n\n\nPyTorch\n\nPyTorch\n\n\n\n\nTrain\nTrain\n\n\n\n\nflax1\n\nFlax\n\n\n\n\nTest\nTest\n\n\n\n\nSave\\nmodel\nSave\nmodel\n\n\n\n\nTensorFlow\n\nTensorFlow\n\n\n\n\nPyTorch-&gt;flax1\n\n\n\n\n\nHugging Face\n\nHugging Face\n\n\n\n\nTensorFlow-&gt;flax1\n\n\n\n\n\nHugging Face-&gt;flax1\n\n\n\n\n\njax1\n\nJAX\n+ \nOptax\n\n\n\nflax1-&gt;jax1\n\n\n\n\n\nFlax\n\nFlax\n\n\n\nJAX\n\nJAX\n\n\n\njax1-&gt;JAX\n\n\n\n\n\nJAX-&gt;Flax\n\n\n\n\n\n\n\n\n\n\n When working from pretrained models, Hugging Face also provides a great API to download from thousands of pretrained models.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Deep learning with JAX"
-    ]
-  },
-  {
-    "objectID": "ai/index.html",
-    "href": "ai/index.html",
-    "title": "AI",
-    "section": "",
-    "text": "Getting started with  \nAn intro course to DL with PyTorch\n\n\n\n\nFast computing with \nAn intro course to JAX\n\n\n\n\n\n\nJAX NN with \nA DL course with Flax\n\n\n\n\nA brief overview of  \nTraditional ML with scikit-learn\n\n\n\n\n\n\nWorkshops\nVarious DL topics\n\n\n\n\n60 min webinars\nVarious DL topics",
-    "crumbs": [
-      "AI",
-      "<br>&nbsp;<em><b>AI</b></em><br><br>"
-    ]
-  },
-  {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About this site",
-    "section": "",
-    "text": "This site contains Marie-Hélène Burle’s latest content.\nHer older training material can be found on the archived sites:"
-  },
-  {
-    "objectID": "about.html#main-training-website",
-    "href": "about.html#main-training-website",
-    "title": "About this site",
-    "section": "Main training website",
-    "text": "Main training website\nThis is the mint (“mint is not training”) website.\nTo view all our training material, please visit our main training website."
-  },
-  {
-    "objectID": "about.html#other-websites",
-    "href": "about.html#other-websites",
-    "title": "About this site",
-    "section": "Other websites",
-    "text": "Other websites\nIn addition, here are a few of our websites for various training events:\n\nAutumn School 2022\nTraining Modules 2022\nTraining Modules 2021\nSummer School 2020\nCoding Fundamentals for Humanists 2022 for the Digital Humanities Summer Institute\nCoding Fundamentals for Humanists 2021 for the Digital Humanities Summer Institute\nHSS Winter Series 2023\nHSS Winter Series 2022"
-  },
-  {
-    "objectID": "ai/jx/fl_dataset.html",
-    "href": "ai/jx/fl_dataset.html",
-    "title": "Loading datasets",
-    "section": "",
-    "text": "Neither JAX nor Flax implement methods to load datasets since PyTorch, TensorFlow, and Hugging Face already provide great APIs for this.\nLet’s use one of the most classic of all deep learning datasets—the MNIST (LeCun, Cortes, and Burges 2010)—to see how these APIs work.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Loading datasets"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_dataset.html#hugging-face-datasets",
-    "href": "ai/jx/fl_dataset.html#hugging-face-datasets",
-    "title": "Loading datasets",
-    "section": "Hugging Face Datasets",
-    "text": "Hugging Face Datasets\nThe Datasets library from 🤗 is a lightweight, framework-agnostic, and easy to use API to download datasets from the Hugging Face Hub. It uses Apache Arrow’s efficient caching system, allowing large datasets to be used on machines with small memory (Lhoest et al. 2021).\n\nSearch dataset\nGo to the Hugging Face Hub and search through thousands of open source datasets provided by the community.\n\n\nInspect dataset\nYou can get information on a dataset before downloading it.\nLoad the dataset builder for the dataset you are interested in:\n\nfrom datasets import load_dataset_builder\nds_builder = load_dataset_builder(\"mnist\")\n\nModuleNotFoundError: No module named 'datasets'\n\n\nGet a description of the dataset:\n\nds_builder.info.description\n\nNameError: name 'ds_builder' is not defined\n\n\nGet information on the features:\n\nds_builder.info.features\n\nNameError: name 'ds_builder' is not defined\n\n\n\n\nDownload dataset and load in session\n\nfrom datasets import load_dataset\n\nds = load_dataset(\"mnist\")\nds\n\nModuleNotFoundError: No module named 'datasets'\n\n\n\nYou need to have the Pillow package installed for this to work since the MNIST is an image dataset.\n\nLet’s explore our dataset dictionary:\n\nlen(ds)\n\nNameError: name 'ds' is not defined\n\n\n\nds.keys()\n\nNameError: name 'ds' is not defined\n\n\n\nds['train']\n\nNameError: name 'ds' is not defined\n\n\n\nlen(ds['train'])\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0]\n\nNameError: name 'ds' is not defined\n\n\n\nlen(ds['train'][0])\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0].keys()\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0]['image']\n\nNameError: name 'ds' is not defined\n\n\n\nds['train'][0]['label']\n\nNameError: name 'ds' is not defined\n\n\n\n\nConvert to JAX object\nWe need to convert our dataset to a JAX Array object:\ndsj = ds.with_format(\"jax\")\ndsj\nPrinting dsj looks the same, but:\ndsj['train'][0]\n{'image': Array([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0],\n       ...,\n        [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n           0,   0]], dtype=uint8),\n 'label': Array(5, dtype=int32)}\ndsj['train'][0]['image']\nArray([[  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0],\n       ...,\n       [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,\n          0,   0]], dtype=uint8)\ndsj['train'][0]['label']\nArray(5, dtype=int32)\ndsj['train']['label'][:10]\nArray([5, 0, 4, 1, 9, 2, 1, 3, 1, 4], dtype=int32)\nWe can shuffle the data:\nds_shuffled = dsj.shuffle(seed=123)\nds_shuffled['train']['label'][:10]\nArray([4, 4, 4, 1, 7, 8, 5, 2, 8, 3], dtype=int32)\nFor normalization and more complex operations, you will need the Hugging Face transformers package.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Loading datasets"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_dataset.html#pytorch",
-    "href": "ai/jx/fl_dataset.html#pytorch",
-    "title": "Loading datasets",
-    "section": "PyTorch",
-    "text": "PyTorch\nIf you are familiar with PyTorch DataLoaders, this is an equally great option:\nimport torch\nfrom torchvision import datasets, transforms\n\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])\n\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\n\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)\n\n# create DataLoaders\ntrain_loader = torch.utils.data.DataLoader(\n    train_data, batch_size=20, shuffle=True)\n\ntest_loader = torch.utils.data.DataLoader(\n    test_data, batch_size=20, shuffle=False)\nYou can find more details in our PyTorch course.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Loading datasets"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_dataset.html#tensorflow-datasets",
-    "href": "ai/jx/fl_dataset.html#tensorflow-datasets",
-    "title": "Loading datasets",
-    "section": "TensorFlow Datasets",
-    "text": "TensorFlow Datasets\nFor those familiar with TensorFlow, here is an example from the Flax Quick start:\nimport tensorflow_datasets as tfds\nimport tensorflow as tf\n\ndef get_datasets(num_epochs, batch_size):\n    \"\"\"Load MNIST train and test datasets into memory.\"\"\"\n\n    train_ds = tfds.load('mnist', split='train')\n    test_ds = tfds.load('mnist', split='test')\n    \n    # normalize train set\n    train_ds = train_ds.map(\n        lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                        'label': sample['label']})\n    # normalize test set\n    test_ds = test_ds.map(\n        lambda sample: {'image': tf.cast(sample['image'], tf.float32) / 255.0,\n                        'label': sample['label']})\n    \n    # create shuffled dataset by allocating a buffer size of 1024\n    # to randomly draw elements from\n    train_ds = train_ds.repeat(num_epochs).shuffle(1024)\n\n    # group into batches of batch_size and skip incomplete batch,\n    # prefetch the next sample to improve latency\n    train_ds = train_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n    # create shuffled dataset by allocating a buffer size of 1024\n    # to randomly draw elements from\n    test_ds = test_ds.shuffle(1024)\n\n    # group into batches of batch_size and skip incomplete batch,\n    # prefetch the next sample to improve latency\n    test_ds = test_ds.batch(batch_size, drop_remainder=True).prefetch(1)\n\n    return train_ds, test_ds\nThere is nothing wrong with using utilities from different libraries! Pick and choose the tools that serve your needs best.",
-    "crumbs": [
-      "AI",
-      "<b><em>Flax</em></b>",
-      "Loading datasets"
-    ]
-  },
-  {
-    "objectID": "ai/jx/fl_linen.html",
-    "href": "ai/jx/fl_linen.html",
-    "title": "The Linen API",
-    "section": "",
-    "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
-  },
-  {
-    "objectID": "ai/jx/fl_linen.html#the-linen-api",
-    "href": "ai/jx/fl_linen.html#the-linen-api",
-    "title": "The Linen API",
-    "section": "",
-    "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
-  },
-  {
-    "objectID": "ai/jx/jx_accelerator.html",
-    "href": "ai/jx/jx_accelerator.html",
-    "title": "Accelerators",
-    "section": "",
-    "text": "One of the efficiencies of JAX is its use of accelerators. In this section, we can see how easily this is done.",
+    "text": "In this section, we will access a virtual training cluster through SSH and make JAX accessible.\nWe will also cover how to install JAX in the Alliance production clusters.\nUnless you aren’t planning to use accelerators, JAX relies on GPUs/TPUs dependencies determined by your OS and hardware (e.g. CUDA and CUDNN). Making sure that the dependencies are installed, compatible, and working with JAX can be finicky, so it is a lot easier to install JAX from pip wheels.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Accelerators"
+      "Installation"
     ]
   },
   {
-    "objectID": "ai/jx/jx_accelerator.html#auto-detection",
-    "href": "ai/jx/jx_accelerator.html#auto-detection",
-    "title": "Accelerators",
-    "section": "Auto-detection",
-    "text": "Auto-detection\nOne of the convenience of the XLA used by JAX (and TensorFlow) is that the same code runs on any device without modification.\n\nThis is in contrast with PyTorch where tensors are created on the CPU by default and can be moved to the GPU using the .to method.\nOr tensors need to be created explicitly on a device (e.g. for GPU, x = torch.ones(2, 4, device='cuda')).\nAlternatively, the code can be made more robust with the creation of a device handle which will allow it to run without modification on CPU or GPU:\nimport torch\n\nif torch.cuda.is_available():\n    my_device = torch.device('cuda')\nelse:\n    my_device = torch.device('cpu')\n\nx = torch.ones(2, 4, device=my_device)\nAnd there are methods to run PyTorch on TPU with the torch_xla package, with tricks of scalability.",
+    "objectID": "ai/jx/jx_install.html#on-your-computer",
+    "href": "ai/jx/jx_install.html#on-your-computer",
+    "title": "Installing JAX",
+    "section": "On your computer",
+    "text": "On your computer\nOn your personal computer, use the wheel installation command from the official JAX site corresponding to your system.\n\nOn Windows, GPUs are only supported via Windows Subsystem for Linux 2.\n\nBecause JAX is designed for large array computations and machine learning, you will most likely want to use it on supercomputers. In this course, we will thus use a virtual Alliance cluster.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Accelerators"
+      "Installation"
     ]
   },
   {
-    "objectID": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
-    "href": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
-    "title": "Accelerators",
-    "section": "Interactive job with a GPU",
-    "text": "Interactive job with a GPU\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nI had planned to use vGPUs for this part of the course. Unfortunately, our training cluster is a virtual cluster which runs on the Alliance cloud and the CUDA drivers are in the process of being updated. The update won’t be live until June and the updated drivers are needed by JAX.\nThis is what we would have done, had we had functioning GPUs:\nFirst, relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\n# exit\nThen, start an interactive job with a GPU:\n# salloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nReload the ipython module:\n# module load ipython-kernel/3.11\nRe-activate the virtual python environment:\n# source /project/60055/env/bin/activate\nFinally, relaunch IPython:\n# ipython\nBut as things are right now, do not do this as JAX only runs on CPUs in the Alliance cloud.\n\nGPUs on the production clusters totally support JAX, so you can absolutely use GPUs with JAX when you submit jobs on Cedar, etc. The current limitation is only for the cloud.",
+    "objectID": "ai/jx/jx_install.html#on-an-alliance-cluster",
+    "href": "ai/jx/jx_install.html#on-an-alliance-cluster",
+    "title": "Installing JAX",
+    "section": "On an Alliance cluster",
+    "text": "On an Alliance cluster\n\nLogging in through SSH\n\nOpen a terminal emulator\nWindows users:  Install the free version of MobaXTerm and launch it.\nMacOS users:   Launch Terminal.\nLinux users:     Open the terminal emulator of your choice.\n\n\nAccess the cluster through secure shell\n\nWindows users\nFollow the first 18% of this demo.\nFor “Remote host”, use the hostname we gave you.\nSelect the box “Specify username” and provide your username.\n\nNote that the password is entered through blind typing, meaning that you will not see anything happening as you type it. This is a Linux feature. While it is a little disturbing at first, do know that it is working. Make sure to type it slowly to avoid typos, then press the “enter” key on your keyboard.\n\n\n\nMacOS and Linux users\nIn the terminal, run:\nssh &lt;username&gt;@&lt;hostname&gt;\n\nReplace the username and hostname by their values. For instance:\nssh user21@somecluster.c3.ca\n\nYou will be asked a question, answer “Yes”.\nWhen prompted, type the password.\n\nNote that the password is entered through blind typing, meaning that you will not see anything happening as you type it. This is a Linux feature. While it is a little disturbing at first, do know that it is working. Make sure to type it slowly to avoid typos, then press the “enter” key on your keyboard.\n\n\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.\n\n\n\nInstall JAX\n\nWe already created a Python virtual environment and installed JAX to save time. The instructions for today thus differ from what you would normally do, but I include the normal instructions in a separate tab for your future reference.\n\n\nTodayProduction cluster\n\n\nI already created a virtual Python environment under /project and installed JAX in it to save time and space. All you have to do is activate it:\nsource /project/60055/env/bin/activate\n\n\nLook for available Python modules:\nmodule spider python\nLoad the version of your choice:\nmodule load python/3.11.5\nCreate a Python virtual environment:\npython -m venv ~/env\nActivate it:\nsource ~/env/bin/activate\nUpdate pip from wheel:\npython -m pip install --upgrade pip --no-index\n\nWhenever a Python wheel for a package is available on the Alliance clusters, you should use it instead of downloading the package from PyPI. To do this, simply add the --no-index flag to the install command.\nYou can see whether a wheel is available with avail_wheels &lt;package&gt; or look at the list of available wheels.\nAdvantages of wheels:\n\ncompiled for the clusters hardware,\nensures no missing or conflicting dependencies,\nmuch faster installation.\n\n\nInstall JAX from wheel:\npython -m pip install jax --no-index\n\nDon’t forget the --no-index flag here: the wheel will save you from having to deal with the CUDA and CUDNN dependencies, making your life a lot easier.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Accelerators"
+      "Installation"
     ]
   },
   {
-    "objectID": "ai/jx/jx_accelerator.html#effect-on-timing",
-    "href": "ai/jx/jx_accelerator.html#effect-on-timing",
-    "title": "Accelerators",
-    "section": "Effect on timing",
-    "text": "Effect on timing\nHere is an example of the difference that a GPU makes compared to CPUs for a simple computation.\nThe following times are on my laptop which has one dedicated GPU. We won’t be able to test this live today due to the cloud CUDA drivers.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n58.6 ms ± 2.67 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function:\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n31.1 ms ± 1.82 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nRemember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_to_gpu = device_put(x_np)\n%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()\n13.2 ms ± 27.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\nThis is much faster and similar to the full JAX code would be:\nx_jx = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()\n13.3 ms ± 33.3 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Accelerators"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_benchmark.html",
-    "href": "ai/jx/jx_benchmark.html",
-    "title": "Benchmarking JAX code",
+    "objectID": "ai/jx/jx_jobs.html",
+    "href": "ai/jx/jx_jobs.html",
+    "title": "Running jobs",
     "section": "",
-    "text": "You have to be careful when benchmarking JAX code to actually measure the computation time and not the dispatch time.",
+    "text": "This section is a quick review on how to submit jobs to the scheduler (Slurm) on the Alliance clusters. For more detailed information, please visit our wiki.\n\nThere are two types of jobs that can be launched on an Alliance cluster: interactive jobs and batch jobs.\n\nDon’t run computations on the login node: those are very small nodes not designed to handle anything heavy.\n\n\nInteractive jobs\nTo run Python interactively, you should launch an salloc session.\n\nExample:\n\nsalloc --time=xxx --mem-per-cpu=xxx --cpus-per-task=xxx\nThis takes you to a compute node where you can now launch Python (or even better IPython) to run computations:\nipython\n\nNote that while interactive jobs are great for code development, they are not resource efficient: all the resources that you requested are blocked for you while your job is running, whether you are making use of them (running heavy computations) or not (thinking, typing code, running computations that use only a fraction of the requested resources).\nBest to use this on sample data using few resources.\n\n\n\nScripts\nOnce you have a working and tested program, you should run a batch job on the resources you need to get your results. To run a Python script called &lt;your_script&gt;.py, you first need to write a job script:\n\nExample:\n\n\n&lt;your_job&gt;.sh\n\n#!/bin/bash\n#SBATCH --account=def-&lt;your_account&gt;\n#SBATCH --time=xxx\n#SBATCH --mem-per-cpu=xxx\n#SBATCH --cpus-per-task=xxx\n#SBATCH --job-name=\"&lt;your_job&gt;\"\n\nsource ~/env/bin/activate\npython &lt;your_script&gt;.py\n\n\nThen launch your job with:\nsbatch &lt;your_job&gt;.sh\nYou can monitor your job with sq (an alias for squeue -u $USER $@).\n\nBatch jobs are the best approach to run heavy computations requiring a lot of hardware.\nIt will save you lots of waiting time (Alliance clusters) or money (commercial clusters).",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Benchmarking JAX code"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
-    "href": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
-    "title": "Benchmarking JAX code",
-    "section": "Asynchronous dispatch",
-    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nkey = random.PRNGKey(11)\nkey, subkey1, subkey2 = random.split(key, 3)\n\nx = random.normal(subkey1, (1000, 1000))\ny = random.normal(subkey2, (1000, 1000))\n\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, JAX forces Python to wait for the result of the computation.",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Benchmarking JAX code"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
-    "href": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
-    "title": "Benchmarking JAX code",
-    "section": "Consequence for benchmarking",
-    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\n\n%timeit is an IPython built-in magic command. In Python, you would have to use the timeit module.\n\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready.\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready in your benchmarks.",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Benchmarking JAX code"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_jit.html",
-    "href": "ai/jx/jx_jit.html",
-    "title": "JIT compilation",
-    "section": "",
-    "text": "JIT compilation is a key component to JAX efficiency. For the most part, it is very easy to use, but there are subtleties to be aware of.",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "JIT compilation"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_jit.html#jit",
-    "href": "ai/jx/jx_jit.html#jit",
-    "title": "JIT compilation",
-    "section": "JIT",
-    "text": "JIT\nJAX functions are already compiled and optimized, but user functions can also be optimized for the XLA by JIT compilation which will combine computations.\nRemember the map of JAX functioning:\n\n\n\n\n\n\n\n\n\ntracer\n\nTracing\n\n\n\njaxpr\n\nJaxpr\n(JAX expression)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\nJIT\n compilation \n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\nxla\n\nAccelerated\n Linear Algebra \n(XLA)\n\n\n\nCPU\n\nCPU\n\n\n\nxla-&gt;CPU\n\n\n\n\n\nGPU\n\nGPU\n\n\n\nxla-&gt;GPU\n\n\n\n\n\nTPU\n\nTPU\n\n\n\nxla-&gt;TPU\n\n\n\n\n\ntransform\n\n Transformations \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;xla\n\n\n\n\n\n\n\n\n\nThis is done by the jax.jit() function or the equivalent decorator @jit.\nLet’s consider this code:\nimport jax.numpy as jnp\nfrom jax import jit\nfrom jax import random\n\nkey = random.PRNGKey(8)\nkey, subkey1, subkey2 = random.split(key, 3)\n\na = random.normal(subkey1, (500, 500))\nb = random.normal(subkey2, (500, 500))\n\ndef sum_squared_error(a, b):\n    return jnp.sum((a-b)**2)\nOur function can simply be used as:\nprint(sum_squared_error(a, b))\nOur code will run faster if we create a JIT compiled version and use that instead (we will see how to benchmark JAX code later in the course. There are some subtleties for that too, so for now, just believe that it is faster. You will be able to test it later):\nsum_squared_error_jit = jit(sum_squared_error)\nprint(sum_squared_error_jit(a, b))\n502084.75\nAlternatively, this can be written as:\nprint(jit(sum_squared_error)(a, b))\n502084.75\nOr as:\n@jit\ndef sum_squared_error(a, b):\n    return jnp.sum((a - b) ** 2)\n\nprint(sum_squared_error(a, b))\n502084.75\n\nUnderstanding jaxprs\nLet’s have a look at the jaxpr of a jit-compiled function.\nThis is what the jaxpr of the non-jit-compiled function looks like:\nimport jax\n\ndef sum_squared_error(a, b):\n    return jnp.sum((a - b) ** 2)\n\njax.make_jaxpr(sum_squared_error)(x, y)\n{ lambda ; a:f32[3] b:f32[3]. let\n    c:f32[3] = sub a b\n    d:f32[3] = integer_pow[y=2] c\n    e:f32[] = reduce_sum[axes=(0,)] d\n  in (e,) }\nThe jaxpr of the jit-compiled function looks like this:\n@jit\ndef sum_squared_error(a, b):\n    return jnp.sum((a - b) ** 2)\n\njax.make_jaxpr(sum_squared_error)(x, y)\n{ lambda ; a:f32[3] b:f32[3]. let\n    c:f32[] = pjit[\n      name=sum_squared_error\n      jaxpr={ lambda ; d:f32[3] e:f32[3]. let\n          f:f32[3] = sub d e\n          g:f32[3] = integer_pow[y=2] f\n          h:f32[] = reduce_sum[axes=(0,)] g\n        in (h,) }\n    ] a b\n  in (c,) }",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "JIT compilation"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_jit.html#jit-constraints",
-    "href": "ai/jx/jx_jit.html#jit-constraints",
-    "title": "JIT compilation",
-    "section": "JIT constraints",
-    "text": "JIT constraints\nUsing jit in the example above was very easy. There are situations however in which tracing will fail.\n\nControl flow\nOne example can arise with control flow:\n@jit\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\nprint(cond_func(1.0))\njax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[]..\nThe error occurred while tracing the function cond_func at jx_jit.qmd:85 for jit. This concrete value was not available in Python because it depends on the value of the argument x.\nSee https://jax.readthedocs.io/en/latest/errors.html#jax.errors.TracerBoolConversionError\nJIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics. The tracer objects are not real values but abstract representation that are more general. In control flow situations such as the one we have here, an abstract general value does not work as it wouldn’t know which branch to take.\n\nStatic variables\nOne solution is to tell jit() to exclude the problematic arguments (in our example the argument: x) from tracing (i.e. to consider them as static). Of course, those elements will not be optimized, but the rest of the code will, so it is a lot better than not JIT compiling the function at all.\nYou can either use the static_argnums parameter which takes an integer or a collection of integers to specify the position of the arguments to treat as static:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit = jit(cond_func, static_argnums=(0,))\n\nprint(cond_func_jit(2.0))\nprint(cond_func_jit(-2.0))\n8.0\n4.0\nOr you can use static_argnames which accepts argument names:\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\ncond_func_jit_alt = jit(cond_func, static_argnames='x')\n\nprint(cond_func_jit_alt(2.0))\nprint(cond_func_jit_alt(-2.0))\n8.0\n4.0\nYou cannot use the @jit decorator when you need to pass arguments to the jit function, but you can still use a decorator:\nfrom functools import partial\n\n@partial(jit, static_argnums=(0,))\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\nor:\n@partial(jit, static_argnames=['x'])\ndef cond_func(x):\n    if x &lt; 0.0:\n        return x ** 2.0\n    else:\n        return x ** 3.0\n\n\nControl flow primitives\nIf you don’t want the code to recompile for each new value, another solution, is to use one of the structured control flow primitives:\nfrom jax import lax\n\nlax.cond(False, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([2.]))\nArray([8.], dtype=float32)\nlax.cond(True, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([-2.]))\nArray([4.], dtype=float32)\nThere are other control flow primitives:\n\nlax.while_loop\nlax.fori_loop\nlax.scan\n\nand other pseudo dynamic control flow functions:\n\nlax.select (NumPy API jnp.where and jnp.select)\nlax.switch (NumPy API jnp.piecewise)\n\n\n\n\nStatic operations\nSimilarly, you will need to mark problematic operations as static so that they don’t get traced during JIT compilation:\n@jit\ndef f(x):\n    return x.reshape(jnp.array(x.shape).prod())\n\nx = jnp.ones((2, 3))\nprint(f(x))\nTypeError: Shapes must be 1D sequences of concrete values of integer type, got [Traced&lt;ShapedArray(int32[])&gt;with&lt;DynamicJaxprTrace(level=1/0)&gt;].\nIf using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.\nThe problem here is that the shape of the argument to jnp.reshape is traced while it needs to be static.\nOne solution is to use the NumPy version of prod which will not create a traced result:\nimport numpy as np\n\n@jit\ndef f(x):\n    return x.reshape(np.prod(x.shape))\n\nprint(f(x))\n[1. 1. 1. 1. 1. 1.]",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "JIT compilation"
+      "Running jobs"
     ]
   },
   {
@@ -7810,82 +7865,63 @@
     ]
   },
   {
-    "objectID": "ai/jx/jx_pallas.html",
-    "href": "ai/jx/jx_pallas.html",
-    "title": "Pallas",
+    "objectID": "ai/jx/jx_optimizations.html#lax-api",
+    "href": "ai/jx/jx_optimizations.html#lax-api",
+    "title": "Pushing optimizations further",
+    "section": "Lax API",
+    "text": "Lax API\njax.numpy is a high-level NumPy-like API wrapped around jax.lax\njax.lax is a more efficient lower-level API itself wrapped around XLA",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pushing optimizations further"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_optimizations.html#pallas-extension-to-write-gpu-and-tpu-kernels",
+    "href": "ai/jx/jx_optimizations.html#pallas-extension-to-write-gpu-and-tpu-kernels",
+    "title": "Pushing optimizations further",
+    "section": "Pallas: extension to write GPU and TPU kernels",
+    "text": "Pallas: extension to write GPU and TPU kernels\nWith the success of Triton, JAX built the Pallas extension that allows JAX users to write GPU kernels.\nIt also allows to write kernels for the TPU with moisaic.\n\n\n\n\n\n\n\n\n\ntracer\n\nTracing\n\n\n\njaxpr\n\nJaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\n Just-in-time \n(JIT)\ncompilation\n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\ntriton\n\nTriton\n\n\n\nGPU\n\nGPU\n\n\n\ntriton-&gt;GPU\n\n\n\n\n\nmosaic\n\nMosaic\n\n\n\nTPU\n\nTPU\n\n\n\nmosaic-&gt;TPU\n\n\n\n\n\ntransform\n\nVectorization\nParallelization\n   Differentiation  \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;triton\n\n\n\n\nhlo-&gt;mosaic",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pushing optimizations further"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_parallel.html",
+    "href": "ai/jx/jx_parallel.html",
+    "title": "Parallel computing",
     "section": "",
-    "text": "tracer\n\nTracing\n\n\n\njaxpr\n\nJaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\n Just-in-time \n(JIT)\ncompilation\n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\ntriton\n\nTriton\n\n\n\nGPU\n\nGPU\n\n\n\ntriton-&gt;GPU\n\n\n\n\n\nmosaic\n\nMosaic\n\n\n\nTPU\n\nTPU\n\n\n\nmosaic-&gt;TPU\n\n\n\n\n\ntransform\n\nVectorization\nParallelization\n   Differentiation  \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;triton\n\n\n\n\nhlo-&gt;mosaic"
-  },
-  {
-    "objectID": "ai/jx/jx_pytree.html",
-    "href": "ai/jx/jx_pytree.html",
-    "title": "Pytrees",
-    "section": "",
-    "text": "It is convenient to store data, model parameters, gradients, etc. in container structures such as lists or dicts. JAX has a container-like structure, the pytree that is flexible, can be nested, and is supported by many JAX functions, making for convenient workflows.\nThis section introduces pytrees and their functioning.",
+    "text": "JAX is designed for DNN and linear algebra at scale. Processing vast amounts of data in parallel is crucial to its goal. Two of JAX’s transformations allow to turn linear code into parallel code very easily.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Pytrees"
+      "Parallel computing"
     ]
   },
   {
-    "objectID": "ai/jx/jx_pytree.html#a-tree-like-structure",
-    "href": "ai/jx/jx_pytree.html#a-tree-like-structure",
-    "title": "Pytrees",
-    "section": "A tree-like structure",
-    "text": "A tree-like structure\nThe pytree container registry contains, by default, lists, tuples, and dicts. It can be extended to other containers.\nObjects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).\nPytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.\n\nExamples of pytrees:\n\n(1, 2, 3),\n[1, 1., \"string\", True],\njnp.arange(2),\n{'key1': 3.4, 'key2': 6.},\n[3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n(3, 2, (6, 0), 2, ()),\njnp.zeros(3)\n\n\n\n\n\n\nCluster setup\n\n\n\n\n\nLet’s setup our cluster again for today.\nStart an interactive job:\nsalloc --time=2:0:0 --mem-per-cpu=5500M\nLoad the ipython module:\nmodule load ipython-kernel/3.11\nActivate the virtual python environment:\nsource /project/60055/env/bin/activate\nLaunch IPython:\nipython",
+    "objectID": "ai/jx/jx_parallel.html#vectorization",
+    "href": "ai/jx/jx_parallel.html#vectorization",
+    "title": "Parallel computing",
+    "section": "Vectorization",
+    "text": "Vectorization\nRemember how a number of transformations are applied to jaxprs. We already saw two of JAX’s main transformations: JIT compilation with jax.jit and automatic differentiation with jax.grad. Vectorization with jax.vmap is another one.\nIt automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).\nHere is an example from JAX 101 commonly encountered in deep learning:\nimport jax\nimport jax.numpy as jnp\n\nx = jnp.arange(5)\nw = jnp.array([2., 3., 4.])\n\ndef convolve(x, w):\n    output = []\n    for i in range(1, len(x)-1):\n        output.append(jnp.dot(x[i-1:i+2], w))\n    return jnp.array(output)\n\nconvolve(x, w)\nArray([11., 20., 29.], dtype=float32)\n\nSee this great post for explanations of convolutions.\n\nYou will probably want to apply the function convolve() to a batch of weights w and vectors x.\nxs = jnp.stack([x, x, x])\nws = jnp.stack([w, w, w])\nWe apply the jax.vmap() transformation to the convolve() function and pass the batches to it:\nvconvolve = jax.vmap(convolve)\nvconvolve(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)\n\nAs we already saw, transformations can be composed:\nvconvolve_jit = jax.jit(vconvolve)\nvconvolve_jit(xs, ws)\nArray([[11., 20., 29.],\n       [11., 20., 29.],\n       [11., 20., 29.]], dtype=float32)",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Pytrees"
+      "Parallel computing"
     ]
   },
   {
-    "objectID": "ai/jx/jx_pytree.html#extracting-leaves",
-    "href": "ai/jx/jx_pytree.html#extracting-leaves",
-    "title": "Pytrees",
-    "section": "Extracting leaves",
-    "text": "Extracting leaves\nTrees can be flattened and their leaves extracted into a list with jax.tree.leaves:\njax.tree.leaves([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n[3.0, 1, 2, 'val1', 'val2', 'val3']\nLet’s create a list of pytrees and extract their leaves to look at more examples:\nimport jax\nimport jax.numpy as jnp\n\ntrees = [\n    (1, 2, 3),\n    [1, 1., \"string\", True],\n    jnp.arange(2),\n    {'key1': 3.4, 'key2': 6.},\n    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],\n    (3, 2, (6, 0), 2, ()),\n    jnp.zeros(3)\n    ]\n\nfor pytree in trees:\n  leaves = jax.tree.leaves(pytree)\n  print(f\"{len(leaves)} leaves: {leaves}\")\n3 leaves: [1, 2, 3]\n4 leaves: [1, 1.0, 'string', True]\n1 leaves: [Array([0, 1], dtype=int32)]\n2 leaves: [3.4, 6.0]\n6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']\n5 leaves: [3, 2, 6, 0, 2]\n1 leaves: [Array([0., 0., 0.], dtype=float32)]",
+    "objectID": "ai/jx/jx_parallel.html#parallel-runs-across-devices",
+    "href": "ai/jx/jx_parallel.html#parallel-runs-across-devices",
+    "title": "Parallel computing",
+    "section": "Parallel runs across devices",
+    "text": "Parallel runs across devices\nThe jax.pmap transformation does the same thing but each computation runs on a different device (e.g. a different GPU) on the same node, allowing to scale things up further:\njax.pmap(convolve)(xs, ws)\njax.pmap automatically JIT compiles the code, so it is unnecessary to pass this to jax.jit.\n\nJAX is also capable of running distributed arrays across multiple devices through sharding.\nJAX does not have the ability to scale things up to the level of multi-node clusters, but the mpi4jax extension provides multi-host communication for distributed parallelism.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Pytrees"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_pytree.html#structure-of-pytrees",
-    "href": "ai/jx/jx_pytree.html#structure-of-pytrees",
-    "title": "Pytrees",
-    "section": "Structure of pytrees",
-    "text": "Structure of pytrees\nAs we just saw, JAX can extract the leaves of pytrees. This is useful to run functions on them. But JAX also records their structure and is able to recreate them. The structure can be obtained with jax.tree.structure:\njax.tree.structure([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\nPyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}])\nSo each pytree can be turned into a tuple of the list of its leaves and its structure and that tuple can be turned back into the pytree.\njax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n([3.0, 1, 2, 'val1', 'val2', 'val3'],\n PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}]))\nvalues, structure = jax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\njax.tree.unflatten(structure, values)\n[3.0, (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]\nThe path to each leaf can be obtained with jax.tree_util.tree_flatten_with_path:\njax.tree_util.tree_flatten_with_path([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])\n([((SequenceKey(idx=0),), 3.0),\n  ((SequenceKey(idx=1), SequenceKey(idx=0)), 1),\n  ((SequenceKey(idx=1), SequenceKey(idx=1)), 2),\n  ((SequenceKey(idx=2), DictKey(key='key1')), 'val1'),\n  ((SequenceKey(idx=2), DictKey(key='key2')), 'val2'),\n  ((SequenceKey(idx=2), DictKey(key='key3')), 'val3')],\n PyTreeDef([*, (*, *), {'key1': *, 'key2': *, 'key3': *}]))",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Pytrees"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_pytree.html#pytree-operations",
-    "href": "ai/jx/jx_pytree.html#pytree-operations",
-    "title": "Pytrees",
-    "section": "Pytree operations",
-    "text": "Pytree operations\nJAX contain functions to run operations on pytrees.\nLet’s create a few pytrees to play with:\ntree1 = {'key1': 1., 'key2': 2., 'key3': 3.}\ntree2 = {'key1': 4., 'key2': 5., 'key3': 6.}\ntree3 = {'key1': 7., 'key2': 8., 'key3': 9.}\njax.tree.map allows to apply functions to each leaf of a tree:\njax.tree.map(lambda x: 3 * x, tree1)\n{'key1': 3.0, 'key2': 6.0, 'key3': 9.0}\nAs long as pytrees share the same structure (including the same dicts keys), operations combining multiple pytrees also work:\njax.tree.map(lambda x, y, z: x * y + z, tree1, tree2, tree3)\n{'key1': 11.0, 'key2': 18.0, 'key3': 27.0}\nHere are a few more examples:\ntree4 = [[1, 1, 1], (2, 2, 2, 2), 3]\ntree5 = [[0, 5, 1], (2, 2, 2, 2), 3]\ntree6 = [[0, 5, 1, 2], (2, 2, 2), 3]\njax.tree.map(lambda x, y: x + y, tree4, tree5)\n[[1, 6, 2], (4, 4, 4, 4), 6]\nThis won’t work though as the structures are different:\njax.tree.map(lambda x, y: x + y, tree5, tree6)\nValueError: Tuple arity mismatch: 3 != 4; tuple: (2, 2, 2).",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Pytrees"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_pytree.html#pytree-transposition",
-    "href": "ai/jx/jx_pytree.html#pytree-transposition",
-    "title": "Pytrees",
-    "section": "Pytree transposition",
-    "text": "Pytree transposition\nA list of pytrees can be transposed into a pytree of lists.\nLet’s create a list with a few of our previous pytrees:\ntrees = [tree1, tree2, tree3]\nprint(trees)\n[{'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}, {'key1': 1.0, 'key2': 2.0, 'key3': 3.0}]\nHere is how to transpose this list of pytrees:\njax.tree.map(lambda *x: list(x), *trees)\n{'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Pytrees"
+      "Parallel computing"
     ]
   },
   {
@@ -12864,27 +12900,123 @@
     ]
   },
   {
-    "objectID": "ai/jx/jx_pytree.html#pytorch-in-nn",
-    "href": "ai/jx/jx_pytree.html#pytorch-in-nn",
-    "title": "Pytrees",
-    "section": "PyTorch in NN",
-    "text": "PyTorch in NN\nimport jax\nimport jax.numpy as jnp\nfrom jax import random\n\ndef init_params(layer_width):\n\n  params = []\n  key = random.PRNGKey(11)\n  key, subkey = random.split(key)\n  for n_in, n_out in zip(layer_width[:-1], layer_width[1:]):\n    params.append(\n        dict(weights=random.normal(subkey, (n_in, n_out)) * jnp.sqrt(2/n_in),\n             biases=jnp.ones(n_out)\n            )\n    )\n  return params\n\nparams = init_params([1, 128, 128, 1])\njax.tree.map(lambda x: x.shape, params)\n[{'biases': (128,), 'weights': (1, 128)},\n {'biases': (128,), 'weights': (128, 128)},\n {'biases': (1,), 'weights': (128, 1)}]\ndef forward(params, x):\n  *hidden, last = params\n  for layer in hidden:\n    x = jax.nn.relu(x @ layer['weights'] + layer['biases'])\n  return x @ last['weights'] + last['biases']\n\ndef loss_fn(params, x, y):\n  return jnp.mean((forward(params, x) - y) ** 2)\n\nlr = 0.0001\n\n@jax.jit\ndef update(params, x, y):\n  grads = jax.grad(loss_fn)(params, x, y)\n  return jax.tree.map(\n      lambda p, g: p - lr * g, params, grads\n  )\nkey = random.PRNGKey(3)\nkey, subkey = random.split(key)\n\nx = random.normal(subkey, (128, 1))\ny = x ** 2\n\nfor _ in range(1000):\n  params = update(params, x, y)",
+    "objectID": "ai/jx/jx_resources.html",
+    "href": "ai/jx/jx_resources.html",
+    "title": "Resources",
+    "section": "",
+    "text": "Here is a list of resources to get started with JAX.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Pytrees"
+      "Resources"
     ]
   },
   {
-    "objectID": "ai/jx/jx_pytree.html#pytrees-in-nn",
-    "href": "ai/jx/jx_pytree.html#pytrees-in-nn",
-    "title": "Pytrees",
-    "section": "Pytrees in NN",
-    "text": "Pytrees in NN\nPytrees are very useful when using JAX for deep learning. Our course on DL with Flax will show this, but below is a basic example modified from the JAX documentation.\nimport jax\nimport jax.numpy as jnp\nfrom jax import random\nThe parameters of a multi-layer perceptron can be initialized with:\ndef init_params(layer_width):\n  params = []\n  key = random.PRNGKey(11)\n  key, subkey = random.split(key)\n  for n_in, n_out in zip(layer_width[:-1], layer_width[1:]):\n    params.append(\n        dict(weights=random.normal(subkey, (n_in, n_out)) * jnp.sqrt(2/n_in),\n             biases=jnp.ones(n_out)\n            )\n    )\n  return params\n\nparams = init_params([1, 128, 128, 1])\nparams is a pytree:\njax.tree.map(lambda x: x.shape, params)\n[{'biases': (128,), 'weights': (1, 128)},\n {'biases': (128,), 'weights': (128, 128)},\n {'biases': (1,), 'weights': (128, 1)}]\nTo train our MLP, we need to define a function for the forward pass:\n@jax.jit\ndef forward(params, x):\n  *hidden, last = params\n  for layer in hidden:\n    x = jax.nn.relu(x @ layer['weights'] + layer['biases'])\n  return x @ last['weights'] + last['biases']\nAnd a loss function:\n@jax.jit\ndef loss_fn(params, x, y):\n  return jnp.mean((forward(params, x) - y) ** 2)\nThen we choose a learning rate and define a function for the backpropagation:\nlr = 0.0001\n\n@jax.jit\ndef update(params, x, y):\n  grads = jax.grad(loss_fn)(params, x, y)\n  return jax.tree.map(\n      lambda p, g: p - lr * g, params, grads\n  )\n\nBecause jax.grad can accept pytrees, we can create a new pytree grads by passing the params pytree to it.\nThe gradient descent can be applied using both pytrees thanks to jax.tree.map.\n\nThen of course we could train our model:\nkey = random.PRNGKey(3)\nkey, subkey = random.split(key)\n\nx = random.normal(subkey, (128, 1))\ny = x ** 2\n\nfor _ in range(1000):\n  params = update(params, x, y)\n  print(params)",
+    "objectID": "ai/jx/jx_resources.html#official-documentation",
+    "href": "ai/jx/jx_resources.html#official-documentation",
+    "title": "Resources",
+    "section": "Official documentation",
+    "text": "Official documentation\n\nJAX GitHub repo\nOfficial documentation\nJAX API",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Pytrees"
+      "Resources"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_resources.html#alliance-wiki",
+    "href": "ai/jx/jx_resources.html#alliance-wiki",
+    "title": "Resources",
+    "section": "Alliance wiki",
+    "text": "Alliance wiki\nThere is currently no page on JAX, but there is a page on Flax.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Resources"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_resources.html#other-resources",
+    "href": "ai/jx/jx_resources.html#other-resources",
+    "title": "Resources",
+    "section": "Other resources",
+    "text": "Other resources\nAwesome JAX is a great list of resources on JAX.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Resources"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_resources.html#qa",
+    "href": "ai/jx/jx_resources.html#qa",
+    "title": "Resources",
+    "section": "Q&A",
+    "text": "Q&A\n\nJAX GitHub Discussions\nStack Overflow [jax] tag",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Resources"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_libraries.html#probabilistic-state-space-models",
+    "href": "ai/jx/jx_libraries.html#probabilistic-state-space-models",
+    "title": "Libraries on top of JAX",
+    "section": "Probabilistic state space models",
+    "text": "Probabilistic state space models\nDynamax provides state and parameter estimation for, among others:\n\nhidden markov models,\nlinear gaussian state space models,\nnonlinear gaussian state space models,\ngeneralized gaussian state space models.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Libraries on top of JAX"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_libraries.html#neural-networks",
+    "href": "ai/jx/jx_libraries.html#neural-networks",
+    "title": "Libraries on top of JAX",
+    "section": "Neural networks",
+    "text": "Neural networks\nFlax is an NN library initially developed by Google Brain and now by Google DeepMind. It is the deep learning library officially recommended by the JAX developers.\nHaiku was the initial library developed by Google DeepMind. While it is still maintained, development has been stopped in favour of Flax.\nEquinox is another DL library, relying on models as pytrees. While its syntax is a lot more user-friendly and familiar to PyTorch users, it has limitations.\n\nIt is worth noting that PyTorch is attempting to incorporate JAX’s ideas with a new library under development, functorch.\n\nOptax is a gradient manipulation and optimization library developed by Google DeepMind.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Libraries on top of JAX"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_libraries.html",
+    "href": "ai/jx/jx_libraries.html",
+    "title": "Libraries on top of JAX",
+    "section": "",
+    "text": "JAX is an efficient and flexible framework for function transformations (including automatic differentiation) built to run on accelerators. Its goal is not to develop specialized applications, but to focus on the chore of the language.\nWhile it is possible to use JAX directly in application (e.g. to build a NN from scratch), it makes sense to use specialized libraries that are built on top of JAX, that make use of its characteristics, and provide functions for specialized applications.\nHere are a few important such libraries.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Libraries on top of JAX"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_optimizations.html",
+    "href": "ai/jx/jx_optimizations.html",
+    "title": "Pushing optimizations further",
+    "section": "",
+    "text": "JAX feels lower level than other libraries (more constraints, more performance). This can be pushed further for additional speedups (but with additional code complexity).",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pushing optimizations further"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_optimizations.html#the-lax-api",
+    "href": "ai/jx/jx_optimizations.html#the-lax-api",
+    "title": "Pushing optimizations further",
+    "section": "The lax API",
+    "text": "The lax API\njax.numpy is a high-level NumPy-like API wrapped around jax.lax. jax.lax is a more efficient lower-level API itself wrapped around XLA. It is more powerful, but even stricter and requires many more lines of code.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Pushing optimizations further"
     ]
   }
 ]
