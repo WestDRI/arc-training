@@ -1,0 +1,60 @@
+---
+title: Pushing optimizations further
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+JAX feels lower level than other libraries (more constraints, more performance). This can be pushed further for additional speedups (but with additional code complexity).
+
+:::
+
+## The [lax](https://jax.readthedocs.io/en/latest/jax.lax.html) API
+
+`jax.numpy` is a high-level NumPy-like API wrapped around `jax.lax`. `jax.lax` is a more efficient lower-level API itself wrapped around XLA. It is more powerful, but even stricter and requires many more lines of code.
+
+## [Pallas](https://jax.readthedocs.io/en/latest/pallas/index.html): extension to write GPU and TPU kernels
+
+With the success of [Triton](https://openai.com/research/triton), JAX built [the Pallas extension](https://jax.readthedocs.io/en/latest/pallas/index.html) that allows JAX users to write GPU kernels.
+
+It also allows to write kernels for the TPU with [moisaic](https://dl.acm.org/doi/10.1145/3591236).
+
+```{dot}
+//| echo: false
+//| fig-height: 800px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+edge [color=gray55]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+triton [label="Triton", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+mosaic [label="Mosaic", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label="Vectorization\nParallelization\n   Differentiation  ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> triton [dir=none]
+hlo -> mosaic [dir=none]
+
+triton -> GPU [shape=doubleoctagon]
+mosaic -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
