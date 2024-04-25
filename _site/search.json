@@ -7428,39 +7428,51 @@
     ]
   },
   {
-    "objectID": "ai/jx/jx_benchmark.html",
-    "href": "ai/jx/jx_benchmark.html",
-    "title": "Benchmarking JAX code",
+    "objectID": "ai/jx/jx_ad.html",
+    "href": "ai/jx/jx_ad.html",
+    "title": "Automatic differentiation",
     "section": "",
-    "text": "You have to be careful when benchmarking JAX code to actually measure the computation time and not the dispatch time.",
+    "text": "One of the transformations that can be applied to array computations is the calculation of gradients which is crucial to the backpropagation through deep neural networks.\nConsidering the function f:\nWe can create a new function dfdx that computes the gradient of f w.r.t. x:\ndfdx returns the derivatives:",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Benchmarking JAX code"
+      "Automatic differentiation"
     ]
   },
   {
-    "objectID": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
-    "href": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
-    "title": "Benchmarking JAX code",
-    "section": "Asynchronous dispatch",
-    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nkey = random.PRNGKey(11)\nkey, subkey1, subkey2 = random.split(key, 3)\n\nx = random.normal(subkey1, (1000, 1000))\ny = random.normal(subkey2, (1000, 1000))\n\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, JAX forces Python to wait for the result of the computation.",
+    "objectID": "ai/jx/jx_ad.html#composing-transformations",
+    "href": "ai/jx/jx_ad.html#composing-transformations",
+    "title": "Automatic differentiation",
+    "section": "Composing transformations",
+    "text": "Composing transformations\nTransformations can be composed:\nprint(jit(grad(f))(1.))\n4.0\nprint(grad(jit(f))(1.))\n4.0",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Benchmarking JAX code"
+      "Automatic differentiation"
     ]
   },
   {
-    "objectID": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
-    "href": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
-    "title": "Benchmarking JAX code",
-    "section": "Consequence for benchmarking",
-    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\n\n%timeit is an IPython built-in magic command. In Python, you would have to use the timeit module.\n\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready.\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready in your benchmarks.",
+    "objectID": "ai/jx/jx_ad.html#forward-and-reverse-modes",
+    "href": "ai/jx/jx_ad.html#forward-and-reverse-modes",
+    "title": "Automatic differentiation",
+    "section": "Forward and reverse modes",
+    "text": "Forward and reverse modes\nJAX offers other autodiff methods:\n\nreverse-mode vector-Jacobian products: jax.vjp,\nforward-mode Jacobian-vector products: jax.jvp.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Benchmarking JAX code"
+      "Automatic differentiation"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_ad.html#higher-order-differentiation",
+    "href": "ai/jx/jx_ad.html#higher-order-differentiation",
+    "title": "Automatic differentiation",
+    "section": "Higher-order differentiation",
+    "text": "Higher-order differentiation\nWith a single variable, the grad function calls can be nested:\nd2fdx = grad(dfdx)   # function to compute 2nd order derivatives\nd3fdx = grad(d2fdx)  # function to compute 3rd order derivatives\n...\nWith several variables, you have to use the functions:\n\njax.jacfwd for forward-mode,\njax.jacrev for reverse-mode.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Automatic differentiation"
     ]
   },
   {
@@ -7618,51 +7630,87 @@
     "text": "In Flax, the base class for neural networks is the flax.linen.Module. Linen is a new API replacing the initial flax.nn API and taking full advantage of JAX transformations while automating the initialization and handling of the parameters.\nLinen is imported this way:\nfrom flax import linen as nn\nTo define a model, you create a subclass. The syntax closely resembles that of PyTorch torch.nn:\nclass Net(nn.Module):\n    ...\nBut unlike in PyTorch, the parameters are passed through the model in the form of Pytrees (nested containers such as dictionaries, lists, and tuples)."
   },
   {
-    "objectID": "ai/jx/jx_ad.html",
-    "href": "ai/jx/jx_ad.html",
-    "title": "Automatic differentiation",
+    "objectID": "ai/jx/jx_accelerator.html",
+    "href": "ai/jx/jx_accelerator.html",
+    "title": "Accelerators",
     "section": "",
-    "text": "One of the transformations that can be applied to array computations is the calculation of gradients which is crucial to the backpropagation through deep neural networks.\nConsidering the function f:\nWe can create a new function dfdx that computes the gradient of f w.r.t. x:\ndfdx returns the derivatives:",
+    "text": "One of the efficiencies of JAX is its use of accelerators. In this section, we can see how easily this is done.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Automatic differentiation"
+      "Accelerators"
     ]
   },
   {
-    "objectID": "ai/jx/jx_ad.html#composing-transformations",
-    "href": "ai/jx/jx_ad.html#composing-transformations",
-    "title": "Automatic differentiation",
-    "section": "Composing transformations",
-    "text": "Composing transformations\nTransformations can be composed:\nprint(jit(grad(f))(1.))\n4.0\nprint(grad(jit(f))(1.))\n4.0",
+    "objectID": "ai/jx/jx_accelerator.html#auto-detection",
+    "href": "ai/jx/jx_accelerator.html#auto-detection",
+    "title": "Accelerators",
+    "section": "Auto-detection",
+    "text": "Auto-detection\nOne of the convenience of the XLA used by JAX (and TensorFlow) is that the same code runs on any device without modification.\n\nThis is in contrast with PyTorch where tensors are created on the CPU by default and can be moved to the GPU using the .to method.\nOr tensors need to be created explicitly on a device (e.g. for GPU, x = torch.ones(2, 4, device='cuda')).\nAlternatively, the code can be made more robust with the creation of a device handle which will allow it to run without modification on CPU or GPU:\nimport torch\n\nif torch.cuda.is_available():\n    my_device = torch.device('cuda')\nelse:\n    my_device = torch.device('cpu')\n\nx = torch.ones(2, 4, device=my_device)\nAnd there are methods to run PyTorch on TPU with the torch_xla package, with tricks of scalability.",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Automatic differentiation"
+      "Accelerators"
     ]
   },
   {
-    "objectID": "ai/jx/jx_ad.html#forward-and-reverse-modes",
-    "href": "ai/jx/jx_ad.html#forward-and-reverse-modes",
-    "title": "Automatic differentiation",
-    "section": "Forward and reverse modes",
-    "text": "Forward and reverse modes\nJAX offers other autodiff methods:\n\nreverse-mode vector-Jacobian products: jax.vjp,\nforward-mode Jacobian-vector products: jax.jvp.",
+    "objectID": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
+    "href": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
+    "title": "Accelerators",
+    "section": "Interactive job with a GPU",
+    "text": "Interactive job with a GPU\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nFor today, first, we need to relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\nexit\nNow, we can start an interactive job with a GPU:\nsalloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nReload the ipython module:\nmodule load ipython-kernel/3.11\nRe-activate the virtual python environment:\nsource /project/60055/env/bin/activate\nRelaunch IPython:\nipython",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Automatic differentiation"
+      "Accelerators"
     ]
   },
   {
-    "objectID": "ai/jx/jx_ad.html#higher-order-differentiation",
-    "href": "ai/jx/jx_ad.html#higher-order-differentiation",
-    "title": "Automatic differentiation",
-    "section": "Higher-order differentiation",
-    "text": "Higher-order differentiation\nWith a single variable, the grad function calls can be nested:\nd2fdx = grad(dfdx)   # function to compute 2nd order derivatives\nd3fdx = grad(d2fdx)  # function to compute 3rd order derivatives\n...\nWith several variables, you have to use the functions:\n\njax.jacfwd for forward-mode,\njax.jacrev for reverse-mode.",
+    "objectID": "ai/jx/jx_accelerator.html#effect-on-timing",
+    "href": "ai/jx/jx_accelerator.html#effect-on-timing",
+    "title": "Accelerators",
+    "section": "Effect on timing",
+    "text": "Effect on timing\nHere is an example of the difference that a GPU makes compared to CPUs for a simple computation.\nThe following times are on my laptop which has one dedicated GPU.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n58.6 ms ± 2.67 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function:\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n31.1 ms ± 1.82 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nRemember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_to_gpu = device_put(x_np)\n%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()\n13.2 ms ± 27.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\nThis is much faster and similar to the full JAX code would be:\nx_jx = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()\n13.3 ms ± 33.3 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
     "crumbs": [
       "AI",
       "<b><em>JAX</em></b>",
-      "Automatic differentiation"
+      "Accelerators"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_benchmark.html",
+    "href": "ai/jx/jx_benchmark.html",
+    "title": "Benchmarking JAX code",
+    "section": "",
+    "text": "You have to be careful when benchmarking JAX code to actually measure the computation time and not the dispatch time.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Benchmarking JAX code"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
+    "href": "ai/jx/jx_benchmark.html#asynchronous-dispatch",
+    "title": "Benchmarking JAX code",
+    "section": "Asynchronous dispatch",
+    "text": "Asynchronous dispatch\nOne of the efficiencies of JAX is its use of asynchronous execution.\nLet’s consider the code:\nimport jax.numpy as jnp\nfrom jax import random\n\nkey = random.PRNGKey(11)\nkey, subkey1, subkey2 = random.split(key, 3)\n\nx = random.normal(subkey1, (1000, 1000))\ny = random.normal(subkey2, (1000, 1000))\n\nz = jnp.dot(x, y)\nInstead of having to wait for the computation to complete before control returns to Python, this computation is dispatched to an accelerator and a future is created. This future is a jax.Array and can be passed to further computations immediately.\nOf course, if you print the result or convert it to a NumPy ndarray, JAX forces Python to wait for the result of the computation.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Benchmarking JAX code"
+    ]
+  },
+  {
+    "objectID": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
+    "href": "ai/jx/jx_benchmark.html#consequence-for-benchmarking",
+    "title": "Benchmarking JAX code",
+    "section": "Consequence for benchmarking",
+    "text": "Consequence for benchmarking\nTiming jnp.dot(x, y) would not give us the time it takes for the computation to take place, but the time it takes to dispatch the computation.\nOn my laptop which has one dedicated GPU I get:\n%timeit jnp.dot(x, y)\n496 µs ± 948 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\n\n%timeit is an IPython built-in magic command. In Python, you would have to use the timeit module.\n\nTo get a proper timing, we need to make sure that the future is resolved using the block_until_ready method:\nOn the same machine:\n%timeit jnp.dot(x, y).block_until_ready()\n598 µs ± 10.4 µs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe difference here is not huge because the GPU executes the matrix multiplication rapidly. Nevertheless, this is the true timing. If you benchmark your JAX code, make sure to do it this way.\n\nIf you are running small computations such as this one without accelerator, the computation will be dispatched on the thread running the Python process because the overhead of the asynchronous execution would be larger than the speedup you would gain from it. This means that, if you are running the above code on CPUs, you should get the same time with and without block_until_ready.\nNevertheless, because it is difficult to predict when the dispatch will be asynchronous, you should always use block_until_ready in your benchmarks.",
+    "crumbs": [
+      "AI",
+      "<b><em>JAX</em></b>",
+      "Benchmarking JAX code"
     ]
   },
   {
@@ -12813,109 +12861,6 @@
       "Tools",
       "<b><em>Webinars</em></b>",
       "More command line tools"
-    ]
-  },
-  {
-    "objectID": "ai/jx_examples.html#accelerators",
-    "href": "ai/jx_examples.html#accelerators",
-    "title": "Examples",
-    "section": "Accelerators",
-    "text": "Accelerators\nimport numpy as np\n\nsize = 3000\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n\n%timeit np.dot(x_np, x_np.T)\nimport jax.numpy as jnp\n\nx_jnp = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jnp, x_jnp.T).block_until_ready()\n\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n\nx_np_device = device_put(x_np)\n%timeit jnp.dot(x_np_device, x_np_device.T).block_until_ready()"
-  },
-  {
-    "objectID": "ai/jx/jx_examples.html#accelerators",
-    "href": "ai/jx/jx_examples.html#accelerators",
-    "title": "Examples",
-    "section": "Accelerators",
-    "text": "Accelerators\nOne of the strengths of JAX is that the same code can be run on any device.\n\nThis is in contrast with, for instance, PyTorch where tensors are created by default on the CPU and can be moved to the GPU using the .to method.",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Examples"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_examples.html#auto-detection",
-    "href": "ai/jx/jx_examples.html#auto-detection",
-    "title": "Accelerators",
-    "section": "Auto-detection",
-    "text": "Auto-detection\nOne of the strengths of JAX is that the same code can be run on any device without any modification.\n\nThis is in contrast with, for instance, PyTorch where tensors are created by default on the CPU and can be moved to the GPU using the .to method.",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Examples"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_examples.html#effect-on-timing",
-    "href": "ai/jx/jx_examples.html#effect-on-timing",
-    "title": "Accelerators",
-    "section": "Effect on timing",
-    "text": "Effect on timing\nThe following times are on my laptop which has one dedicated GPU.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n84.1 ms ± 3.12 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nNote that re-running the code makes no difference whatsoever:\n%timeit np.dot(x_np, x_np.T)\n83.4 ms ± 4.55 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function (remember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future):\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n33.4 ms ± 2.01 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nA bit faster.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_np_device = device_put(x_np)\n%timeit jnp.dot(x_np_device, x_np_device.T).block_until_ready()\n14.2 ms ± 55.5 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\n\nThis is much faster.\n\nThe full JAX code would be:\nx_jnp = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jnp, x_jnp.T).block_until_ready()\n14.2 ms ± 27.8 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Examples"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_accelerator.html#auto-detection",
-    "href": "ai/jx/jx_accelerator.html#auto-detection",
-    "title": "Accelerators",
-    "section": "Auto-detection",
-    "text": "Auto-detection\nOne of the convenience of the XLA used by JAX (and TensorFlow) is that the same code runs on any device without modification.\n\nThis is in contrast with PyTorch where tensors are created on the CPU by default and can be moved to the GPU using the .to method.\nOr tensors need to be created explicitly on a device (e.g. for GPU, x = torch.ones(2, 4, device='cuda')).\nAlternatively, the code can be made more robust with the creation of a device handle which will allow it to run without modification on CPU or GPU:\nimport torch\n\nif torch.cuda.is_available():\n    my_device = torch.device('cuda')\nelse:\n    my_device = torch.device('cpu')\n\nx = torch.ones(2, 4, device=my_device)\nAnd there are methods to run PyTorch on TPU with the torch_xla package, with tricks of scalability.",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Accelerators"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_accelerator.html#effect-on-timing",
-    "href": "ai/jx/jx_accelerator.html#effect-on-timing",
-    "title": "Accelerators",
-    "section": "Effect on timing",
-    "text": "Effect on timing\nHere is an example of the difference that a GPU makes compared to CPUs for a simple computation.\nThe following times are on my laptop which has one dedicated GPU.\nFirst, let’s set things up:\nimport jax. numpy as jnp\nfrom jax import random, device_put\nimport numpy as np\n\nseed = 0\nkey = random.PRNGKey(seed)\nkey, subkey = random.split(key)\n\nsize = 3000\nNow, let’s time a dot product of two arrays using NumPy (which only uses CPUs):\nx_np = np.random.normal(size=(size, size)).astype(np.float32)\n%timeit np.dot(x_np, x_np.T)\n58.6 ms ± 2.67 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWe can use the NumPy ndarrays in a JAX dot product function:\n%timeit jnp.dot(x_np, x_np.T).block_until_ready()\n31.1 ms ± 1.82 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\nRemember that whenever you benchmark JAX computations, you need to use the block_until_ready method, due to asynchronous dispatch, to ensure that you are timing the computation and not the creation of a future.\n\nIf you want to use NumPy ndarrays in JAX and you have accelerators available, a much better approach is to transfer them to the accelerators with the device_put method:\nx_to_gpu = device_put(x_np)\n%timeit jnp.dot(x_to_gpu, x_to_gpu.T).block_until_ready()\n13.2 ms ± 27.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)\nThis is much faster and similar to the full JAX code would be:\nx_jx = random.normal(key, (size, size), dtype=jnp.float32)\n\n%timeit jnp.dot(x_jx, x_jx.T).block_until_ready()\n13.3 ms ± 33.3 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Accelerators"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_accelerator.html#using-gpus-on-alliance-clusters",
-    "href": "ai/jx/jx_accelerator.html#using-gpus-on-alliance-clusters",
-    "title": "Accelerators",
-    "section": "Using GPUs on Alliance clusters",
-    "text": "Using GPUs on Alliance clusters\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nFor today, first, we need to relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\nexit\nNow, we can start an interactive job with a GPU:\nsalloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nWe need to re-activate the virtual python environment:\nsource /project/60055/env/bin/activate\nAnd we can relaunch IPython:\nipython",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Accelerators"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
-    "href": "ai/jx/jx_accelerator.html#interactive-job-with-a-gpu",
-    "title": "Accelerators",
-    "section": "Interactive job with a GPU",
-    "text": "Interactive job with a GPU\nThe Alliance wiki documents how to use GPUs on Alliance clusters.\nFor today, first, we need to relinquish our current interactive job. It is important not to run nested jobs by running salloc inside a running job.\nKill the current job by running (from Bash, not from ipython):\nexit\nNow, we can start an interactive job with a GPU:\nsalloc --time=1:0:0 --gpus-per-node=1 --mem=22000M\nReload the ipython module:\nmodule load ipython-kernel/3.11\nRe-activate the virtual python environment:\nsource /project/60055/env/bin/activate\nRelaunch IPython:\nipython",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Accelerators"
-    ]
-  },
-  {
-    "objectID": "ai/jx/jx_accelerator.html",
-    "href": "ai/jx/jx_accelerator.html",
-    "title": "Accelerators",
-    "section": "",
-    "text": "One of the efficiencies of JAX is its use of accelerators. In this section, we can see how easily this is done.",
-    "crumbs": [
-      "AI",
-      "<b><em>JAX</em></b>",
-      "Accelerators"
     ]
   }
 ]
