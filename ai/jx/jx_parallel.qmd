@@ -5,15 +5,13 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-JAX is designed for DNN and linear algebra at scale. Processing vast amounts of data in parallel is crucial to its goal. Moreover, accelerators (GPUs and TPUs) excel at running simple calculations in parallel.
-
-Two of JAX's transformations allow to turn linear code into parallel code very easily.
+JAX is designed for DNN and linear algebra at scale. Processing vast amounts of data in parallel is crucial to its goal. Two of JAX's transformations allow to turn linear code into parallel code very easily.
 
 :::
 
 ## Vectorization
 
-[Remember how a number of transformations are applied to Jaxprs](https://mint.westdri.ca/ai/jx_map#map). We already saw one of JAX's main transformations: JIT compilation with `jax.jit()`. Vectorization with `jax.vmap()` is another one.
+[Remember how a number of transformations are applied to jaxprs](https://mint.westdri.ca/ai/jx_map#map). We already saw one of JAX's main transformations: JIT compilation with `jax.jit()`. Vectorization with `jax.vmap()` is another one.
 
 It automates the vectorization of complex functions (operations on arrays are naturally executed in a vectorized fashion—as is the case in R, in NumPy, etc.—but more complex functions are not).
 
@@ -39,45 +37,57 @@ convolve(x, w)
 Array([11., 20., 29.], dtype=float32)
 ```
 
-How can you apply the function `convolve()` on a batch of weights `w` and vectors `x`.
+You will probably want to apply the function `convolve()` to a batch of weights `w` and vectors `x`.
 
 ```{.python}
-xs = jnp.stack([x, x])
-ws = jnp.stack([w, w])
+xs = jnp.stack([x, x, x])
+ws = jnp.stack([w, w, w])
 ```
 
-We apply the `jax.vmap()` transformation to the `convolve()` function to create a new function. A tracing process is involved here too. We can then pass the batches to the new function:
+We apply the `jax.vmap()` transformation to the `convolve()` function and pass the batches to it:
 
 ```{.python}
-auto_batch_convolve = jax.vmap(convolve)
-auto_batch_convolve(xs, ws)
+vconvolve = jax.vmap(convolve)
+vconvolve(xs, ws)
 ```
 
 ```
 Array([[11., 20., 29.],
+       [11., 20., 29.],
        [11., 20., 29.]], dtype=float32)
 ```
+
+:::{.note}
 
 Transformations can be composed:
 
 ```{.python}
-jitted_batch_convolve = jax.jit(auto_batch_convolve)
-jitted_batch_convolve(xs, ws)
+vconvolve_jit = jax.jit(vconvolve)
+vconvolve_jit(xs, ws)
 ```
 
 ```
 Array([[11., 20., 29.],
+       [11., 20., 29.],
        [11., 20., 29.]], dtype=float32)
 ```
 
+:::
+
 ## Parallel runs across devices
 
-The `jax.pmap()` transformation does the same thing but each computation runs on a different device (e.g. a different GPU) on the same node, allowing to scale things up further.
+The `jax.pmap()` transformation does the same thing but each computation runs on a different device (e.g. a different GPU) on the same node, allowing to scale things up further:
+
+```{.python}
+jax.pmap(convolve)(xs, ws)
+```
+
+`jax.pmap` automatically JIT compiles the code, so it is unnecessary to pass this to `jax.jit`.
 
 :::{.note}
 
-- JAX is also capable of running arrays across multiple devices through sharding.
+JAX is also capable of running distributed arrays across multiple devices through [sharding](https://jax.readthedocs.io/en/latest/notebooks/Distributed_arrays_and_automatic_parallelization.html).
 
-- JAX does not have the ability to scale things up to the level of multi-node clusters, but the [mpi4jax](https://github.com/mpi4jax/mpi4jax) extension provides multi-host communication for distributed parallelism.
+JAX does not have the ability to scale things up to the level of multi-node clusters, but the [mpi4jax](https://github.com/mpi4jax/mpi4jax) extension provides multi-host communication for distributed parallelism.
 
 :::
