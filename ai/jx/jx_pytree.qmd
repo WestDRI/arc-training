@@ -240,3 +240,97 @@ jax.tree.map(lambda *x: list(x), *trees)
 ```
 {'key1': [1.0, 1.0, 1.0], 'key2': [2.0, 2.0, 2.0], 'key3': [3.0, 3.0, 3.0]}
 ```
+
+## Pytrees in NN
+
+Pytrees are very useful when using JAX for deep learning. [Our course on DL with Flax](https://mint.westdri.ca/ai/top_fl) will show this, but below is a basic example modified from [the JAX documentation](https://jax.readthedocs.io/en/latest/jax-101/05.1-pytrees.html#example-ml-model-parameters).
+
+```{.python}
+import jax
+import jax.numpy as jnp
+from jax import random
+```
+
+The parameters of a multi-layer perceptron can be initialized with:
+
+```{.python}
+def init_params(layer_width):
+  params = []
+  key = random.PRNGKey(11)
+  key, subkey = random.split(key)
+  for n_in, n_out in zip(layer_width[:-1], layer_width[1:]):
+    params.append(
+        dict(weights=random.normal(subkey, (n_in, n_out)) * jnp.sqrt(2/n_in),
+             biases=jnp.ones(n_out)
+            )
+    )
+  return params
+
+params = init_params([1, 128, 128, 1])
+```
+
+`params` is a pytree:
+
+```{.python}
+jax.tree.map(lambda x: x.shape, params)
+```
+
+```
+[{'biases': (128,), 'weights': (1, 128)},
+ {'biases': (128,), 'weights': (128, 128)},
+ {'biases': (1,), 'weights': (128, 1)}]
+```
+
+To train our MLP, we need to define a function for the forward pass:
+
+```{.python}
+@jax.jit
+def forward(params, x):
+  *hidden, last = params
+  for layer in hidden:
+    x = jax.nn.relu(x @ layer['weights'] + layer['biases'])
+  return x @ last['weights'] + last['biases']
+```
+
+And a loss function:
+
+```{.python}
+@jax.jit
+def loss_fn(params, x, y):
+  return jnp.mean((forward(params, x) - y) ** 2)
+```
+
+Then we choose a learning rate and define a function for the backpropagation:
+
+```{.python}
+lr = 0.0001
+
+@jax.jit
+def update(params, x, y):
+  grads = jax.grad(loss_fn)(params, x, y)
+  return jax.tree.map(
+      lambda p, g: p - lr * g, params, grads
+  )
+```
+
+:::{.note}
+
+Because `jax.grad` can accept pytrees, we can create a new pytree `grads` by passing the `params` pytree to it.
+
+The gradient descent can be applied using both pytrees thanks to `jax.tree.map`.
+
+:::
+
+Then of course we could train our model:
+
+```{.python}
+key = random.PRNGKey(3)
+key, subkey = random.split(key)
+
+x = random.normal(subkey, (128, 1))
+y = x ** 2
+
+for _ in range(1000):
+  params = update(params, x, y)
+  print(params)
+```
