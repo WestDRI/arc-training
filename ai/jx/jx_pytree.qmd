@@ -15,7 +15,7 @@ This section introduces pytrees and their functioning.
 
 The pytree container registry contains, by default, *lists*, *tuples*, and *dicts*. It can be extended to other containers.
 
-Objects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive and every object in JAX can be considered a pytree).
+Objects in the pytree container registry are pytrees. Other objects are leaf pytrees (so pytrees are recursive).
 
 Pytrees are great for holding data and parameters, keeping everything organized, even for complex models. The leaves are usually made of arrays. Many JAX functions can be applied to pytrees.
 
@@ -46,6 +46,12 @@ Start an interactive job:
 ```{.bash}
 salloc --time=2:0:0 --mem-per-cpu=5500M
 ```
+
+:::{.note}
+
+Our cluster today has more memory per CPU.
+
+:::
 
 Load the ipython module:
 
@@ -85,17 +91,17 @@ Let's create a list of pytrees and extract their leaves to look at more examples
 import jax
 import jax.numpy as jnp
 
-trees = [
+list_trees = [
     (1, 2, 3),
     [1, 1., "string", True],
     jnp.arange(2),
     {'key1': 3.4, 'key2': 6.},
     [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}],
-    (3, 2, (6, 0), 2, ()),
+    (3, 2, (6, 0, 9), 2, ()),
     jnp.zeros(3)
     ]
 
-for pytree in trees:
+for pytree in list_trees:
   leaves = jax.tree.leaves(pytree)
   print(f"{len(leaves)} leaves: {leaves}")
 ```
@@ -106,9 +112,36 @@ for pytree in trees:
 1 leaves: [Array([0, 1], dtype=int32)]
 2 leaves: [3.4, 6.0]
 6 leaves: [3.0, 1, 2, 'val1', 'val2', 'val3']
-5 leaves: [3, 2, 6, 0, 2]
+5 leaves: [3, 2, 6, 0, 9, 2]
 1 leaves: [Array([0., 0., 0.], dtype=float32)]
 ```
+
+:::{.note}
+
+Be careful that leaves are not the same as container elements:
+
+- while an array contains many elements, it is a single leaf,
+- while a nested list or tuple represent a single element of the parent container, all the elements of nested tuples and lists are leaves,
+- an empty tuple or list is a pytree without children and is not counted as a leaf.
+
+Contrast this with the length (i.e. the number of elements of containers):
+
+```{.python}
+for pytree in list_trees:
+  print(f"{len(pytree)} elements")
+```
+
+```
+3 elements
+4 elements
+2 elements
+2 elements
+3 elements
+5 elements
+3 elements
+```
+
+:::
 
 ## Structure of pytrees
 
@@ -134,7 +167,9 @@ jax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])
 ```
 
 ```{.python}
-values, structure = jax.tree.flatten([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])
+values, structure = jax.tree.flatten(
+    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]
+)
 jax.tree.unflatten(structure, values)
 ```
 
@@ -145,7 +180,9 @@ jax.tree.unflatten(structure, values)
 The path to each leaf can be obtained with `jax.tree_util.tree_flatten_with_path`:
 
 ```{.python}
-jax.tree_util.tree_flatten_with_path([3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}])
+jax.tree_util.tree_flatten_with_path(
+    [3., (1, 2), {'key1': 'val1', 'key2': 'val2', 'key3': 'val3'}]
+)
 ```
 
 ```
@@ -160,9 +197,7 @@ jax.tree_util.tree_flatten_with_path([3., (1, 2), {'key1': 'val1', 'key2': 'val2
 
 ## Pytree operations
 
-JAX contain functions to run operations on pytrees.
-
-Let's create a few pytrees to play with:
+JAX can run operations on pytrees. Let's create a few pytrees to play with:
 
 ```{.python}
 tree1 = {'key1': 1., 'key2': 2., 'key3': 3.}
@@ -332,5 +367,4 @@ y = x ** 2
 
 for _ in range(1000):
   params = update(params, x, y)
-  print(params)
 ```
