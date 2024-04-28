@@ -1,93 +1,36 @@
 ---
-title: Stateless models in Flax
+title: Flax's handling of model states
 author: Marie-Hélène Burle
 ---
 
 :::{.def}
 
-Deep learning models can be split into two big categories depending on the deep learning frameworks used to train them: stateful and stateless models.
+Deep learning models can be split into two categories depending on the framework used to train them: stateful and stateless models. Flax—being built on top of JAX—falls in the latter category.
 
-What does this mean and where does Flax stand?
-
-:::
-
-## Stateful vs stateless models
-
-### Stateful models
-
-In frameworks such as [PyTorch](https://pytorch.org/) or the [Julia](https://julialang.org/) package [Flux](https://fluxml.ai/), model parameters and optimizer state are stored within the model instance. Instantiating a PyTorch model allocates memory for the model parameters. The model can then be described as *stateful*.
-
-During the forward pass, only the inputs are passed through the model. The outputs depend on the inputs **and** on the state of the model.
-
-During training, you will see code such as:
-
-```{.python}
-loss.backward()
-```
-
-to calculate the gradients or:
-
-```{.python}
-optimizer.step()
-```
-
-to optimize the parameters.
-
-:::{.note}
-
-For more information, you can have a look at [our PyTorch course](http://localhost:5637/ai/pt_mnist.html).
+In this section, we will see what all of this means and how Flax handles model states.
 
 :::
 
-<!-- ```{.python} -->
-<!-- import torch -->
-<!-- import torch.nn as nn -->
-
-<!-- # we create a subclass of torch.nn.Module -->
-<!-- class Net(nn.Module): -->
-
-<!--     # define the model architecture -->
-<!--     def __init__(self): -->
-<!--         super(Net, self).__init__() -->
-<!--         self.fc1 = nn.Linear(784, 128) -->
-<!--         self.fc2 = nn.Linear(128, 10) -->
-
-<!--     # set how the data flows through the architecture -->
-<!--     def forward(self, x): -->
-<!--         x = torch.flatten(x, 1) -->
-<!--         x = self.fc1(x) -->
-<!--         x = F.relu(x) -->
-<!--         x = self.fc2(x) -->
-<!--         output = F.log_softmax(x, dim=1) -->
-<!--         return output -->
-<!-- ``` -->
-
-<!-- The first function defines the model architecture. As you can see, objects are updated in place: their state is changing at each run. This is a form of side-effect. -->
-
-### Stateless models
+## Dealing with state in JAX
 
 JAX JIT compilation requires that functions be without side effects since side effects are only executed once, during tracing.
 
 Updating model parameters and optimizer state thus cannot be done as a side-effect. The state cannot be part of the model instance—it needs to be explicit, that is, separated from the model. During instantiation, no memory is allocated for the parameters. During the forward pass, the parameters will be part of the inputs, along with the data. The model is thus *stateless* and the constrains of pure functional programming are met (inputs lead to outputs without external influence or side effects).
 
-Here is a very basic example from the [JAX documentation](https://jax.readthedocs.io/en/latest/jax-101/07-state.html).
+Let's see why a stateful approach doesn't work with JAX[^1]: instead of defining a neural network class, we will define a very simple `Counter` class, following the PyTorch approach, that just adds 1. This allows us to see right away what is going on.
 
-- Stateful approach (and why it doesn't work with JAX)
-
-We will define a new class called `Counter` with three functions to initialize, use, and reset a counter:
+[^1]: Modified from [JAX's documentation](https://jax.readthedocs.io/en/latest/jax-101/07-state.html).
 
 ```{.python}
 import jax
 import jax.numpy as jnp
 
 class Counter:
-    """A simple counter."""
-    
     def __init__(self):
         self.n = 0
       
     def count(self) -> int:
-        """Increments the counter and returns the new value."""
+        """Adds one to the counter and returns the new value."""
         self.n += 1
         return self.n
   
@@ -115,70 +58,38 @@ for _ in range(3):
 3
 ```
 
-We can use it further:
+Now, let's try with a JIT compiled version of `count()`:
 
 ```{.python}
-for _ in range(3):
-    print(counter.count())
-```
+count_jit = jax.jit(counter.count)
 
-```
-4
-5
-6
-```
-
-Usually, within a neural network, you want to reset parameters at each run, so we can reset our counter:
-
-```{.python}
 counter.reset()
 
 for _ in range(3):
-    print(counter.count())
+    print(count_jit())
 ```
 
 ```
 1
-2
-3
+1
+1
 ```
 
-Now, what happens when we apply a transformation on the `count()` function? Let's reset our counter and create a JIT compiled version of `count()`:
+This is because `count` is not a functionally pure function. The tracing happens for the first run of the function (first iteration of the loop). Thereafter, the compiled version will rerun without taking into account the modifications of the attributes of `counter`.
+
+For this to work, we need to initialize an explicit state and pass it as an argument to the `count` function:
 
 ```{.python}
-counter.reset()
-fast_count = jax.jit(counter.count)
-```
+State = int
 
-And now let's use the JIT compiled version:
-
-```{.python}
-for _ in range(3):
-    print(fast_count())
-```
-
-```
-1
-1
-1
-```
-
-For this to work, we need to initialize an explicit state and pass it as an argument to our `count()` function:
-
-```{.python}
-CounterState = int
-
-class CounterV2:
-    
-    def count(self, n: CounterState) -> tuple[int, CounterState]:
-        # You could just return n+1, but here we separate its role as 
-        # the output and as the counter state for didactic purposes.
+class Counter:
+    def count(self, n: State) -> tuple[int, State]:
         return n+1, n+1
     
-    def reset(self) -> CounterState:
+    def reset(self) -> State:
         return 0
 
-counter = CounterV2()
+counter = Counter()
 state = counter.reset()
 
 for _ in range(3):
@@ -192,4 +103,197 @@ for _ in range(3):
 3
 ```
 
-Frameworks based on JAX such as [Flax](https://flax.readthedocs.io/en/latest/index.html) as well as the Julia package [Lux](https://lux.csail.mit.edu/) (a modern rewrite of Flux [with explicit model parameters and a philosophy similar to JAX's](https://lux.csail.mit.edu/dev/introduction/overview)) follow this functional programming approach.
+```{.python}
+count_jit = jax.jit(counter.count)
+
+state = counter.reset()
+
+for _ in range(3):
+    value, state = count_jit(state)
+    print(value)
+```
+
+```
+1
+2
+3
+```
+
+:::{.info}
+
+As explained in [JAX's documentation](https://jax.readthedocs.io/en/latest/jax-101/07-state.html#a-general-strategy), we turned a function of the type:
+
+```{.python}
+class StatefulClass
+  state: State
+  def stateful_method(*args, **kwargs) -> Output:
+```
+
+Into:
+
+```{.python}
+class StatelessClass
+  def stateless_method(state: State, *args, **kwargs) -> (Output, State):
+```
+
+:::
+
+## Stateful vs stateless models
+
+### Stateful models
+
+In frameworks such as [PyTorch](https://pytorch.org/) or the [Julia](https://julialang.org/) package [Flux](https://fluxml.ai/), model parameters and optimizer state are stored within the model instance. Instantiating a PyTorch model allocates memory for the model parameters. The model can then be described as *stateful*.
+
+### Stateless models
+
+Frameworks based on JAX such as [Flax](https://flax.readthedocs.io/en/latest/index.html) but also the Julia package [Lux](https://lux.csail.mit.edu/) (a modern rewrite of Flux [with explicit model parameters and a philosophy similar to JAX's](https://lux.csail.mit.edu/dev/introduction/overview)) are *stateless*: they follow a functional programming approach in which the parameters are separate from the model and are passed as inputs to the forward pass along with the data.
+
+### Example: PyTorch vs Flax
+
+Flax, being built on JAX, it requires functionally pure functions and thus stateless models.
+
+Here is a comparison of the approach taken by PyTorch (stateful) vs Flax (stateless) to define and initialize a model (simplified model and workflow to show the principle):
+
+:::{.panel-tabset}
+
+### PyTorch
+
+This is how PyTorch works:
+
+```{.python}
+import torch
+import torch.nn as nn
+
+# we create a subclass of torch.nn.Module
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.dense1 = nn.Linear(4, 144)
+        self.dense2 = nn.Linear(144, 4)
+
+    def forward(self, x):
+        x = self.dense1(x)
+        x = F.relu(x)
+        x = self.dense2(x)
+        return x
+
+# Create model instance
+model = Net()
+
+# Random data and labels
+data = torch.empty((4, 12, 12, 1))
+labels = torch.randn((4, 12, 12, 1))
+```
+
+During the forward pass, only the inputs are passed through the model, but of course the outputs depend on the inputs **and** on the state of the model.
+
+### Flax
+
+Here is the Flax approach:
+
+```{.python}
+import jax
+import jax.numpy as jnp
+from jax import random
+from flax import linen as nn
+import optax
+```
+
+:::{.panel-tabset}
+
+#### Setup syntax
+
+Flax provides a setup syntax of model definition which will look more familiar to PyTorch users:
+
+```{.python}
+# Create a subclass of torch.nn.Module
+class Net(nn.Module):
+  def setup(self):
+    self.dense1 = nn.Dense(12)
+    self.dense2 = nn.Dense(1)
+
+  def __call__(self, x):
+    x = self.dense1(x)
+    x = nn.relu(x)
+    x = self.dense2(x)
+    return x
+```
+
+#### Compact syntax
+
+Flax comes with a compact syntax of model definition which is equivalent to the setup syntax in all respect except style:
+
+```{.python}
+# Create a subclass of torch.nn.Module
+class Net(nn.Module):
+  @nn.compact
+  def __call__(self, x):
+    x = nn.Dense(12, name="dense1")(x)
+    x = nn.relu(x)
+    x = nn.Dense(12, name="dense2")(x)
+    return x
+```
+
+:::
+
+The parameters are not part of the model. You initialize them afterwards and create a parameter object:
+
+```{.python}
+# Create model instance
+model = Net()
+
+# Random data and labels
+key, subkey1, subkey2 = random.split(random.key(13), 3)
+data = jnp.empty((4, 12, 12, 1))
+labels = random.normal(subkey1, (4, 12, 12, 1))
+
+# Initialize model parameters
+params = model.init(subkey2, data)
+```
+
+:::
+
+Similarly, here are the stateful and stateless approaches to train the model:
+
+:::{.panel-tabset}
+
+### PyTorch
+
+```{.python}
+# Forward pass
+logits = model(data)
+
+loss = nn.CrossEntropyLoss(logits, labels)
+
+# Calculate gradients
+loss.backward()
+
+# Optimze parameters
+optimizer.step()
+```
+
+### Flax
+
+```{.python}
+# Forward pass
+def loss_func(params, data):
+    logits = model.apply(params, data)
+    loss = optax.softmax_cross_entropy(logits, labels).mean()
+    return loss
+
+# Calculate gradients
+grads = jax.grad(loss_func)(params)
+
+# Optimze parameters
+params = state.apply_gradients(grads)
+```
+
+The parameters are passed as inputs, along with the data, during the forward pass.
+
+:::
+
+## Flax training state
+
+The demo above is freed from a lot of model complexity and is not realistic.
+
+
