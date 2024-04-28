@@ -8,16 +8,113 @@ bibliography: fl.bib
 
 :::{.def}
 
-Flax does not implement methods to load datasets since [PyTorch](https://github.com/pytorch/pytorch), [TensorFlow](https://github.com/tensorflow/datasets), and [Hugging Face](https://github.com/huggingface/datasets) already provide great APIs for this.
+Flax does not implement methods to load datasets since [Hugging Face](https://github.com/huggingface/datasets), [PyTorch](https://github.com/pytorch/pytorch), and [TensorFlow](https://github.com/tensorflow/datasets) already provide great APIs for this.
 
 :::
 
-## Padding
+## Hugging Face datasets
 
-### Why?
+The [Datasets](https://github.com/huggingface/datasets) library from 🤗 is a lightweight, framework-agnostic, and easy to use API to download datasets from the [Hugging Face Hub](https://huggingface.co/datasets). It uses [Apache Arrow](https://arrow.apache.org/)'s efficient caching system, allowing large datasets to be used on machines with small memory [@lhoest-etal-2021-datasets].
 
-Prevent recompilation for the last batch that is smaller (different shape).
+### Search dataset
 
+Go to the [Hugging Face Hub](https://huggingface.co/datasets) and search through thousands of open source datasets provided by the community.
 
+### Inspect dataset
 
-## Loading
+You can get information on a dataset before downloading it.
+
+Load the dataset builder for the dataset you are interested in:
+
+```{python}
+from datasets import load_dataset_builder
+ds_builder = load_dataset_builder("mnist")
+```
+
+Get a description of the dataset:
+
+```{python}
+ds_builder.info.description
+```
+
+Get information on the features:
+
+```{python}
+ds_builder.info.features
+```
+
+### Download dataset and load in session
+
+```{.python}
+from datasets import load_dataset
+
+def get_dataset_hf():
+    mnist = load_dataset("mnist")
+
+    ds = {}
+
+    for split in ['train', 'test']:
+        ds[split] = {
+            'image': np.array([np.array(im) for im in mnist[split]['image']]),
+            'label': np.array(mnist[split]['label'])
+        }
+
+        ds[split]['image'] = jnp.float32(ds[split]['image']) / 255
+        ds[split]['label'] = jnp.int16(ds[split]['label'])
+
+        ds[split]['image'] = jnp.expand_dims(ds[split]['image'], 3)
+
+    return ds['train'], ds['test']
+```
+
+## PyTorch Torchvision datasets
+
+```{.python}
+from torchvision import datasets
+
+def get_dataset_torch():
+    mnist = {
+        'train': datasets.MNIST('./data', train=True, download=True),
+        'test': datasets.MNIST('./data', train=False, download=True)
+    }
+
+    ds = {}
+
+    for split in ['train', 'test']:
+        ds[split] = {
+            'image': mnist[split].data.numpy(),
+            'label': mnist[split].targets.numpy()
+        }
+
+        ds[split]['image'] = jnp.float32(ds[split]['image']) / 255
+        ds[split]['label'] = jnp.int16(ds[split]['label'])
+
+        ds[split]['image'] = jnp.expand_dims(ds[split]['image'], 3)
+
+    return ds['train'], ds['test']
+```
+
+## TensorFlow datasets
+
+[](https://github.com/tensorflow/datasets)
+
+[](https://blog.tensorflow.org/2019/02/introducing-tensorflow-datasets.html)
+
+```{.python}
+import tensorflow_datasets as tfds
+
+def get_dataset_tf(epochs, batch_size):
+    mnist = tfds.builder('mnist')
+    mnist.download_and_prepare()
+
+    ds = {}
+
+    for set in ['train', 'test']:
+        ds[set] = tfds.as_numpy(mnist.as_dataset(split=set, batch_size=-1))
+
+        # cast to jnp and rescale pixel values
+        ds[set]['image'] = jnp.float32(ds[set]['image']) / 255
+        ds[set]['label'] = jnp.int16(ds[set]['label'])
+
+    return ds['train'], ds['test']
+```
