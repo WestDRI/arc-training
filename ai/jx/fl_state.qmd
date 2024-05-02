@@ -11,6 +11,36 @@ In this section, we will see what all of this means and how Flax handles model s
 
 :::
 
+:::{.callout-note collapse="true"}
+
+## Cluster setup
+
+First, let's start an interactive job:
+
+```{.bash}
+salloc --time=2:0:0 --mem-per-cpu=3500M
+```
+
+Nowadays, IPython (Interactive Python) is known as the kernel used by Jupyter when running Python. Before the existence of Jupyter however, this kernel was created as a better command shell than the default Python shell. For interactive Python sessions in the command line, it is nicer and faster than plain Python with no downside. So we will use it for this course:
+
+```{.bash}
+module load ipython-kernel/3.11
+```
+
+Now, let's activate the virtual python environment:
+
+```{.bash}
+source /project/60055/env/bin/activate
+```
+
+Finally, we can launch IPython:
+
+```{.bash}
+ipython
+```
+
+:::
+
 ## Dealing with state in JAX
 
 JAX JIT compilation requires that functions be without side effects since side effects are only executed once, during tracing.
@@ -294,6 +324,38 @@ The parameters are passed as inputs, along with the data, during the forward pas
 
 ## Flax training state
 
-The demo above is freed from a lot of model complexity and is not realistic.
+The demo above is stripped of any complexity to show the principle, but it is not realistic.
 
+To handle every changing state during training (training step, state of the parameters, state of the optimizer), you can create a Flax training state.
 
+Flax provides a dataclass that you can subclass to create a new training state class.
+
+:::{.example}
+
+Here is a basic example:
+
+:::
+
+```{.python}
+from flax.training import train_state
+
+class TrainState(train_state.TrainState):
+    batch_stats: flax.core.FrozenDict
+```
+
+Then you can define the Flax training step with `TrainState.create`.
+
+:::{.example}
+
+Basic example:
+
+:::
+
+```{.python}
+state = TrainState.create(
+    apply_fn = model.apply,
+    params = modulel.init(subkey2, data),
+    tx = optax.sgd(0.01),
+    batch_stats = params['batch_stats'],
+)
+```
