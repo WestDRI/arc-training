@@ -30,15 +30,112 @@ revealjs-plugins:
   - pointer
 ---
 
-## {.center}
+## Tabular data {.center}
 
-Polars is a DataFrame library written in Rust, available for Rust, Python, R, and NodeJS
+Many fields of machine learning and data science rely on tabular data
 
-## Why a new DataFrame library? {.center}
+- Columns hold variables and are homogeneous (same data type)
+- Rows contain observations and can be heterogeneous
 
-Polars is much more performant than [pandas](https://pandas.pydata.org/):
+Early computer options to manipulate such data were limited to [spreadsheets](https://en.wikipedia.org/wiki/Spreadsheet)
 
-- uses [Apache Arrow](https://arrow.apache.org/) to process queries in a vectorized fashion
+Dataframes (data frames or DataFrames) are two dimensional objects that brought tabular data to programming
+
+## Early history of dataframes {.center}
+
+```{dot}
+//| echo: false
+//| fig-height: 450px
+
+strict graph {
+  
+bgcolor="transparent"
+graph [fontname="Inconsolata, sans-serif"]
+node [fontname="Inconsolata, sans-serif", fontsize=15]
+
+y1 [label=1990, shape=plaintext, group=g1, group=g1]
+y2 [label=2000, shape=plaintext, group=g1, group=g1]
+y3 [label=2008, shape=plaintext, group=g1]
+
+l1 [label="S programming language", href="https://en.wikipedia.org/wiki/S_(programming_language)", shape=plaintext, group=g2, fontcolor="#5592FD"]
+l2 [label="R", href="https://en.wikipedia.org/wiki/R_(programming_language)", shape=plaintext, group=g2, fontcolor="#5592FD"]
+l3 [label="Pandas (Python)", href="https://en.wikipedia.org/wiki/Pandas_(software)", shape=plaintext, group=g2, fontcolor="#5592FD"]
+
+{rank=same; y1 l1}
+
+y1 -- y2 -- y3
+l1 -- l2 -- l3 [style=invis]
+
+}
+```
+
+Problem: high memory usage and low efficiency \
+Wes McKinney (pandas creator) himself [has complaints about it](https://wesmckinney.com/blog/apache-arrow-pandas-internals/)
+
+## Multi-threading {.center}
+
+Python [global interpreter lock (GIL)](https://en.wikipedia.org/wiki/Global_interpreter_lock) gets in the way of multi-threading
+
+## Distributed parallelism {.center}
+
+Libraries such as [Ray](https://github.com/ray-project/ray), [Dask](https://github.com/dask/dask), and [Apache Spark](https://github.com/apache/spark) bring dataframes on clusters
+
+Dask and Spark have APIs for Pandas and [Modin](https://docs.ray.io/en/latest/ray-more-libs/modin/index.html) makes this even more trivial by providing a drop-in replacement for Pandas on Dask, Spark, and Ray
+
+## Accelerators {.center}
+
+[RAPIDS](https://rapids.ai/) brings dataframes on the GPUs with the [cuDF library](https://github.com/rapidsai/cudf)
+
+Integration with pandas is easy
+
+## SQL {.center}
+
+[Structured query language (SQL)](https://en.wikipedia.org/wiki/SQL) handles [relational databases](https://en.wikipedia.org/wiki/Relational_database), but the distinction between SQL and dataframe software is getting increasingly blurry with most libraries now able to handle both
+
+[DuckDB](https://github.com/duckdb/duckdb) is a very fast and popular option with good integration with pandas
+
+Additional options such as [dbt](https://github.com/dbt-labs/dbt-core) and the [snowflake snowpark Python API](https://github.com/snowflakedb/snowpark-python), although integration with pandas is not as good
+
+# Arrives Polars
+
+## Comparison with pandas {.center} <br>
+
+| | Pandas | Polars |
+|--|--|--|
+| Available for | Python | Rust, Python, R, NodeJS |
+| Written in | Cython | Rust |
+| Built on | [NumPy](https://github.com/numpy/numpy) | [Apache Arrow](https://github.com/apache/arrow) columnar memory format |
+| Multithreading | No | Yes (GIL released) |
+| Out-of-core | No | Yes |
+| Query optimizer | No | Yes |
+| [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) vectorization | Yes | Yes |
+
+## Polars integration {.center}
+
+[added to Ray](https://github.com/ray-project/ray/issues/26131) thanks to [this setting](https://docs.ray.io/en/latest/data/api/data_context.html#ray.data.DataContext)
+
+
+[Kevin Heavey](https://github.com/kevinheavey) wrote [Modern Polars](https://kevinheavey.github.io/modern-polars/) based on [Modern Pandas](http://tomaugspurger.net/posts/modern-8-scaling/)
+
+
+## Best strategies {.center}
+
+- Single machine: Polars
+
+- Cluster: Polars + [fugue](https://github.com/fugue-project/fugue/)
+
+- GPUs: Polars + [RAPIDS](https://rapids.ai/) brings dataframes on the GPUs with the [cuDF library](https://github.com/rapidsai/cudf) ([coming soon](https://pola.rs/posts/polars-on-gpu/))
+
+https://pola.rs/posts/benchmarks/
+
+
+pd.read_csv(my_file, engine='numpy')
+pd.read_csv(my_file, engine='pyarrow')
+
+https://www.datacamp.com/tutorial/high-performance-data-manipulation-in-python-pandas2-vs-polars
+
+[Benchmarking per task](https://medium.com/cuenex/pandas-2-0-vs-polars-the-ultimate-battle-a378eb75d6d1) between Polars and Pandas 2.0
+
 - uses [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) for CPU usage optimization
 - can handle datasets too big to fit in RAM
 
@@ -47,3 +144,22 @@ Polars is much more performant than [pandas](https://pandas.pydata.org/):
 
 
 # Benchmarks
+
+
+## Table visualization
+
+[with pandas](https://pandas.pydata.org/docs/user_guide/style.html)
+
+[integration with great tables](https://posit-dev.github.io/great-tables/blog/polars-styling/)
+[great-tables](https://github.com/posit-dev/great-tables)
+
+## Integration with NumPy
+
+https://docs.pola.rs/user-guide/expressions/numpy/
+https://docs.pola.rs/py-polars/html/reference/api/polars.from_numpy.html
+https://docs.pola.rs/py-polars/html/reference/dataframe/api/polars.DataFrame.to_numpy.html
+https://github.com/pola-rs/polars/issues/14334
+
+## Distributed computing
+
+integration with ray, dask, etc
