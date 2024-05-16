@@ -6280,53 +6280,124 @@
     ]
   },
   {
-    "objectID": "ai/jx/fl_training.html#metrics",
-    "href": "ai/jx/fl_training.html#metrics",
-    "title": "Training",
-    "section": "Metrics",
-    "text": "Metrics"
+    "objectID": "ai/jx/fl_training.html",
+    "href": "ai/jx/fl_training.html",
+    "title": "Training models",
+    "section": "",
+    "text": "We talked about how Flax handles state, about loading data, and about model architecture. It is now time to talk about training.\nTraining models is the crux of deep learning. This is the part that requires a lot of time and resources (and money if you use commercial cloud services). This is also where issues with convergence, underfitting or overfitting, and vanishing or exploding gradients can come in.\nConsequently, this is where optimizations and JAX’s performance tricks (e.g. JIT compilation) matter the most. This is also where understanding of deep learning theory is important.\nIn this section, we will point to strategies and resources to navigate training. We will also see how to use the Alliance clusters to train your models.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Training on Alliance clusters"
+    ]
   },
   {
-    "objectID": "ai/jx/fl_training.html#optimization-function",
-    "href": "ai/jx/fl_training.html#optimization-function",
-    "title": "Training",
-    "section": "Optimization function",
-    "text": "Optimization function"
+    "objectID": "ai/jx/fl_training.html#fundamental-functioning",
+    "href": "ai/jx/fl_training.html#fundamental-functioning",
+    "title": "Training models",
+    "section": "Fundamental functioning",
+    "text": "Fundamental functioning\n\nCalculate predictions\nWe can create some random inputs:\nkey, x_key = jax.random.split(key)\n\nx = jax.random.normal(x_key, (1, 28, 28, 1))\nThe predictions of our model based on these inputs are obtained by:\ny = cnn.apply(params, x)\nprint(y)\n\n\nUpdate parameters\nOptax—another library built on JAX—is a full toolkit for gradient processing and optimization. It contains all the classic optimizers and loss functions and makes it easy to create your own optimizers and optimizer schedulers. Flax initially used its own optimizers but has now fully adopted use of Optax.\nHere is the most basic case:\nimport optax\n\nlearning_rate = 1e-1\noptimiser = optax.sgd(learning_rate)\nprint(optimiser)\nThe optimizer is a gradient transformation. It is a tuple of an init and an update methods. Those are pure functions following the model of JAX and Flax. This means that they are stateless and that a state needs to be initialized and passed as input, exactly as we saw for Flax models.\nLet’s initialize the optimizer state:\noptimiser_state = optimiser.init(params)\nThe update method returns a gradient transformation (that we can later apply to the gradients) and an updated optimizer state.\nThe gradients are calculated by passing a loss function to jax.grad and passing the parameters, the inputs, and the predictions to this transformed function (the derivative):\ngrads = jax.grad(&lt;some-loss-function&gt;)(params, x, y)\nThe loss function can be built from a large array of Optax loss methods.\nHere is how to use optimizer.update:\nupdates, optimiser_state = optimiser.update(grads, optimiser_state, params)",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Training on Alliance clusters"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_training.html#key-regularizations",
+    "href": "ai/jx/fl_training.html#key-regularizations",
+    "title": "Training models",
+    "section": "Key regularizations",
+    "text": "Key regularizations\nFlax makes it easy to apply classic regularizations and optimization techniques.\nBatch normalization improves convergence speed and has been a classic regularization technique since the publication of Sergey Ioffe and Christian Szegedy’s key paper in 2015. You can use it by adding a flax.linen.BatchNorm layer to your model.\nSimilarly, dropout techniques are implemented with a flax.linen.Dropout layer.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Training on Alliance clusters"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_training.html#getting-started",
+    "href": "ai/jx/fl_training.html#getting-started",
+    "title": "Training models",
+    "section": "Getting started",
+    "text": "Getting started\nThe best way to get started building your own model is to go over the examples provided as template by Flax. They all follow the same format, making it easy to clone and modify them. You can even modify them directly in Google Colab for some of them, making experimentation easy without having to install anything.\n\nNote however that things are not as simple as the documentation makes it to appear and some of the examples will not run for various reasons (dependency problem, error in code, etc.)\n\nLet’s check this structure and look at a few models.\nThen let’s run the ogbg-molpcba example together in Google Colab to have access to a free GPU.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Training on Alliance clusters"
+    ]
+  },
+  {
+    "objectID": "ai/jx/fl_training.html#running-flax-examples-in-the-alliance-clusters",
+    "href": "ai/jx/fl_training.html#running-flax-examples-in-the-alliance-clusters",
+    "title": "Training models",
+    "section": "Running Flax examples in the Alliance clusters",
+    "text": "Running Flax examples in the Alliance clusters\nInstead of running these examples in Google Colab, you might want to run them on the Alliance clusters, particularly as you start developing your own model (rather than just run examples to learn techniques).\nFirst, you need to get the model you are interested in to the cluster.\nThere are many ways you could go about it, but one option is to download the directory of that particular model to your machine as a zip file using one of several sites making this easy.\nFor the ogbg-molpcba example, you paste the link “https://github.com/google/flax/tree/main/examples/ogbg_molpcba” in the site.\nYou can then copy it to the cluster with:\nscp &lt;path-to-zip-file-on-your-machine&gt; &lt;user-name&gt;@&lt;hostname&gt;:\nIt will look something like this (make sure to rename the zip file to remove the spaces or to quote the path):\nscp examples-ogbg_molpcba.zip userxx@xxx.c3.ca:\nThen you could run it using JupyterLab, but a more efficient method is to use sbatch.\nCreate a script:\n\n\n&lt;your_job&gt;.sh\n\n#!/bin/bash\n#SBATCH --account=def-&lt;your_account&gt;\n#SBATCH --time=xxx\n#SBATCH --mem-per-cpu=xxx\n#SBATCH --cpus-per-task=xxx\n#SBATCH --job-name=\"&lt;your_job&gt;\"\n\n# Setup\nmodule load python/3.11.5\nsource ~/env/bin/activate\npython -m pip install --upgrade pip --no-index\npython -m pip install -r requirements.txt --no-index\n\n# Run example\npython main.py --workdir=./ogbg_molpcba --config=configs/default.py\n\nAnd run the script:\nsbatch &lt;your_job&gt;.sh",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Training on Alliance clusters"
+    ]
   },
   {
     "objectID": "ai/jx/fl_resources.html",
     "href": "ai/jx/fl_resources.html",
     "title": "Resources",
     "section": "",
-    "text": "Here is a list of resources to get started with Flax."
+    "text": "Here is a list of resources to get started with Flax.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Resources"
+    ]
   },
   {
     "objectID": "ai/jx/fl_resources.html#official-documentation",
     "href": "ai/jx/fl_resources.html#official-documentation",
     "title": "Resources",
     "section": "Official documentation",
-    "text": "Official documentation\n\nFlax GitHub repo\nOfficial documentation\nFlax API"
+    "text": "Official documentation\n\nFlax GitHub repo\nOfficial documentation\nFlax API",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Resources"
+    ]
   },
   {
     "objectID": "ai/jx/fl_resources.html#other-resources",
     "href": "ai/jx/fl_resources.html#other-resources",
     "title": "Resources",
     "section": "Other resources",
-    "text": "Other resources\nHere is a list of projects using Flax."
+    "text": "Other resources\nHere is a list of projects using Flax.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Resources"
+    ]
   },
   {
     "objectID": "ai/jx/fl_resources.html#qa",
     "href": "ai/jx/fl_resources.html#qa",
     "title": "Resources",
     "section": "Q&A",
-    "text": "Q&A\n\nFlax GitHub Discussions\nStack Overflow [flax] tag"
+    "text": "Q&A\n\nFlax GitHub Discussions\nStack Overflow [flax] tag",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Resources"
+    ]
   },
   {
     "objectID": "ai/jx/fl_resources.html#alliance",
     "href": "ai/jx/fl_resources.html#alliance",
     "title": "Resources",
     "section": "Alliance",
-    "text": "Alliance\nThe Alliance wiki has a page on Flax."
+    "text": "Alliance\nThe Alliance wiki has a page on Flax.",
+    "crumbs": [
+      "AI",
+      "<b><em>Flax</em></b>",
+      "Resources"
+    ]
   },
   {
     "objectID": "ai/jx/fl_optimization.html#data-padding",
@@ -6544,7 +6615,7 @@
     "href": "ai/jx/fl_model.html#the-linen-api",
     "title": "Defining a model architecture",
     "section": "The Linen API",
-    "text": "The Linen API\nLinen is Flax’s current 1 NN API. Let’s load it, along with JAX and the JAX NumPy API:\n1 Flax had an initial flax.nn API, now retired. Linen made things easier and more PyTorch-like.\nA new API called NNX is being developed and may replace Linen in the future. It makes Flax even more similar to PyTorch by breaking with JAX’s functionally pure functions requirements and bringing the parameters back into the model.import jax\nimport jax.numpy as jnp\nfrom flax import linen as nn\nTo define a model, we create a subclass of the nn.Module which inherits all the characteristics of that module, saving us from defining all the behaviours a neural network should have (exactly as in PyTorch).\nWhat we do need to define of course, is the architecture and the flow of data through it.\nLinen contains all the classic elements to define a NN model:\n\nmodules to define standard layers (e.g. fully connected layer with Dense\nconvolution layer with Conv, pooling layers with max_pool or avg_pool)\na set of activation functions (e.g. relu, softmax, sigmoid)\nJAX transformations (e.g. jit, vmap, jvp, vjp)\n\nLinen makes use of JAX’s shape inference so there is no need for “in” features (e.g. nn.Dense only requires one argument: the “out” feature; this is in contrast with PyTorch’s nn.Linear which requires both an “in” and an “out” features).\n\nExample\nAs we already saw, Linen provides two syntaxes:\n\na longer syntax using setup: more redundant, more PyTorch-like, allows to define multiple methods,\na compact one with the @nn.compact decorator that can only use a single method and avoids duplication between setup and call.\n\nLet’s use the latter here:\nclass CNN(nn.Module):\n    @nn.compact\n    def __call__(self, x):\n      x = nn.Conv(features=32, kernel_size=(3, 3))(x)\n      x = nn.relu(x)\n      x = nn.avg_pool(x, window_shape=(2, 2), strides=(2, 2))\n      x = nn.Conv(features=64, kernel_size=(3, 3))(x)\n      x = nn.relu(x)\n      x = nn.avg_pool(x, window_shape=(2, 2), strides=(2, 2))\n      x = x.reshape((x.shape[0], -1))\n      x = nn.Dense(features=256)(x)\n      x = nn.relu(x)\n      x = nn.Dense(features=10)(x)\n      x = nn.log_softmax(x)\n      return x\nNow we can create an instance of the model:\ncnn = CNN()\nRemember that in Linen the parameters are not part of the model: we need to initialize them as a method of the model by passing a random key and JAX array setting up their shape:\ndef get_initial_params(key):\n    init_shape = jnp.ones((1, 28, 28, 1), jnp.float32)\n    initial_params = cnn.init(key, init_shape)\n    return initial_params\n\nkey = jax.random.key(0)\nparams = get_initial_params(key)",
+    "text": "The Linen API\nLinen is Flax’s current 1 NN API. Let’s load it, along with JAX and the JAX NumPy API:\n1 Flax had an initial flax.nn API, now retired. Linen made things easier and more PyTorch-like.\nA new API called NNX is being developed and may replace Linen in the future. It makes Flax even more similar to PyTorch by breaking with JAX’s functionally pure functions requirements and bringing the parameters back into the model.import jax\nimport jax.numpy as jnp\nfrom flax import linen as nn\nTo define a model, we create a subclass of the nn.Module which inherits all the characteristics of that module, saving us from defining all the behaviours a neural network should have (exactly as in PyTorch).\nWhat we do need to define of course, is the architecture and the flow of data through it.\nLinen contains all the classic elements to define a NN model:\n\nmodules to define standard layers (e.g. fully connected layer with Dense\nconvolution layer with Conv, pooling layers with max_pool or avg_pool)\na set of activation functions (e.g. relu, softmax, sigmoid)\nJAX transformations (e.g. jit, vmap, jvp, vjp)\n\nLinen makes use of JAX’s shape inference so there is no need for “in” features (e.g. nn.Dense only requires one argument: the “out” feature; this is in contrast with PyTorch’s nn.Linear which requires both an “in” and an “out” features).\n\nExample\nAs we already saw, Linen provides two syntaxes:\n\na longer syntax using setup: more redundant, more PyTorch-like, allows to define multiple methods,\na compact one with the @nn.compact decorator that can only use a single method and avoids duplication between setup and call.\n\nLet’s use the latter here:\nclass CNN(nn.Module):\n    @nn.compact\n    def __call__(self, x):\n      x = nn.Conv(features=32, kernel_size=(3, 3))(x)\n      x = nn.relu(x)\n      x = nn.avg_pool(x, window_shape=(2, 2), strides=(2, 2))\n      x = nn.Conv(features=64, kernel_size=(3, 3))(x)\n      x = nn.relu(x)\n      x = nn.avg_pool(x, window_shape=(2, 2), strides=(2, 2))\n      x = x.reshape((x.shape[0], -1))\n      x = nn.Dense(features=256)(x)\n      x = nn.relu(x)\n      x = nn.Dense(features=10)(x)\n      x = nn.log_softmax(x)\n      return x\nNow we can create an instance of the model:\ncnn = CNN()\nRemember that in Linen the parameters are not part of the model: we need to initialize them as a method of the model by passing a random key and JAX array setting up their shape:\ndef get_initial_params(key):\n    init_shape = jnp.ones((1, 28, 28, 1))\n    initial_params = cnn.init(key, init_shape)\n    return initial_params\n\nkey = jax.random.key(0)\nkey, model_key = jax.random.split(key)\n\nparams = get_initial_params(model_key)",
     "crumbs": [
       "AI",
       "<b><em>Flax</em></b>",
@@ -11333,18 +11404,130 @@
     ]
   },
   {
-    "objectID": "python/wb_polars_slides.html#section",
-    "href": "python/wb_polars_slides.html#section",
+    "objectID": "python/wb_polars_slides.html#tabular-data",
+    "href": "python/wb_polars_slides.html#tabular-data",
     "title": "DataFrames on steroids with Polars",
-    "section": "",
-    "text": "Polars is a DataFrame library written in Rust, available for Rust, Python, R, and NodeJS"
+    "section": "Tabular data",
+    "text": "Tabular data\nMany fields of machine learning and data science rely on tabular data where\n\ncolumns hold variables and are homogeneous (same data type)\nrows contain observations and can be heterogeneous\n\nEarly computer options to manipulate such data were limited to spreadsheets\nDataframes (data frames or DataFrames) are two dimensional objects that brought tabular data to programming"
   },
   {
-    "objectID": "python/wb_polars_slides.html#why-a-new-dataframe-library",
-    "href": "python/wb_polars_slides.html#why-a-new-dataframe-library",
+    "objectID": "python/wb_polars_slides.html#early-history-of-dataframes",
+    "href": "python/wb_polars_slides.html#early-history-of-dataframes",
     "title": "DataFrames on steroids with Polars",
-    "section": "Why a new DataFrame library?",
-    "text": "Why a new DataFrame library?\nPolars is much more performant than pandas:\n\nuses Apache Arrow to process queries in a vectorized fashion\nuses SIMD for CPU usage optimization\ncan handle datasets too big to fit in RAM"
+    "section": "Early history of dataframes",
+    "text": "Early history of dataframes\n\n\n\n\n\n\n\n\n\ny1\n1990\n\n\n\ny2\n2000\n\n\n\ny1--y2\n\n\n\n\ny3\n2008\n\n\n\ny2--y3\n\n\n\n\nl1\n\nS programming language\n\n\n\n\n\nl2\n\nR\n\n\n\n\n\n\nl3\n\nPandas (Python)\n\n\n\n\n\n\n\n\n\n\n\nThe world was simple … but slow. Another problem: high memory usage"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#issues-with-pandas",
+    "href": "python/wb_polars_slides.html#issues-with-pandas",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Issues with Pandas",
+    "text": "Issues with Pandas\nWes McKinney (pandas creator) himself has complaints about it:\n\n• Internals too far from “the metal”\n• No support for memory-mapped datasets\n• Poor performance in database and file ingest / export\n• Warty missing data support\n• Lack of transparency into memory use, RAM management\n• Weak support for categorical data\n• Complex groupby operations awkward and slow\n• Appending data to a DataFrame tedious and very costly\n• Limited, non-extensible type metadata\n• Eager evaluation model, no query planning\n• “Slow”, limited multicore algorithms for large datasets"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#parallel-computing",
+    "href": "python/wb_polars_slides.html#parallel-computing",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Parallel computing",
+    "text": "Parallel computing\nPython global interpreter lock (GIL) gets in the way of multi-threading\nLibraries such as Ray, Dask, and Apache Spark allow use of multiple cores and bring dataframes on clusters\nDask and Spark have APIs for Pandas and Modin makes this even more trivial by providing a drop-in replacement for Pandas on Dask, Spark, and Ray\nfugue provides a unified interface for distributed computing that works on Spark, Dask, and Ray"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#accelerators",
+    "href": "python/wb_polars_slides.html#accelerators",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Accelerators",
+    "text": "Accelerators\nRAPIDS brings dataframes on the GPUs with the cuDF library\nIntegration with pandas is easy"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#lazy-out-of-core",
+    "href": "python/wb_polars_slides.html#lazy-out-of-core",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Lazy out-of-core",
+    "text": "Lazy out-of-core\nVaex exists as an alternative to pandas (no integration)"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#sql",
+    "href": "python/wb_polars_slides.html#sql",
+    "title": "DataFrames on steroids with Polars",
+    "section": "SQL",
+    "text": "SQL\nStructured query language (SQL) handles relational databases, but the distinction between SQL and dataframe software is getting increasingly blurry with most libraries now able to handle both\nDuckDB is a very fast and popular option with good integration with pandas\nMany additional options such as dbt and the snowflake snowpark Python API exist, although integration with pandas is not always as good"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#comparison-with-pandas",
+    "href": "python/wb_polars_slides.html#comparison-with-pandas",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Comparison with Pandas",
+    "text": "Comparison with Pandas\n\n\n\n\nPandas\nPolars\n\n\n\n\nAvailable for\nPython\nRust, Python, R, NodeJS\n\n\nWritten in\nCython\nRust\n\n\nMultithreading\nSome operations\nYes (GIL released)\n\n\nIndex\nRows are indexed\nInteger positions are used\n\n\nEvaluation\nEager only\nLazy and eager\n\n\nQuery optimizer\nNo\nYes\n\n\nOut-of-core\nNo\nYes\n\n\nSIMD vectorization\nYes\nYes\n\n\nData in memory\nWith NumPy arrays\nWith Apache Arrow arrays\n\n\nMemory efficiency\nPoor\nExcellent\n\n\nHandling of missing data\nInconsistent\nConsistent, promotes type stability"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#polars-integration-with-other-tools",
+    "href": "python/wb_polars_slides.html#polars-integration-with-other-tools",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Polars integration with other tools",
+    "text": "Polars integration with other tools\nAs good as Pandas’ (except for cuDF, still in development)\n\nWith NumPy: see the documentation, the from_numpy and to_numpy functions, the development progress of this integration, and performance advice\nParallel computing: with Ray thanks to this setting; with Spark, Dask, and Ray thanks to fugue\nGPUs: with the cuDF library from RAPIDS (in development)\nSQL: with DuckDB\n\nThe list is growing fast"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#benchmarks",
+    "href": "python/wb_polars_slides.html#benchmarks",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Benchmarks",
+    "text": "Benchmarks\nComparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren’t the most pertinent since they can be used in combination with Polars and the benefits can be combined\nIt makes most sense to compare Polars with another library occupying the same “niche” such as Pandas or Vaex"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#benchmarks-1",
+    "href": "python/wb_polars_slides.html#benchmarks-1",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Benchmarks",
+    "text": "Benchmarks\nThe net is full of benchmarks with consistent results: Polars is 3 to 150 times faster than Pandas\nPandas is trying to fight back: v 2.0 came with optional Arrow support instead of NumPy, then it became the default engine, but performance remains way below that of Polars (e.g. in DataCamp benchmarks, official benchmarks, many blog posts for whole scripts or individual tasks)\nAs for Vaex, it seems twice slower and development has stalled over the past 10 months\nThe only framework performing better than Polars in some benchmarks is datatable (derived from the R package data.table), but it hasn’t been developed for 6 months—a sharp contrast with the fast development of Polars"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#installation",
+    "href": "python/wb_polars_slides.html#installation",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Installation",
+    "text": "Installation\nPersonal computer:\npython -m venv ~/env                  # Create virtual env\nsource ~/env/bin/activate             # Activate virtual env\npip install --upgrade pip             # Update pip\npip install polars                    # Install Polars\n Alliance clusters (polars wheels are available, always prefer wheels when possible):\npython -m venv ~/env                  # Create virtual env\nsource ~/env/bin/activate             # Activate virtual env\npip install --upgrade pip --no-index  # Update pip from wheel\npip install polars --no-index         # Install Polars from wheel"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#syntax",
+    "href": "python/wb_polars_slides.html#syntax",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Syntax",
+    "text": "Syntax\nThe package is well documented\nKevin Heavey wrote Modern Polars following the model of the Modern Pandas book. This is a great resource, although getting a little outdated for the scaling chapter since Polars is evolving so fast\nOverall, the syntax feels somewhat similar to R’s dplyr from the tidyverse"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#table-visualization",
+    "href": "python/wb_polars_slides.html#table-visualization",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Table visualization",
+    "text": "Table visualization\nWhile Pandas comes with internal capabilities to make publication ready tables, Polars integrates very well with great-tables"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#a-rich-new-field",
+    "href": "python/wb_polars_slides.html#a-rich-new-field",
+    "title": "DataFrames on steroids with Polars",
+    "section": "A rich new field",
+    "text": "A rich new field\nAfter years with the one Python option (Pandas), there is currently this exuberant explosion of faster alternatives for dataframes\nIt might seem confusing and overwhelming, but in fact, the picture seems quite simple\nFor now, the new memory standard seems to be Apache Arrow and the most efficient library making use of it is Polars"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#best-performance-strategy-for-software",
+    "href": "python/wb_polars_slides.html#best-performance-strategy-for-software",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Best performance strategy for software",
+    "text": "Best performance strategy for software\nThe best strategy thus seems to be at the moment:\n\nSingle machine: Polars\nCluster: Polars + fugue (example benchmark, documentation of integration)\nGPUs available: Polars + RAPIDS library cuDF (integration coming soon)\nSQL: Polars + DuckDB (documentation of integration)\nOr combination of the above (if cluster with GPUs, etc.)\n\nAs so many libraries are developing an integration with Polars, it is becoming hard to still find reasons to use Pandas"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#performance-tips",
+    "href": "python/wb_polars_slides.html#performance-tips",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Performance tips",
+    "text": "Performance tips\n\nRead the migration guide: it will help you write Polars code rather than “literally translated” Pandas code that runs, but doesn’t make use of Polars’ strengths. The differences in style mostly come from the fact that Polars runs in parallel\nExecution: lazy where possible\nFile format: Apache Parquet"
+  },
+  {
+    "objectID": "python/wb_polars_slides.html#course-on-polars-coming-this-fall",
+    "href": "python/wb_polars_slides.html#course-on-polars-coming-this-fall",
+    "title": "DataFrames on steroids with Polars",
+    "section": "Course on Polars coming this fall",
+    "text": "Course on Polars coming this fall\nIn fall 2024, I plan to offer an introductory course on Polars covering:\n\nbasic syntax\nhow to use Polars in a Ray cluster on Alliance supercomputers thanks to fugue\nhow to run Polars on GPU thanks to cuDF if the project is available by then\n\n\n\n\n\n Back to webinar page"
   },
   {
     "objectID": "python/ws_polars.html",
@@ -13231,278 +13414,5 @@
       "<b><em>Webinars</em></b>",
       "More command line tools"
     ]
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#on-dataframes",
-    "href": "python/wb_polars_slides.html#on-dataframes",
-    "title": "DataFrames on steroids with Polars",
-    "section": "On dataframes",
-    "text": "On dataframes\nA history of dataframes in programming\nTabular data Two dimensions Rows Columns\nRelational databases, Microsoft Excel\n1990 S programming language 2000 R programming language 2008 pandas\nadded to Ray thanks to this setting\ncomplaints about pandas by its creator Wes McKinney\ndistributed: use with Ray\nRay/Dask/Spark\nglobal interpreter lock (GIL) released\nKevin Heavey wrote Modern Polars based on Modern Pandas\nPolars is a DataFrame library written in Rust, available for Rust, Python, R, and NodeJS\nMemory:"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#table-visualization",
-    "href": "python/wb_polars_slides.html#table-visualization",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Table visualization",
-    "text": "Table visualization\nWhile Pandas comes with internal capabilities to make publication ready tables, Polars integrates very well with great-tables"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#integration-with-numpy",
-    "href": "python/wb_polars_slides.html#integration-with-numpy",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Integration with NumPy",
-    "text": "Integration with NumPy\n\n\n\n\n Back to webinar page"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#distributed-computing",
-    "href": "python/wb_polars_slides.html#distributed-computing",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Distributed computing",
-    "text": "Distributed computing\nintegration with ray, dask, etc\n\n\n\n\n Back to webinar page"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#which-framework-to-choose",
-    "href": "python/wb_polars_slides.html#which-framework-to-choose",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Which framework to choose?",
-    "text": "Which framework to choose?"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#pandas-vs-polars",
-    "href": "python/wb_polars_slides.html#pandas-vs-polars",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Pandas vs Polars",
-    "text": "Pandas vs Polars\n\n\n\n\nPandas\nPolars\n\n\n\n\nAvailable for\nPython\nRust, Python, R, and NodeJS\n\n\nWritten in\nCython\nRust\n\n\nBuilt on\nNumPy\nApache Arrow columnar memory format\n\n\n\nadded to Ray thanks to this setting\ndistributed: use with Ray\nKevin Heavey wrote Modern Polars based on Modern Pandas"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#performance",
-    "href": "python/wb_polars_slides.html#performance",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Performance",
-    "text": "Performance\nSingle machine\nBest solution: single machine: Polars\nClusters\ncluster: Polars + fugue\nUsing GPUs\nhttps://pola.rs/posts/benchmarks/\npd.read_csv(my_file, engine=‘numpy’) pd.read_csv(my_file, engine=‘pyarrow’)\nhttps://www.datacamp.com/tutorial/high-performance-data-manipulation-in-python-pandas2-vs-polars\nBenchmarking per task between Polars and Pandas 2.0\n\nuses SIMD for CPU usage optimization\ncan handle datasets too big to fit in RAM"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#dataframes",
-    "href": "python/wb_polars_slides.html#dataframes",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Dataframes",
-    "text": "Dataframes\nRelational databases and spreadsheets\nDataframes (data frames or DataFrames) are two dimensional objects holding tabular data\n\nColumns hold variables and are homogeneous (same data type)\nRows contain observations (can be heterogeneous)\n\nGreat to Relational databases, Microsoft Excel"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#a-history-of-dataframes-in-programming",
-    "href": "python/wb_polars_slides.html#a-history-of-dataframes-in-programming",
-    "title": "DataFrames on steroids with Polars",
-    "section": "A history of dataframes in programming",
-    "text": "A history of dataframes in programming\n1990 [S programming language](https://en.wikipedia.org/wiki/S_(programming_language))\n |\n |\n2000 [R programming language](https://en.wikipedia.org/wiki/R_(programming_language))\n |\n |\n2008 [pandas](https://en.wikipedia.org/wiki/Pandas_(software))\nadded to Ray thanks to this setting\ncomplaints about pandas by its creator Wes McKinney\ndistributed: use with Ray\nRay/Dask/Spark\nglobal interpreter lock (GIL) released\nKevin Heavey wrote Modern Polars based on Modern Pandas\nPolars is a DataFrame library written in Rust, available for Rust, Python, R, and NodeJS\nMemory:"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#tabular-data",
-    "href": "python/wb_polars_slides.html#tabular-data",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Tabular data",
-    "text": "Tabular data\nMany fields of machine learning and data science rely on tabular data where\n\ncolumns hold variables and are homogeneous (same data type)\nrows contain observations and can be heterogeneous\n\nEarly computer options to manipulate such data were limited to spreadsheets\nDataframes (data frames or DataFrames) are two dimensional objects that brought tabular data to programming"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#a-history-of-dataframes",
-    "href": "python/wb_polars_slides.html#a-history-of-dataframes",
-    "title": "DataFrames on steroids with Polars",
-    "section": "A history of dataframes",
-    "text": "A history of dataframes\n\n\n\n\n\n\n\n\n\ny1\n1990\n\n\n\ny2\n2000\n\n\n\ny1--y2\n\n\n\n\ny3\n2008\n\n\n\ny2--y3\n\n\n\n\nl1\n\nS programming language\n\n\n\n\n\nl2\n\nR\n\n\n\n\n\n\nl3\n\nPandas (Python)\n\n\n\n\n\n\n\n\n\n\n\nProblem: high memory usage and low efficiency\nWes McKinney (pandas creator) himself has complaints about it"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#distributed-parallelism",
-    "href": "python/wb_polars_slides.html#distributed-parallelism",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Distributed parallelism",
-    "text": "Distributed parallelism\nLibraries such as Ray, Dask, and Apache Spark bring dataframes on clusters\nDask and Spark have APIs for Pandas and Modin makes this even more trivial by providing a drop-in replacement for Pandas on Dask, Spark, and Ray"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#multi-threading",
-    "href": "python/wb_polars_slides.html#multi-threading",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Multi-threading",
-    "text": "Multi-threading\nPython global interpreter lock (GIL) gets in the way of multi-threading"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#accelerators",
-    "href": "python/wb_polars_slides.html#accelerators",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Accelerators",
-    "text": "Accelerators\nRAPIDS brings dataframes on the GPUs with the cuDF library\nIntegration with pandas is easy"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#sql",
-    "href": "python/wb_polars_slides.html#sql",
-    "title": "DataFrames on steroids with Polars",
-    "section": "SQL",
-    "text": "SQL\nStructured query language (SQL) handles relational databases, but the distinction between SQL and dataframe software is getting increasingly blurry with most libraries now able to handle both\nDuckDB is a very fast and popular option with good integration with pandas\nMany additional options such as dbt and the snowflake snowpark Python API exist, although integration with pandas is not always as good"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#early-history-of-dataframes",
-    "href": "python/wb_polars_slides.html#early-history-of-dataframes",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Early history of dataframes",
-    "text": "Early history of dataframes\n\n\n\n\n\n\n\n\n\ny1\n1990\n\n\n\ny2\n2000\n\n\n\ny1--y2\n\n\n\n\ny3\n2008\n\n\n\ny2--y3\n\n\n\n\nl1\n\nS programming language\n\n\n\n\n\nl2\n\nR\n\n\n\n\n\n\nl3\n\nPandas (Python)\n\n\n\n\n\n\n\n\n\n\n\nThe world was simple … but slow. Another problem: high memory usage"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#arrives-polars",
-    "href": "python/wb_polars_slides.html#arrives-polars",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Arrives Polars",
-    "text": "Arrives Polars\n\n\n\n\nPandas\nPolars\n\n\n\n\nAvailable for\nPython\nRust, Python, R, NodeJS\n\n\nWritten in\nCython\nRust\n\n\nBuilt on\nNumPy\nApache Arrow columnar memory format\n\n\nMultithreading\nNo\nYes\n\n\nOut-of-core\nNo\nYes\n\n\nIntegration\nExcellent\nExcellent"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#polars-integration",
-    "href": "python/wb_polars_slides.html#polars-integration",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Polars integration",
-    "text": "Polars integration\nWith NumPy (see the documentation, the from_numpy and https://docs.pola.rs/py-polars/html/reference/dataframe/api/polars.DataFrame.to_numpy.html API, and the progress issue\nWith Ray thanks to this setting\nWith Spark, Dask, and Ray thanks to fugue\nWith the cuDF library from RAPIDS (coming soon)\nWith DuckDB"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#comparison-with-pandas",
-    "href": "python/wb_polars_slides.html#comparison-with-pandas",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Comparison with Pandas",
-    "text": "Comparison with Pandas\n\n\n\n\nPandas\nPolars\n\n\n\n\nAvailable for\nPython\nRust, Python, R, NodeJS\n\n\nWritten in\nCython\nRust\n\n\nMultithreading\nSome operations\nYes (GIL released)\n\n\nIndex\nRows are indexed\nInteger positions are used\n\n\nEvaluation\nEager only\nLazy and eager\n\n\nQuery optimizer\nNo\nYes\n\n\nOut-of-core\nNo\nYes\n\n\nSIMD vectorization\nYes\nYes\n\n\nData in memory\nWith NumPy arrays\nWith Apache Arrow arrays\n\n\nMemory efficiency\nPoor\nExcellent\n\n\nHandling of missing data\nInconsistent\nConsistent, promotes type stability"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#comparison-with-pandas-.center",
-    "href": "python/wb_polars_slides.html#comparison-with-pandas-.center",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Comparison with pandas {.center} ",
-    "text": "Comparison with pandas {.center} \n\n\n\n\nPandas\nPolars\n\n\n\n\nAvailable for\nPython\nRust, Python, R, NodeJS\n\n\nWritten in\nCython\nRust\n\n\nMultithreading\nNo\nYes (GIL released)\n\n\nOut-of-core\nNo\nYes\n\n\nQuery optimizer\nNo\nYes\n\n\nSIMD vectorization\nYes\nYes\n\n\nMemory efficiency\nPoor (NumPy arrays)\nGreat (Apache Arrow arrays)\n\n\nIndex\nRows are indexed\nNo index; integer positions are used"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#best-strategies",
-    "href": "python/wb_polars_slides.html#best-strategies",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Best strategies",
-    "text": "Best strategies\n\nSingle machine: Polars\nCluster: Polars + fugue (example benchmark, integration\nGPUs: Polars + RAPIDS brings dataframes on the GPUs with the cuDF library (coming soon)\nSQL: Polars + DuckDB (integration)"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#parallel-computing",
-    "href": "python/wb_polars_slides.html#parallel-computing",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Parallel computing",
-    "text": "Parallel computing\nPython global interpreter lock (GIL) gets in the way of multi-threading\nLibraries such as Ray, Dask, and Apache Spark allow use of multiple cores and bring dataframes on clusters\nDask and Spark have APIs for Pandas and Modin makes this even more trivial by providing a drop-in replacement for Pandas on Dask, Spark, and Ray\nfugue provides a unified interface for distributed computing that works on Spark, Dask, and Ray"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#lazy-out-of-core",
-    "href": "python/wb_polars_slides.html#lazy-out-of-core",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Lazy out-of-core",
-    "text": "Lazy out-of-core\nVaex exists as an alternative to pandas (no integration)"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#benchmarks",
-    "href": "python/wb_polars_slides.html#benchmarks",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Benchmarks",
-    "text": "Benchmarks\nComparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren’t the most pertinent since they can be used in combination with Polars and the benefits can be combined\nIt makes most sense to compare Polars with another library occupying the same “niche” such as Pandas or Vaex"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#installation",
-    "href": "python/wb_polars_slides.html#installation",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Installation",
-    "text": "Installation\nPersonal computer:\npython -m venv ~/env                  # Create virtual env\nsource ~/env/bin/activate             # Activate virtual env\npip install --upgrade pip             # Update pip\npip install polars                    # Install Polars\n Alliance clusters (polars wheels are available, always prefer wheels when possible):\npython -m venv ~/env                  # Create virtual env\nsource ~/env/bin/activate             # Activate virtual env\npip install --upgrade pip --no-index  # Update pip from wheel\npip install polars --no-index         # Install Polars from wheel"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#coming-from-pandas",
-    "href": "python/wb_polars_slides.html#coming-from-pandas",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Coming from Pandas",
-    "text": "Coming from Pandas\nRead the migration guide: it will help you write Polars code rather than “literally translated” Pandas code that runs, but doesn’t make use of Polars’ strengths\nThe differences in style come from the fact that Polars runs in parallel by default"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#syntax",
-    "href": "python/wb_polars_slides.html#syntax",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Syntax",
-    "text": "Syntax\nThe package is well documented\nKevin Heavey wrote Modern Polars following the model of the Modern Pandas book. This is a great resource, although getting a little outdated for the scaling chapter since Polars is evolving so fast\nOverall, the syntax feels somewhat similar to R’s dplyr from the tidyverse"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#polars-integrations",
-    "href": "python/wb_polars_slides.html#polars-integrations",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Polars integrations",
-    "text": "Polars integrations\nAs good as Pandas (except for working in progress for cuDF)\nWith NumPy: see the documentation, the from_numpy and https://docs.pola.rs/py-polars/html/reference/dataframe/api/polars.DataFrame.to_numpy.html API, the progress issue, and performance advice\nParallel computing: with Ray thanks to this setting; with Spark, Dask, and Ray thanks to fugue\nGPUs: with the cuDF library from RAPIDS (coming soon)\nSQL: with DuckDB"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#best-performance-strategies",
-    "href": "python/wb_polars_slides.html#best-performance-strategies",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Best performance strategies",
-    "text": "Best performance strategies\n\nSingle machine: Polars\nCluster:     Polars + fugue (example benchmark, integration)\nGPUs available:      Polars + RAPIDS brings dataframes on the GPUs with the cuDF library (coming soon)\nSQL:       Polars + DuckDB (integration)\n\nOr combination of the above\n\nFile format: Apache Parquet\n\n\n\n\n\n Back to webinar page"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#issues-with-pandas",
-    "href": "python/wb_polars_slides.html#issues-with-pandas",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Issues with Pandas",
-    "text": "Issues with Pandas\nWes McKinney (pandas creator) himself has complaints about it:\n\n• Internals too far from “the metal”\n• No support for memory-mapped datasets\n• Poor performance in database and file ingest / export\n• Warty missing data support\n• Lack of transparency into memory use, RAM management\n• Weak support for categorical data\n• Complex groupby operations awkward and slow\n• Appending data to a DataFrame tedious and very costly\n• Limited, non-extensible type metadata\n• Eager evaluation model, no query planning\n• “Slow”, limited multicore algorithms for large datasets"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#best-performance-software-strategies",
-    "href": "python/wb_polars_slides.html#best-performance-software-strategies",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Best performance software strategies",
-    "text": "Best performance software strategies\nThe future seems to be Apache Arrow (and thus Polars)\n\nSingle machine: Polars\nCluster:    Polars + fugue (example benchmark, integration)\nGPUs available: Polars + RAPIDS brings dataframes on the GPUs with the cuDF library (coming soon)\nSQL:      Polars + DuckDB (integration)\n\nOr combination of the above\nAs all external tools are fast adopting an integration with Polars, it is hard to still find reasons to use Pandas"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#performance-tips",
-    "href": "python/wb_polars_slides.html#performance-tips",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Performance tips",
-    "text": "Performance tips\n\nRead the migration guide: it will help you write Polars code rather than “literally translated” Pandas code that runs, but doesn’t make use of Polars’ strengths. The differences in style mostly come from the fact that Polars runs in parallel\nExecution: lazy where possible\nFile format: Apache Parquet"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#best-performance-software-strategy",
-    "href": "python/wb_polars_slides.html#best-performance-software-strategy",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Best performance software strategy",
-    "text": "Best performance software strategy\nFor now, the future seems to be Apache Arrow (and thus Polars)\n\nSingle machine: Polars\nCluster: Polars + fugue (example benchmark, integration)\nGPUs available: Polars + RAPIDS brings dataframes on the GPUs with the cuDF library (coming soon)\nSQL: Polars + DuckDB (integration)\n\nOr combination of the above\nAs all external tools are fast adopting an integration with Polars, it is hard to still find reasons to use Pandas"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#polars-integration-with-other-tools",
-    "href": "python/wb_polars_slides.html#polars-integration-with-other-tools",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Polars integration with other tools",
-    "text": "Polars integration with other tools\nAs good as Pandas’ (except for cuDF, still in development)\n\nWith NumPy: see the documentation, the from_numpy and to_numpy functions, the development progress of this integration, and performance advice\nParallel computing: with Ray thanks to this setting; with Spark, Dask, and Ray thanks to fugue\nGPUs: with the cuDF library from RAPIDS (in development)\nSQL: with DuckDB\n\nThe list is growing fast"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#benchmarks-1",
-    "href": "python/wb_polars_slides.html#benchmarks-1",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Benchmarks",
-    "text": "Benchmarks\nThe net is full of benchmarks with consistent results: Polars is 3 to 150 times faster than Pandas\nPandas is trying to fight back: v 2.0 came with optional Arrow support instead of NumPy, then it became the default engine, but performance remains way below that of Polars (e.g. in DataCamp benchmarks, official benchmarks, many blog posts for whole scripts or individual tasks)\nAs for Vaex, it seems twice slower and development has stalled over the past 10 months\nThe only framework performing better than Polars in some benchmarks is datatable (derived from the R package data.table), but it hasn’t been developed for 6 months—a sharp contrast with the fast development of Polars"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#best-performance-strategy-for-software",
-    "href": "python/wb_polars_slides.html#best-performance-strategy-for-software",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Best performance strategy for software",
-    "text": "Best performance strategy for software\nThe best strategy thus seems to be at the moment:\n\nSingle machine: Polars\nCluster: Polars + fugue (example benchmark, documentation of integration)\nGPUs available: Polars + RAPIDS library cuDF (integration coming soon)\nSQL: Polars + DuckDB (documentation of integration)\nOr combination of the above (if cluster with GPUs, etc.)\n\nAs so many libraries are developing an integration with Polars, it is becoming hard to still find reasons to use Pandas"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#a-rich-new-field",
-    "href": "python/wb_polars_slides.html#a-rich-new-field",
-    "title": "DataFrames on steroids with Polars",
-    "section": "A rich new field",
-    "text": "A rich new field\nAfter years with the one Python option (Pandas), there is currently this exuberant explosion of faster alternatives for dataframes\nIt might seem confusing and overwhelming, but in fact, the picture seems quite simple\nFor now, the new memory standard seems to be Apache Arrow and the most efficient library making use of it is Polars"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#course-on-polars-coming-in-the-fall",
-    "href": "python/wb_polars_slides.html#course-on-polars-coming-in-the-fall",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Course on Polars coming in the fall",
-    "text": "Course on Polars coming in the fall\n\n\n\n\n Back to webinar page"
-  },
-  {
-    "objectID": "python/wb_polars_slides.html#course-on-polars-coming-this-fall",
-    "href": "python/wb_polars_slides.html#course-on-polars-coming-this-fall",
-    "title": "DataFrames on steroids with Polars",
-    "section": "Course on Polars coming this fall",
-    "text": "Course on Polars coming this fall\nIn fall 2024, I plan to offer an introductory course on Polars covering:\n\nbasic syntax\nhow to use Polars in a Ray cluster on Alliance supercomputers thanks to fugue\nhow to run Polars on GPU thanks to cuDF if the project is available by then\n\n\n\n\n\n Back to webinar page"
   }
 ]
