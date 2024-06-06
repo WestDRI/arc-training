@@ -33,13 +33,75 @@ pip install polars --no-index		  # Install Polars from wheel
 
 ## Syntax
 
-Overall, the syntax feels somewhat similar to [R's dplyr](https://cran.r-project.org/web/packages/dplyr/index.html) from [the tidyverse](https://www.tidyverse.org/).
+Overall, the syntax feels very similar to [R's dplyr](https://cran.r-project.org/web/packages/dplyr/index.html) from [the tidyverse](https://www.tidyverse.org/).
+
+In particular, extracting data is not done by indexing, but with action verbs:
+
+```{.python}
+import polars as pl
+
+df = pl.DataFrame(
+    {
+        "species": ["A", "B", "C"],
+        "number": [87, 13, 4],
+        "category": ["a", "b", "c"]
+    }
+)
+
+df
+```
+
+```
+shape: (3, 3)
+┌─────────┬────────┬──────────┐
+│ species ┆ number ┆ category │
+│ ---     ┆ ---    ┆ ---      │
+│ str     ┆ i64    ┆ str      │
+╞═════════╪════════╪══════════╡
+│ A       ┆ 87     ┆ a        │
+│ B       ┆ 13     ┆ b        │
+│ C       ┆ 4      ┆ c        │
+└─────────┴────────┴──────────┘
+```
+
+```{.python}
+df.filter(pl.col("number") > 20).select("category")
+```
+
+```
+shape: (1, 1)
+┌──────────┐
+│ category │
+│ ---      │
+│ str      │
+╞══════════╡
+│ a        │
+└──────────┘
+```
 
 ## Performance tips
 
-Use lazy execution where possible.
+### Use lazy execution where possible
 
-A great file format is the [Apache Parquet](https://arrow.apache.org/docs/python/parquet.html) format.
+We already saw that you can lazily read files with `pl.scan_csv` instead of using `pl.read_csv`.
+
+Another option is to use the `lazy` method.
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.python}
+df = pl.DataFrame({"foo": ["a", "b", "c"], "bar": [0, 1, 2]}).lazy()
+```
+
+The results get eagerly returned with the `collect` method.
+
+### Data file format
+
+A good file format to store large datasets is [Apache Parquet](https://arrow.apache.org/docs/python/parquet.html). It is a columnar format (data is stored together by column instead of row as is the case for CSV files) and this allows better compression.
 
 ## Migrating from Pandas
 
