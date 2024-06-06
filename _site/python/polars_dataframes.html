@@ -21,6 +21,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -239,7 +273,7 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../python/polars_background.html" class="sidebar-item-text sidebar-link active">
+  <a href="../python/polars_dataframes.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">The world of data frames</span></a>
   </div>
 </li>
@@ -247,18 +281,6 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../python/polars_start.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Getting started</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../python/polars_pandas.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Comparison with Pandas</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../python/polars_ecosystem.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Polars in the Python ecosystem</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -339,8 +361,18 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#lazy-out-of-core" id="toc-lazy-out-of-core" class="nav-link" data-scroll-target="#lazy-out-of-core">Lazy out-of-core</a></li>
   <li><a href="#sql" id="toc-sql" class="nav-link" data-scroll-target="#sql">SQL</a></li>
   </ul></li>
-  <li><a href="#polars" id="toc-polars" class="nav-link" data-scroll-target="#polars">Polars</a></li>
-  <li><a href="#benchmarks" id="toc-benchmarks" class="nav-link" data-scroll-target="#benchmarks">Benchmarks</a></li>
+  <li><a href="#polars" id="toc-polars" class="nav-link" data-scroll-target="#polars">Polars</a>
+  <ul>
+  <li><a href="#comparison-with-pandas" id="toc-comparison-with-pandas" class="nav-link" data-scroll-target="#comparison-with-pandas">Comparison with Pandas</a>
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#performance" id="toc-performance" class="nav-link" data-scroll-target="#performance">Performance</a>
+  <ul class="collapse">
+  <li><a href="#parallel-execution" id="toc-parallel-execution" class="nav-link" data-scroll-target="#parallel-execution">Parallel execution</a></li>
+  <li><a href="#lazy-evaluation" id="toc-lazy-evaluation" class="nav-link" data-scroll-target="#lazy-evaluation">Lazy evaluation</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -502,7 +534,7 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="polars">Polars</h2>
 <p>And then came <a href="https://pola.rs/">Polars</a>.</p>
 <p>The new memory standard is <a href="https://arrow.apache.org/">Apache Arrow</a> and the most efficient library making use of it is Polars.</p>
-<p>In addition, most libraries are developing an integration with Polars, making it harder and harder to still find reasons to use Pandas.</p>
+<p>In addition, most libraries are developing an integration with Polars, lodging it nicely in the Python ecosystem.</p>
 <p>For maximum dataframe efficiency, the best strategy currently seems to be:</p>
 <ul>
 <li>single machine&nbsp; ➔ &nbsp;use Polars,</li>
@@ -511,17 +543,223 @@ ul.task-list li input[type="checkbox"] {
 <li>SQL&nbsp; ➔ &nbsp;use Polars + <a href="https://github.com/duckdb/duckdb">DuckDB</a> (<a href="https://duckdb.org/docs/guides/python/polars.html">documentation of Polars integration</a>),</li>
 <li>combination of the above (e.g.&nbsp;cluster with GPUs)&nbsp; ➔ &nbsp;use a combination of the above tools (e.g.&nbsp;Polars + fugue + RAPIDS).</li>
 </ul>
+<section id="comparison-with-pandas" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-with-pandas">Comparison with Pandas</h3>
+<section id="overview" class="level4">
+<h4 class="anchored" data-anchor-id="overview">Overview</h4>
+<table class="table">
+<thead>
+<tr class="header">
+<th></th>
+<th>Pandas</th>
+<th>Polars</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Available for</td>
+<td>Python</td>
+<td>Rust, Python, R, NodeJS</td>
+</tr>
+<tr class="even">
+<td>Written in</td>
+<td>Cython</td>
+<td>Rust</td>
+</tr>
+<tr class="odd">
+<td>Multithreading</td>
+<td>Some operations</td>
+<td>Yes (GIL released)</td>
+</tr>
+<tr class="even">
+<td>Index</td>
+<td>Rows are indexed</td>
+<td>Integer positions are used</td>
+</tr>
+<tr class="odd">
+<td>Evaluation</td>
+<td>Eager only</td>
+<td>Lazy and eager</td>
+</tr>
+<tr class="even">
+<td>Query optimizer</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr class="odd">
+<td>Out-of-core</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr class="even">
+<td><a href="https://en.wikipedia.org/wiki/Single_instruction,_multiple_data">SIMD</a> vectorization</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr class="odd">
+<td>Data in memory</td>
+<td>With <a href="https://github.com/numpy/numpy">NumPy</a> arrays</td>
+<td>With <a href="https://github.com/apache/arrow">Apache Arrow</a> arrays</td>
+</tr>
+<tr class="even">
+<td>Memory efficiency</td>
+<td>Poor</td>
+<td>Excellent</td>
+</tr>
+<tr class="odd">
+<td>Handling of missing data</td>
+<td>Inconsistent</td>
+<td>Consistent, promotes type stability</td>
+</tr>
+</tbody>
+</table>
+<!-- #### Table visualization -->
+<!-- While Pandas comes with internal capabilities [to make publication ready tables](https://pandas.pydata.org/docs/user_guide/style.html), Polars [integrates very well](https://posit-dev.github.io/great-tables/blog/polars-styling/) with [great-tables](https://github.com/posit-dev/great-tables) to achieve the same goal. -->
 </section>
-<section id="benchmarks" class="level2">
-<h2 class="anchored" data-anchor-id="benchmarks">Benchmarks</h2>
-<p>Comparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren’t the most pertinent since they can be used in <em>combination with</em> Polars and the benefits can thus be combined.</p>
-<p>It makes most sense to compare Polars with another library occupying the same “niche” such as Pandas or Vaex.</p>
-<p>The net is full of benchmarks with consistent results: Polars is 3 to 150 times faster than Pandas.</p>
-<p>Pandas is trying to fight back: v 2.0 came with optional Arrow support instead of NumPy, then <a href="https://dataalgo.medium.com/pandas-2-0-ditches-numpy-for-pyarrow-what-you-need-to-know-cbba4cb60249">it became the default engine</a>, but performance remains way below that of Polars (e.g.&nbsp;in <a href="https://www.datacamp.com/tutorial/high-performance-data-manipulation-in-python-pandas2-vs-polars">DataCamp benchmarks</a>, <a href="https://pola.rs/posts/benchmarks/">official benchmarks</a>, many blog posts for <a href="https://medium.com/@asimandia/benchmarking-performance-polars-vs-vaex-vs-pandas-f1c889dccc12">whole scripts</a> or <a href="https://medium.com/cuenex/pandas-2-0-vs-polars-the-ultimate-battle-a378eb75d6d1">individual tasks</a>).</p>
-<p>As for Vaex, <a href="https://medium.com/@asimandia/benchmarking-performance-polars-vs-vaex-vs-pandas-f1c889dccc12">it seems twice slower</a> and <a href="https://github.com/vaexio/vaex">development has stalled over the past 10 months</a>.</p>
-<p>The only framework performing better than Polars in some benchmarks is <a href="https://github.com/h2oai/datatable">datatable</a> (derived from the R package <a href="https://cran.r-project.org/web/packages/data.table/index.html">data.table</a>), but it hasn’t been developed for 6 months—a sharp contrast with the fast development of Polars.</p>
+<section id="performance" class="level4">
+<h4 class="anchored" data-anchor-id="performance">Performance</h4>
+<section id="parallel-execution" class="level5">
+<h5 class="anchored" data-anchor-id="parallel-execution">Parallel execution</h5>
+<p>Let’s go back to the <a href="https://en.wikipedia.org/wiki/Fizz_buzz#:~:text=Fizz%20buzz%20is%20a%20group,with%20the%20word%20%22fizzbuzz%22.">FizzBuzz</a> problem.</p>
+<p><a href="https://wgpages.netlify.app/python2/python-13-pandas/#three-solutions-to-a-classification-problem">The best method with Pandas used masks</a>. Let’s see how Polars fares in comparison.</p>
+<p>First, let’s load the packages we will need:</p>
+<div id="410a4b80" class="cell" data-execution_count="2">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>And let’s make sure that the code works.</p>
+<p>With Pandas:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.DataFrame()</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>size <span class="op">=</span> <span class="dv">10_000</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>df_pd[<span class="st">"number"</span>] <span class="op">=</span> np.arange(<span class="dv">1</span>, size<span class="op">+</span><span class="dv">1</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>df_pd[<span class="st">"response"</span>] <span class="op">=</span> df_pd[<span class="st">"number"</span>].astype(<span class="bu">str</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"number"</span>] <span class="op">%</span> <span class="dv">3</span> <span class="op">==</span> <span class="dv">0</span>, <span class="st">"response"</span>] <span class="op">=</span> <span class="st">"Fizz"</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"number"</span>] <span class="op">%</span> <span class="dv">5</span> <span class="op">==</span> <span class="dv">0</span>, <span class="st">"response"</span>] <span class="op">=</span> <span class="st">"Buzz"</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"number"</span>] <span class="op">%</span> <span class="dv">15</span> <span class="op">==</span> <span class="dv">0</span>, <span class="st">"response"</span>] <span class="op">=</span> <span class="st">"FizzBuzz"</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>df_pd</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>      number response
+0          1        1
+1          2        2
+2          3     Fizz
+3          4        4
+4          5     Buzz
+...      ...      ...
+9995    9996     Fizz
+9996    9997     9997
+9997    9998     9998
+9998    9999     Fizz
+9999   10000     Buzz
+
+[10000 rows x 2 columns]</code></pre>
+<p>With Polars:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>size <span class="op">=</span> <span class="dv">10_000</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.DataFrame({<span class="st">"number"</span>: np.arange(<span class="dv">1</span>, size<span class="op">+</span><span class="dv">1</span>)})</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>df_pl.with_columns(pl.col(<span class="st">"number"</span>).cast(pl.String).alias(<span class="st">"response"</span>))</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>df_pl.with_columns(</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    pl.when(pl.col(<span class="st">"number"</span>) <span class="op">%</span> <span class="dv">3</span> <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    .then(pl.lit(<span class="st">"Fizz"</span>))</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    .when(pl.col(<span class="st">"number"</span>) <span class="op">%</span> <span class="dv">5</span> <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    .then(pl.lit(<span class="st">"Buzz"</span>))</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    .when(pl.col(<span class="st">"number"</span>) <span class="op">%</span> <span class="dv">15</span> <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    .then(pl.lit(<span class="st">"FizzBuzz"</span>))</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    .otherwise(pl.col(<span class="st">"number"</span>))</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    .alias(<span class="st">"response"</span>)</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>df_pl</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>shape: (10_000, 2)
+┌────────┬──────────┐
+│ number ┆ response │
+│ ---    ┆ ---      │
+│ i64    ┆ str      │
+╞════════╪══════════╡
+│ 1      ┆ 1        │
+│ 2      ┆ 2        │
+│ 3      ┆ Fizz     │
+│ 4      ┆ 4        │
+│ 5      ┆ Buzz     │
+│ …      ┆ …        │
+│ 9996   ┆ Fizz     │
+│ 9997   ┆ 9997     │
+│ 9998   ┆ 9998     │
+│ 9999   ┆ Fizz     │
+│ 10000  ┆ Buzz     │
+└────────┴──────────┘</code></pre>
+<p>Now, let’s time them.</p>
+<p>Pandas:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.DataFrame()</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>size <span class="op">=</span> <span class="dv">10_000</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>df_pd[<span class="st">"number"</span>] <span class="op">=</span> np.arange(<span class="dv">1</span>, size<span class="op">+</span><span class="dv">1</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>df_pd[<span class="st">"response"</span>] <span class="op">=</span> df_pd[<span class="st">"number"</span>].astype(<span class="bu">str</span>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"number"</span>] <span class="op">%</span> <span class="dv">3</span> <span class="op">==</span> <span class="dv">0</span>, <span class="st">"response"</span>] <span class="op">=</span> <span class="st">"Fizz"</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"number"</span>] <span class="op">%</span> <span class="dv">5</span> <span class="op">==</span> <span class="dv">0</span>, <span class="st">"response"</span>] <span class="op">=</span> <span class="st">"Buzz"</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"number"</span>] <span class="op">%</span> <span class="dv">15</span> <span class="op">==</span> <span class="dv">0</span>, <span class="st">"response"</span>] <span class="op">=</span> <span class="st">"FizzBuzz"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>4.75 ms ± 9.76 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)</code></pre>
+<p>Polars:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>size <span class="op">=</span> <span class="dv">10_000</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.DataFrame({<span class="st">"number"</span>: np.arange(<span class="dv">1</span>, size<span class="op">+</span><span class="dv">1</span>)})</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>df_pl.with_columns(pl.col(<span class="st">"number"</span>).cast(pl.String).alias(<span class="st">"response"</span>))</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>df_pl.with_columns(</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    pl.when(pl.col(<span class="st">"number"</span>) <span class="op">%</span> <span class="dv">3</span> <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    .then(pl.lit(<span class="st">"Fizz"</span>))</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    .when(pl.col(<span class="st">"number"</span>) <span class="op">%</span> <span class="dv">5</span> <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    .then(pl.lit(<span class="st">"Buzz"</span>))</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    .when(pl.col(<span class="st">"number"</span>) <span class="op">%</span> <span class="dv">15</span> <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    .then(pl.lit(<span class="st">"FizzBuzz"</span>))</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    .otherwise(pl.col(<span class="st">"number"</span>))</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    .alias(<span class="st">"response"</span>)</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>518 μs ± 580 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)</code></pre>
+<p>That’s a speedup of almost 10 (the longer the series, the larger this speedup will be). This speedup is due to the fact that Polars is written in Rust and has parallel execution built-in. With Pandas, you would have to use <a href="https://github.com/dask/dask">Dask</a> to achieve a similar behaviour.</p>
+<p>Polars: 1, Pandas: 0 🙂</p>
+</section>
+<section id="lazy-evaluation" class="level5">
+<h5 class="anchored" data-anchor-id="lazy-evaluation">Lazy evaluation</h5>
+<p>Now, let’s go back to <a href="https://wgpages.netlify.app/python2/python-13-pandas/#example-with-a-larger-dataframe">the jeopardy example with a large file</a>.</p>
+<p><a href="https://github.com/pola-rs/polars/issues/13115">Lazy evaluation is not yet implemented when reading files from the cloud</a> (Polars is a very new tool and its functionalities are expanding fast).</p>
+<p>This means that we cannot test the benefit of lazy evaluation in our example by using the CSV file in its current location (<a href="https://github.com/pola-rs/polars/issues/13115" class="uri">https://github.com/pola-rs/polars/issues/13115</a>).</p>
+<p>I downloaded it on my machine however to run the test.</p>
+<p>First, let’s make sure that the code works.</p>
+<p>Pandas:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.read_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"Category"</span>] <span class="op">==</span> <span class="st">"HISTORY"</span>].shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>(349, 7)</code></pre>
+<p>Polars:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.scan_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>df_pl.<span class="bu">filter</span>(pl.col(<span class="st">"Category"</span>) <span class="op">==</span> <span class="st">"HISTORY"</span>).collect().shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>(349, 7)</code></pre>
+<p>And now for the timing.</p>
+<p>Pandas:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.read_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"Category"</span>] <span class="op">==</span> <span class="st">"HISTORY"</span>].shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>331 ms ± 2.29 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)</code></pre>
+<p>Polars:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.scan_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>df_pl.<span class="bu">filter</span>(pl.col(<span class="st">"Category"</span>) <span class="op">==</span> <span class="st">"HISTORY"</span>).collect().shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>13.1 ms ± 175 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)</code></pre>
+<p>That’s a speedup of 25 (the larger the file, the larger this speedup will be).</p>
+<p>Polars: 2, Pandas: 0 🙂</p>
+<!-- Comparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren't the most pertinent since they can be used in *combination with* Polars and the benefits can thus be combined. -->
+<!-- It makes most sense to compare Polars with another library occupying the same "niche" such as Pandas or Vaex. -->
+<!-- The net is full of benchmarks with consistent results: Polars is 3 to 150 times faster than Pandas. -->
+<!-- Pandas is trying to fight back: v 2.0 came with optional Arrow support instead of NumPy, then [it became the default engine](https://dataalgo.medium.com/pandas-2-0-ditches-numpy-for-pyarrow-what-you-need-to-know-cbba4cb60249), but performance remains way below that of Polars (e.g. in [DataCamp benchmarks](https://www.datacamp.com/tutorial/high-performance-data-manipulation-in-python-pandas2-vs-polars), [official benchmarks](https://pola.rs/posts/benchmarks/), many blog posts for [whole scripts](https://medium.com/@asimandia/benchmarking-performance-polars-vs-vaex-vs-pandas-f1c889dccc12) or [individual tasks](https://medium.com/cuenex/pandas-2-0-vs-polars-the-ultimate-battle-a378eb75d6d1)). -->
+<!-- As for Vaex, [it seems twice slower](https://medium.com/@asimandia/benchmarking-performance-polars-vs-vaex-vs-pandas-f1c889dccc12) and [development has stalled over the past 10 months](https://github.com/vaexio/vaex). -->
+<!-- The only framework performing better than Polars in some benchmarks is [datatable](https://github.com/h2oai/datatable) (derived from the R package [data.table](https://cran.r-project.org/web/packages/data.table/index.html)), but it hasn't been developed for 6 months—a sharp contrast with the fast development of Polars. -->
 
 
+</section>
+</section>
+</section>
 </section>
 
 </main> <!-- /main -->
