@@ -140,8 +140,6 @@ For maximum dataframe efficiency, the best strategy currently seems to be:
 
 #### Performance
 
-##### Parallel execution
-
 Let's go back to the [FizzBuzz](https://en.wikipedia.org/wiki/Fizz_buzz#:~:text=Fizz%20buzz%20is%20a%20group,with%20the%20word%20%22fizzbuzz%22.) problem.
 
 [The best method with Pandas used masks](https://wgpages.netlify.app/python2/python-13-pandas/#three-solutions-to-a-classification-problem). Let's see how Polars fares in comparison.
@@ -272,15 +270,15 @@ df_pl.with_columns(
 518 μs ± 580 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
 ```
 
-That's a speedup of almost 10 (the longer the series, the larger this speedup will be). This speedup is due to the fact that Polars is written in Rust and has parallel execution built-in. With Pandas, you would have to use [Dask](https://github.com/dask/dask) to achieve a similar behaviour.
+That's a speedup of almost 10 (the longer the series, the larger this speedup will be).
 
 Polars: 1, Pandas: 0 🙂
 
-##### Lazy evaluation
+But it gets even better: Polars support [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation).
 
 Now, let's go back to [the jeopardy example with a large file](https://wgpages.netlify.app/python2/python-13-pandas/#example-with-a-larger-dataframe).
 
-[Lazy evaluation is not yet implemented when reading files from the cloud](https://github.com/pola-rs/polars/issues/13115) (Polars is a very new tool and its functionalities are expanding fast).
+[Lazy evaluation is not yet implemented when reading files from the cloud](https://github.com/pola-rs/polars/issues/13115) (Polars is a very new tool, but its functionalities are expanding very fast).
 
 This means that we cannot test the benefit of lazy evaluation in our example by using the CSV file in its current location (<https://github.com/pola-rs/polars/issues/13115>).
 
@@ -338,7 +336,17 @@ df_pl.filter(pl.col("Category") == "HISTORY").collect().shape
 13.1 ms ± 175 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)
 ```
 
-That's a speedup of 25 (the larger the file, the larger this speedup will be).
+That's a speedup of 25 (the larger the file, the larger this speedup will be). This is because `pl.scan_csv` doesn't read the file. Instead, it creates a future. By using a lazy query, only the part of the file that is necessary actually gets read in. This potentially saves a lot of time for very large files and it even allows to work with files too large to fit in memory.
+
+Lazy evaluation also allows the query optimizer to combine operations where possible, very much the way compiled languages work.
+
+To evaluate the future and get a result, we use the `collect` method.
+
+:::{.note}
+
+Note that Polars also has a `pl.read_csv` function if you want to use the eager evaluation.
+
+:::
 
 Polars: 2, Pandas: 0 🙂
 
