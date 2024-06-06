@@ -660,9 +660,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    .then(pl.lit(<span class="st">"FizzBuzz"</span>))</span>
 <span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    .otherwise(pl.col(<span class="st">"number"</span>))</span>
 <span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    .alias(<span class="st">"response"</span>)</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>df_pl</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>shape: (10_000, 2)
 ┌────────┬──────────┐
 │ number ┆ response │
@@ -712,38 +710,36 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>518 μs ± 580 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)</code></pre>
 <p>That’s a speedup of almost 10 (the longer the series, the larger this speedup will be).</p>
 <p>Polars: 1, Pandas: 0 🙂</p>
-<p>But it gets even better: Polars support <a href="https://en.wikipedia.org/wiki/Lazy_evaluation">lazy evaluation</a>.</p>
-<p>Now, let’s go back to <a href="https://wgpages.netlify.app/python2/python-13-pandas/#example-with-a-larger-dataframe">the jeopardy example with a large file</a>.</p>
-<p><a href="https://github.com/pola-rs/polars/issues/13115">Lazy evaluation is not yet implemented when reading files from the cloud</a> (Polars is a very new tool, but its functionalities are expanding very fast).</p>
-<p>This means that we cannot test the benefit of lazy evaluation in our example by using the CSV file in its current location (<a href="https://github.com/pola-rs/polars/issues/13115" class="uri">https://github.com/pola-rs/polars/issues/13115</a>).</p>
-<p>I downloaded it on my machine however to run the test.</p>
+<p>But it gets even better: <strong>Polars support <a href="https://en.wikipedia.org/wiki/Lazy_evaluation">lazy evaluation</a></strong>. Let’s go back to <a href="https://wgpages.netlify.app/python2/python-13-pandas/#example-with-a-larger-dataframe">the jeopardy example with a large file</a>.</p>
+<p><a href="https://github.com/pola-rs/polars/issues/13115">Lazy evaluation is not yet implemented when reading files from the cloud</a> (Polars is a very new tool, but its functionalities are expanding very fast). This means that we cannot test the benefit of lazy evaluation in our example by using the CSV file in its current location (<a href="https://github.com/pola-rs/polars/issues/13115" class="uri">https://github.com/pola-rs/polars/issues/13115</a>).</p>
+<p>I downloaded it on our training cluster however so that we can run the test.</p>
 <p>First, let’s make sure that the code works.</p>
 <p>Pandas:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.read_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.read_csv(<span class="st">"/project/def-sponsor00/data/jeopardy.csv"</span>)</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"Category"</span>] <span class="op">==</span> <span class="st">"HISTORY"</span>].shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>(349, 7)</code></pre>
 <p>Polars:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.scan_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.scan_csv(<span class="st">"/project/def-sponsor00/data/jeopardy.csv"</span>)</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>df_pl.<span class="bu">filter</span>(pl.col(<span class="st">"Category"</span>) <span class="op">==</span> <span class="st">"HISTORY"</span>).collect().shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>(349, 7)</code></pre>
 <p>And now for the timing.</p>
 <p>Pandas:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.read_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>df_pd <span class="op">=</span> pd.read_csv(<span class="st">"/project/def-sponsor00/data/jeopardy.csv"</span>)</span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>df_pd.loc[df_pd[<span class="st">"Category"</span>] <span class="op">==</span> <span class="st">"HISTORY"</span>].shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>331 ms ± 2.29 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)</code></pre>
 <p>Polars:</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.scan_csv(<span class="st">"jeopardy.csv"</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>df_pl <span class="op">=</span> pl.scan_csv(<span class="st">"/project/def-sponsor00/data/jeopardy.csv"</span>)</span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>df_pl.<span class="bu">filter</span>(pl.col(<span class="st">"Category"</span>) <span class="op">==</span> <span class="st">"HISTORY"</span>).collect().shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <pre><code>13.1 ms ± 175 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)</code></pre>
 <p>That’s a speedup of 25 (the larger the file, the larger this speedup will be). This is because <code>pl.scan_csv</code> doesn’t read the file. Instead, it creates a future. By using a lazy query, only the part of the file that is necessary actually gets read in. This potentially saves a lot of time for very large files and it even allows to work with files too large to fit in memory.</p>
 <p>Lazy evaluation also allows the query optimizer to combine operations where possible, very much the way compiled languages work.</p>
 <p>To evaluate the future and get a result, we use the <code>collect</code> method.</p>
 <div class="note">
-<p>Note that Polars also has a <code>pl.read_csv</code> function if you want to use the eager evaluation.</p>
+<p>Note that Polars also has a <code>pl.read_csv</code> function if you want to use eager evaluation.</p>
 </div>
 <p>Polars: 2, Pandas: 0 🙂</p>
 <!-- Comparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren't the most pertinent since they can be used in *combination with* Polars and the benefits can thus be combined. -->
