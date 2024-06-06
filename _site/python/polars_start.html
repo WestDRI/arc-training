@@ -357,7 +357,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#alliance-clusters" id="toc-alliance-clusters" class="nav-link" data-scroll-target="#alliance-clusters">Alliance clusters</a></li>
   </ul></li>
   <li><a href="#syntax" id="toc-syntax" class="nav-link" data-scroll-target="#syntax">Syntax</a></li>
-  <li><a href="#performance-tips" id="toc-performance-tips" class="nav-link" data-scroll-target="#performance-tips">Performance tips</a></li>
+  <li><a href="#performance-tips" id="toc-performance-tips" class="nav-link" data-scroll-target="#performance-tips">Performance tips</a>
+  <ul>
+  <li><a href="#use-lazy-execution-where-possible" id="toc-use-lazy-execution-where-possible" class="nav-link" data-scroll-target="#use-lazy-execution-where-possible">Use lazy execution where possible</a></li>
+  <li><a href="#data-file-format" id="toc-data-file-format" class="nav-link" data-scroll-target="#data-file-format">Data file format</a></li>
+  </ul></li>
   <li><a href="#migrating-from-pandas" id="toc-migrating-from-pandas" class="nav-link" data-scroll-target="#migrating-from-pandas">Migrating from Pandas</a></li>
   </ul>
 </nav>
@@ -413,12 +417,55 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="syntax" class="level2">
 <h2 class="anchored" data-anchor-id="syntax">Syntax</h2>
-<p>Overall, the syntax feels somewhat similar to <a href="https://cran.r-project.org/web/packages/dplyr/index.html">R’s dplyr</a> from <a href="https://www.tidyverse.org/">the tidyverse</a>.</p>
+<p>Overall, the syntax feels very similar to <a href="https://cran.r-project.org/web/packages/dplyr/index.html">R’s dplyr</a> from <a href="https://www.tidyverse.org/">the tidyverse</a>.</p>
+<p>In particular, extracting data is not done by indexing, but with action verbs:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.DataFrame(</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    {</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"species"</span>: [<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span>],</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"number"</span>: [<span class="dv">87</span>, <span class="dv">13</span>, <span class="dv">4</span>],</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"category"</span>: [<span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"c"</span>]</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>df</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>shape: (3, 3)
+┌─────────┬────────┬──────────┐
+│ species ┆ number ┆ category │
+│ ---     ┆ ---    ┆ ---      │
+│ str     ┆ i64    ┆ str      │
+╞═════════╪════════╪══════════╡
+│ A       ┆ 87     ┆ a        │
+│ B       ┆ 13     ┆ b        │
+│ C       ┆ 4      ┆ c        │
+└─────────┴────────┴──────────┘</code></pre>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>df.<span class="bu">filter</span>(pl.col(<span class="st">"number"</span>) <span class="op">&gt;</span> <span class="dv">20</span>).select(<span class="st">"category"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<pre><code>shape: (1, 1)
+┌──────────┐
+│ category │
+│ ---      │
+│ str      │
+╞══════════╡
+│ a        │
+└──────────┘</code></pre>
 </section>
 <section id="performance-tips" class="level2">
 <h2 class="anchored" data-anchor-id="performance-tips">Performance tips</h2>
-<p>Use lazy execution where possible.</p>
-<p>A great file format is the <a href="https://arrow.apache.org/docs/python/parquet.html">Apache Parquet</a> format.</p>
+<section id="use-lazy-execution-where-possible" class="level3">
+<h3 class="anchored" data-anchor-id="use-lazy-execution-where-possible">Use lazy execution where possible</h3>
+<p>We already saw that you can lazily read files with <code>pl.scan_csv</code> instead of using <code>pl.read_csv</code>.</p>
+<p>Another option is to use the <code>lazy</code> method.</p>
+<div class="example">
+<p>Example:</p>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.DataFrame({<span class="st">"foo"</span>: [<span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"c"</span>], <span class="st">"bar"</span>: [<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>]}).lazy()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The results get eagerly returned with the <code>collect</code> method.</p>
+</section>
+<section id="data-file-format" class="level3">
+<h3 class="anchored" data-anchor-id="data-file-format">Data file format</h3>
+<p>A good file format to store large datasets is <a href="https://arrow.apache.org/docs/python/parquet.html">Apache Parquet</a>. It is a columnar format (data is stored together by column instead of row as is the case for CSV files) and this allows better compression.</p>
+</section>
 </section>
 <section id="migrating-from-pandas" class="level2">
 <h2 class="anchored" data-anchor-id="migrating-from-pandas">Migrating from Pandas</h2>
