@@ -10,7 +10,7 @@ There are fancy tools to scrape the web and play with text. In preparation for t
 
 :::
 
-## Downloading a text file from an URL
+## Downloading a text file from a URL
 
 First, we need to load the [`urllib.request` module](https://docs.python.org/3/library/urllib.request.html#module-urllib.request) from the Python standard library. It contains functions to deal with URLs:
 
@@ -73,7 +73,19 @@ And now we can start playing with the data 🙂
 
 ## Counting things
 
-For instance, we can count the number of occurrences of the name of the main character ("Moist"—I know ... what a crazy name):
+One of the things we can do with our text is counting things.
+
+### Counting characters
+
+For instance, we can count the number of characters thanks to the `len` function:
+
+```{python}
+len(text)
+```
+
+### Counting words
+
+Something else that we can count is the number of occurrences of the name of the main character ("Moist"—I know ... what a crazy name):
 
 ```{python}
 text.count("Moist")
@@ -131,7 +143,7 @@ Your turn:
 We could use:
 
 ```{python}
-text.count("the")
+text.count("the") + text.count("The")
 ```
 
 but it won't answer our question. Why?
@@ -146,7 +158,7 @@ occurrences = 0
 
 # And now we can use a loop to test the words one by one and add 1 to our counter each time the equality returns true
 for word in words:
-    if word == "the":
+    if word == "the" or word == "The":
         occurrences += 1
 
 print(occurrences)        
@@ -155,7 +167,7 @@ print(occurrences)
 An alternative syntax that looks a lot more elegant is the following:
 
 ```{python}
-sum(word == "the" for word in words)
+sum(word == "the" or word == "The" for word in words)
 ```
 
 However, elegance and short syntax don't mean fast code.
@@ -164,7 +176,7 @@ We can benchmark Python code very easy when we use Jupyter or IPython by using t
 
 Let's try it:
 
-```{python}
+```{.python}
 %%timeit
 
 # We set our counter (the number of occurrences) to zero:
@@ -172,8 +184,12 @@ occurrences = 0
 
 # And now we can use a loop to test the words one by one and add 1 to our counter each time the equality returns true
 for word in words:
-    if word == "the":
+    if word == "the" or word == "The":
         occurrences += 1
+```
+
+```
+9.52 μs ± 510 ns per loop (mean ± std. dev. of 7 runs, 100,000 loops each)
 ```
 
 :::{.note}
@@ -184,10 +200,14 @@ I removed the `print` function so that we don't end up printing the result a bun
 
 And for the other method
 
-```{python}
+```{.python}
 %%timeit
 
-occurrences = sum(word == "the" for word in words)
+occurrences = sum(word == "the" or word == "The" for word in words)
+```
+
+```
+24.2 μs ± 243 ns per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
 ```
 
 :::{.note}
@@ -197,6 +217,81 @@ To make a fair comparison with the previous expression, I am not printing the re
 :::
 
 As you can see, the short neat-looking expression takes more than twice the time of the not so nice-looking one. Without benchmarking, it is very hard to predict what code is efficient.
+
+#### Removing punctuation
+
+If you were trying to count other words, things would get even harder: the word "sir" for instance appears in `sir.`, `sir,`, `sir."`, `sir?"`. To do a cleaner job and get our method to work for any word, we need to remove the punctuation.
+
+Step one, we remove the punctuation from our `text` string:
+
+```{python}
+import string
+
+clean_text = text.translate(str.maketrans('', '', string.punctuation))
+print(clean_text)
+```
+
+And now we split it into words:
+
+```{python}
+clean_words = clean_text.split()
+print(clean_words)
+```
+
+This is a much better list to work from and this one will work for any word. For the word "sir" for instance, we would do:
+
+```{python}
+occurrences = 0
+
+for word in clean_words:
+    if word == "sir" or word == "Sir":
+        occurrences += 1
+
+print(occurrences)
+```
+
+```{python}
+clean_text.lower()
+```
+
+#### Removing case
+
+Now, having to look for the word of interest with and without capital letter as we have been doing so far is not the most robust method: what if the text had "SIR" in all caps? After all, Death in Pratchett novels speaks in all caps! Of course, we could add this as a third option (`if word == "sir" or word == "Sir" or word == "SIR"`), but that is becoming a little tedious.
+
+A better solution is to turn the whole text into lower case before splitting it into words. That way we don't have to worry about case.
+
+Let's remove all capital letters:
+
+```{python}
+final_text = clean_text.lower()
+```
+
+Now we split it into words:
+
+```{python}
+final_words = final_text.split()
+print(final_words)
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+What would the code look like now to count the number of times the word "sir" appears?
+
+:::
+
+### Counting unique words
+
+Yet something else we can count is the number of unique words in the text. The simplest way to do this is to turn our list of words into a set and see how many elements this set contains:
+
+```{python}
+len(set(final_words))
+```
 
 ## Extracting characters from strings
 
@@ -316,7 +411,7 @@ Now, remember how we created the `words` object earlier? Try to use it to get th
 
 :::
 
-## Striding
+### Striding
 
 A last way to extract characters out of a string is to use *strides*. A stride is defined with square brackets and 3 values separated by colons. The first value is the left boundary (included), the second value is the right boundary (excluded), and the third value is the step. By default (if omitted), the step is 1.
 
