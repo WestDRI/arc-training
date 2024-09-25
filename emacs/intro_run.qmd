@@ -1,0 +1,107 @@
+---
+title: Running Emacs
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+There are several ways to run Emacs (as a GUI or in the terminal, with or without config file(s), as a server...). In this section, we will have a look at some very useful options.
+
+:::
+
+## List of options
+
+On your computer, you can launch Emacs the way you launch any application (double-clicking on the icon, looking for it in your usual software launcher, etc.). On the cluster, you launch Emacs with the command `emacs`.
+
+Let's try it:
+
+```{.bash}
+emacs
+```
+
+To close it, type `C-x C-c`. That brings you back to the terminal.
+
+Emacs, like most Linux commands, comes with a number of flags. To learn about them, you can open the manual page for Emacs:
+
+```{.bash}
+man emacs
+```
+
+:::{.info}
+
+Man pages open in a pager (usually [less](https://en.wikipedia.org/wiki/Less_(Unix))).
+
+**Useful keybindings when you are in the pager:**
+
+```{.bash}
+SPACE      scroll one screen down
+b          backa one screen
+q          quit the pager
+g		   go to the top of the document
+7g		   go to line 7 from the top
+G		   go to the bottom of the document
+/		   search for a term
+		   n will take you to the next result
+		   N to the previous result
+```
+
+:::
+
+## Window/terminal
+
+When we launched Emacs earlier, it launched directly in the terminal. This is because we are accessing the remote machine without X11 forwarding, so we cannot use graphical applications there.
+
+If we had enabled X11 forwarding (by having an X11 server running on our machine and using `ssh -Y`), or if we were launching Emacs from a terminal on our machine, the command `emacs` would have launched the GUI version of Emacs with clickable menu, etc. In those cases, if we still wanted to launch Emacs in the terminal, we would have to use the `-nw` flag (for no window).
+
+## Initialization file
+
+Right now, we do not have any initialization file (the user-written configuration file for Emacs). Later on however, we will create one and such file gets loaded automatically when Emacs starts. There are flags to prevent loading such file or to load a different configuration file.
+
+We can also prevent the Emacs startup page with the `--no-splash` flag:
+
+```{.bash}
+emacs --no-splash
+```
+
+## Emacs server
+
+You might have noticed that it takes some time for Emacs to launch. This wouldn't happen nearly as much on a local machine, particularly with the latest version of Emacs (Emacs has gotten much faster in recent years, but the clusters still have older versions of Emacs installed). Still, Emacs being so powerful, it does take a little time to start, particularly once you customize it with countless packages.
+
+It is annoying to have to wait each time you need to edit a file! But there is a nice solution: you can launch an Emacs server with `emacs --daemon`, then, each time you need to use Emacs, you connect to the running server with the `emacsclient` command. That way, you wait for Emacs to start only once (when you launch the server, but not afterwards.
+
+You will get this warning when you launch the server, but you can ignore it:
+
+> Warning: due to a long standing Gtk+ bug
+https://gitlab.gnome.org/GNOME/gtk/issues/221
+Emacs might crash when run in daemon mode and the X11 connection is unexpectedly lost.
+Using an Emacs configured with --with-x-toolkit=lucid does not have this problem.
+
+If the warning bothers you, you can redirect to `/dev/null` by running `emacs --daemon 2> /dev/null' instead.
+
+You can also create an alias in your .bashrc file:
+
+```{.bash}
+alias es='emacs --daemon 2> /dev/null'	# start Emacs server
+```
+
+And you could even create an alias for `emacsclient` to make it easier to type since you will use it so often:
+
+```{.bash}
+alias ec='emacsclient'
+```
+
+Now, to open a file called test.py you only have to run `ec test.py`.
+
+The server keeps running even after you log out of your session. This can be convenient, but you probably shouldn't let it run if you don't plan on logging back in soon.
+
+To kill the server, you can run the command `kill-emacs` from within Emacs (we will see how to run commands in a following sections), or by running from the command line:
+
+```{.bash}
+emacsclient -e "(kill-emacs)"
+```
+
+You can create an alias for this too by adding something like this in your .bashrc:
+
+```{.bash}
+alias ek='emacsclient -e "(kill-emacs)"'  # kill Emacs server
+```
