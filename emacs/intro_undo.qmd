@@ -5,11 +5,15 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
+Undoing and redoing are operations so common while editing files that we don't think about them much. Most software however have a poor undo/redo system in which edits get lost all the time.
 
+Emacs' undos never loses edits and [undo-tree](https://github.com/tarsiiformes/undo-tree) brings a wonderful undo/redo system to it.
 
 :::
 
-## Linear systems: classic undo/redo
+## Undo systems
+
+### Linear systems: classic undo/redo
 
 <center>You have some file:</center>
 
@@ -96,7 +100,7 @@ flowchart TD
    classDef current stroke: #f96, stroke-width: 2px
 ```
 
-<center>Now, you make some new edit:</center>
+<center>Now, you make some new edit. From this point on, some edits are lost:</center>
 
 
 ```{mermaid}
@@ -126,7 +130,7 @@ flowchart TD
    classDef lost stroke-dasharray: 3 4
 ```
 
-<center>You can also redo, but some edits are lost:</center>
+<center>And you can redo your last undo, but you can't access all previous states of the file:</center>
 
 ```{mermaid}
 %%| echo: false
@@ -140,7 +144,7 @@ flowchart TD
    classDef lost stroke-dasharray: 3 4
 ```
 
-## Linear systems: Emacs
+### Linear systems: Emacs
 
 <center>You have some file:</center>
 
@@ -250,7 +254,7 @@ flowchart TD
    classDef current stroke: #f96, stroke-width: 2px
 ```
 
-## Non linear system: [undo-tree](https://github.com/tarsiiformes/undo-tree)
+### Non linear system: [undo-tree](https://github.com/tarsiiformes/undo-tree)
 
 <center>You have some file:</center>
 
@@ -375,7 +379,9 @@ flowchart TD
    classDef current stroke: #f96, stroke-width: 2px
 ```
 
-<center>Nothing ever gets lost and it is a lot more sane to navigate the history. To to back to the beginning, you only have to do:</center>
+<center>Nothing ever gets lost and it is a lot more sane to navigate the history.</center>
+
+<center>To to back to the beginning, you only have to do:</center>
 
 ```{mermaid}
 %%| echo: false
@@ -386,4 +392,54 @@ flowchart TD
    1((" ")):::current---2((" "))---3((" "))---4((" "))
    3((" "))---5((" "))
    classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Compare this with the insane Emacs default system:</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+%%{init: { 'flowchart': {'rankSpacing':20} } }%%
+
+flowchart TD
+   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3))---8((5))---9((3))---10((2))---11((3))---12((4))---13((3))---14((2))---15((1)):::current
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+And this is an exceedingly simple example only involving 5 different file states. I let you imagine how it quickly explodes in complexity in real life situations 🙂
+
+Now, the default Emacs system has the huge benefit to never lose any edit. It is already a huge improvement over the default system on most software! The thing is that when we undo and redo changes, linear systems are not ideal. A tree structure that can be fully navigated is just a more sensible solution.
+
+:::{.note}
+
+Undo-tree was initially developed for Vim, so Vim can also use an ideal undo/redo system.
+
+:::
+
+## Installing and customizing undo-tree
+
+This is a personal affair.
+
+The minimal configuration when using [straight](https://github.com/radian-software/straight.el) (to download the package) and [use-package](https://github.com/jwiegley/use-package) to load it and customize it, looks like this:
+
+```{.lisp}
+(use-package undo-tree
+  :straight t)
+```
+
+My personal configuration looks like that:
+
+```{.lisp}
+(use-package undo-tree
+  :straight t
+  :init
+  (global-undo-tree-mode 1)
+  :bind (("C-l" . undo-tree-undo)
+	 ("C-r" . undo-tree-redo)
+	 ("s-t" . undo-tree-visualize)
+	 :map undo-tree-visualizer-mode-map
+	 ;; go to selected undo state
+	 ("<return>" . undo-tree-visualizer-quit)
+	 ;; cancel (return to state before calling undo-tree-visualize)
+	 ("q" . undo-tree-visualizer-abort)))
 ```
