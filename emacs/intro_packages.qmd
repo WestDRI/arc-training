@@ -9,10 +9,6 @@ Emacs is a huge and endlessly customizable toolkit out of the box. In addition, 
 
 :::
 
-## .emacs.d
-
-Installed packages as well as all other files that Emacs creates (except for the init file which lives in `~/`) get stored in a directory called `.emacs.d` located in your home directory.
-
 ## Package manager
 
 There are multiple ways to manage external Emacs packages. [package.el](https://github.com/emacs-mirror/emacs/blob/master/lisp/emacs-lisp/package.el) is the built-in package manager. Several packages provide alternative package management systems. My favourite by far is [straight](https://github.com/radian-software/straight.el). It allows to install packages from anywhere ([MELPA](https://melpa.org/#/), [ELPA](https://elpa.gnu.org/), [Emacsmirror](https://emacsmirror.net/), local server, GitLab, GitHub...). Packages are cloned as Git repos instead of tarballs, making it easy to revert to an old version, edit, etc. Packages are also compiled natively for better efficiency.
@@ -27,13 +23,24 @@ To install straight, you need to put the following in your init file:
       (bootstrap-version 6))
   (unless (file-exists-p bootstrap-file)
     (with-current-buffer
-    (url-retrieve-synchronously
-     "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
-     'silent 'inhibit-cookies)
+		(url-retrieve-synchronously
+		 "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+		 'silent 'inhibit-cookies)
       (goto-char (point-max))
       (eval-print-last-sexp)))
   (load bootstrap-file nil 'nomessage))
 ```
+
+Then you need to evaluate this code. For this, you can close and re-open Emacs. Alternatively, you can select the paragraph and run `M-x eval-region`.
+
+## Package location
+
+Installed packages as well as all other files that Emacs creates (except for the init file which lives in `~/` by default) get stored in a directory called `.emacs.d` located in your home directory.
+
+If you use straight to manage your packages, a `straight` directory will be created in `~/.emacs.d` and in it, you will see two subdirectories:
+
+- `repos` which holds the cloned package Git repos and
+- `build` which holds the built packages.
 
 ## Package loading and configuration
 
@@ -54,13 +61,71 @@ With usage, you can add more configurations, either in your use-package declarat
 
 :::{.example}
 
-Example: I previously mentioned the package [consult](https://github.com/minad/consult). Here is a minimal installation of this package using straight and use-package:
+Example:
 
 :::
 
+First, let's create a file called `test.R` with the following R code in it:
+
+```{.r}
+a <- c(1, 2, 3)
+
+b <- 5L
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+What is the major mode used by Emacs? Why is it?
+
+:::
+
+To get the proper major mode which will give us syntax highlighting and indentation for R as well as a lot of suitable functionality, we need to install the package [ESS (Emacs Speaks Statistics)](https://github.com/emacs-ess/ESS).
+
+To install it using straight, you can put the following in your init file:
+
 ```{.lisp}
-(use-package consult
+(straight-use-package 'ess)
+```
+
+If you want to customize the package with use-package, you can use the perfectly equivalent expression:
+
+```{.lisp}
+(use-package ess
 	:straight t)
 ```
 
-If you look at the [configuration](https://github.com/minad/consult?tab=readme-ov-file#configuration) section, you can find a lot of information on how to customize it.
+The advantage of this second syntax is that you can now add any customization you want to the use-package declaration.
+
+For instance, I use Emacs as an IDE for R and one function that I use all the time to send sections of code from a script to a buffer containing a running R console is `ess-eval-region-or-function-or-paragraph-and-step`. By default, it is bound to `C-c C-c` and, because I use it repeatedly to execute a script chunk by chunk, I find it impractical to have so many `C-c` to type. So I rebound it to 
+
+```{.lisp}
+(use-package ess-r-mode
+	:straight (ess)
+	:bind (:map ess-r-mode-map
+				("C-<return>" . ess-eval-region-or-function-or-paragraph-and-step)))
+```
+
+```{.bash}
+module load r/4.3.1
+```
+
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+After evaluating this line, re-open the `test.R` file. What is the major mode now? Notice that we now also have syntax highlighting for R.
+
+:::
+
+
