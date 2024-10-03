@@ -35,11 +35,11 @@ Then you need to evaluate this code. For this, you can close and re-open Emacs. 
 
 ## Package location
 
-Installed packages as well as all other files that Emacs creates (except for the init file which lives in `~/` by default) get stored in a directory called `.emacs.d` located in your home directory.
+Except for the init file which, by default, lives directly in your home directory, all Emacs configuration files get created in a directory called `.emacs.d` located in your home directory. This is where Emacs will store your installed packages.
 
 If you use straight to manage your packages, a `straight` directory will be created in `~/.emacs.d` and in it, you will see two subdirectories:
 
-- `repos` which holds the cloned package Git repos and
+- `repos` which holds the cloned Git repos of the packages and
 - `build` which holds the built packages.
 
 ## Package loading and configuration
@@ -59,11 +59,7 @@ When you install a new package, the best thing to do is to read the README caref
 
 With usage, you can add more configurations, either in your use-package declaration or using the [easy customization interface](intro_customize.qmd#easy-customization-interface).
 
-:::{.example}
-
-Example:
-
-:::
+### Example: [ESS package](https://github.com/emacs-ess/ESS)
 
 First, let's create a file called `test.R` with the following R code in it:
 
@@ -81,11 +77,12 @@ Your turn:
 
 :::
 
-What is the major mode used by Emacs? Why is it?
+What is the major mode used by Emacs?
+Why do you think that is?
 
 :::
 
-To get the proper major mode which will give us syntax highlighting and indentation for R as well as a lot of suitable functionality, we need to install the package [ESS (Emacs Speaks Statistics)](https://github.com/emacs-ess/ESS).
+To get the proper major mode which will give us syntax highlighting and indentation for R, as well as a lot of additional functionality, we need to install the package [ESS (Emacs Speaks Statistics)](https://github.com/emacs-ess/ESS).
 
 To install it using straight, you can put the following in your init file:
 
@@ -93,7 +90,7 @@ To install it using straight, you can put the following in your init file:
 (straight-use-package 'ess)
 ```
 
-If you want to customize the package with use-package, you can use the perfectly equivalent expression:
+Or you can use the perfectly equivalent expression:
 
 ```{.lisp}
 (use-package ess
@@ -101,20 +98,6 @@ If you want to customize the package with use-package, you can use the perfectly
 ```
 
 The advantage of this second syntax is that you can now add any customization you want to the use-package declaration.
-
-For instance, I use Emacs as an IDE for R and one function that I use all the time to send sections of code from a script to a buffer containing a running R console is `ess-eval-region-or-function-or-paragraph-and-step`. By default, it is bound to `C-c C-c` and, because I use it repeatedly to execute a script chunk by chunk, I find it impractical to have so many `C-c` to type. So I rebound it to 
-
-```{.lisp}
-(use-package ess-r-mode
-	:straight (ess)
-	:bind (:map ess-r-mode-map
-				("C-<return>" . ess-eval-region-or-function-or-paragraph-and-step)))
-```
-
-```{.bash}
-module load r/4.3.1
-```
-
 
 :::{.exo}
 
@@ -124,8 +107,46 @@ Your turn:
 
 :::
 
-After evaluating this line, re-open the `test.R` file. What is the major mode now? Notice that we now also have syntax highlighting for R.
+After evaluating this snippet of code in your init file, re-open `test.R`.
+What is the major mode now?
+Notice that we now also have syntax highlighting for R.
 
 :::
 
+Now that we have a proper mode for R, we can even use Emacs as an IDE.
 
+First, of course, we will need to have R available. Send Emacs to the background with `C-z` and load the R module:
+
+```{.bash}
+module load r/4.3.1
+```
+
+Then bring the `test.R` file back to the foreground by typing `fg` and Enter in the terminal.
+
+Now, you can use the kbd `C-c C-c`, bound to `ess-eval-region-or-function-or-paragraph-and-step`, to send sections of code from the script to a buffer containing a running R console.
+
+If you want to have two windows, one with your script on the left and one with your running R process on the right, you need to split windows, select the proper buffers to display in each window, and move the cursor to the script. This is easy to do, but a bit annoying to have to do each time you want to run R from script.
+
+Instead, you could save a [keyboard macro](intro_automation.qmd#keyboard-macros) with all these commands and set a kbd for it. Or you can define a function doing all this and set a kbd. Let's do it as an example of configuration using use-package:
+
+```{.lisp}
+(use-package ess-r-mode
+	:straight (ess)
+	:config
+	(defun my-start-r ()
+      (interactive)
+      (split-window-right)
+      (R)
+      (other-window 1))
+	:bind (:map ess-r-mode-map
+				;; start R process from script
+				("C-c r" . my-start-r)))
+```
+
+:::{.note}
+
+Note that we had to edit our use-package declaration a little because ESS provides modes for both R and Julia. This is a weird case. Usually, you don't have to make any such change when you add configuration to the use-package declaration.
+
+:::
+
+After evaluating this declaration, you can now launch an R process from any R script, in a window to the right, with the kbd `C-c r` (after which you can evaluate your R script chunk by chunk with `C-c C-c`.
