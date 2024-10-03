@@ -5,7 +5,66 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
+Once you have installed a bunch of packages and configured Emacs to your liking, you will find it annoying to work without all these extra niceties.
 
+If you use the Alliance clusters, it would be a pain to try to replicate your Emacs packages and configs there: first, the Emacs versions may differ, then it is difficult to keep all customizations in sync on your machine and on your cluster account, finally, it is simply a loss of time because there is a much better way to go about it: TRAMP.
 
 :::
+
+## What is TRAMP?
+
+[TRAMP (Transparent Remote file Access, Multiple Protocol)](https://wikemacs.org/wiki/TRAMP) allows to edit remote files over SSH or files belonging to different users from your local Emacs instance. This is very convenient because it allows you to keep your usual Emacs environment with your local settings and packages.
+
+For exhaustive information, you can look at the [TRAMP manual](https://www.gnu.org/software/tramp/).
+
+## How to use TRAMP?
+
+TRAMP is very easy to use, all you have to do is use the following syntax for the file name:
+
+```{.bash}
+/method:user@hostname:/path/to/file
+```
+
+:::{.example}
+
+Example:
+
+:::
+
+The remote name of the `.bashrc` file in your home directory on a remote machine would look something like this:
+
+```{.bash}
+/ssh:user026@somename.ca:.bashrc
+```
+
+:::{.note}
+
+To use TRAMP to access files as root (if you have root access), use `/sudo::/path/to/file`.
+
+:::
+
+## Using TRAMP with MFA
+
+Recently, [the Alliance clusters started using MFA](https://docs.alliancecan.ca/wiki/Multifactor_authentication). Consequently, in order to use TRAMP to access files on a cluster, you will first have to enter your Alliance password, then the method you used for MFA.
+
+The prompt for the password is self-explanatory ("Password:"). That for the MFA method is not: Emacs will prompt you with: "Passcode:", after which you should do one of the following:
+
+- Type 1 and you will be prompted to approve the request on the Duo Mobile App on your phone (this is a bit confusing at first because the prompt is not as clear as when you join through SSH. Here, you have to know that you need to type `1`).
+- Enter one of your backup codes.
+- Press the button on your YubiKey if you have one.
+
+## Safely storing passwords
+
+The [auth-source](https://www.gnu.org/software/emacs/manual/html_node/emacs/Authentication.html) library (part of Emacs) enables Emacs to automatically access passwords saved in a `~/.authoinfo` or `~/.authoinfo.gpg` file. For safety reasons, you definitely should [encrypt it with gpg](https://www.gnu.org/software/emacs/manual/html_node/epa/Encrypting_002fdecrypting-gpg-files.html) and make it a `~/.authoinfo.gpg` file.
+
+Once your Alliance account password is safely stored in this file, you won't have to type it to access your files remotely anymore.
+
+You will however still have to use Duo App or YubiKey. But here too, you can make things easier for yourself if you create [an SSH config file](https://www.google.ca/search?q=ssh%20config) and add for the Alliance cluster host you use some configuration to make your SSH logins persist for some amount of time (e.g. 60 min):
+
+```{.bash}
+Host HOSTNAME
+    ControlPath ~/.ssh/cm-%r@%h:%p
+    ControlMaster auto
+    ControlPersist 60m
+```
 
