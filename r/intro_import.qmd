@@ -1,0 +1,175 @@
+---
+title: Data import and export
+author: Marie-Hélène Burle
+resources: "hss_data/arc1.csv"
+---
+
+:::{.def}
+
+So far, we have used a well-formatted dataset. In the real world, things are often not this nice and tidy...
+
+In this section, we will learn how to handle real data.
+
+:::
+
+## Reading in data
+
+The [readr](https://readr.tidyverse.org/) package from the [tidyverse](https://www.tidyverse.org/) provides a number of functions to read in text files with tabular data (e.g. comma-separated values (CSV) or tab-separated values (TSV) files).
+
+Let's load it:
+
+```{r}
+library(readr)
+```
+
+The `read_csv()` function allows to read in CSV files that are either stored locally or from a URL.
+
+Let's use it to load a CSV file with mock archaeological data which is at the URL https://mint.westdri.ca/r/hss_data/arc1.csv:
+
+```{r}
+arc1 <- read_csv("https://mint.westdri.ca/r/hss_data/arc1.csv")
+```
+
+:::{.note}
+
+If the file was in your machine, you would provide its path instead of the URL.
+
+:::
+
+Here is our data:
+
+```{r}
+arc1
+```
+
+## Improper NA
+
+In R, missing values are represented by `NA` (not available). It is a constant that R understands and can deal with, so it is important that all missing values are represented properly.
+
+When you enter data (say in an Excel file or CSV file), leave an empty cell for missing values: R will then transform them automatically into `NA`.
+
+Because this data was not entered properly, we have to fix our missing values. One way to go about this is to replace the characters representing missing values in the file (`"N/A"` and `"n/a"`) by `NA`:
+
+```{r}
+is.na(arc1) <- arc1 == "N/A"
+is.na(arc1) <- arc1 == "n/a"
+arc1
+```
+
+Now, we have another problem to fix: `readr` is very good at guessing the types of the various variables. Unfortunately, the character `"N/A"` in the `Number of artifacts` column prevented it to guess the type properly: it should be a double (a numerical value) and not a character. We can fix this too:
+
+```{r}
+arc1$`Number of artifacts` <- as.double(arc1$`Number of artifacts`)
+arc1
+```
+
+Alternatively, it is simpler to have `read_csv()` properly recognize the missing values. This can be done thanks to the `na` argument:
+
+```{r}
+arc1 <- read_csv(
+  "https://mint.westdri.ca/r/hss_data/arc1.csv",
+  na = c("N/A", "n/a")
+)
+arc1
+```
+
+A benefit of this approach is that `read_csv()` now automatically detects the proper data type of `Number of artifacts` (since there is no more confusing character in what is otherwise a column of doubles).
+
+## Dealing with dates
+
+There is another problem in our data frame: the `Date` variable should be of the `date` type, but `read_csv()` failed to recognize the values as dates and processed them as characters. This is because it is not entered in our data following the [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format which is YYYY-MM-DD. When you enter data, make sure to follow this format as it will make things work automatically. In our case, we have to convert the date.
+
+The tidyverse package dealing with date is [lubridate](https://lubridate.tidyverse.org/). Let's load it:
+
+```{r}
+library(lubridate)
+```
+
+`lubridate` comes with many functions that can convert dates and times from many format to the ISO format. Since our date have the day, then the month, then the year, the function we need is `dmy()`:
+
+```{r}
+arc1$Date <- dmy(arc1$Date)
+```
+
+Alternatively, `read_csv()` will understand dates in a non ISO format, provided you give it the right information. This can be done with the `col_types` argument and the `col_date()` function to which the parameters corresponding to your date format are passed.
+
+Here are the parameters to use:
+
+|       | Format           | Example  | Parameter |
+|-------|------------------|----------|-----------|
+| Year  | 4 digits         | 2024     | `%Y`      |
+|       | 2 digits         | 24       | `%y`      |
+| Month | Decimal          | 2        | `%m`      |
+|       | Abbreviated name | Feb      | `%b`      |
+|       | Full name        | February | `%B`      |
+| Day   | Decimal          | 8        | `%d`      |
+
+In our case, the date looks like `"%d/%m/%Y"`:
+
+```{r}
+arc1 <- read_csv(
+  "https://mint.westdri.ca/r/hss_data/arc1.csv",
+  na = c("N/A", "n/a"),
+  col_types = cols(Date = col_date("%d/%m/%Y"))
+)
+arc1
+```
+
+## Renaming variables
+
+Variable names cannot contain spaces. Since our data did have spaces in some of the names and since those names were not quoted, R added backticks ``` to be able to make use of them. This makes for rather awkward variables. Let's rename them.
+
+We could use the camel or snake case, but we can also just simplify the names:
+
+```{r}
+arc1 <- arc1 |>
+  rename(
+    Artifacts = `Number of artifacts`,
+    PI = `Name of PI`
+  )
+```
+
+## Fixing inconsistencies
+
+There is still another problem in our data: `Paul Smith` and `P. Smith` are—as far as R is concerned—2 different values. The number of PIs in our data should be two, but R currently interprets it as being three:
+
+```{r}
+dplyr::n_distinct(arc1$PI, na.rm = TRUE)
+```
+
+:::{.note}
+
+We remove the missing values so that they don't get counted as an additional PI (although, more PIs could have been involved in the data collection: dealing with missing values programmatically is easy once they are properly formatted, but what to do with them methodologically depends on the situation and is part of the research question).
+
+:::
+
+This can be a problem for future analysis, so let's fix it. There are many ways to go about this, but the simplest is to use regular expressions:
+
+```{r}
+arc1$PI <- gsub("P\\.", "Paul", arc1$PI)
+```
+
+Our data is finally well formatted and can be used for plotting, analyses, etc.:
+
+```{r}
+arc1
+```
+
+## Writing data to file
+
+Now that we have a properly formatted data frame, we could, if we needed to, export it to a new file. `readr` also has functions to write to text files.
+
+Let's save our data frame as a new CSV file (make sure to give it a different name from the original file):
+
+```{.r}
+write_csv(arc1, "arc1_clean.csv")
+```
+
+<!-- ```{r} -->
+<!-- library(readr) -->
+
+<!-- crew <- read_csv("http://www.whalingmuseum.org/online_exhibits/crewlist/crewlist.csv") -->
+
+<!-- crew -->
+<!-- str(crew) -->
+<!-- ``` -->
