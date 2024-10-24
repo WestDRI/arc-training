@@ -43,7 +43,7 @@ And let's make sure that the code works.
 
 With pandas:
 
-```{.python}
+```{python}
 df_pd = pd.DataFrame()
 size = 10_000
 df_pd["number"] = np.arange(1, size+1)
@@ -52,33 +52,16 @@ df_pd.loc[df_pd["number"] % 3 == 0, "response"] = "Fizz"
 df_pd.loc[df_pd["number"] % 5 == 0, "response"] = "Buzz"
 df_pd.loc[df_pd["number"] % 15 == 0, "response"] = "FizzBuzz"
 
-df_pd
-```
-
-```
-      number response
-0          1        1
-1          2        2
-2          3     Fizz
-3          4        4
-4          5     Buzz
-...      ...      ...
-9995    9996     Fizz
-9996    9997     9997
-9997    9998     9998
-9998    9999     Fizz
-9999   10000     Buzz
-
-[10000 rows x 2 columns]
+print(df_pd)
 ```
 
 With Polars:
 
-```{.python}
+```{python}
 size = 10_000
 df_pl = pl.DataFrame({"number": np.arange(1, size+1)})
 df_pl.with_columns(pl.col("number").cast(pl.String).alias("response"))
-df_pl.with_columns(
+df_pl = df_pl.with_columns(
     pl.when(pl.col("number") % 3 == 0)
     .then(pl.lit("Fizz"))
     .when(pl.col("number") % 5 == 0)
@@ -88,34 +71,15 @@ df_pl.with_columns(
     .otherwise(pl.col("number"))
     .alias("response")
 )
-```
 
-```
-shape: (10_000, 2)
-┌────────┬──────────┐
-│ number ┆ response │
-│ ---    ┆ ---      │
-│ i64    ┆ str      │
-╞════════╪══════════╡
-│ 1      ┆ 1        │
-│ 2      ┆ 2        │
-│ 3      ┆ Fizz     │
-│ 4      ┆ 4        │
-│ 5      ┆ Buzz     │
-│ …      ┆ …        │
-│ 9996   ┆ Fizz     │
-│ 9997   ┆ 9997     │
-│ 9998   ┆ 9998     │
-│ 9999   ┆ Fizz     │
-│ 10000  ┆ Buzz     │
-└────────┴──────────┘
+print(df_pl)
 ```
 
 Now, let's time them.
 
 pandas:
 
-```{.python}
+```{python}
 %%timeit
 
 df_pd = pd.DataFrame()
@@ -127,13 +91,9 @@ df_pd.loc[df_pd["number"] % 5 == 0, "response"] = "Buzz"
 df_pd.loc[df_pd["number"] % 15 == 0, "response"] = "FizzBuzz"
 ```
 
-```
-4.75 ms ± 9.76 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)
-```
-
 Polars:
 
-```{.python}
+```{python}
 %%timeit
 
 size = 10_000
@@ -151,11 +111,7 @@ df_pl.with_columns(
 )
 ```
 
-```
-518 μs ± 580 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
-```
-
-That's a speedup of almost 10 (the longer the series, the larger this speedup will be).
+That's a speedup of 9 (the longer the series, the larger this speedup will be).
 
 Polars: 1, pandas: 0
 
@@ -163,91 +119,63 @@ For a second example, let's go back to [the jeopardy example with a large file](
 
 pandas:
 
-```{.python}
+```{python}
 %%timeit
 
 df_pd = pd.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
 df_pd.loc[df_pd["Category"] == "HISTORY"].shape
 ```
 
-```
-887 ms ± 164 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
-```
-
 Polars:
 
-```{.python}
+```{python}
 %%timeit
 
 df_pl = pl.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
 df_pl.filter(pl.col("Category") == "HISTORY").shape
 ```
 
-```
-446 ms ± 89.3 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
-```
-
 That's a speedup of 2.
 
 But it gets even better: **Polars support [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation)**. 
-
-[Lazy evaluation is not yet implemented when reading files from the cloud](https://github.com/pola-rs/polars/issues/13115) (Polars is a very new tool, but its functionalities are expanding very fast). This means that we cannot test the benefit of lazy evaluation in our example by using the CSV file in its current location (<https://github.com/pola-rs/polars/issues/13115>).
-
-I downloaded it on our training cluster however so that we can run the test.
 
 First, let's make sure that the code works.
 
 pandas:
 
-```{.python}
-df_pd = pd.read_csv("/project/def-sponsor00/data/jeopardy.csv")
+```{python}
+df_pd = pd.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
 df_pd.loc[df_pd["Category"] == "HISTORY"].shape
-```
-
-```
-(349, 7)
 ```
 
 Polars:
 
-```{.python}
-df_pl = pl.scan_csv("/project/def-sponsor00/data/jeopardy.csv")
+```{python}
+df_pl = pl.scan_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
 df_pl.filter(pl.col("Category") == "HISTORY").collect().shape
-```
-
-```
-(349, 7)
 ```
 
 And now for the timing.
 
 pandas:
 
-```{.python}
+```{python}
 %%timeit
 
-df_pd = pd.read_csv("/project/def-sponsor00/data/jeopardy.csv")
+df_pd = pd.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
 df_pd.loc[df_pd["Category"] == "HISTORY"].shape
-```
-
-```
-331 ms ± 2.29 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
 ```
 
 Polars:
 
-```{.python}
+```{python}
 %%timeit
 
-df_pl = pl.scan_csv("/project/def-sponsor00/data/jeopardy.csv")
+df_pl = pl.scan_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
 df_pl.filter(pl.col("Category") == "HISTORY").collect().shape
 ```
 
-```
-13.1 ms ± 175 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)
-```
-
-That's a speedup of 25 (the larger the file, the larger this speedup will be). This is because `pl.scan_csv` doesn't read the file. Instead, it creates a future. By using a lazy query, only the part of the file that is necessary actually gets read in. This potentially saves a lot of time for very large files and it even allows to work with files too large to fit in memory.
+That's a speedup of 20 (the larger the file, the larger this speedup will be). This is because `pl.scan_csv` doesn't read the file. Instead, it creates a future. By using a lazy query, only the part of the file that is necessary actually gets read in. This potentially saves a lot of time for very large files and it even allows to work with files too large to fit in memory.
 
 Lazy evaluation also allows the query optimizer to combine operations where possible, very much the way compiled languages work.
 
@@ -280,10 +208,6 @@ For [Vaex](https://github.com/vaexio/vaex), [some benchmark found it twice slowe
 One framework performing better than Polars in some benchmarks is [datatable](https://github.com/h2oai/datatable) (derived from the R package [data.table](https://cran.r-project.org/web/packages/data.table/index.html)), but it hasn't been developed for a year—a sharp contrast with the fast development of Polars.
 
 :::
-
-## Table visualization
-
-While pandas comes with internal capabilities [to make publication ready tables](https://pandas.pydata.org/docs/user_guide/style.html), Polars [integrates very well](https://posit-dev.github.io/great-tables/blog/polars-styling/) with [great-tables](https://github.com/posit-dev/great-tables) to achieve the same goal.
 
 ## Migrating from Pandas
 
