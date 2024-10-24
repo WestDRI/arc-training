@@ -17,7 +17,7 @@ As pandas was the only data frame library for Python for a long time, many Pytho
 | Written in | Cython | Rust |
 | Multithreading | Some operations | Yes (GIL released) |
 | Index | Rows are indexed | Integer positions are used |
-| Evaluation | Eager only | Lazy and eager |
+| Evaluation | Eager | Eager and lazy |
 | Query optimizer | No | Yes |
 | Out-of-core | No | Yes |
 | [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) vectorization | Yes | Yes |
@@ -26,6 +26,8 @@ As pandas was the only data frame library for Python for a long time, many Pytho
 | Handling of missing data | Inconsistent | Consistent, promotes type stability |
 
 ## Performance
+
+### Example 1
 
 Let's use the [FizzBuzz](https://en.wikipedia.org/wiki/Fizz_buzz#:~:text=Fizz%20buzz%20is%20a%20group,with%20the%20word%20%22fizzbuzz%22.) problem.
 
@@ -113,9 +115,27 @@ df_pl.with_columns(
 
 That's a speedup of 9 (the longer the series, the larger this speedup will be).
 
-Polars: 1, pandas: 0
+### Example 2
 
 For a second example, let's go back to [the jeopardy example with a large file](https://wgpages.netlify.app/python2/python-13-pandas/#example-with-a-larger-dataframe) and compare the timing of pandas and Polar.
+
+First, let's make sure that the code works.
+
+pandas:
+
+```{python}
+df_pd = pd.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
+df_pd.loc[df_pd["Category"] == "HISTORY"].shape
+```
+
+Polars:
+
+```{python}
+df_pl = pl.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
+df_pl.filter(pl.col("Category") == "HISTORY").shape
+```
+
+And now for timings.
 
 pandas:
 
@@ -137,36 +157,16 @@ df_pl.filter(pl.col("Category") == "HISTORY").shape
 
 That's a speedup of 2.
 
-But it gets even better: **Polars support [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation)**. 
+But it gets much better with [lazy evaluation](polars_lazy.qmd). First, we create a LazyFrame instead of a DataFrame by using `scan_csv` instead of `read_csv`. The query is not evaluated but a graph is created. This allows the query optimizer to combine operations and perform [optimizations](https://docs.pola.rs/user-guide/lazy/optimizations/) where possible, very much the way compilers work. To evaluate the query and get a result, we use the `collect` method.
 
-First, let's make sure that the code works.
-
-pandas:
-
-```{python}
-df_pd = pd.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
-df_pd.loc[df_pd["Category"] == "HISTORY"].shape
-```
-
-Polars:
+Let's make sure that the lazy Polars code gives us the same result:
 
 ```{python}
 df_pl = pl.scan_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
 df_pl.filter(pl.col("Category") == "HISTORY").collect().shape
 ```
 
-And now for the timing.
-
-pandas:
-
-```{python}
-%%timeit
-
-df_pd = pd.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
-df_pd.loc[df_pd["Category"] == "HISTORY"].shape
-```
-
-Polars:
+Lazy timing:
 
 ```{python}
 %%timeit
@@ -175,19 +175,7 @@ df_pl = pl.scan_csv("https://raw.githubusercontent.com/razoumov/publish/master/j
 df_pl.filter(pl.col("Category") == "HISTORY").collect().shape
 ```
 
-That's a speedup of 20 (the larger the file, the larger this speedup will be). This is because `pl.scan_csv` doesn't read the file. Instead, it creates a future. By using a lazy query, only the part of the file that is necessary actually gets read in. This potentially saves a lot of time for very large files and it even allows to work with files too large to fit in memory.
-
-Lazy evaluation also allows the query optimizer to combine operations where possible, very much the way compiled languages work.
-
-To evaluate the future and get a result, we use the `collect` method.
-
-:::{.note}
-
-Note that Polars also has a `pl.read_csv` function if you want to use eager evaluation.
-
-:::
-
-Polars: 2, pandas: 0
+That's a speedup of 20 (the larger the file, the larger this speedup will be).
 
 :::{.hnote}
 
