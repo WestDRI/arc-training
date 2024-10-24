@@ -21,7 +21,7 @@ print(df)
 
 ## Selecting rows
 
-You can select rows based on any expression that evaluates to a Boolean.
+You can select rows based on any expression that evaluates to a Boolean with `filter`:
 
 :::{.example}
 
@@ -52,6 +52,8 @@ print(df_sub)
 
 ## Selecting columns
 
+To select columns (variables), you use `select`:
+
 ```{python}
 df_sub = df.select(
     pl.col("Show Number"),
@@ -63,22 +65,126 @@ print(df_sub)
 
 ## Creating new columns with output of expressions
 
-```{python}
-from datetime import datetime
+The jeopardy dataset is made mostly of String variables. Let's use another one here: the [now archived global confirmed Covid-19 cases from John Hopkins University](https://github.com/CSSEGISandData/COVID-19):
 
+```{python}
+url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+
+df = pl.read_csv(url)
+
+print(df)
+```
+
+To create a new variable called `daily_avg` with the daily average of new cases, we use `select` again, but this time we add an expression:
+
+```{python}
 df_new = df.select(
-    show_div=pl.col("Show Number") / 1000
+    daily_avg=pl.col("3/9/23") / 1143
     )
 
 print(df_new)
 ```
 
+:::{.note}
+
+Since the data is cumulative across dates, we took the last columns (totals cases for each row) and divided by the number of days of this dataset (total number of columns menus the four first columns).
+
+:::
+
 If you want to keep all columns in the output, you use `with_columns`:
 
 ```{python}
 df_new = df.with_columns(
-    show_div=pl.col("Show Number") / 1000
+    daily_avg=pl.col("3/9/23") / 1143
     )
 
 print(df_new)
+```
+
+:::{.note}
+
+Notice that our new variable got added as the last column of the data frame.
+
+:::
+
+If we want to write in place, we can reassign the output to the initial data frame:
+
+```{python}
+df = df.with_columns(
+    daily_avg=pl.col("3/9/23") / 1143
+    )
+```
+
+## Group by operations
+
+In this Covid-19 dataset some countries (e.g. Australia) are split between several provinces or states. If we want the total numbers for such countries we have to group the rows by the variable `Country/Region`, then get the sum for each group.
+
+Getting the sums of the latitude and longitude wouldn't make any sense, so first we get rid of those two columns:
+
+```{python}
+df_clean = df.select(
+    pl.col("*").exclude("Lat", "Long")
+    )
+
+print(df_clean)
+```
+
+:::{.note}
+
+There are [many ways](https://docs.pola.rs/user-guide/expressions/column-selections/) to select columns from a data frame.
+
+:::
+
+Now we can group by and get our sums:
+
+```{python}
+df_countries = df_clean.group_by(
+    (pl.col("Country/Region")).alias("Country totals")
+    ).sum()
+
+print(df_countries)
+```
+
+:::{.note}
+
+The `alias` method allows us to give a name to the groups.
+
+:::
+
+Notice that the rows became out of order. Not to worry about order makes the code more efficient and does not affect future subsetting of our data frame. If you want to maintain the order however, you can use the `maintain_order` parameter:
+
+```{python}
+df_countries = df_clean.group_by(
+    (pl.col("Country/Region")).alias("Country"),
+    maintain_order=True
+    ).sum()
+
+print(df_countries)
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+- The old `Country/Region` column is now irrelevant. Remove it from `df_countries`.
+
+- How could you get the total number of cases for each day for the whole world?
+
+:::
+
+## Aggregations
+
+To keep a list of all elements of the groups, we use the `agg` method:
+
+```{python}
+df_countries = df.group_by(
+    (pl.col("Country/Region")).alias("Country"),
+    maintain_order=True
+    ).agg(pl.col("Country/Region"))
+
+print(df_countries)
 ```
