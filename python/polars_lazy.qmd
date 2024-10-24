@@ -1,0 +1,46 @@
+---
+title: Lazy evaluation
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+When it comes to high-performance computing, one of the strengths of Polars is that it supports [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation). Lazy evaluation instantly returns a future that can be used down the code without waiting for the result of the computation to get calculated. It also allows the query optimizer to combine operations, very much the way compiled languages work.
+
+If you want to speedup your code, **use lazy execution whenever possible.**
+
+:::
+
+Try to use the lazy API from the start, when reading a file.
+
+In previous examples, we used `read_csv` to read our data. This returns a Polars DataFrame. Instead, you can use `scan_csv` to create a LazyFrame:
+
+```{python}
+import polars as pl
+
+url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+
+df = pl.read_csv(url)
+df_lazy = pl.scan_csv(url)
+
+print(type(df))
+print(type(df_lazy))
+```
+
+:::{.note}
+
+There are scan functions [for all the numerous IO methods Polars offers](https://docs.pola.rs/user-guide/io/).
+
+:::
+
+If you already have a DataFrame, you can create a LazyFrame from it with the `lazy` method:
+
+```{python}
+df_lazy = df.lazy()
+```
+
+When you run queries on a LazyFrame, instead of evaluating them, Polars creates a graph and runs [many optimizations](https://docs.pola.rs/user-guide/lazy/optimizations/) on it.
+
+To evaluate the code and get the result, you use the `collect` method.
+
+We will see this in action in the next section.
