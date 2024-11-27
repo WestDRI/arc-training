@@ -1,0 +1,164 @@
+---
+title: Text normalization
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+TextBlob allows to transform text—something very useful in preparation for text analysis.
+
+:::
+
+:::{.callout-note collapse="true"}
+
+## Necessary code from previous sessions
+
+Here is the necessary code from previous sessions, stripped to the minimum:
+
+```{python}
+# Load packages
+import requests
+import pymupdf
+from textblob import TextBlob
+
+# Download the data
+url = "https://funnyengwish.wordpress.com/wp-content/uploads/2017/05/pratchett_terry_wyrd_sisters_-_royallib_ru.pdf"
+response = requests.get(url)
+
+# Extract data from pdf
+data = response.content
+doc = pymupdf.Document(stream=data)
+
+# Create text from first pdf page
+page1 = doc[0].get_text()
+
+# Turn text into TextBlob
+text = TextBlob(page1)
+```
+
+:::
+
+## Case
+
+There are methods to change the case of `TextBlob` objects.
+
+For example, capitalization (let's only print the first 1000 characters)
+
+```{python}
+print(text.title()[:1000])
+```
+
+Or transformation to upper case:
+
+```{python}
+print(text.upper()[:1000])
+```
+
+## Number
+
+The number (singular/plural) of particular words can also be changed:
+
+```{python}
+print(text.words[6])
+print(text.words[6].singularize())
+```
+
+```{python}
+print(text.words[42])
+print(text.words[42].pluralize())
+```
+
+## Lemmatization
+
+
+
+[Lemmatization](https://en.wikipedia.org/wiki/Lemmatization) reduces all words to their [lemma](https://en.wikipedia.org/wiki/Lemma_(morphology)) (dictionary or canonical form) so that [inflected words](https://en.wikipedia.org/wiki/Inflection) such as "dog" and "dogs" aren't counted in separate categories in analyses.
+
+### Nouns
+
+```{python}
+print(TextBlob("heirs").words[0].lemmatize())
+print(TextBlob("daggers").words[0].lemmatize())
+```
+
+:::{.note}
+
+Be careful: you can't always trust that TextBlob will work properly. It is a library very easy to use, but it has its limitations.
+
+For instance, I am not sure why this one doesn't work:
+
+```{python}
+print(TextBlob("men").words[0].lemmatize())
+```
+
+While this totally works:
+
+```{python}
+print(TextBlob("policemen").words[0].lemmatize())
+```
+
+Using the more complex and more powerful [NLTK Python library](https://www.nltk.org/), you can implement the solution suggested [here](https://stackoverflow.com/a/22358166/9210961).
+
+:::
+
+### Verbs
+
+```{python}
+print(TextBlob("seen").words[0].lemmatize("v"))
+print(TextBlob("seeing").words[0].lemmatize("v"))
+print(TextBlob("sees").words[0].lemmatize("v"))
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Why is this one not working?
+
+```{python}
+print(TextBlob("saw").words[0].lemmatize("v"))
+```
+
+:::
+
+Examples from the text:
+
+```{python}
+print(TextBlob("starring").words[0].lemmatize("v"))
+print(TextBlob("stabbed").words[0].lemmatize("v"))
+print(TextBlob("howled").words[0].lemmatize("v"))
+print(TextBlob("rejoicing").words[0].lemmatize("v"))
+```
+
+### Adjectives
+
+```{python}
+print(TextBlob("youngest").words[0].lemmatize("a"))
+```
+## Correction
+
+The `correct` method attempts to correct spelling mistakes:
+
+```{python}
+print(TextBlob("Somethingg with speling mystakes").correct())
+```
+
+:::{.note}
+
+There are however limitations since the method is based on a lexicon and isn't aware of the relationship between words (and thus cannot correct grammatical errors):
+
+```{python}
+print(TextBlob("Some thingg with speling mystake").correct())
+```
+
+An example even more obvious:
+
+```{python}
+print(TextBlob("He drink").correct())
+```
+
+:::
