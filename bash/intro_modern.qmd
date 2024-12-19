@@ -1,0 +1,355 @@
+---
+title: Modern utilities
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+In recent years, a number of popular open source tools have emerged which replace some of the classic Unix utilities. Depending on the tool, they usually improve performance or are more user friendly. A few add novel functionality.
+
+In this section, we will cover some of the best of these tools.
+
+:::
+
+## eza
+
+[eza](https://github.com/eza-community/eza) is a replacement for `ls`.
+
+For the most part, it adds colours and uses the same options as `ls`, but it also adds a few features and has better default options.
+
+### Installation
+
+#### On your own machine
+
+You can find the installation instructions [here](https://github.com/eza-community/eza/blob/main/INSTALL.md).
+
+#### On the Alliance clusters
+
+`eza` is not installed on the Alliance clusters, so you will have to install it locally under your own user. This is easy to do because it is written in Rust and can be installed with the Rust package manager.
+
+First, you load a Rust module, then you install the package:
+
+```{.bash}
+module load rust/1.76.0
+cargo install eza
+```
+
+:::{.note}
+
+You only need to do this once in the production cluster you use. After `eza` has been installed, it will be accessible on subsequent sessions.
+
+:::
+
+### Usage
+
+```{.bash}
+eza
+```
+
+```
+projects scratch
+```
+
+You now have different colours for different types of files. You can already see that the directory (`projects`) is in bold blue and the symlink (`scratch`) is in cyan (my website doesn't render these colours but you will see them when you run the command in our training cluster).
+
+Let's create some files quickly to see a bit more colours:
+
+
+```{.bash}
+touch test.html test.md test.py test.R
+eza
+```
+
+```
+projects scratch test.html test.md test.py test.R
+```
+
+Now you can see that the scripts are in bold yellow while the markup files are in gray.
+
+The flags are similar to those of `ls`, but some defaults are slightly different:
+
+```{.bash}
+eza -al
+```
+
+```
+.rw-------@ 2.8k user02 19 Dec 04:20 .bash_history
+.rw-------@   18 user02 13 Dec 00:55 .bash_logout
+.rw-r-----@  141 user02 19 Dec 04:20 .bash_profile
+.rw-r-----@ 7.3k user02 19 Dec 03:57 .bashrc
+drwxr-x---@    - user02 19 Dec 03:57 .cargo
+drwx------@    - user02 13 Dec 18:10 .ssh
+drwxr-xr-x@    - root   13 Dec 00:57 projects
+lrwxrwxrwx@    - user02 13 Dec 00:55 scratch -> /scratch/user02
+.rw-r-----@    0 user02 19 Dec 04:25 test.html
+.rw-r-----@    0 user02 19 Dec 04:25 test.md
+.rw-r-----@    0 user02 19 Dec 04:25 test.py
+.rw-r-----@    0 user02 19 Dec 04:29 test.R
+```
+
+:::{.note}
+
+Compare with `ls -al`:
+
+```
+total 60
+drwx------.  12 user02 user02 4096 Dec 19 04:29 .
+drwxr-xr-x. 101 root   root   4096 Dec 13 00:57 ..
+-rw-------.   1 user02 user02 2763 Dec 19 04:20 .bash_history
+-rw-------.   1 user02 user02   18 Dec 13 00:55 .bash_logout
+-rw-r-----.   1 user02 user02  141 Dec 19 04:20 .bash_profile
+-rw-r-----.   1 user02 user02 7320 Dec 19 03:57 .bashrc
+drwxr-x---.   4 user02 user02  125 Dec 19 03:57 .cargo
+drwx------.   2 user02 user02   48 Dec 13 18:10 .ssh
+drwxr-xr-x.   2 root   user02   27 Dec 13 00:57 projects
+lrwxrwxrwx.   1 user02 user02   15 Dec 13 00:55 scratch -> /scratch/user02
+-rw-r-----.   1 user02 user02    0 Dec 19 04:29 test.R
+-rw-r-----.   1 user02 user02    0 Dec 19 04:25 test.html
+-rw-r-----.   1 user02 user02    0 Dec 19 04:25 test.md
+-rw-r-----.   1 user02 user02    0 Dec 19 04:25 test.py
+```
+
+`eza` by default shows the output in a human readable format (`-h` flag with `ls`) and without the group (`-G` with `ls`).
+
+:::
+
+There is also the additional `-T` flag which is equivalent to running the [tree utility](https://en.wikipedia.org/wiki/Tree_(command)):
+
+```{.bash}
+eza -T
+```
+
+```
+.
+├── projects
+│   └── def-sponsor00 -> /project/def-sponsor00
+├── scratch -> /scratch/user02
+├── test.html
+├── test.md
+├── test.py
+└── test.R
+```
+
+### Alias
+
+If you want, you can alias it to `ls` by adding to your `.bashrc` file:
+
+```{.bash}
+alias ls=eza
+```
+
+If you ever want to use the true `ls` utility, you can do so with `\ls`.
+
+:::{.note}
+
+If you want a simpler and more lightweight way to add colours to your `ls` outputs, you can look at [LS_COLORS](https://github.com/trapd00r/LS_COLORS). I did this for years until I found `eza`.
+
+To install it locally in the Alliance clusters, you have to download and uncompress a script, and copy it to a proper location:
+
+```{.bash}
+mkdir ./LS_COLORS &&
+	curl -L https://api.github.com/repos/trapd00r/LS_COLORS/tarball/master | tar xzf - --directory=./LS_COLORS --strip=1 &&
+    mkdir -p ~/.local/share &&
+    cp ~/LS_COLORS/lscolors.sh ~/.local/share &&
+    rm -r ~/LS_COLORS
+```
+
+Then you need to add the following to your `.bashrc` file to source the script and add a proper alias to `ls`:
+
+```{.bash}
+source ~/.local/share/lscolors.sh
+alias ls='ls --color'
+```
+
+:::
+
+## bat
+
+[bat](https://github.com/sharkdp/bat) is a replacement for `cat` with syntax highlighting and line number.
+
+### Installation
+
+`rg` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/sharkdp/bat?tab=readme-ov-file#installation).
+
+
+### Usage
+
+```
+bat .bash_profile
+```
+
+```{.bash}
+───────┬───────────────────────────────────────────────────────────────────────────────────────────────────────
+       │ File: .bash_profile
+───────┼───────────────────────────────────────────────────────────────────────────────────────────────────────
+   1   │ # .bash_profile
+   2   │
+   3   │ # Get the aliases and functions
+   4   │ if [ -f ~/.bashrc ]; then
+   5   │     . ~/.bashrc
+   6   │ fi
+   7   │
+   8   │ # User specific environment and startup programs
+───────┴───────────────────────────────────────────────────────────────────────────────────────────────────────
+```
+
+## ripgrep
+
+[ripgrep](https://github.com/BurntSushi/ripgrep) provides the `rg` utility—is a replacement for `grep` with greatly improved performance.
+
+### Installation
+
+`rg` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/BurntSushi/ripgrep?tab=readme-ov-file#installation).
+
+### Usage
+
+Search lines in a file containing a pattern
+
+```{.bash}
+rg .bash .bash_profile
+```
+
+```
+1:# .bash_profile
+4:if [ -f ~/.bashrc ]; then
+5:	. ~/.bashrc
+```
+
+You can find full details on the syntax [here](https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md).
+
+## fd
+
+[fd](https://github.com/sharkdp/fd) is a replacement for `find` with improved performance is simpler syntax.
+
+### Installation
+
+`fg` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/sharkdp/fd?tab=readme-ov-file#installation).
+
+### Usage
+
+Search file names in current directory recursively for a pattern:
+
+```{.bash}
+fd te
+```
+
+```
+test.R
+test.html
+test.md
+test.py
+```
+
+Search file names in another directory recursively for a pattern:
+
+```{.bash}
+fd te projects/
+```
+
+Search for files with a particular file extension:
+
+```{.bash}
+fd -e md
+```
+
+```
+test.md
+```
+
+You can find full details on the syntax [here](https://github.com/sharkdp/fd?tab=readme-ov-file#how-to-use).
+
+## autojump
+
+[autojump](https://github.com/wting/autojump) allows you to jump to directories extremely quickly and easily.
+
+### Installation
+
+`autojump` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/wting/autojump?tab=readme-ov-file#installation).
+
+:::{.notes}
+
+`autojump` just got installed on the clusters and is not functional yet. It will be so within days.
+
+:::
+
+### Usage
+
+You first need to visit directories so that they get entered in a database kept by autojump. This database also keeps track of how often each directory gets visited. This allows you to jump to the directories you visit all the time by simply typing a few characters of their name.
+
+`j` is a wrapper for `autojump`.
+
+`jc` can be used to jump to subdirectories of the current directory.
+
+Since we have so few directories in our users' accounts on the training cluster and we haven't built the database yet by navigating our respective files systems, I will demo this tool on my machine.
+
+You can find the full usage [here](https://github.com/wting/autojump?tab=readme-ov-file#usage).
+
+## fzf
+
+[fzf](https://github.com/junegunn/fzf) is a fuzzy finder that can be paired with any number of commands.
+
+### Installation
+
+`fzf` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/junegunn/fzf?tab=readme-ov-file#installation).
+
+### Usage
+
+You can pipe the output of any command that returns a list of elements into `fzf` to find any particular element easily through incremental completion.
+
+For instance, you can pipe the output of `ls` into `fzf`:
+
+```{.bash}
+ls | fzf
+```
+
+To look for a running process:
+
+```{.bash}
+alias proc='ps -ef | fzf --cycle -i -e +s --tac --reverse'
+
+proc
+```
+
+To kill a running process:
+
+```{.bash}
+function proc_kill {
+    local pid
+    pid=$(ps -ef |
+	      sed 1d |
+	      fzf --cycle --reverse -i -e -m --bind "ctrl-o:toggle-all" \
+		  --header "Tab: toggle, C-o: toggle-all" |
+	      awk '{print $2}')
+    echo $pid | xargs kill -${1:-15}
+}
+
+proc_kill
+```
+
+To search your command history:
+
+```{.bash}
+function his {
+    fc -ln 1 |
+	grep -Ev '^q$|^x$|^vs$|^ek .*$|^zoom$|^c$|^cca$|^rs ...$|^hobu$|^cd$' |
+	fzf --cycle -i -e +s --tac --reverse |
+	sed 's/ *[0-9]* *//'
+}
+
+his
+```
+
+To search your command history and run the selected entry:
+
+```{.bash}
+function his_run {
+    $(fc -ln 1 |
+	  grep -Ev '^q$|^x$|^vs$|^ek .*$|^zoom$|^c$|^cca$|^rs ...$|^hobu$|^cd$' |
+	  fzf --cycle -i -e +s --tac --reverse |
+	  sed 's/ *[0-9]* *//')
+}
+
+his_run
+```
+
+`fzf` has many options to select the order of entries, the type of completion, whether or not to display a preview, etc. You can find the information [in the documentation](https://github.com/junegunn/fzf?tab=readme-ov-file#usage).
