@@ -173,7 +173,7 @@ alias ls='ls --color'
 
 ## A `cat` with wings: `bat`
 
-[bat](https://github.com/sharkdp/bat) is a replacement for `cat` with syntax highlighting and line number.
+[bat](https://github.com/sharkdp/bat) is a replacement for `cat` with syntax highlighting for most programming languages, line numbers, and pager-like search and navigation.
 
 ### Installation
 
@@ -201,41 +201,22 @@ bat .bash_profile
 ───────┴───────────────────────────────────────────────────────────────────────────────────────────────────────
 ```
 
-## RIP `grep`: ripgrep
-
-[ripgrep](https://github.com/BurntSushi/ripgrep) provides the `rg` utility—is a replacement for `grep` with greatly improved performance.
-
-### Installation
-
-`rg` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/BurntSushi/ripgrep#installation).
-
-### Usage
-
-Search lines in a file containing a pattern
-
-```{.bash}
-rg .bash .bash_profile
-```
-
-```
-1:# .bash_profile
-4:if [ -f ~/.bashrc ]; then
-5:	. ~/.bashrc
-```
-
-You can find full details on the syntax [here](https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md).
-
 ## Faster `find`: `fd`
 
-[fd](https://github.com/sharkdp/fd) is a replacement for `find` with improved performance is simpler syntax.
+[fd](https://github.com/sharkdp/fd) is a replacement for `find` with the following assets:
+
+- written in Rust, automatic parallelism ➔ with vastly improved performance,
+- more friendly syntax,
+- by default excludes binaries as well as hidden files and directories,
+- by default excludes patterns from `.gitignore` or other `.ignore` files.
 
 ### Installation
 
 `fg` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/sharkdp/fd#installation).
 
-### Usage
+### Basic usage
 
-Search file names in current directory recursively for a pattern:
+Search file names for a pattern recursively in current directory:
 
 ```{.bash}
 fd te
@@ -248,23 +229,138 @@ test.md
 test.py
 ```
 
-Search file names in another directory recursively for a pattern:
+:::{.notenoit}
+
+`fd` uses regexp by default, so you can use pattern symbols:
 
 ```{.bash}
-fd te projects/
+fd jx.*txt
 ```
+
+:::
+
+<br>
+Search file names recursively in another directory:
+
+```{.bash}
+fd top bash/
+```
+
+### Print all files in some directory to stdout
+
+Current directory:
+
+```{.bash}
+fd
+```
+
+Another directory:
+
+```{.bash}
+fd . bash/
+```
+
+### Options
 
 Search for files with a particular file extension:
 
 ```{.bash}
-fd -e md
+fd -e txt
 ```
 
+Use a globbing pattern instead of regexp:
+
+```{.bash}
+fd -g wb* bash/
 ```
-test.md
+
+Match full path instead of simply file name:
+
+```{.bash}
+fd -p bash/wb
+```
+
+Execute command for each result of `fd` in parallel:
+
+```{.bash}
+fd top bash/ -x rg layout
+```
+
+Execute command once with all results of `fd` as arguments:
+
+```{.bash}
+fd top bash/ -X rg layout
+```
+
+### Excluded files and directories
+
+By default, `fd` excludes hidden files/directories and patterns in `.gitignore` (you can disable this with `-H` and `-I` respectively).
+
+This makes `fd` combined with `tree` sometimes more useful than `tree` alone:
+
+```{.bash}
+fd . bash/ | tree --fromfile
+```
+
+:::{.notenoit}
+
+You can make this a function:
+
+```{.bash}
+ft () { fd $@ | tree --fromfile }
+```
+
+:::
+
+Exclude additional directories or patterns:
+
+```{.bash}
+fd -E *.txt -E img/ . bash/
 ```
 
 You can find full details on the syntax [here](https://github.com/sharkdp/fd#how-to-use).
+
+## RIP `grep`: ripgrep
+
+[ripgrep](https://github.com/BurntSushi/ripgrep) provides the `rg` utility—a replacement for `grep` with the following assets:
+
+- written in Rust, automatic parallelism ➔ with vastly improved performance,
+- by default excludes patterns from `.gitignore` or other `.ignore` files,
+- by default excludes binaries as well as hidden files and directories,
+- by default doesn't follow symlinks.
+
+### Installation
+
+`rg` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/BurntSushi/ripgrep#installation).
+
+### Usage
+
+Search lines in a file matching a pattern:
+
+```{.bash}
+rg .bash .bash_profile
+```
+
+```
+1:# .bash_profile
+4:if [ -f ~/.bashrc ]; then
+5:	. ~/.bashrc
+```
+
+Search lines matching pattern in all files in current directory (recursively):
+
+```{.bash}
+rg .bash
+```
+
+`rg` and `fd` follow the same principles:
+
+- use of regexp by default,
+- use of globbing pattern with `-g`,
+- search recursively by default,
+- same excluded files.
+
+You can find full details on the syntax [here](https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md).
 
 ## Smart `cd`: `zoxide`
 
@@ -362,7 +458,7 @@ You can find the full usage [here](https://github.com/wting/autojump#usage).
 
 ## Fuzzy finder: `fzf`
 
-[fzf](https://github.com/junegunn/fzf) is a fuzzy finder that can be paired with any number of commands.
+[fzf](https://github.com/junegunn/fzf) allows to find elements of any list through incremental completion and fuzzy matching. It can be paired with any number of commands.
 
 ### Installation
 
@@ -429,6 +525,60 @@ his_run
 ```
 
 `fzf` has many options to select the order of entries, the type of completion, whether or not to display a preview, etc. You can find the information [in the documentation](https://github.com/junegunn/fzf#usage).
+
+## File system TUIs
+
+### What is a TUI?
+
+[Terminal user interfaces (TUIs)](https://en.wikipedia.org/wiki/Text-based_user_interface) are the predecessors to [graphical user interfaces (GUIs)](https://en.wikipedia.org/wiki/Graphical_user_interface) which are entirely text based and run in terminals.
+
+They have remained very popular among command line aficionados because they are fast, efficient, powerful, and keyboard-driven, while being friendly and visual.
+
+[Fantastic modern ones keep being built](https://github.com/rothgar/awesome-tuis) for tasks as diverse as interfaces to Git, music players, games, emails, dashboards, and, for our purpose here, file system management.
+
+### Formerly most popular file system TUIs
+
+There are many file system TUIs and all of them are actually really good. The two most notable ones used to be:
+
+- [ranger](https://github.com/ranger/ranger)
+
+Extremely sophisticated, easy to customize, tons of features.
+
+:::{.note}
+
+Built in Python, it can be slow for operations in directories with thousands of files.
+
+:::
+
+- [nnn](https://github.com/jarun/nnn)
+
+Minimalist and very fast (written in C).
+
+:::{.note}
+
+Not easy to customize (many customizations require compiling from source). Most functionalities rely on plugins that need to be installed. Not easy to get started with.
+
+:::
+
+### The new kid: `yazi`
+
+[yazi](https://github.com/sxyazi/yazi) is a brand new file system TUI that has quickly become the most popular out there.
+
+It is extremely modern, very fast (written in Rust), very well documented, intuitive, easy to customize, and integrates with modern utilities such as `fd`, `rg`, `zoxide`, and `fzf` out of the box.
+
+Only at version 0.4, it is not fully mature yet, but it has already more stars on GitHub than `ranger` and `nnn` because it combines ease of customization and sophistication with speed.
+
+### Alternatives
+
+Here are other really good—just not as fast or full-featured—file system TUIs, in decreasing number of stars on GitHub:
+
+- [broot](https://github.com/Canop/broot)
+- [superfile](https://github.com/yorukot/superfile)
+- [lf](https://github.com/gokcehan/lf)
+- [xplr](https://github.com/sayanarijit/xplr)
+- [fff](https://github.com/dylanaraps/fff) (now archived)
+- [vifm](https://github.com/vifm/vifm)
+- [mc](https://github.com/MidnightCommander/mc)
 
 ## Webinar
 
