@@ -11,6 +11,17 @@ In this section we will cover a selection of tools that are very popular, well-m
 
 :::
 
+## How to choose tools?
+
+You can install and experiment with any tool. A few things might help you decide whether or not a tool looks promising:
+
+- **How popular is it?** (GitHub stars)
+- **Is it maintained?** (date of last commit)
+- **How polished is the documentation?**
+- **How fast is it?** (what language is it written in?)
+
+*Tools written in Shell or Python will be slower, while those written in compiled languages (Rust, C, Go) will be faster.*
+
 ## `ls` in colours: `eza`
 
 [eza](https://github.com/eza-community/eza) is a replacement for `ls`.
@@ -34,9 +45,7 @@ module load rust/1.76.0
 cargo install eza
 ```
 
-Then, you have to make sure that `~/.cargo/bin` is in your `PATH` as this is where the binary will get installed.
-
-Add to your `.bashrc`:
+Finally, make sure that `~/.cargo/bin` is in your `PATH` as this is where the binary will get installed. So add to your `.bashrc`:
 
 ```{.bash}
 export PATH=$PATH:~/.cargo/bin
@@ -184,6 +193,8 @@ alias ls='ls --color'
 
 ### Usage
 
+Use `bat` as you would use `cat`:
+
 ```{.bash}
 bat .bash_profile
 ```
@@ -202,6 +213,10 @@ bat .bash_profile
    8   │ # User specific environment and startup programs
 ───────┴───────────────────────────────────────────────────────────────────────────────────────────────────────
 ```
+
+Then you are in your default pager.
+
+Among other options, you can disable the frame with `-n`and also remove the line numbers with `-p`.
 
 ## Faster `find`: `fd`
 
@@ -320,7 +335,13 @@ Exclude additional directories or patterns:
 fd -E *.txt -E img/ . bash/
 ```
 
-You can find full details on the syntax [here](https://github.com/sharkdp/fd#how-to-use).
+I personally prefer to disable the default settings and exclude patterns based on a file I created:
+
+```{.bash}
+alias fd='fd -u --ignore-file /home/marie/.fdignore'
+```
+
+This file (which can have any name you want) uses the same syntax as [.gitignore](../git/intro_ignore#gitignore-syntax).
 
 ## RIP `grep`: ripgrep
 
@@ -452,7 +473,7 @@ Similar to `zoxide` but you need to visit directories so that they get entered i
 
 `j` is a wrapper for `autojump`, `jc` jumps to subdirectories of the current directory.
 
-You can find the full usage [here](https://github.com/wting/autojump#usage).
+You can find the full usage documentation [here](https://github.com/wting/autojump#usage).
 
 :::
 
@@ -462,9 +483,49 @@ You can find the full usage [here](https://github.com/wting/autojump#usage).
 
 ### Installation
 
-`fzf` is installed on the Alliance clusters. To install it on your machine, you can follow the instructions [here](https://github.com/junegunn/fzf#installation).
+`fzf` is installed on the Alliance clusters.
 
-### Usage
+To get `fzf` kbds and fuzzy completion in your shell, add to your `.bashrc`:
+
+```{.bash}
+eval "$(fzf --bash)"
+```
+
+and/or your `.zshrc`:
+
+```{.bash}
+source <(fzf --zsh)
+```
+
+To install it on your machine, you can follow the instructions [here](https://github.com/junegunn/fzf#installation).
+
+### Direct usage
+
+If you run `fzf` directly, it will search the current directory recursively, do a narrowing selection, and print the result:
+
+```{.bash}
+fzf
+```
+
+You can make use of `fd` (or whatever command you want) to filter out unnecessary entries by setting the `FZF_DEFAULT_COMMAND` environment variable (in your `.bashrc` or `.zshrc`):
+
+```{.bash}
+export FZF_DEFAULT_COMMAND='fd -u --ignore-file /home/marie/.fdignore'
+```
+
+Running `fzf` by itself will now be equivalent to running your command of choice that you put in the `FZF_DEFAULT_COMMAND` environment variable piped to `fzf`. For all other ways to use `fzf` (see below), this has no effect so you still have the full flexibility of the tool.
+
+### `fzf` key bindings
+
+`fzf` ships with three default kbds:
+
+- `Ctl+t` ➔ paste the selection into the command
+- `Ctl+r` ➔ paste the selection from history into the command
+- `Alt+c` ➔ cd into the selection
+
+The one that I find particularly useful is the first one. It is extremely useful to start typing a command (e.g. `cp`), then use `Ctl+t` to add the path to a file or directory you want to use as argument of the command before finishing to type your command. Try it out!
+
+### Pipe to `fzf`
 
 You can pipe the output of any command that returns a list of elements into `fzf` to find any particular element easily through incremental completion.
 
@@ -503,7 +564,7 @@ To search your command history:
 ```{.bash}
 his() {
     fc -ln 1 |
-	grep -Ev '^q$|^x$|^vs$|^ek .*$|^zoom$|^c$|^cca$|^rs ...$|^hobu$|^cd$' |
+	rg -v '^q$|^x$|^vs$|^ek .*$|^zoom$|^c$|^cca$|^rs ...$|^hobu$|^cd$|^kzo$|^ih.?$|^zre$|^j m$|^y$|^g$|^-$|^auradd$' |
 	fzf --cycle -i -e +s --tac --reverse |
 	sed 's/ *[0-9]* *//'
 }
@@ -516,7 +577,7 @@ To search your command history and run the selected entry:
 ```{.bash}
 his_run() {
     $(fc -ln 1 |
-	  grep -Ev '^q$|^x$|^vs$|^ek .*$|^zoom$|^c$|^cca$|^rs ...$|^hobu$|^cd$' |
+	  rg -v '^q$|^x$|^vs$|^ek .*$|^zoom$|^c$|^cca$|^rs ...$|^hobu$|^cd$|^kzo$|^ih.?$|^zre$|^j m$|^y$|^g$|^-$|^auradd$' |
 	  fzf --cycle -i -e +s --tac --reverse |
 	  sed 's/ *[0-9]* *//')
 }
@@ -582,4 +643,4 @@ Here are other really good—just not as fast or full-featured—file system TUI
 
 ## Webinar
 
-I will give [a webinar on these tools](wb_tools3.qmd) on January 28.
+I gave a webinar on this topic that you can find [here](wb_tools3.qmd).
