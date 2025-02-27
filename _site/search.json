@@ -2421,7 +2421,7 @@
     "href": "r/hpc_performance.html#benchmarking",
     "title": "Measuring performance:",
     "section": "Benchmarking",
-    "text": "Benchmarking\nOnce you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.\nIn the most basic fashion, you can use system.time(), but this is limited and imprecise.\nThe microbenchmark package is a much better option. It gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.\nThe newer bench package is very similar, but it has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections. This is the package that we will use for this course.\nThe main function from this package is mark(). You can pass as argument(s) one or multiple expressions that you want to benchmark. By default, it ensures that all expressions output the same result. If you want to remove this test, add the argument check = FALSE.\nWhile mark() gives memory usage and garbage collection information for sequential code, this functionality is not yet implemented for parallel code. When benchmarking parallel expressions, we will have to use the argument memory = FALSE.\nYou will see many examples throughout this course.",
+    "text": "Benchmarking\nOnce you have identified expressions that are particularly slow, you can use benchmarking tools to compare variations of the code.\nIn the most basic fashion, you can use system.time(), but this is limited and imprecise.\nThe microbenchmark package is a much better option. It gives the minimum time, lower quartile, mean, median, upper quartile, and maximum time of R expressions.\nThe newer bench package is very similar, but it has less overhead, is more accurate, and—for sequential code—gives information on memory usage and garbage collections. This is the package that we will use for this course.\nThe main function from this package is mark(). You can pass as argument(s) one or multiple expressions that you want to benchmark. By default, it ensures that all expressions output the same result. If you want to remove this test, add the argument check = FALSE.\nWhile mark() gives memory usage and garbage collection information for sequential code, this functionality is not yet implemented for parallel code. When benchmarking parallel expressions, we will have to use the argument memory = FALSE.\nYou will see many examples of this throughout this course.\n\nWhen benchmarking code, it’s generally best to use the median rather than the minimum or mean, especially if your data might contain outliers, as the median is less affected by extreme values and provides a better representation of the “typical” performance.",
     "crumbs": [
       "R",
       "<b><em>High-performance R</em></b>",
@@ -2505,7 +2505,7 @@
     "href": "r/hpc_optimizations.html#setup",
     "title": "Optimizations",
     "section": "Setup",
-    "text": "Setup\nFirst of all, we need to load the necessary modules:\nmodule load StdEnv/2023 gcc/13.3 r/4.4.0\nThen we need to launch a job.\n\nInteractive job\nIf there are few of us, we will use interactive sessions with one CPU each with:\nsalloc --time=2:00:00 --mem-per-cpu=3500M\nWe can then launch R and load the benchmarking package we will use throughout this section:\n\nlibrary(bench)\n\n\n\nBatch jobs\nIf there are more of us than there are CPUs in the cluster, we will run batch jobs. In this Case:\n\nCreate an R script called optim.R with the code to run (you can reuse the same script for all sections on this page by editing it). Don’t forget to load the package bench in your script.\nCreate a bash script called optim.sh with the following:\n\n\n\n&lt;your_job&gt;.sh\n\n#!/bin/bash\n#SBATCH --account=def-&lt;your_account&gt;\n#SBATCH --time=15\n#SBATCH --mem-per-cpu=3500M\n#SBATCH --cpus-per-task=4\n#SBATCH --job-name=\"&lt;your_job&gt;\"\nmodule load StdEnv/2023 gcc/13.3 r/4.4.0\nRscript &lt;your_script&gt;.R\n\n\nRun the jobs with:\n\nsbatch optim.sh",
+    "text": "Setup\nFirst of all, we need to load the necessary modules:\nmodule load StdEnv/2023 gcc/13.3 r/4.4.0\nThen we need to launch a job. There are 2 options:\n\nInteractive job\nIf there are few of us, we will use an interactive session with one CPU each. To launch it, run the following (in the Bash terminal, not in R):\nsalloc --time=2:00:00 --mem-per-cpu=3500M\nWe can then launch R:\nR\nNow, we load the benchmarking package that we will use throughout this section:\n\nlibrary(bench)\n\n\n\nBatch jobs\nIf there are more of us than there are CPUs in the cluster, we will run batch jobs. In this Case:\n\nCreate an R script called optim.R with the code to run (you can reuse the same script for all sections on this page by editing it). Don’t forget to load the package bench in your script.\nCreate a bash script called optim.sh with the following:\n\n\n\noptim.sh\n\n#!/bin/bash\n#SBATCH --time=15\n#SBATCH --mem-per-cpu=3500M\n\nmodule load StdEnv/2023 gcc/13.3 r/4.4.0\nRscript optim.R\n\n\nRun the jobs with:\n\nsbatch optim.sh",
     "crumbs": [
       "R",
       "<b><em>High-performance R</em></b>",
@@ -2517,7 +2517,7 @@
     "href": "r/hpc_optimizations.html#optimizations",
     "title": "Optimizations",
     "section": "Optimizations",
-    "text": "Optimizations\n\nPre-allocate memory\nIn order to store the results of a loop, we need to create an object and assign to it the result of the loop at each iteration. In this first function, we create an empty object z of class integer and of length 0 for that purpose:\n\nf1 &lt;- function(n) {\n  z &lt;- integer()\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nThe second function is similar, but this time, we initialize z with its final length. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:\n\nf2 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nLet’s make sure that our functions work by testing it on a small number:\n\nf1(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\nf2(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\nNow, let’s benchmark them for a large number:\n\nn &lt;- 1e5\nmark(f1(n), f2(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f1(n)         155ms    219ms      4.79   16.55MB     16.0\n2 f2(n)         126ms    150ms      6.30    1.15MB     20.5\n\n\nf2() is consistently faster, although very slightly. In many cases, the difference you will find will be a lot greater.\nNote also the large difference in memory allocation.\n\n\nNo, loops are not a big ‘no no’\nBy now, you might be thinking: “Wait… aren’t loops a big ‘no no’ in R? I’ve always been told that they are slow and that one should always use functional programming! We are talking about optimization in this course and we are using loops?!?”\nThere are a lot of misconceptions around R loops. They can be very slow if you don’t pre-allocate memory. Otherwise they are almost always faster than functions (the apply() family or the tidyverse equivalent of the purrr::map() family). You can choose to use a functional programming approach for style and readability, but not for speed.\nLet’s test it.\nFirst we create a function:\n\nf3 &lt;- function(n) {\n  if(n %% 3 == 0 && n %% 5 == 0) {\n    \"FizzBuzz\"\n  } else if(n %% 3 == 0) {\n    \"Fizz\"\n  } else if(n %% 5 == 0) {\n    \"Buzz\"\n  } else {\n    n\n  }\n}\n\nThen we pass it through sapply(). We can test that it works on a small number:\n\nsapply(1:20, f3)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\nFinally, we compare the timing with that of f2():\n\nmark(f2(n), sapply(1:n, f3))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression           min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt;      &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f2(n)              259ms    261ms      3.83    1.15MB     15.3\n2 sapply(1:n, f3)    188ms    199ms      4.88    3.29MB     21.2\n\n\nAs you can see, the loop is faster.\n\n\nAvoid unnecessary operations\n\nExample 1\nCalling z as the last command in our function is the same as calling return(z).\nFrom the R documentation:\n\nIf the end of a function is reached without calling return, the value of the last evaluated expression is returned.\n\nNow, what about using print() instead?\n\nf4 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  print(z)\n}\n\nLet’s benchmark it against f2():\nmark(f2(n), f4(n))\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"     \"Fizz\"     \"22\"       \"23\"       \"Fizz\"    \n[25] \"Buzz\"     \"26\"       \"Fizz\"     \"28\"       \"29\"       \"FizzBuzz\"\n[31] \"31\"       \"32\"       \"Fizz\"     \"34\"       \"Buzz\"     \"Fizz\"    \n[37] \"37\"       \"38\"       \"Fizz\"     \"Buzz\"     \"41\"       \"Fizz\"\n...\n\n  expression      min median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt;   &lt;bch:tm&gt;\n1 f2(n)         131ms  139ms      6.71        NA    21.8      4    13      596ms\n2 f4(n)         405ms  411ms      2.43        NA     8.52     2     7      822ms\n# ℹ 4 more variables: result &lt;list&gt;, memory &lt;list&gt;, time &lt;list&gt;, gc &lt;list&gt;\nWarning message:\nSome expressions had a GC in every iteration; so filtering is disabled.\nf4() is 3 times slower.\nWhat happened?\nprint() returns its argument, but it additionally prints it to the standard output. This is why the mark() function printed the output of f4() before printing the timings.\nAs you can see, printing takes a long time.\nIf you are evaluating f2() on its own (e.g. f2(20)), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and f4() would be a very bad option. f4() is thus not a good function.\nHere is an example in which f4() would perform a totally unnecessary operation that f2() avoids:\n\na &lt;- f2(20)\n\n\nNo unnecessary printing.\n\n\na &lt;- f4(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\n\nUnnecessary printing.\n\nEven worse would be to use:\nf5 &lt;- function(n) {\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      print(\"FizzBuzz\")\n    } else if(i %% 3 == 0) {\n      print(\"Fizz\")\n    } else if(i %% 5 == 0) {\n      print(\"Buzz\")\n    } else {\n      print(i)\n    }\n  }\n}\n\nmark(f2(n), f4(n), check = F)\n  expression      min   median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt;\n1 f2(n)       132.8ms 141.69ms     6.77         NA     25.4     4    15\n2 f5(n)         1.65s    1.65s     0.606        NA     12.7     1    21\n# ℹ 5 more variables: total_time &lt;bch:tm&gt;, result &lt;list&gt;, memory &lt;list&gt;,\n#   time &lt;list&gt;, gc &lt;list&gt;\nWarning message:\nSome expressions had a GC in every iteration; so filtering is disabled.\n\nWe have to disable the check here because the results of the two functions are not technically the same (but we don’t care because, in both cases, the series gets created and that’s what we want).\n\nHere the difference in timing is a factor of 12!\n\n\nExample 2\nOne modulo operation and equality test can be removed by replacing i %% 3 == 0 && i %% 5 == 0 by i %% 15 == 0. We now have three modulo operations and equality tests per iteration instead of four. This gives us a little speedup:\n\nf6 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    if(i %% 15 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nmark(f2(n), f6(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f2(n)         196ms    205ms      4.75    1.15MB     17.4\n2 f6(n)         169ms    186ms      5.39    1.22MB     18.0\n\n\nBut we can remove an additional modulo operation and equality test at each iteration by assigning i %% 3 == 0 and i %% 5 == 0 to variables:\n\nf7 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    div3 &lt;- (i %% 3 == 0)\n    div5 &lt;- (i %% 5 == 0)\n    if(div3 && div5) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(div3) {\n      z[i] &lt;- \"Fizz\"\n    } else if(div5) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nNow we only have two modulo operations and equality tests per iteration and we get another little speedup:\n\nmark(f6(n), f7(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f6(n)         178ms    179ms      5.53    1.15MB     18.4\n2 f7(n)         162ms    163ms      5.96    1.22MB     15.9\n\n\n\n\nExample 3\nWe can assign 1:n to z instead of initializing it as an empty vector, thus rendering the assignment of i to z[i] in the last else statement unnecessary:\n\nf8 &lt;- function(n) {\n  z &lt;- 1:n\n  for(i in z) {\n    div3 &lt;- (i %% 3 == 0)\n    div5 &lt;- (i %% 5 == 0)\n    if(div3 && div5) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(div3) {\n      z[i] &lt;- \"Fizz\"\n    } else if(div5) {\n      z[i] &lt;- \"Buzz\"\n    } \n  }\n  z\n}\n\nThis function works:\n\nf8(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\nand we get a really good speedup here:\n\nmark(f7(n), f8(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f7(n)       127.9ms  146.2ms      6.46    1.15MB     19.4\n2 f8(n)        76.4ms   87.7ms     11.3     1.15MB     22.6\n\n\n\n\n\nVectorize whenever possible\nWe can actually get rid of the loop and use a vectorized approach.\n\nf9 &lt;- function(n) {\n  z &lt;- 1:n\n  div3 &lt;- (z %% 3 == 0)\n  div5 &lt;- (z %% 5 == 0)\n  z[div3] &lt;- \"Fizz\"\n  z[div5] &lt;- \"Buzz\"\n  z[(div3 & div5)] &lt;- \"FizzBuzz\"\n  z\n}\n\nThis still give us the same result:\n\nf9(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\n\nmark(f8(n), f9(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f8(n)          73ms     83ms      11.7    1.15MB    25.3 \n2 f9(n)        23.4ms     44ms      24.6    5.62MB     1.89\n\n\nThe speedup of 3.8 shows how important it is to use vectorization whenever possible.\n\n\nReplace costly operations where possible\nSometimes, it isn’t obvious that one method will be faster than another. Benchmarking alternative expressions can teach you which ones are faster.\nFor instance, it is much faster to index a column from a dataframe by its name (e.g. dataframe$column1) than by using list indexing (e.g. dataframe[[1]]).\nSometimes, packages exist which bring much more efficiency than can be achieved with base R. In the case of data frames for example, there is data.table.\n\n\nConclusion\nStarting from our first function f1(), we have gained a speedup of 7.4, simply by writing better code and without using parallelization and additional hardware:\n\nmark(f1(n), f9(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f1(n)       174.4ms  195.6ms      4.79   16.55MB    19.1 \n2 f9(n)        26.7ms   48.2ms     21.6     5.57MB     1.96\n\n\nIf we used a silly function such as f5() as our starting function, the speedup would be 370.",
+    "text": "Optimizations\n\nPre-allocate memory\nIn order to store the results of a loop, we need to create an object and assign to it the result of the loop at each iteration. In this first function, we create an empty object z of class integer and of length 0 for that purpose:\n\nf1 &lt;- function(n) {\n  z &lt;- integer()\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nThe second function is similar, but this time, we initialize z with its final length. This means that we are pre-allocating memory for the full vector before we run the loop instead of growing the vector at each iteration:\n\nf2 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nLet’s make sure that our functions work by testing it on a small number:\n\nf1(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\nf2(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\nNow, let’s benchmark them for a large number:\n\nn &lt;- 1e5\nmark(f1(n), f2(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f1(n)         296ms    298ms      3.36   16.55MB     10.1\n2 f2(n)         221ms    226ms      4.45    1.15MB     14.8\n\n\nf2() is consistently faster, although not by much (speedup of 1.3). In many cases, the difference you will find will be a lot greater.\nIn the cluster, because memory is allocated outside of R (by Slurm), it is not tracked by mark() (see documentation).\nThe output you can see on this site was obtained on my laptop. It shows that a properly written function with pre-allocated memory uses 14 times less memory.\n\n\nNo, loops are not a big ‘no no’\nBy now, you might be thinking: “Wait… aren’t loops a big ‘no no’ in R? I’ve always been told that they are slow and that one should always use functional programming! We are talking about optimization in this course and we are using loops?!?”\nThere are a lot of misconceptions around R loops. They can be very slow if you don’t pre-allocate memory. Otherwise they are almost always faster than functions (the apply() family or the tidyverse equivalent of the purrr::map() family). You can choose to use a functional programming approach for style and readability, but not for speed.\nLet’s test it.\nFirst we create a function:\n\nf3 &lt;- function(n) {\n  if(n %% 3 == 0 && n %% 5 == 0) {\n    \"FizzBuzz\"\n  } else if(n %% 3 == 0) {\n    \"Fizz\"\n  } else if(n %% 5 == 0) {\n    \"Buzz\"\n  } else {\n    n\n  }\n}\n\nThen we have to pass our function through sapply().\nLet’s make sure that the code works:\n\nsapply(1:20, f3)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\nNow, we compare the timing with that of f2():\n\nmark(f2(n), sapply(1:n, f3))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression           min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt;      &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f2(n)              226ms    230ms      4.27    1.15MB     17.1\n2 sapply(1:n, f3)    343ms    347ms      2.88    3.29MB     11.5\n\n\nAs you can see, the loop is faster (speed up of 1.5). On my laptop, it also used 3 times less memory.\n\n\nAvoid unnecessary operations\n\nExample 1\nCalling z as the last command in our function is the same as calling return(z).\nFrom the R documentation:\n\nIf the end of a function is reached without calling return, the value of the last evaluated expression is returned.\n\nNow, what about using print() instead?\n\nf4 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  print(z)\n}\n\nLet’s test that it works:\n\nf4(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\nNow, let’s benchmark it against f2():\nmark(f2(n), f4(n))\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"     \"Fizz\"     \"22\"       \"23\"       \"Fizz\"    \n[25] \"Buzz\"     \"26\"       \"Fizz\"     \"28\"       \"29\"       \"FizzBuzz\"\n[31] \"31\"       \"32\"       \"Fizz\"     \"34\"       \"Buzz\"     \"Fizz\"    \n[37] \"37\"       \"38\"       \"Fizz\"     \"Buzz\"     \"41\"       \"Fizz\"\n...\n\n# A tibble: 2 × 13\n  expression      min median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt;   &lt;bch:tm&gt;\n1 f2(n)         116ms  120ms      7.45        NA    26.1      4    14      537ms\n2 f4(n)         925ms  925ms      1.08        NA     3.24     1     3      925ms\n# ℹ 4 more variables: result &lt;list&gt;, memory &lt;list&gt;, time &lt;list&gt;, gc &lt;list&gt;\nWarning message:\nSome expressions had a GC in every iteration; so filtering is disabled.\nf4() is 7.7 times slower.\nWhat happened?\nprint() returns its argument, but it additionally prints it to the standard output. This is why the mark() function printed the output of f4() before printing the timings.\nAs you can see, printing takes a long time.\nIf you are evaluating f2() on its own (e.g. f2(20)), the returned result will also be printed to standard output and both functions will be equivalent. However, if you are using the function in another context, printing becomes an unnecessary and timely operation and f4() would be a very bad option. f4() is thus not a good function.\nHere is an example in which f4() would perform a totally unnecessary operation that f2() avoids:\n\na &lt;- f2(20)\n\n\nNo unnecessary printing.\n\n\na &lt;- f4(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\n\nUnnecessary printing.\n\nEven worse would be to use:\n\nf5 &lt;- function(n) {\n  for(i in 1:n) {\n    if(i %% 3 == 0 && i %% 5 == 0) {\n      print(\"FizzBuzz\")\n    } else if(i %% 3 == 0) {\n      print(\"Fizz\")\n    } else if(i %% 5 == 0) {\n      print(\"Buzz\")\n    } else {\n      print(i)\n    }\n  }\n}\n\nLet’s test it:\n\nf5(20)\n\n[1] 1\n[1] 2\n[1] \"Fizz\"\n[1] 4\n[1] \"Buzz\"\n[1] \"Fizz\"\n[1] 7\n[1] 8\n[1] \"Fizz\"\n[1] \"Buzz\"\n[1] 11\n[1] \"Fizz\"\n[1] 13\n[1] 14\n[1] \"FizzBuzz\"\n[1] 16\n[1] 17\n[1] \"Fizz\"\n[1] 19\n[1] \"Buzz\"\n\n\nThe values are correct, although the output is of a different type (NULL instead of a character since our function didn’t return anything and the values got printed as a side effect of the for loop).\nBenchmark against f2():\nmark(f2(n), f5(n), check = F)\n# A tibble: 2 × 13\n  expression      min median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt;   &lt;bch:tm&gt;\n1 f2(n)         105ms  108ms     9.10         NA    30.9      5    17      549ms\n2 f5(n)            6s     6s     0.167        NA     3.34     1    20         6s\n# ℹ 4 more variables: result &lt;list&gt;, memory &lt;list&gt;, time &lt;list&gt;, gc &lt;list&gt;\nWarning message:\nSome expressions had a GC in every iteration; so filtering is disabled.\n\nWe need to disable the check here because the results of the two functions are not the same.\n\nHere the difference in timing is a factor of 55.5 due to all those printing calls.\n\n\nExample 2\nOne modulo operation and equality test can be removed by replacing i %% 3 == 0 && i %% 5 == 0 by i %% 15 == 0. We now have three modulo operations and equality tests per iteration instead of four. This gives us a little speedup:\n\nf6 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    if(i %% 15 == 0) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(i %% 3 == 0) {\n      z[i] &lt;- \"Fizz\"\n    } else if(i %% 5 == 0) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nBenchmark to f2():\n\nmark(f2(n), f6(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f2(n)         213ms    224ms      4.52    1.23MB     15.1\n2 f6(n)         202ms    208ms      4.74    1.21MB     15.8\n\n\nBut we can remove an additional modulo operation and equality test at each iteration by assigning i %% 3 == 0 and i %% 5 == 0 to variables:\n\nf7 &lt;- function(n) {\n  z &lt;- integer(n)\n  for(i in 1:n) {\n    div3 &lt;- (i %% 3 == 0)\n    div5 &lt;- (i %% 5 == 0)\n    if(div3 && div5) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(div3) {\n      z[i] &lt;- \"Fizz\"\n    } else if(div5) {\n      z[i] &lt;- \"Buzz\"\n    } else {\n      z[i] &lt;- i\n    }\n  }\n  z\n}\n\nNow we only have two modulo operations and equality tests per iteration and we get another little speedup when we benchmark it against our best function:\n\nmark(f6(n), f7(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f6(n)         209ms    215ms      4.57    1.15MB     16.7\n2 f7(n)         195ms    196ms      5.07    1.22MB     15.2\n\n\n\n\nExample 3\nWe can assign 1:n to z instead of initializing it as an empty vector, thus rendering the assignment of i to z[i] in the last else statement unnecessary:\n\nf8 &lt;- function(n) {\n  z &lt;- 1:n\n  for(i in z) {\n    div3 &lt;- (i %% 3 == 0)\n    div5 &lt;- (i %% 5 == 0)\n    if(div3 && div5) {\n      z[i] &lt;- \"FizzBuzz\"\n    } else if(div3) {\n      z[i] &lt;- \"Fizz\"\n    } else if(div5) {\n      z[i] &lt;- \"Buzz\"\n    } \n  }\n  z\n}\n\nThis function works:\n\nf8(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\nand we get a really good speedup here:\n\nmark(f7(n), f8(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f7(n)         210ms    226ms      4.54    1.15MB     15.1\n2 f8(n)         147ms    158ms      6.34    1.15MB     15.8\n\n\n\n\n\nVectorize whenever possible\nWe can actually get rid of the loop and use a vectorized approach.\n\nf9 &lt;- function(n) {\n  z &lt;- 1:n\n  div3 &lt;- (z %% 3 == 0)\n  div5 &lt;- (z %% 5 == 0)\n  z[div3] &lt;- \"Fizz\"\n  z[div5] &lt;- \"Buzz\"\n  z[(div3 & div5)] &lt;- \"FizzBuzz\"\n  z\n}\n\nThis still give us the same result:\n\nf9(20)\n\n [1] \"1\"        \"2\"        \"Fizz\"     \"4\"        \"Buzz\"     \"Fizz\"    \n [7] \"7\"        \"8\"        \"Fizz\"     \"Buzz\"     \"11\"       \"Fizz\"    \n[13] \"13\"       \"14\"       \"FizzBuzz\" \"16\"       \"17\"       \"Fizz\"    \n[19] \"19\"       \"Buzz\"    \n\n\n\nmark(f8(n), f9(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f8(n)         135ms  135.9ms      5.86    1.15MB    13.7 \n2 f9(n)          48ms   53.4ms     18.5     5.62MB     1.85\n\n\nThe speedup of 3.8 shows how important it is to use vectorization whenever possible.\n\n\nReplace costly operations where possible\nSometimes, it isn’t obvious that one method will be faster than another. Benchmarking alternative expressions can teach you which ones are faster.\nFor instance, it is much faster to index a column from a dataframe by its name (e.g. dataframe$column1) than by using list indexing (e.g. dataframe[[1]]).\nSometimes, packages exist which bring much more efficiency than can be achieved with base R. In the case of data frames for example, there is data.table.\n\n\nConclusion\nStarting from our first function f1(), we have gained a speedup of 6, simply by writing better code and without using parallelization and additional hardware:\n\nmark(f1(n), f9(n))\n\nWarning: Some expressions had a GC in every iteration; so filtering is\ndisabled.\n\n\n# A tibble: 2 × 6\n  expression      min   median `itr/sec` mem_alloc `gc/sec`\n  &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;\n1 f1(n)       313.2ms  314.6ms      3.18   16.63MB    12.7 \n2 f9(n)        47.2ms   53.8ms     18.6     5.57MB     1.86\n\n\nIf we used a silly function such as f5() as our starting function, the speedup would be 333.",
     "crumbs": [
       "R",
       "<b><em>High-performance R</em></b>",
@@ -6272,11 +6272,11 @@
     ]
   },
   {
-    "objectID": "bash/intro_intro.html#remote-connection-via-ssh",
-    "href": "bash/intro_intro.html#remote-connection-via-ssh",
+    "objectID": "bash/intro_intro.html#remote-connection-to-the-cluster-via-ssh",
+    "href": "bash/intro_intro.html#remote-connection-to-the-cluster-via-ssh",
     "title": "Introduction",
-    "section": "Remote connection via SSH",
-    "text": "Remote connection via SSH\n\nStep one: get a username and the password\nWe will give you a link to an etherpad during the workshop. Add your name next to a free username to claim it.\nWe will also give you the password for our training cluster.\n\n\nStep two: run the ssh command\n\n •  Linux and macOS users\nLinux users:   open the terminal emulator of your choice.\nmacOS users:   open “Terminal”.\nThen type:\nssh userxx@hostname\n\n\nReplace userxx by your username (e.g. user09)\nReplace hostname by the hostname we will give you the day of the workshop.\n\n\n\n\n •  Windows users\nWe suggest using the free version of MobaXterm. MobaXterm comes with a terminal emulator and a GUI interface for SSH sessions.\nOpen MobaXterm, click on “Session”, then “SSH”, and fill in the Remote host name and your username.\n\nHere is a live demo.\n\n\n\n\nStep three: enter the password\nWhen prompted, enter the password we gave you.\nYou will not see any character as you type the password: this is called blind typing and is a Linux safety feature. It can be unsettling at first not to get any feed-back while typing as it really looks like it is not working. Type slowly and make sure not to make typos.\nYou will be asked whether you are sure that you want to add the hostname to your list of trusted hosts. Answer “yes”.\nYou are now logged in and your prompt should look like the following (with your actual username):\n[userxx@login1 ~]$\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.",
+    "section": "Remote connection to the cluster via SSH",
+    "text": "Remote connection to the cluster via SSH\n\nStep one: get a username and the password\nWe will give you a link to an etherpad during the workshop. Add your name next to a free username to claim it.\nWe will also give you the password for our training cluster.\n\n\nStep two: run the ssh command\n\n •  Linux and macOS users\nLinux users:   open the terminal emulator of your choice.\nmacOS users:   open “Terminal”.\nThen type:\nssh userxx@hostname\n\n\nReplace userxx by your username (e.g. user09).\nReplace hostname by the hostname we will give you the day of the workshop.\n\n\n\n\n •  Windows users\nWe suggest using the free version of MobaXterm. MobaXterm comes with a terminal emulator and a GUI interface for SSH sessions.\nOpen MobaXterm, click on “Session”, then “SSH”, and fill in the Remote host name and your username.\n\nHere is a live demo.\n\n\n\n\nStep three: enter the password\nWhen prompted, enter the password we gave you.\nYou will not see any character as you type the password: this is called blind typing and is a Linux safety feature. It can be unsettling at first not to get any feed-back while typing as it really looks like it is not working. Type slowly and make sure not to make typos.\nYou will be asked whether you are sure that you want to continue connecting. Answer “yes”.\nYou are now logged in and your prompt should look like the following (with your actual username):\n[userxx@login1 ~]$\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.",
     "crumbs": [
       "Bash/Zsh",
       "<b><em>Getting started</em></b>",
@@ -8655,25 +8655,25 @@
     "text": "Out of bounds indexing\n\nNumpyJAX NumPy\n\n\nNumPy will error if you index out of bounds:\n\nprint(np.arange(5)[10])\n\n\n---------------------------------------------------------------------------\nIndexError                                Traceback (most recent call last)\nCell In[10], line 1\n----&gt; 1 print(np.arange(5)[10])\n\nIndexError: index 10 is out of bounds for axis 0 with size 5\n\n\n\n\n\nJAX will silently return the closest boundary:\nprint(jnp.arange(5)[10])\n4"
   },
   {
-    "objectID": "ai/jx/wb_jax_slides.html#prng",
-    "href": "ai/jx/wb_jax_slides.html#prng",
+    "objectID": "ai/jx/wb_jax_slides.html#prng-key",
+    "href": "ai/jx/wb_jax_slides.html#prng-key",
     "title": "Accelerated array computing and flexible differentiation with",
-    "section": "PRNG",
-    "text": "PRNG\nTraditional pseudorandom number generators are based on nondeterministic state of OS\nSlow and problematic for parallel executions\nJAX relies on explicitly-set random state called a key:\nfrom jax import random\n\ninitial_key = random.PRNGKey(18)\nprint(initial_key)\n[ 0 18]"
+    "section": "PRNG key",
+    "text": "PRNG key\nTraditional pseudorandom number generators are based on nondeterministic state of OS\nSlow and problematic for parallel executions\nJAX relies on explicitly-set random state called a key:\nfrom jax import random\n\ninitial_key = random.key(18)\nprint(initial_key)\n[ 0 18]"
   },
   {
-    "objectID": "ai/jx/wb_jax_slides.html#prng-1",
-    "href": "ai/jx/wb_jax_slides.html#prng-1",
+    "objectID": "ai/jx/wb_jax_slides.html#prng-key-1",
+    "href": "ai/jx/wb_jax_slides.html#prng-key-1",
     "title": "Accelerated array computing and flexible differentiation with",
-    "section": "PRNG",
-    "text": "PRNG\nEach key can only be used for one random function, but it can be split into new keys:\nnew_key1, new_key2 = random.split(initial_key)\n\ninitial_key can’t be used anymore now\n\nprint(new_key1)\n[4197003906 1654466292]\nprint(new_key2)\n[1685972163 1654824463]\nWe need to keep one key to split whenever we need and we can use the other one"
+    "section": "PRNG key",
+    "text": "PRNG key\nEach key can only be used for one random function, but it can be split into new keys:\nnew_key1, new_key2 = random.split(initial_key)\n\ninitial_key can’t be used anymore now\n\nprint(new_key1)\n[4197003906 1654466292]\nprint(new_key2)\n[1685972163 1654824463]\nWe need to keep one key to split whenever we need and we can use the other one"
   },
   {
-    "objectID": "ai/jx/wb_jax_slides.html#prng-2",
-    "href": "ai/jx/wb_jax_slides.html#prng-2",
+    "objectID": "ai/jx/wb_jax_slides.html#prng-key-2",
+    "href": "ai/jx/wb_jax_slides.html#prng-key-2",
     "title": "Accelerated array computing and flexible differentiation with",
-    "section": "PRNG",
-    "text": "PRNG\nTo make sure we don’t reuse a key by accident, it is best to overwrite the initial key with one of the new ones\nHere are easier names:\nkey = random.PRNGKey(18)\nkey, subkey = random.split(key)\nWe can now use subkey to generate a random array:\nx = random.normal(subkey, (3, 2))"
+    "section": "PRNG key",
+    "text": "PRNG key\nTo make sure we don’t reuse a key by accident, it is best to overwrite the initial key with one of the new ones\nHere are easier names:\nkey = random.key(18)\nkey, subkey = random.split(key)\nWe can now use subkey to generate a random array:\nx = random.normal(subkey, (3, 2))"
   },
   {
     "objectID": "ai/jx/wb_jax_slides.html#benchmarking",
@@ -8858,18 +8858,25 @@
     "text": "Pallas: extension to write GPU and TPU kernels\n\n\n\n\n\n\n\n\n\ntracer\n\nTracing\n\n\n\njaxpr\n\nJaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)\n\n\n\ntracer-&gt;jaxpr\n\n\n\n\n\njit\n\n Just-in-time \n(JIT)\ncompilation\n\n\n\nhlo\n\nHigh-level\noptimized (HLO)\nprogram\n\n\n\njit-&gt;hlo\n\n\n\n\n\ntriton\n\nTriton\n\n\n\nGPU\n\nGPU\n\n\n\ntriton-&gt;GPU\n\n\n\n\n\nmosaic\n\nMosaic\n\n\n\nTPU\n\nTPU\n\n\n\nmosaic-&gt;TPU\n\n\n\n\n\ntransform\n\nVectorization\nParallelization\n   Differentiation  \n\n\n\npy\n\nPure Python\nfunctions\n\n\n\npy-&gt;tracer\n\n\n\n\njaxpr-&gt;jit\n\n\n\n\njaxpr-&gt;transform\n\n\n\n\n\n\nhlo-&gt;triton\n\n\n\n\nhlo-&gt;mosaic"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#two-interpretations",
-    "href": "ai/jx/wb_bayesian_slides.html#two-interpretations",
+    "objectID": "ai/jx/wb_bayesian_slides.html#two-interpretations-of-probabilities",
+    "href": "ai/jx/wb_bayesian_slides.html#two-interpretations-of-probabilities",
     "title": "Bayesian inference in",
-    "section": "Two interpretations",
-    "text": "Two interpretations\n \n\nFrequentist\nBayesian"
+    "section": "Two interpretations of probabilities",
+    "text": "Two interpretations of probabilities\n\n\n\n\nFrequentist\n\n\n\n\nImage source\n\n\n\n\n\n\n\nBayesian\n\n\n\n\nImage source"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#two-interpretations-1",
-    "href": "ai/jx/wb_bayesian_slides.html#two-interpretations-1",
+    "objectID": "ai/jx/wb_bayesian_slides.html#frequentist",
+    "href": "ai/jx/wb_bayesian_slides.html#frequentist",
     "title": "Bayesian inference in",
-    "section": "Two interpretations",
-    "text": "Two interpretations\nBayesian approach: assigns probabilities to our beliefs\nIt is a measure of believability in an event There is always some level of uncertainty\nThe belief is associated with the observer. Different people have different beliefs about the probability of an event occurring because they possess different information\nThis is the instinctive way to think about probabilities\nThe Bayesian approach is computationally more cumbersome and returns the probabilities of possible outcomes Only became possible with the advent of powerful computers and new algorithms such as Markov chain Monte Carlo (MCMC)"
+    "section": "Frequentist",
+    "text": "Frequentist\nFrequentist approach to probabilities: assigns probabilities to the long-run frequency of events\nIt doesn’t assign probabilities to non-random variables such as hypotheses or parameters\nInstead, the probability is assigned to the limit of the relative frequencies of events in infinite trials and we can assign a probability to the fact that a new random sample would produce a confidence interval that contains the unknown parameter\nThis is not how we intuitively think and the results are hard to interpret. This approach is also often artificially constrained and limits the integration of various forms of information\nIt is however computationally simple and fast: samples are randomly selected from the sample space and it returns test statistics such as p-values and confidence intervals. This is why it was the dominant approach for a long time: we knew how to do it"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#bayesian",
+    "href": "ai/jx/wb_bayesian_slides.html#bayesian",
+    "title": "Bayesian inference in",
+    "section": "Bayesian",
+    "text": "Bayesian\nBayesian approach: assigns probabilities to our beliefs about an event\nBased on Bayes’ theorem of conditional probabilities which allows to calculate the probability of a cause given its effect:\n\\[ P(A \\vert X) = \\frac{P(X \\vert A) P(A)}{P(X)} \\]\nwhere:\n\n\\(P(A)\\) is the prior probability of \\(A\\)—our belief about event \\(A\\)\n\\(P(X)\\) is the marginal probability of event \\(X\\) (some observed data)\n\\(P(X \\vert A)\\) is the likelihood or conditional probability of observing \\(X\\) given \\(A\\)\n\\(P(A \\vert X)\\) is the posterior probability—our updated belief about \\(A\\) given the data"
   },
   {
     "objectID": "ai/jx/wb_bayesian_slides.html#which-approach-to-choose",
@@ -8886,18 +8893,18 @@
     "text": "Algorithms\nA Bayesian approach to statistics often leads to posterior probability distributions that are too complex or too highly dimensional to be studied by analytical techniques\nMarkov chain Monte Carlo (MCMC) is a class of sampling algorithms which explore such distributions\nDifferent algorithms move in different ways across the N-dimensional space of the parameters, accepting or rejecting each new position based on its adherence to the prior distribution and the data\nThe sequence of accepted positions constitute the traces"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#software",
-    "href": "ai/jx/wb_bayesian_slides.html#software",
+    "objectID": "ai/jx/wb_bayesian_slides.html#probabilistic-programming-language",
+    "href": "ai/jx/wb_bayesian_slides.html#probabilistic-programming-language",
     "title": "Bayesian inference in",
-    "section": "Software",
-    "text": "Software\nSince the Bayesian approach is computationally intensive, the choice of framework, language, and compiler is important"
+    "section": "Probabilistic Programming Language",
+    "text": "Probabilistic Programming Language\nProbabilistic programming language (PPL), explained simply in this (a bit outdated) blog post, are computer languages specialized in creating probabilistic models and making inference\nModel components are first-class primitives\nThey can be based on a general programming language (e.g. Python, Julia) or domain specific"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#initial-software",
-    "href": "ai/jx/wb_bayesian_slides.html#initial-software",
+    "objectID": "ai/jx/wb_bayesian_slides.html#first-bayesian-ppls",
+    "href": "ai/jx/wb_bayesian_slides.html#first-bayesian-ppls",
     "title": "Bayesian inference in",
-    "section": "Initial software",
-    "text": "Initial software\nWinBUGS replaced by OpenBUGS, written in Component Pascal, then JAGS, written in C++"
+    "section": "First Bayesian PPLs",
+    "text": "First Bayesian PPLs\nRelied on Gibbs sampling:\n\nWinBUGS replaced by OpenBUGS, written in Component Pascal\nJAGS, written in C++\n\nBUGS = Bayesian inference Using Gibbs Sampling\nJAGS = Just Another Gibbs Sampler"
   },
   {
     "objectID": "ai/jx/wb_bayesian_slides.html#stan",
@@ -8907,18 +8914,11 @@
     "text": "Stan\nStan (see also website and paper) is a domain-specific language\nStan scripts can be executed from R, Python, or the shell via RStan, PyStan, etc.\nAlso used as the backend for the R package brms which doesn’t require learning Stan but only works for simple models\nRelies on No-U-Turn sampler (NUTS), a variant of Hamiltonian Monte Carlo (HMC) (see also HMC paper)\nHMC and variants require burdensome calculations of derivatives. Stan solved that by creating its own reverse-mode automatic differentiation engine\nSuperior to Gibbs sampler ➔ made Stan a very popular PPL for years"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#stan-algorithms",
-    "href": "ai/jx/wb_bayesian_slides.html#stan-algorithms",
+    "objectID": "ai/jx/wb_bayesian_slides.html#ppls-based-on-deep-learning-frameworks",
+    "href": "ai/jx/wb_bayesian_slides.html#ppls-based-on-deep-learning-frameworks",
     "title": "Bayesian inference in",
-    "section": "Stan algorithms",
-    "text": "Stan algorithms\ngradient-based MCMC algorithms for Bayesian inference: - Hamiltonian Monte Carlo (HMC) - No-U-Turn sampler (NUTS), a variant of HMC and Stan’s default MCMC engine\nstochastic gradient-based variational algorithms for approximate Bayesian inference: - Automatic Differentiation Variational Inference - Pathfinder: Parallel quasi-Newton variational inference\ngradient-based optimization algorithms for penalized maximum likelihood estimation: - Limited-memory BFGS (Stan’s default optimization algorithm) - Broyden–Fletcher–Goldfarb–Shanno algorithm\n\nLaplace’s approximation for classical standard error estimates and approximate Bayesian posteriors"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#ppls-based-on-dl-frameworks",
-    "href": "ai/jx/wb_bayesian_slides.html#ppls-based-on-dl-frameworks",
-    "title": "Bayesian inference in",
-    "section": "PPLs based on DL frameworks",
-    "text": "PPLs based on DL frameworks\nSince HMC and NUTS require autodiff, many software have emerged in recent years, following the explosion of deep learning\n(The Stan developers wrote their own autodiff system)\nExamples:\n\nPyro based on PyTorch\nEdward, then Edward2 as well as TensorFlow Probability based on TensorFlow"
+    "section": "PPLs based on deep learning frameworks",
+    "text": "PPLs based on deep learning frameworks\nSince HMC and NUTS require autodiff, many Python PPLs have emerged in recent years, following the explosion of deep learning\nExamples:\n\nPyro based on PyTorch\nEdward, then Edward2 as well as TensorFlow Probability based on TensorFlow"
   },
   {
     "objectID": "ai/jx/wb_bayesian_slides.html#enters-jax",
@@ -8935,18 +8935,32 @@
     "text": "What is JAX?\nJAX is a library for Python that:\n\nmakes use of the extremely performant XLA compiler\nruns on accelerators (GPUs/TPUs)\nprovides automatic differentiation\nuses just-in-time compilation\nallows batching and parallelization\n\n\n⇒ perfect tool for Bayesian statistics\n\n See our introductory JAX course and webinar for more details"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#new-backends-using-jax",
-    "href": "ai/jx/wb_bayesian_slides.html#new-backends-using-jax",
+    "objectID": "ai/jx/wb_bayesian_slides.html#jax-idiosyncrasies",
+    "href": "ai/jx/wb_bayesian_slides.html#jax-idiosyncrasies",
     "title": "Bayesian inference in",
-    "section": "New backends using JAX",
-    "text": "New backends using JAX\nEdward2 and TensorFlow Probability can now use JAX as backend\nPyMC relies on building a static graph. It is based on PyTensor which provides JAX compilation (PyTensor is a fork of aesara, itself a fork of Theano)\npymc-extras is a testing ground for novel algorithms, distributions, and methods"
+    "section": "JAX idiosyncrasies",
+    "text": "JAX idiosyncrasies\nJAX is sublanguage of Python requiring pure functions instead of Python’s object-oriented style\nIt has other quirks\nThe only one you really need to understand for use in PPLs is the pseudorandom number generation"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#pymc",
-    "href": "ai/jx/wb_bayesian_slides.html#pymc",
+    "objectID": "ai/jx/wb_bayesian_slides.html#prng-keys",
+    "href": "ai/jx/wb_bayesian_slides.html#prng-keys",
     "title": "Bayesian inference in",
-    "section": "PyMC",
-    "text": "PyMC\nLibrary for Python\nPyMC is a PPL based on PyTensor—fork of aesara, itself a fork of Theano\nIt relies on building a static graph\npymc-extras is a testing ground for novel algorithms, distributions, and methods"
+    "section": "PRNG keys",
+    "text": "PRNG keys\nTraditional pseudorandom number generators are based on nondeterministic state of the OS. This is slow and problematic for parallel executions\nJAX relies on an explicitly-set random state called a key:\nfrom jax import random\nkey = random.key(18)\nEach key can only be used for one random function, but it can be split into new keys:\nkey, subkey = random.split(key)\n\nThe first key can’t be used anymore. We overwrote it with a new key to ensure we don’t accidentally reuse it\n\nWe can now use subkey in random functions in our code (and keep key to generate new subkeys as needed)"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#jax-use-cases",
+    "href": "ai/jx/wb_bayesian_slides.html#jax-use-cases",
+    "title": "Bayesian inference in",
+    "section": "JAX use cases",
+    "text": "JAX use cases"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#new-jax-backends-added-to-many-ppls",
+    "href": "ai/jx/wb_bayesian_slides.html#new-jax-backends-added-to-many-ppls",
+    "title": "Bayesian inference in",
+    "section": "New JAX backends added to many PPLs",
+    "text": "New JAX backends added to many PPLs\nEdward2 and TensorFlow Probability can now use JAX as backend\nPyMC relies on building a static graph. It is based on PyTensor which provides JAX compilation (PyTensor is a fork of aesara, itself a fork of Theano)"
   },
   {
     "objectID": "ai/jx/wb_bayesian_slides.html#numpyro",
@@ -8963,11 +8977,46 @@
     "text": "Blackjax\nNot a PPL but a library of MCMC samplers built on JAX\nCan be used directly if you want to define your own log-probability density functions or can be used with several PPLs to define your model (make sure to translate it to a log-probability function)\nAlso provides building blocks for experimentation with new algorithms"
   },
   {
-    "objectID": "ai/jx/wb_bayesian_slides.html#annex",
-    "href": "ai/jx/wb_bayesian_slides.html#annex",
+    "objectID": "ai/jx/wb_bayesian_slides.html#blackjax-1",
+    "href": "ai/jx/wb_bayesian_slides.html#blackjax-1",
     "title": "Bayesian inference in",
-    "section": "Annex",
-    "text": "Annex\nList of currently available PPLs"
+    "section": "Blackjax",
+    "text": "Blackjax"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-hmc",
+    "href": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-hmc",
+    "title": "Bayesian inference in",
+    "section": "Example Blackjax sampler: HMC",
+    "text": "Example Blackjax sampler: HMC"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-nuts",
+    "href": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-nuts",
+    "title": "Bayesian inference in",
+    "section": "Example Blackjax sampler: NUTS",
+    "text": "Example Blackjax sampler: NUTS"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#which-tool-to-choose",
+    "href": "ai/jx/wb_bayesian_slides.html#which-tool-to-choose",
+    "title": "Bayesian inference in",
+    "section": "Which tool to choose?",
+    "text": "Which tool to choose?\nAll these tools are in active development (JAX was released and started shaking the field in 2018). Things are fast evolving. Reading blogs of main developers, posts on Hacker News, discourse forums, etc. helps to keep an eye on evolutions in the field\nThis recent conversation between Bob Carpenter (Stan core developer) and Ricardo Vieira (PyMC core developer) in the PyMC discourse forum is interesting\nA lot of it also comes down to user preferences"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#how-to-get-started-with-bayesian-computing",
+    "href": "ai/jx/wb_bayesian_slides.html#how-to-get-started-with-bayesian-computing",
+    "title": "Bayesian inference in",
+    "section": "How to get started with Bayesian computing?",
+    "text": "How to get started with Bayesian computing?\nThe book Probabilistic Programming & Bayesian Methods for Hackers by Cameron Davidson-Pilon provides a code-based (using PyMC) and math-free introduction to Bayesian methods for the real beginner\nSeveral resources on the PyMC website including intro Bayesian with PyMC\nNumPyro tutorials\nMore advanced: tutorials from Blackjax Sampling Book Project"
+  },
+  {
+    "objectID": "ai/jx/wb_bayesian_slides.html#how-to-transition-from-stan-to-a-jax-based-ppl",
+    "href": "ai/jx/wb_bayesian_slides.html#how-to-transition-from-stan-to-a-jax-based-ppl",
+    "title": "Bayesian inference in",
+    "section": "How to transition from Stan to a JAX-based PPL?",
+    "text": "How to transition from Stan to a JAX-based PPL?\nThe code to the classic Bayesian textbook Statistical Rethinking by Richard McElreath got translated by various people to modern JAX-based PPLs:"
   },
   {
     "objectID": "ai/jx/jx_why.html",
@@ -14995,7 +15044,7 @@
     "href": "r/hpc_clusters.html#modules",
     "title": "R on HPC clusters",
     "section": "Modules",
-    "text": "Modules\nOn the Alliance clusters, a number of utilities are available right away (e.g. Bash utilities, git, tmux, various text editors). Before you can use more specialized software however, you have to load the module corresponding to the version of your choice as well as any potential dependencies.\n\nThe cluster setup for this course has everything loaded, so this step is not necessary today, but it is very important to learn it.\n\n\nR\nFirst, of course, we need an R module.\nTo see which versions of R are available on a cluster, run:\nmodule spider r\nTo see the dependencies of a particular version (e.g. r/4.4.0), run:\nmodule spider r/4.4.0\nThis shows us that we need StdEnv/2023 to load r/4.4.0.\n\n\nC compiler\nIf you plan on installing any R package, you will also need a C compiler.\nIn theory, one could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can be compiled by any C compiler—also including Clang and LLVM—but the default GCC compiler is the best way to avoid headaches).\n\n\nYour turn:\n\n\nHow can you check which gcc versions are available on our training cluster?\nWhat are the dependencies required by gcc/13.3?\n\n\n\n\nLoading the modules\nOnce you know which modules you need, you can load them. The order is important: the dependencies (here StdEnv/2023) must be listed before the modules which depend on them.\nmodule load StdEnv/2023 gcc/13.3 r/4.4.0",
+    "text": "Modules\nOn the Alliance clusters, a number of utilities are available right away (e.g. Bash utilities, git, tmux, various text editors). Before you can use more specialized software however, you have to load the module corresponding to the version of your choice as well as any potential dependencies.\n\nR\nFirst, of course, we need an R module.\nTo see which versions of R are available on a cluster, run:\nmodule spider r\nTo see the dependencies of a particular version (e.g. r/4.4.0), run:\nmodule spider r/4.4.0\nThis shows us that we need StdEnv/2023 to load r/4.4.0.\n\n\nC compiler\nIf you plan on installing any R package, you will also need a C compiler.\nIn theory, one could use the proprietary Intel compiler which is loaded by default on the Alliance clusters, but it is recommended to replace it with the GCC compiler (R packages can be compiled by any C compiler—also including Clang and LLVM—but the default GCC compiler is the best way to avoid headaches).\n\n\nYour turn:\n\n\nHow can you check which gcc versions are available on our training cluster?\nWhat are the dependencies required by gcc/13.3?\n\n\n\n\nLoading the modules\nOnce you know which modules you need, you can load them. The order is important: the dependencies (here StdEnv/2023) must be listed before the modules which depend on them.\nmodule load StdEnv/2023 gcc/13.3 r/4.4.0",
     "crumbs": [
       "R",
       "<b><em>High-performance R</em></b>",
@@ -15007,7 +15056,7 @@
     "href": "r/hpc_clusters.html#installing-r-packages",
     "title": "R on HPC clusters",
     "section": "Installing R packages",
-    "text": "Installing R packages\n\nFor this course, all packages have already been installed in a communal library. You thus don’t have to install anything.\n\nTo install a package, launch the interactive R console with:\nR\nIn the R console, run:\ninstall.packages(\"&lt;package_name&gt;\", repos=\"&lt;url-cran-mirror&gt;\")\n\nrepos argument: chose a CRAN mirror close to the location of your cluster or use https://cloud.r-project.org/.\n\n\nThe first time you install a package, R will ask you whether you want to create a personal library in your home directory. Answer yes to both questions. Your packages will now install under ~/.\n\n\nSome packages require additional modules to be loaded before they can be installed. Other packages need additional R packages as dependencies. In either case, you will get explicit error messages. Adding the argument dependencies = T helps in the second case, but you will still have to add packages manually from time to time.\n\nTo leave the R console, press &lt;Ctrl+D&gt;.",
+    "text": "Installing R packages\n\nFor this course, all packages have already been installed in a communal library to save us time and avoiding putting stress on the login node by all installing packages at the same time. The section below is thus for reference only.\nHowever, for this course only, you will have to run the following to load the communal library (run this now):\necho export R_LIBS='/project/def-sponsor00/R/lib' &gt;&gt; .bashrc &&\nexport R_LIBS='/project/def-sponsor00/R/lib'\n\nTo install a package, launch the interactive R console with:\nR\nIn the R console, run:\ninstall.packages(\"&lt;package_name&gt;\", repos=\"&lt;url-cran-mirror&gt;\")\n\nrepos argument: chose a CRAN mirror close to the location of your cluster or use https://cloud.r-project.org/.\n\n\nThe first time you install a package, R will ask you whether you want to create a personal library in your home directory. Answer yes to both questions. Your packages will now install under ~/.\n\n\nSome packages require additional modules to be loaded before they can be installed. Other packages need additional R packages as dependencies. In either case, you will get explicit error messages. Adding the argument dependencies = T helps in the second case, but you will still have to add packages manually from time to time.\n\nTo leave the R console, press &lt;Ctrl+D&gt;.",
     "crumbs": [
       "R",
       "<b><em>High-performance R</em></b>",
@@ -15276,11 +15325,11 @@
     ]
   },
   {
-    "objectID": "r/hpc_run.html#why-not-use-rstudio-server",
-    "href": "r/hpc_run.html#why-not-use-rstudio-server",
+    "objectID": "r/hpc_run.html#why-not-use-an-rstudio-server",
+    "href": "r/hpc_run.html#why-not-use-an-rstudio-server",
     "title": "SSH login",
-    "section": "Why not use RStudio server?",
-    "text": "Why not use RStudio server?\nIn our introduction to R, we used an RStudio server running on a remote cluster. In this course, we will log in a similar remote supercomputer using Secure Shell, then run R scripts from the command line.\nWhy are we not making use of the interactivity of R which is an interpreted language and why are we not using the added comfort of an IDE? The short answer is: resource efficiency.\nOnce you have developed your code in an interactive fashion in the IDE of your choice using small hardware resources on a sample of your data, running scripts allows you to only request large resources when you need them (i.e. when your code is running). This prevents heavy resources from sitting idle when not in use, as would happen in an interactive session while you type, think, etc. It will save you money on commercial clusters and waiting time on the Alliance clusters.\nThis course being about high-performance R, let’s learn to use it through scripts.",
+    "section": "Why not use an RStudio server?",
+    "text": "Why not use an RStudio server?\nIn our introduction to R, we used an RStudio server running on a remote cluster. In this course, we will log in a similar remote supercomputer using Secure Shell, then run R scripts from the command line.\nWhy are we not making use of the interactivity of R which is an interpreted language and why are we not using the added comfort of an IDE? The short answer is: resource efficiency.\nOnce you have developed your code in an interactive fashion in the IDE of your choice using small hardware resources on a sample of your data, running scripts allows you to only request large resources when you need them (i.e. when your code is running). This prevents heavy resources from sitting idle when not in use, as would happen in an interactive session while you type, think, etc. It will save you money on commercial clusters and waiting time on the Alliance clusters.\nThis course being about high-performance R, let’s learn to use it through scripts.",
     "crumbs": [
       "R",
       "<b><em>High-performance R</em></b>",
@@ -15288,11 +15337,11 @@
     ]
   },
   {
-    "objectID": "r/hpc_run.html#logging-in-the-temporary-cluster-through-ssh",
-    "href": "r/hpc_run.html#logging-in-the-temporary-cluster-through-ssh",
+    "objectID": "r/hpc_run.html#remote-connection-to-the-cluster-via-ssh",
+    "href": "r/hpc_run.html#remote-connection-to-the-cluster-via-ssh",
     "title": "SSH login",
-    "section": "Logging in the temporary cluster through SSH",
-    "text": "Logging in the temporary cluster through SSH\nYou do not need to install anything on your machine for this course as we will provide access to a temporary remote cluster.\n\nA username, hostname, and password will be given to you during the workshop.\n\n\nNote that this temporary cluster will only be available for the duration of this course.\n\n\nOpen a terminal emulator\nWindows users:  Install the free version of MobaXTerm and launch it.\nmacOS users:   Launch Terminal.\nLinux users:     Open the terminal emulator of your choice.\n\n\nAccess the cluster through secure shell\n\nWindows users\nFollow the first 18% of this demo.\nFor “Remote host”, use the hostname we gave you.\nSelect the box “Specify username” and provide your username.\n\nNote that the password is entered through blind typing, meaning that you will not see anything happening as you type it. This is a Linux feature. While it is a little disturbing at first, do know that it is working. Make sure to type it slowly to avoid typos, then press the “enter” key on your keyboard.\n\n\n\nmacOS and Linux users\nIn the terminal, run:\nssh &lt;username&gt;@&lt;hostname&gt;\n\nReplace the username and hostname by their values. For instance:\nssh user021@somecluster.c3.ca\n\nYou will be asked a question, answer “Yes”.\nWhen prompted, type the password.\n\nNote that the password is entered through blind typing, meaning that you will not see anything happening as you type it. This is a Linux feature. While it is a little disturbing at first, do know that it is working. Make sure to type it slowly to avoid typos, then press the “enter” key on your keyboard.\n\n\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.",
+    "section": "Remote connection to the cluster via SSH",
+    "text": "Remote connection to the cluster via SSH\nYou do not need to install anything on your machine for this course since we will run everything on this remote cluster.\n\nStep one: get a username and the password\nWe will give you a link to an etherpad during the workshop. Add your name next to a free username to claim it.\nWe will also give you the password for our training cluster.\n\n\nStep two: run the ssh command\n\n •  Linux and macOS users\nLinux users:   open the terminal emulator of your choice.\nmacOS users:   open “Terminal”.\nThen type:\nssh userxx@hostname\n\n\nReplace userxx by your username (e.g. user09).\nReplace hostname by the hostname we will give you the day of the workshop.\n\n\n\n\n •  Windows users\nWe suggest using the free version of MobaXterm. MobaXterm comes with a terminal emulator and a GUI interface for SSH sessions.\nOpen MobaXterm, click on “Session”, then “SSH”, and fill in the Remote host name and your username.\n\nHere is a live demo.\n\n\n\n\nStep three: enter the password\nWhen prompted, enter the password we gave you.\nYou will not see any character as you type the password: this is called blind typing and is a Linux safety feature. It can be unsettling at first not to get any feed-back while typing as it really looks like it is not working. Type slowly and make sure not to make typos.\nYou will be asked whether you are sure that you want to continue connecting. Answer “yes”.\nYou are now logged in and your prompt should look like the following (with your actual username):\n[userxx@login1 ~]$\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.",
     "crumbs": [
       "R",
       "<b><em>High-performance R</em></b>",
@@ -17875,244 +17924,5 @@
     "title": "Modern shell utilities",
     "section": "Usage",
     "text": "Usage\nYou now have syntax highlighting in your shell inputs\nTo use the history substring search, start typing some command\nthen press Alt+p or Alt+n\nIt will cycle through all entries in your history that start that way\nFinally, the autosuggestion will suggest commands based on your history and/or classic suggestions\nAccept the whole command with Ctl+e or a single word with Alt+f"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#frequentist",
-    "href": "ai/jx/wb_bayesian_slides.html#frequentist",
-    "title": "Bayesian inference in",
-    "section": "Frequentist",
-    "text": "Frequentist\nFrequentist approach to probabilities: assigns probabilities to the long-run frequency of events\nIt doesn’t assign probabilities to non-random variables such as hypotheses or parameters\nInstead, the probability is assigned to the limit of the relative frequencies of events in infinite trials and we can assign a probability to the fact that a new random sample would produce a confidence interval that contains the unknown parameter\nThis is not how we intuitively think and the results are hard to interpret. This approach is also often artificially constrained and limits the integration of various forms of information\nIt is however computationally simple and fast: samples are randomly selected from the sample space and it returns test statistics such as p-values and confidence intervals. This is why it was the dominant approach for a long time: we knew how to do it"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#bayesian",
-    "href": "ai/jx/wb_bayesian_slides.html#bayesian",
-    "title": "Bayesian inference in",
-    "section": "Bayesian",
-    "text": "Bayesian\nBayesian approach: assigns probabilities to our beliefs about an event\nBased on Bayes’ theorem of conditional probabilities which allows to calculate the probability of a cause given its effect:\n\\[ P(A \\vert X) = \\frac{P(X \\vert A) P(A)}{P(X)} \\]\nwhere:\n\n\\(P(A)\\) is the prior probability of \\(A\\)—our belief about event \\(A\\)\n\\(P(X)\\) is the marginal probability of event \\(X\\) (some observed data)\n\\(P(X \\vert A)\\) is the likelihood or conditional probability of observing \\(X\\) given \\(A\\)\n\\(P(A \\vert X)\\) is the posterior probability—our updated belief about \\(A\\) given the data"
-  },
-  {
-    "objectID": "ai/jx/wb_jax_slides.html",
-    "href": "ai/jx/wb_jax_slides.html",
-    "title": "Accelerated array computing and flexible differentiation with",
-    "section": "",
-    "text": "Library for Python developed by Google\n\n\nKey data structure: Array\n\n\nComposition, transformation, and differentiation of numerical programs\n\n\nCompilation for CPUs, GPUs, and TPUs\n\n\nNumPy-like and lower-level APIs\n\n\nRequires strict functional programming\n\n\n\n\n\n\n\n\n\n\n\n\n\n01\n\n\nAutodiff method\n\n\n\n1\nStatic graph\nand XLA\n\n\n\n\n02\n\n\nFramework\n\n\n\n\n2\nDynamic graph\n\n\n\n1-&gt;2\n\n\n\n\n\na\n\nTensorFlow\n\n\n\n\n4\nDynamic graph\nand XLA\n\n\n\n2-&gt;4\n\n\n\n\n\nb\n\nPyTorch\n\n\n\n\n5\nPseudo-dynamic\nand XLA\n\n\n\n4-&gt;5\n\n\n\n\n\nd\n\nTensorFlow2\n\n\n\n\ne\n\nJAX\n\n\n\n\n\n03\n\n\nAdvantage\n\n\n\n\n\n7\nMostly\noptimized AD\n\n\n\n\n\n8\nConvenient\n\n\n\n\n\n9\nConvenient\n\n\n\n\n10\nConvenient and\nmostly optimized AD\n\n\n\n\n\n04\n\n\nDisadvantage\n\n\n\n\n\nA\nManual writing of IR\n\n\n\n\n\nB\nLimited AD optimization\n\n\n\n\n\nD\nDisappointing speed\n\n\n\n\nE\nPure functions\n\n\n\n\n\n\n\n\n\n\n\n\n\n  Summarized from a blog post by Chris Rackauckas"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html",
-    "href": "ai/jx/wb_bayesian_slides.html",
-    "title": "Bayesian inference in",
-    "section": "",
-    "text": "Bayes’ theorem statistical inference probability distribution\nMarkov chain Monte Carlo (MCMC) Hamiltonian Monte Carlo (HMC) No-U-Turn sampler (NUTS), a variant of HMC and Stan’s default MCMC engine\nprobabilistic programming language (PPL) explained simply in this (now outdated) blog post"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#probabilistic-programming-language",
-    "href": "ai/jx/wb_bayesian_slides.html#probabilistic-programming-language",
-    "title": "Bayesian inference in",
-    "section": "Probabilistic Programming Language",
-    "text": "Probabilistic Programming Language\nProbabilistic programming language (PPL), explained simply in this (a bit outdated) blog post, are computer languages specialized in creating probabilistic models and making inference\nModel components are first-class primitives\nThey can be based on a general programming language (e.g. Python, Julia) or domain specific"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#first-ppls",
-    "href": "ai/jx/wb_bayesian_slides.html#first-ppls",
-    "title": "Bayesian inference in",
-    "section": "First PPLs",
-    "text": "First PPLs\nRelied on Gibbs sampling\n\nWinBUGS replaced by OpenBUGS, written in Component Pascal\nlater JAGS, written in C++"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#what-is-jax-1",
-    "href": "ai/jx/wb_bayesian_slides.html#what-is-jax-1",
-    "title": "Bayesian inference in",
-    "section": "What is JAX?",
-    "text": "What is JAX?"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#what-is-jax-2",
-    "href": "ai/jx/wb_bayesian_slides.html#what-is-jax-2",
-    "title": "Bayesian inference in",
-    "section": "What is JAX?",
-    "text": "What is JAX?"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#two-interpretations-of-probabilities",
-    "href": "ai/jx/wb_bayesian_slides.html#two-interpretations-of-probabilities",
-    "title": "Bayesian inference in",
-    "section": "Two interpretations of probabilities",
-    "text": "Two interpretations of probabilities\n\n\n\n\nFrequentist\n\n\n\n\nImage source\n\n\n\n\n\n\n\nBayesian\n\n\n\n\nImage source"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#ppls-based-on-deep-learning-frameworks",
-    "href": "ai/jx/wb_bayesian_slides.html#ppls-based-on-deep-learning-frameworks",
-    "title": "Bayesian inference in",
-    "section": "PPLs based on deep learning frameworks",
-    "text": "PPLs based on deep learning frameworks\nSince HMC and NUTS require autodiff, many Python PPLs have emerged in recent years, following the explosion of deep learning\nExamples:\n\nPyro based on PyTorch\nEdward, then Edward2 as well as TensorFlow Probability based on TensorFlow"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#enters-jax-.center",
-    "href": "ai/jx/wb_bayesian_slides.html#enters-jax-.center",
-    "title": "Bayesian inference in",
-    "section": "Enters JAX {.center}",
-    "text": "Enters JAX {.center}\n\nHad JAX existed when we started coding Stan in 2011, we would’ve used that rather than rolling our own autodiff system.\n\n\nBob Carpenter, one of Stan creators\n\nJAX is designed natively for GPU coding and parallelism. Stan is not"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#blackjax-1",
-    "href": "ai/jx/wb_bayesian_slides.html#blackjax-1",
-    "title": "Bayesian inference in",
-    "section": "Blackjax",
-    "text": "Blackjax"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#blackjax-2",
-    "href": "ai/jx/wb_bayesian_slides.html#blackjax-2",
-    "title": "Bayesian inference in",
-    "section": "Blackjax",
-    "text": "Blackjax"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-hmc",
-    "href": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-hmc",
-    "title": "Bayesian inference in",
-    "section": "Example Blackjax sampler: HMC",
-    "text": "Example Blackjax sampler: HMC"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-nuts",
-    "href": "ai/jx/wb_bayesian_slides.html#example-blackjax-sampler-nuts",
-    "title": "Bayesian inference in",
-    "section": "Example Blackjax sampler: NUTS",
-    "text": "Example Blackjax sampler: NUTS"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#how-to-transition-from-stan-to-a-jax-based-ppl",
-    "href": "ai/jx/wb_bayesian_slides.html#how-to-transition-from-stan-to-a-jax-based-ppl",
-    "title": "Bayesian inference in",
-    "section": "How to transition from Stan to a JAX-based PPL?",
-    "text": "How to transition from Stan to a JAX-based PPL?\nThe code to the classic Bayesian textbook Statistical Rethinking by Richard McElreath got translated by various people to modern JAX-based PPLs:"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#how-to-get-started-with-bayesian-statistics",
-    "href": "ai/jx/wb_bayesian_slides.html#how-to-get-started-with-bayesian-statistics",
-    "title": "Bayesian inference in",
-    "section": "How to get started with Bayesian statistics?",
-    "text": "How to get started with Bayesian statistics?\nThe book Probabilistic Programming & Bayesian Methods for Hackers by Cameron Davidson-Pilon provides a code-based (using PyMC) and math-free introduction to Bayesian methods for the real beginner\nSeveral resources on the PyMC website\nNumPyro tutorials\nMore advanced: tutorials from Blackjax Sampling Book Project"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#which-tool-to-choose",
-    "href": "ai/jx/wb_bayesian_slides.html#which-tool-to-choose",
-    "title": "Bayesian inference in",
-    "section": "Which tool to choose?",
-    "text": "Which tool to choose?\nAll these tools are in active development (JAX was released and started shaking the field in 2018). Things are fast evolving. Reading blogs of main developers, posts on Hacker News, discourse forums, etc. helps to keep an eye on evolutions in the field\nThis recent conversation between Bob Carpenter (Stan core developer) and Ricardo Vieira (PyMC core developer) in the PyMC discourse forum is interesting\nA lot of it also comes down to user preferences"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#how-to-get-started-with-bayesian-computing",
-    "href": "ai/jx/wb_bayesian_slides.html#how-to-get-started-with-bayesian-computing",
-    "title": "Bayesian inference in",
-    "section": "How to get started with Bayesian computing?",
-    "text": "How to get started with Bayesian computing?\nThe book Probabilistic Programming & Bayesian Methods for Hackers by Cameron Davidson-Pilon provides a code-based (using PyMC) and math-free introduction to Bayesian methods for the real beginner\nSeveral resources on the PyMC website including intro Bayesian with PyMC\nNumPyro tutorials\nMore advanced: tutorials from Blackjax Sampling Book Project"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#jax-use-cases",
-    "href": "ai/jx/wb_bayesian_slides.html#jax-use-cases",
-    "title": "Bayesian inference in",
-    "section": "JAX use cases",
-    "text": "JAX use cases"
-  },
-  {
-    "objectID": "ai/jx/wb_jax_slides.html#prng-key",
-    "href": "ai/jx/wb_jax_slides.html#prng-key",
-    "title": "Accelerated array computing and flexible differentiation with",
-    "section": "PRNG key",
-    "text": "PRNG key\nTraditional pseudorandom number generators are based on nondeterministic state of OS\nSlow and problematic for parallel executions\nJAX relies on explicitly-set random state called a key:\nfrom jax import random\n\ninitial_key = random.key(18)\nprint(initial_key)\n[ 0 18]"
-  },
-  {
-    "objectID": "ai/jx/wb_jax_slides.html#prng-key-1",
-    "href": "ai/jx/wb_jax_slides.html#prng-key-1",
-    "title": "Accelerated array computing and flexible differentiation with",
-    "section": "PRNG key",
-    "text": "PRNG key\nEach key can only be used for one random function, but it can be split into new keys:\nnew_key1, new_key2 = random.split(initial_key)\n\ninitial_key can’t be used anymore now\n\nprint(new_key1)\n[4197003906 1654466292]\nprint(new_key2)\n[1685972163 1654824463]\nWe need to keep one key to split whenever we need and we can use the other one"
-  },
-  {
-    "objectID": "ai/jx/wb_jax_slides.html#prng-key-2",
-    "href": "ai/jx/wb_jax_slides.html#prng-key-2",
-    "title": "Accelerated array computing and flexible differentiation with",
-    "section": "PRNG key",
-    "text": "PRNG key\nTo make sure we don’t reuse a key by accident, it is best to overwrite the initial key with one of the new ones\nHere are easier names:\nkey = random.key(18)\nkey, subkey = random.split(key)\nWe can now use subkey to generate a random array:\nx = random.normal(subkey, (3, 2))"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#prng-key",
-    "href": "ai/jx/wb_bayesian_slides.html#prng-key",
-    "title": "Bayesian inference in",
-    "section": "PRNG key",
-    "text": "PRNG key\nTraditional pseudorandom number generators are based on nondeterministic state of the OS. This is slow and problematic for parallel executions\nJAX relies on an explicitly-set random state called a key:\nfrom jax import random\nkey = random.key(18)\nEach key can only be used for one random function, but it can be split into new keys:\nkey, subkey = random.split(key)\n\nThe first key can’t be used anymore. We overwrote it with a new key to ensure we don’t accidentally reuse it\n\nWe can now use subkey to in random functions in our code (and keep key to generate new subkeys as needed)"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#jax-idiosyncrasies",
-    "href": "ai/jx/wb_bayesian_slides.html#jax-idiosyncrasies",
-    "title": "Bayesian inference in",
-    "section": "JAX idiosyncrasies",
-    "text": "JAX idiosyncrasies\nJAX is sublanguage of Python requiring pure functions instead of Python’s object-oriented style\nIt has other quirks\nThe only one you really need to understand for use in PPLs is the pseudorandom number generation"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#prng-keys",
-    "href": "ai/jx/wb_bayesian_slides.html#prng-keys",
-    "title": "Bayesian inference in",
-    "section": "PRNG keys",
-    "text": "PRNG keys\nTraditional pseudorandom number generators are based on nondeterministic state of the OS. This is slow and problematic for parallel executions\nJAX relies on an explicitly-set random state called a key:\nfrom jax import random\nkey = random.key(18)\nEach key can only be used for one random function, but it can be split into new keys:\nkey, subkey = random.split(key)\n\nThe first key can’t be used anymore. We overwrote it with a new key to ensure we don’t accidentally reuse it\n\nWe can now use subkey in random functions in our code (and keep key to generate new subkeys as needed)"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#first-bayesian-ppls",
-    "href": "ai/jx/wb_bayesian_slides.html#first-bayesian-ppls",
-    "title": "Bayesian inference in",
-    "section": "First Bayesian PPLs",
-    "text": "First Bayesian PPLs\nRelied on Gibbs sampling:\n\nWinBUGS replaced by OpenBUGS, written in Component Pascal\nJAGS, written in C++\n\nBUGS = Bayesian inference Using Gibbs Sampling\nJAGS = Just Another Gibbs Sampler"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#new-jax-backends-to-many-ppls",
-    "href": "ai/jx/wb_bayesian_slides.html#new-jax-backends-to-many-ppls",
-    "title": "Bayesian inference in",
-    "section": "New JAX backends to many PPLs",
-    "text": "New JAX backends to many PPLs\nEdward2 and TensorFlow Probability can now use JAX as backend\nPyMC relies on building a static graph. It is based on PyTensor which provides JAX compilation (PyTensor is a fork of aesara, itself a fork of Theano)"
-  },
-  {
-    "objectID": "ai/jx/wb_bayesian_slides.html#new-jax-backends-added-to-many-ppls",
-    "href": "ai/jx/wb_bayesian_slides.html#new-jax-backends-added-to-many-ppls",
-    "title": "Bayesian inference in",
-    "section": "New JAX backends added to many PPLs",
-    "text": "New JAX backends added to many PPLs\nEdward2 and TensorFlow Probability can now use JAX as backend\nPyMC relies on building a static graph. It is based on PyTensor which provides JAX compilation (PyTensor is a fork of aesara, itself a fork of Theano)"
-  },
-  {
-    "objectID": "bash/intro_intro.html#remote-connection-to-the-cluster-via-ssh",
-    "href": "bash/intro_intro.html#remote-connection-to-the-cluster-via-ssh",
-    "title": "Introduction",
-    "section": "Remote connection to the cluster via SSH",
-    "text": "Remote connection to the cluster via SSH\n\nStep one: get a username and the password\nWe will give you a link to an etherpad during the workshop. Add your name next to a free username to claim it.\nWe will also give you the password for our training cluster.\n\n\nStep two: run the ssh command\n\n •  Linux and macOS users\nLinux users:   open the terminal emulator of your choice.\nmacOS users:   open “Terminal”.\nThen type:\nssh userxx@hostname\n\n\nReplace userxx by your username (e.g. user09).\nReplace hostname by the hostname we will give you the day of the workshop.\n\n\n\n\n •  Windows users\nWe suggest using the free version of MobaXterm. MobaXterm comes with a terminal emulator and a GUI interface for SSH sessions.\nOpen MobaXterm, click on “Session”, then “SSH”, and fill in the Remote host name and your username.\n\nHere is a live demo.\n\n\n\n\nStep three: enter the password\nWhen prompted, enter the password we gave you.\nYou will not see any character as you type the password: this is called blind typing and is a Linux safety feature. It can be unsettling at first not to get any feed-back while typing as it really looks like it is not working. Type slowly and make sure not to make typos.\nYou will be asked whether you are sure that you want to continue connecting. Answer “yes”.\nYou are now logged in and your prompt should look like the following (with your actual username):\n[userxx@login1 ~]$\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.",
-    "crumbs": [
-      "Bash/Zsh",
-      "<b><em>Getting started</em></b>",
-      "Introduction"
-    ]
-  },
-  {
-    "objectID": "r/hpc_run.html#why-not-use-an-rstudio-server",
-    "href": "r/hpc_run.html#why-not-use-an-rstudio-server",
-    "title": "SSH login",
-    "section": "Why not use an RStudio server?",
-    "text": "Why not use an RStudio server?\nIn our introduction to R, we used an RStudio server running on a remote cluster. In this course, we will log in a similar remote supercomputer using Secure Shell, then run R scripts from the command line.\nWhy are we not making use of the interactivity of R which is an interpreted language and why are we not using the added comfort of an IDE? The short answer is: resource efficiency.\nOnce you have developed your code in an interactive fashion in the IDE of your choice using small hardware resources on a sample of your data, running scripts allows you to only request large resources when you need them (i.e. when your code is running). This prevents heavy resources from sitting idle when not in use, as would happen in an interactive session while you type, think, etc. It will save you money on commercial clusters and waiting time on the Alliance clusters.\nThis course being about high-performance R, let’s learn to use it through scripts.",
-    "crumbs": [
-      "R",
-      "<b><em>High-performance R</em></b>",
-      "SSH login"
-    ]
-  },
-  {
-    "objectID": "r/hpc_run.html#remote-connection-to-the-cluster-via-ssh",
-    "href": "r/hpc_run.html#remote-connection-to-the-cluster-via-ssh",
-    "title": "SSH login",
-    "section": "Remote connection to the cluster via SSH",
-    "text": "Remote connection to the cluster via SSH\nYou do not need to install anything on your machine for this course since we will run everything on this remote cluster.\n\nStep one: get a username and the password\nWe will give you a link to an etherpad during the workshop. Add your name next to a free username to claim it.\nWe will also give you the password for our training cluster.\n\n\nStep two: run the ssh command\n\n •  Linux and macOS users\nLinux users:   open the terminal emulator of your choice.\nmacOS users:   open “Terminal”.\nThen type:\nssh userxx@hostname\n\n\nReplace userxx by your username (e.g. user09).\nReplace hostname by the hostname we will give you the day of the workshop.\n\n\n\n\n •  Windows users\nWe suggest using the free version of MobaXterm. MobaXterm comes with a terminal emulator and a GUI interface for SSH sessions.\nOpen MobaXterm, click on “Session”, then “SSH”, and fill in the Remote host name and your username.\n\nHere is a live demo.\n\n\n\n\nStep three: enter the password\nWhen prompted, enter the password we gave you.\nYou will not see any character as you type the password: this is called blind typing and is a Linux safety feature. It can be unsettling at first not to get any feed-back while typing as it really looks like it is not working. Type slowly and make sure not to make typos.\nYou will be asked whether you are sure that you want to continue connecting. Answer “yes”.\nYou are now logged in and your prompt should look like the following (with your actual username):\n[userxx@login1 ~]$\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.",
-    "crumbs": [
-      "R",
-      "<b><em>High-performance R</em></b>",
-      "SSH login"
-    ]
   }
 ]
