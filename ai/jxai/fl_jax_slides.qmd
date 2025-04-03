@@ -66,14 +66,34 @@ Requires strict functional programming
 
 :::
 
-## Why JAX? {.center}
+# Why JAX?
+
+## Fast {.center}
+
+- **Default data type suited for deep learning**
+
+  Like [PyTorch](https://pytorch.org/), uses float32 as default. This level of precision is suitable for deep learning and increases efficiency (by contrast, [NumPy](https://numpy.org/) defaults to float64)
+
+- **[JIT compilation](https://en.wikipedia.org/wiki/Just-in-time_compilation)**
+
+- The same code can run on [CPUs](https://en.wikipedia.org/wiki/Central_processing_unit) or on **accelerators** ([GPUs](https://en.wikipedia.org/wiki/Graphics_processing_unit) and [TPUs](https://en.wikipedia.org/wiki/Tensor_Processing_Unit))
+
+- **[XLA (Accelerated Linear Algebra)](https://github.com/openxla/xla) optimization**
+
+- **Asynchronous dispatch**
+
+- **Vectorization, data parallelism, and sharding**
+
+  All levels of shared and distributed memory parallelism are supported
+
+## Great AD {.center}
 
 ```{dot}
 //| echo: false
 //| fig-height: 450px
 
 strict digraph {
-  
+
 bgcolor="transparent"
 graph [fontname="Inconsolata, sans-serif"]
 node [fontname="Inconsolata, sans-serif", fontsize=15]
@@ -125,6 +145,52 @@ E [label="Pure functions", shape=plaintext, fontcolor=darkorchid2, group=g4]
 
 [&emsp;&emsp;Summarized from [a blog post](https://www.stochasticlifestyle.com/engineering-trade-offs-in-automatic-differentiation-from-tensorflow-and-pytorch-to-jax-and-julia/) by [Chris Rackauckas](https://chrisrackauckas.com/)]{.small}
 
+## Close to the math {.center}
+
+Considering the function `f`:
+
+```{.python}
+f = lambda x: x**3 + 2*x**2 - 3*x + 8
+```
+
+We can create a new function `dfdx` that computes the gradient of `f` w.r.t. `x`:
+
+```{.python}
+from jax import grad
+
+dfdx = grad(f)
+```
+
+`dfdx` returns the derivatives:
+
+```{.python}
+print(dfdx(1.))
+```
+
+```
+4.0
+```
+
+## Forward and reverse modes {.center}
+
+- reverse-mode vector-Jacobian products: `jax.vjp`
+- forward-mode Jacobian-vector products: `jax.jvp`
+
+## Higher-order differentiation {.center}
+
+With a single variable, the `grad` function calls can be nested:
+
+```{.python}
+d2fdx = grad(dfdx)   # function to compute 2nd order derivatives
+d3fdx = grad(d2fdx)  # function to compute 3rd order derivatives
+...
+```
+
+With several variables, you have to use the functions:
+
+- `jax.jacfwd` for forward-mode,
+- `jax.jacrev` for reverse-mode.
+
 ## How does it work? {.center}
 
 ```{dot}
@@ -137,7 +203,7 @@ node [fontname="Inconsolata, sans-serif"]
 bgcolor="transparent"
 
 tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
-jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+jit [label="Transformation", shape=rectangle, color=chocolate, fontcolor=chocolate]
 xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
 transform [label=" Transformations ", shape=rectangle, color=chocolate, fontcolor=chocolate]
 
@@ -181,6 +247,47 @@ tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
 jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
 xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
 transform [label="Vectorization\nParallelization\n   Differentiation  ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
+
+## How does it work? {.center}
+
+```{dot}
+//| echo: false
+//| fig-height: 600px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label="jax.jit", shape=rectangle, color=chocolate, fontcolor=chocolate]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label="jax.vmap\njax.pmap\njax.grad", shape=rectangle, color=chocolate, fontcolor=chocolate]
 
 CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
 GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
@@ -328,6 +435,8 @@ op -> oi [dir=none, color=gray55]
 }
 ```
 
+# Modular approach
+
 ## Data loaders {.center}
 
 ```{dot}
@@ -379,7 +488,7 @@ gr -> load -> tv [style=invis]
 {pt tfds dt} -> load [color=darkorange4]
 {gr tv} -> proc [color=orangered3]
 
-load -> proc
+load -> proc [dir=none]
 
 }
 ```
@@ -416,7 +525,7 @@ gr -> load -> tv [style=invis]
 {gr tv} -> proc [color=orangered3]
 fl -> nn [color="#00695C"]
 
-load -> proc -> nn
+load -> proc -> nn [dir=none]
 
 }
 ```
@@ -457,7 +566,7 @@ gr -> load -> tv [style=invis]
 fl -> nn [color="#00695C"]
 oa -> opt [color="#21A89B"]
 
-load -> proc -> nn -> opt
+load -> proc -> nn -> opt [dir=none]
 
 }
 ```
@@ -502,7 +611,7 @@ fl -> nn [color="#00695C"]
 oa -> opt [color="#21A89B"]
 ob -> cp [color="#336699"]
 
-load -> proc -> nn -> opt -> cp
+load -> proc -> nn -> opt -> cp [dir=none]
 
 }
 ```
@@ -550,12 +659,18 @@ fl -> proc -> pretr [style=invis]
 {pt tfds dt} -> load [color=darkorange4]
 {gr tv} -> proc [color=orangered3]
 fl -> nn [color="#00695C"]
-pretr -> nn
+pretr -> nn [dir=none]
 tr -> pretr [color="#669900"]
 oa -> opt [color="#21A89B"]
 ob -> cp [color="#336699"]
 
-load -> proc -> nn -> opt -> cp
+load -> proc -> nn -> opt -> cp [dir=none]
 
 }
 ```
+
+# Installation
+
+The modular approach has the downside that several libraries are required and conflicts between dependencies can be a problem
+
+The meta-library [jax-ai-stack](https://github.com/jax-ml/jax-ai-stack) makes this easier
