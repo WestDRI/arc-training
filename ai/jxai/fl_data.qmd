@@ -1,25 +1,29 @@
 ---
-title: Loading datasets
+title: Loading data
 aliases:
   - fl_dataset
   - /ai/jx/fl_data
-author: Marie-Hélène Burle
 bibliography: fl.bib
+author:
+  - Marie-Hélène Burle
+  - Part of [JAX tutorial](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html#food-101-dataset)
 ---
 
 :::{.def}
 
-Flax does not implement methods to load datasets since [Hugging Face datasets](https://github.com/huggingface/datasets), [torchvision](https://github.com/pytorch/vision), [TensorFlow datasets](https://github.com/tensorflow/datasets), and [Grain](https://github.com/google/grain) already provide great APIs for this.
+In this section, we will download the [Food-101](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) [@bossard14] dataset that we will later use to train and fine-tune models.
 
 :::
 
-:::{.info}
+## Choosing a library
 
-You only need one of the methods below to load datasets, so you should only install one of the packages `datasets`, `torchvision`, or `tensorflow-datasets`. Trying to install them all will actually often result in conflicts between versions of some of their shared dependencies.
+Data can be downloaded and processed manually, but many datasets are available via [Hugging Face datasets](https://github.com/huggingface/datasets), [torchvision](https://github.com/pytorch/vision), and [TensorFlow datasets](https://github.com/tensorflow/datasets). Remember that JAX does not implement domain-specific utilities and is not a deep learning library. Flax is a deep learning library, but, because there are already so many good options to load and process data, they did not implement a method of their own.
 
-For this course, I installed `tensorflow-datasets` in our training cluster.
+Choose the library you are the most familiar with, or the one for which you found code somewhere, or the one that seems the easiest to you, or provides the exact functionality that you want for your project.
 
-:::
+The [Food-101](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) dataset for instance can be accessed with `torchvision.datasets.Food101` since it is [one of TorchVision datasets](https://pytorch.org/vision/main/generated/torchvision.datasets.Food101.html) or with `tfds.image_classification.Food101` since it is also [one of TFDS datasets](https://www.tensorflow.org/datasets/catalog/food101).
+
+[It is also](https://huggingface.co/datasets/ethz/food101) in the [Hugging Face Hub](https://huggingface.co/datasets) and that's the method that we will use here.
 
 ## Hugging Face datasets
 
@@ -37,7 +41,7 @@ Load the dataset builder for the dataset you are interested in:
 
 ```{.python}
 from datasets import load_dataset_builder
-ds_builder = load_dataset_builder("mnist")
+ds_builder = load_dataset_builder("food101")
 ```
 
 Get a description of the dataset:
@@ -52,81 +56,21 @@ Get information on the features:
 ds_builder.info.features
 ```
 
-### Download dataset and load in session
+### Download dataset
+
+We will only use the first 3 classes of food (instead of 101) to test our code. To prevent us from all downloading the data (by default in `~/.cache/huggingface`), we will use a joint cache directory at `/project/60055/data`.
 
 ```{.python}
 from datasets import load_dataset
 
-def get_dataset_hf():
-    mnist = load_dataset("mnist")
+train_size = 3 * 750
+val_size = 3 * 250
 
-    ds = {}
+train_dataset = load_dataset("food101",
+                             split=f"train[:{train_size}]",
+                             cache_dir="/project/60055/data")
 
-    for split in ['train', 'test']:
-        ds[split] = {
-            'image': np.array([np.array(im) for im in mnist[split]['image']]),
-            'label': np.array(mnist[split]['label'])
-        }
-
-        ds[split]['image'] = jnp.float32(ds[split]['image']) / 255
-        ds[split]['label'] = jnp.int16(ds[split]['label'])
-
-        ds[split]['image'] = jnp.expand_dims(ds[split]['image'], 3)
-
-    return ds['train'], ds['test']
+val_dataset = load_dataset("food101",
+                           split=f"validation[:{val_size}]",
+                           cache_dir="/project/60055/data")
 ```
-
-## PyTorch Torchvision datasets
-
-Torchvision from PyTorch also provides an API to download and prepare [many standard datasets](https://pytorch.org/vision/stable/datasets.html) as well as utilities to build your own.
-
-```{.python}
-from torchvision import datasets
-
-def get_dataset_torch():
-    mnist = {
-        'train': datasets.MNIST('./data', train=True, download=True),
-        'test': datasets.MNIST('./data', train=False, download=True)
-    }
-
-    ds = {}
-
-    for split in ['train', 'test']:
-        ds[split] = {
-            'image': mnist[split].data.numpy(),
-            'label': mnist[split].targets.numpy()
-        }
-
-        ds[split]['image'] = jnp.float32(ds[split]['image']) / 255
-        ds[split]['label'] = jnp.int16(ds[split]['label'])
-
-        ds[split]['image'] = jnp.expand_dims(ds[split]['image'], 3)
-
-    return ds['train'], ds['test']
-```
-
-## TensorFlow datasets
-
-TensorFlow also has [a dataset API](https://github.com/tensorflow/datasets) which can be installed as a standalone package.
-
-```{.python}
-import tensorflow_datasets as tfds
-
-def get_dataset_tf(epochs, batch_size):
-    mnist = tfds.builder('mnist')
-    mnist.download_and_prepare()
-
-    ds = {}
-
-    for set in ['train', 'test']:
-        ds[set] = tfds.as_numpy(mnist.as_dataset(split=set, batch_size=-1))
-
-        # cast to jnp and rescale pixel values
-        ds[set]['image'] = jnp.float32(ds[set]['image']) / 255
-        ds[set]['label'] = jnp.int16(ds[set]['label'])
-
-    return ds['train'], ds['test']
-```
-
-## Grain
-
