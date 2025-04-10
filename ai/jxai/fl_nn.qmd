@@ -186,6 +186,12 @@ val_loader = grain.DataLoader(
 Package and module necessary for this section:
 
 ```{python}
+# to define the jax.Array type
+import jax
+
+# general JAX array manipulations
+import jax.numpy as jnp
+
 # to define the model architecture
 from flax import nnx
 
@@ -207,23 +213,81 @@ By contrast, the new NNX API is a stateful model framework similar to [PyTorch](
 
 While the Linen API still exists, new users are advised to learn the new NNX API.
 
-## Simple CNN
+<!-- ##  -->
 
-We will use [LeNet](https://en.wikipedia.org/wiki/LeNet)-5 [@lecun1998gradient] model, initially used on the [MNIST dataset](https://en.wikipedia.org/wiki/MNIST_database) by LeCun et al. [@lecun2010mnist]. We modify it to take three-channel images (RGB for colour images) instead of a single channel (black and white images as was the case in the MNIST) and have five categories as final output.
+<!-- ## Handling of PRNG -->
 
-The architecture of this model is explained in details in [this kaggle post](https://www.kaggle.com/code/blurredmachine/lenet-architecture-a-complete-guide).
+
+
+## Example MLP with Flax NNX
+
+[Multilayer perceptrons (MLPs)](https://en.wikipedia.org/wiki/Multilayer_perceptron) are fully-connected feed-forward neural networks.
+
+Here is an example of MLP with a single hidden layer for the [MNIST dataset](https://en.wikipedia.org/wiki/MNIST_database) by LeCun et al. [@lecun2010mnist]:
+
+![[Image source](https://www.researchgate.net/figure/A-one-hidden-layer-MLP-network-applied-to-MNIST-dataset_fig2_350543967)](img/mlp.jpg)
+
+And here is the implementation in Flax NNX:
 
 ```{python}
-class CNN(nnx.Module):
+class MLP(nnx.Module):
+
+  def __init__(
+          self,
+          # 28x28 pixel images with 1 channel
+          n_features: int = 784,
+          n_hidden: int = 300,
+          # 10 digits
+          n_targets: int = 10,
+          *,
+          rngs: nnx.Rngs
+  ):
+    self.n_features = n_features
+    self.layer1 = nnx.Linear(n_features, n_hidden, rngs=rngs)
+    self.layer2 = nnx.Linear(n_hidden, n_hidden, rngs=rngs)
+    self.layer3 = nnx.Linear(n_hidden, n_targets, rngs=rngs)
+
+  def __call__(self, x):
+    x = x.reshape(x.shape[0], self.n_features) # flatten
+    x = nnx.selu(self.layer1(x))
+    x = nnx.selu(self.layer2(x))
+    x = self.layer3(x)
+    return x
+
+# instantiate the model
+model = MLP(rngs=nnx.Rngs(0))
+
+# visualize it
+nnx.display(model)
+```
+
+:::{.note}
+
+If you have the [penzai package](https://github.com/google-deepmind/penzai) installed, you will see an interactive display of the model.
+
+:::
+
+## Example CNN with Flax NNX
+
+[Convolutional neural networks (CNNs)](https://en.wikipedia.org/wiki/Convolutional_neural_network) take advantage of the spacial correlations that exist in images and allow to greatly reduce the number of neurons in vision networks.
+
+[LeNet](https://en.wikipedia.org/wiki/LeNet)-5 [@lecun1998gradient] model, initially used on the [MNIST dataset](https://en.wikipedia.org/wiki/MNIST_database) by LeCun et al. [@lecun2010mnist], is an early and simple CNN. The architecture of this model is explained in details in [this kaggle post](https://www.kaggle.com/code/blurredmachine/lenet-architecture-a-complete-guide) and here is a schematic:
+
+![Image source: LeCun et al. [@lecun1998gradient]](img/lenet-5.png)
+
+You can find the [keras](https://github.com/keras-team/keras) code [here](https://www.kaggle.com/code/blurredmachine/lenet-architecture-a-complete-guide?scriptVersionId=38673209&cellId=8) and the [PyTorch](https://github.com/pytorch/pytorch) code (slightly modified) [here](https://pytorch.org/tutorials/intermediate/tensorboard_tutorial.html) for comparison.
+
+```{python}
+class LeNet(nnx.Module):
   """An adapted LeNet-5 model."""
 
   def __init__(self, *, rngs: nnx.Rngs):
-    self.conv1 = nnx.Conv(3, 6, kernel_size=(5, 5), rngs=rngs)
+    self.conv1 = nnx.Conv(1, 6, kernel_size=(5, 5), rngs=rngs)
     self.max_pool = partial(nnx.max_pool, window_shape=(2, 2), strides=(2, 2))
     self.conv2 = nnx.Conv(6, 16, kernel_size=(5, 5), rngs=rngs)
-    self.linear1 = nnx.Linear(3136, 120, rngs=rngs)
+    self.linear1 = nnx.Linear(16 * 4 * 4, 120, rngs=rngs)
     self.linear2 = nnx.Linear(120, 84, rngs=rngs)
-    self.linear3 = nnx.Linear(84, 5, rngs=rngs)
+    self.linear3 = nnx.Linear(84, 10, rngs=rngs)
 
   def __call__(self, x):
     x = self.max_pool(nnx.relu(self.conv1(x)))
@@ -234,31 +298,143 @@ class CNN(nnx.Module):
     x = self.linear3(x)
     return x
 
-# Instantiate the model.
-model = CNN(rngs=nnx.Rngs(0))
+# instantiate the model
+model = LeNet(rngs=nnx.Rngs(0))
 
-# Visualize it.
+# visualize it
 nnx.display(model)
 ```
 
-```{python}
-import jax.numpy as jnp  # JAX NumPy
+## ViT with Flax NNX
 
-y = model(jnp.ones((3, 224, 224, 1)))
-y
+LeNet (various iterations until 1998) was followed by [AlexNet](https://en.wikipedia.org/wiki/AlexNet) in 2011 and many increasingly complex CNNs, until multi-head [attention](https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)) and transformers changed everything.
+
+[Transformers](https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)) are a complex neural network architecture developed by Google in 2017, after the seminal paper "Attention Is All You Need" [@vaswani2017attention]—cited 175,083 times as of April 2025 (!!!)—came out. They were initially only used in [natural language processing (NLP)](https://en.wikipedia.org/wiki/Natural_language_processing), but have since been applied to vision.
+
+To classify our food dataset, we will use the [vision transformer (ViT)](https://en.wikipedia.org/wiki/Vision_transformer) introduced by Dosovitskiy et al. [-@dosovitskiy2021imageworth16x16words] (that we will fine-tune in a later section).
+
+Here is a schematic of the model:
+
+![Image source: Dosovitskiy et al. [@dosovitskiy2021imageworth16x16words]](img/vit.png)
+
+And here is the [JAX implementation](https://github.com/google-research/vision_transformer/) by [Google Research](https://github.com/google-research):
+
+```{python}
+class VisionTransformer(nnx.Module):
+    def __init__(
+        self,
+        num_classes: int = 1000,
+        in_channels: int = 3,
+        img_size: int = 224,
+        patch_size: int = 16,
+        num_layers: int = 12,
+        num_heads: int = 12,
+        mlp_dim: int = 3072,
+        hidden_size: int = 768,
+        dropout_rate: float = 0.1,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ):
+        # Patch and position embedding
+        n_patches = (img_size // patch_size) ** 2
+        self.patch_embeddings = nnx.Conv(
+            in_channels,
+            hidden_size,
+            kernel_size=(patch_size, patch_size),
+            strides=(patch_size, patch_size),
+            padding="VALID",
+            use_bias=True,
+            rngs=rngs,
+        )
+
+        initializer = jax.nn.initializers.truncated_normal(stddev=0.02)
+        self.position_embeddings = nnx.Param(
+            initializer(
+                rngs.params(),
+                (1, n_patches + 1, hidden_size),
+                jnp.float32
+            )
+        )
+        self.dropout = nnx.Dropout(dropout_rate, rngs=rngs)
+
+        self.cls_token = nnx.Param(jnp.zeros((1, 1, hidden_size)))
+
+        # Transformer Encoder blocks
+        self.encoder = nnx.Sequential(*[
+            TransformerEncoder(
+                hidden_size,
+                mlp_dim,
+                num_heads,
+                dropout_rate,
+                rngs=rngs
+            )
+            for i in range(num_layers)
+        ])
+        self.final_norm = nnx.LayerNorm(hidden_size, rngs=rngs)
+
+        # Classification head
+        self.classifier = nnx.Linear(hidden_size, num_classes, rngs=rngs)
+
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # Patch and position embedding
+        patches = self.patch_embeddings(x)
+        batch_size = patches.shape[0]
+        patches = patches.reshape(batch_size, -1, patches.shape[-1])
+
+        cls_token = jnp.tile(self.cls_token, [batch_size, 1, 1])
+        x = jnp.concat([cls_token, patches], axis=1)
+        embeddings = x + self.position_embeddings
+        embeddings = self.dropout(embeddings)
+
+        # Encoder blocks
+        x = self.encoder(embeddings)
+        x = self.final_norm(x)
+
+        # fetch the first token
+        x = x[:, 0]
+
+        # Classification
+        return self.classifier(x)
+
+class TransformerEncoder(nnx.Module):
+    def __init__(
+        self,
+        hidden_size: int,
+        mlp_dim: int,
+        num_heads: int,
+        dropout_rate: float = 0.0,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ) -> None:
+
+        self.norm1 = nnx.LayerNorm(hidden_size, rngs=rngs)
+        self.attn = nnx.MultiHeadAttention(
+            num_heads=num_heads,
+            in_features=hidden_size,
+            dropout_rate=dropout_rate,
+            broadcast_dropout=False,
+            decode=False,
+            deterministic=False,
+            rngs=rngs,
+        )
+        self.norm2 = nnx.LayerNorm(hidden_size, rngs=rngs)
+
+        self.mlp = nnx.Sequential(
+            nnx.Linear(hidden_size, mlp_dim, rngs=rngs),
+            nnx.gelu,
+            nnx.Dropout(dropout_rate, rngs=rngs),
+            nnx.Linear(mlp_dim, hidden_size, rngs=rngs),
+            nnx.Dropout(dropout_rate, rngs=rngs),
+        )
+
+    def __call__(self, x: jax.Array) -> jax.Array:
+        x = x + self.attn(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
+        return x
+
+x = jnp.ones((4, 224, 224, 3))
+model = VisionTransformer(num_classes=1000)
+y = model(x)
+print("Predictions shape: ", y.shape)
 ```
 
-```{python}
-import optax
-
-learning_rate = 0.005
-momentum = 0.9
-
-optimizer = nnx.Optimizer(model, optax.adamw(learning_rate, momentum))
-metrics = nnx.MultiMetric(
-  accuracy=nnx.metrics.Accuracy(),
-  loss=nnx.metrics.Average('loss'),
-)
-
-nnx.display(optimizer)
-```
