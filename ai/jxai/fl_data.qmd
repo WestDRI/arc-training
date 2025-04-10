@@ -4,9 +4,10 @@ aliases:
   - fl_dataset
   - /ai/jx/fl_data
 bibliography: fl.bib
+csl: diabetologia.csl
 author:
   - Marie-Hélène Burle
-  - Part of [JAX tutorial](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html#food-101-dataset)
+  - JAX AI Stack [Implement ViT from scratch](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html)
 ---
 
 :::{.def}
@@ -14,6 +15,58 @@ author:
 In this section, we will download the [Food-101](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) [@bossard14] dataset that we will later use to train and fine-tune models.
 
 :::
+
+```{dot}
+//| echo: false
+//| fig-width: 700px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+pretr [label="Pre-trained model", shape=plaintext, group=g1, fontcolor=gray55]
+opt [label="Optimize", shape=plaintext, group=g1, fontcolor=gray55]
+cp [label="Checkpoint", shape=plaintext, group=g1, fontcolor=gray55]
+
+pt [label=torchdata, fontcolor=gray55, color=gray55]
+tfds [label=tfds, group=g2, fontcolor=gray55, color=gray55]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+gr [label=grain, fontcolor=gray55, color=gray55]
+tv [label=torchvision, fontcolor=gray55, color=gray55]
+
+tr [label=transformers, fontcolor=gray55, color=gray55]
+
+fl [label=flax, group=g2, fontcolor=gray55, color=gray55]
+
+oa [label=optax, group=g2, fontcolor=gray55, color=gray55]
+
+ob [label=orbax, group=g2, fontcolor=gray55, color=gray55]
+
+{rank=same; gr load tv}
+gr -> load -> tv [style=invis]
+
+{rank=same; fl proc pretr}
+fl -> proc -> pretr [style=invis]
+
+{pt tfds} -> load [color=gray55]
+dt -> load [color=darkorange4]
+{gr tv} -> proc [color=gray55]
+fl -> nn [color=gray55]
+pretr -> nn [dir=none]
+tr -> pretr [color=gray55]
+oa -> opt [color=gray55]
+ob -> cp [color=gray55]
+
+load -> proc -> nn -> opt -> cp [dir=none]
+
+}
+```
 
 ## Choosing a library
 
@@ -44,7 +97,7 @@ from datasets import load_dataset_builder
 ds_builder = load_dataset_builder("food101")
 ```
 
-Get a description of the dataset:
+Get a description of the dataset (if it exists):
 
 ```{.python}
 ds_builder.info.description
@@ -63,8 +116,8 @@ We will only use the first 3 classes of food (instead of 101) to test our code. 
 ```{.python}
 from datasets import load_dataset
 
-train_size = 3 * 750
-val_size = 3 * 250
+train_size = 5 * 750
+val_size = 5 * 250
 
 train_dataset = load_dataset("food101",
                              split=f"train[:{train_size}]",
@@ -73,4 +126,121 @@ train_dataset = load_dataset("food101",
 val_dataset = load_dataset("food101",
                            split=f"validation[:{val_size}]",
                            cache_dir="/project/60055/data")
+```
+
+Load packages:
+
+```{python}
+# to load dataset from Hugging Face Hub
+from datasets import load_dataset
+
+# to display a few samples
+import matplotlib.pyplot as plt
+```
+
+```{python}
+train_size = 5 * 750
+val_size = 5 * 250
+
+train_dataset = load_dataset("food101",
+                             split=f"train[:{train_size}]")
+
+val_dataset = load_dataset("food101",
+                           split=f"validation[:{val_size}]")
+```
+
+## Explore data
+
+Let's inspect our data:
+
+```{python}
+print("Training set size:", len(train_dataset))
+print("Validation set size:", len(val_dataset))
+print("Training set shape:", train_dataset.shape)
+print("Validation set shape:", val_dataset.shape)
+print("First item of training set:", train_dataset[0])
+print("Firt image of training set:", train_dataset[0]["image"])
+print("First label of training set:", train_dataset[0]["label"])
+```
+
+Here is the beginning of the list of foods:
+
+```{python}
+print(train_dataset.features["label"].names[:5])
+```
+
+And here is the food of the first item in the training set (label `6`):
+
+```{python}
+print("First food of training set:", train_dataset.features["label"].names[6])
+```
+
+To make this simpler, we can create a mapping of the labels matching their order:
+
+```{python}
+labels_mapping = {}
+index = 0
+for i in range(0, len(val_dataset), 250):
+    label = val_dataset[i]["label"]
+    if label not in labels_mapping:
+        labels_mapping[label] = index
+        index += 1
+
+inv_labels_mapping = {v: k for k, v in labels_mapping.items()}
+
+print(inv_labels_mapping)
+```
+
+And a mapping of the names:
+
+```{python}
+names_map={k: train_dataset.features["label"].names[v] for k, v in inv_labels_mapping.items()}
+print(names_map)
+```
+
+Now, to get the food of the first item, we just have to do:
+
+```{python}
+print(names_map[0])
+```
+
+Here is a function to display some samples (their images, label, and food type):
+
+```{python}
+def display_datapoints(*datapoints, tag="", names_map=None):
+    num_samples = len(datapoints)
+
+    fig, axs = plt.subplots(1, num_samples, figsize=(20, 10))
+    for i, datapoint in enumerate(datapoints):
+        if isinstance(datapoint, dict):
+            img, label = datapoint["image"], datapoint["label"]
+        else:
+            img, label = datapoint
+
+        if hasattr(img, "dtype") and img.dtype in (np.float32, ):
+            img = ((img - img.min()) / (img.max() - img.min()) * 255.0).astype(np.uint8)
+
+        label_str = f" ({names_map[label]})" if names_map is not None else ""
+        axs[i].set_title(f"{tag} Label: {label}{label_str}")
+        axs[i].imshow(img)
+```
+
+Let's display the first 3 items (images and labels) of both the training and validation sets:
+
+```{python}
+display_datapoints(
+    train_dataset[0],
+    train_dataset[1],
+    train_dataset[2],
+    tag="(Training)",
+    names_map=train_dataset.features["label"].names,
+)
+
+display_datapoints(
+    val_dataset[0],
+    val_dataset[1],
+    val_dataset[2],
+    tag="(Validation)",
+    names_map=val_dataset.features["label"].names,
+)
 ```
