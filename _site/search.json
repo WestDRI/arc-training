@@ -9076,7 +9076,7 @@
     "href": "ai/jxai/fl_data.html",
     "title": "Loading data",
     "section": "",
-    "text": "In this section, we download the Food-101 [1] dataset that we will later use to train and fine-tune models.",
+    "text": "In this section, we download the Food-101 dataset [1] that we will later use to train and fine-tune models.",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with JAX</em></b>",
@@ -18172,7 +18172,7 @@
     "href": "ai/jxai/fl_nn.html#simple-cnn",
     "title": "Defining model architecture",
     "section": "Simple CNN",
-    "text": "Simple CNN\nWe will use LeNet-5 [1] model, initially used on the MNIST dataset by LeCun et al. [2]. We modify it to take 3-channel images (colour images) instead of 1 (black and white images).\nThe architecture of this model is explained in details in this kaggle post.",
+    "text": "Simple CNN\nWe will use LeNet-5 [1] model, initially used on the MNIST dataset by LeCun et al. [2]. We modify it to take three-channel images (RGB for colour images) instead of a single channel (black and white images as was the case in the MNIST).\nThe architecture of this model is explained in details in this kaggle post.",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with JAX</em></b>",
@@ -18208,7 +18208,7 @@
     "href": "ai/jxai/fl_preprocess.html#context",
     "title": "Preprocessing data",
     "section": "Context",
-    "text": "Context\nThere are many tools and options. In this example, we use TorchVision to transform and augment images and Grain to create data loaders.\n\n\n\n\n\n\n\n\n\nload\nLoad data\n\n\n\nproc\nProcess data\n\n\n\nload-&gt;proc\n\n\n\n\ntv\n\ntorchvision\n\n\n\n\nnn\nDefine architecture\n\n\n\nproc-&gt;nn\n\n\n\n\npretr\nPre-trained model\n\n\n\n\nopt\nOptimize\n\n\n\nnn-&gt;opt\n\n\n\n\npretr-&gt;nn\n\n\n\n\ncp\nCheckpoint\n\n\n\nopt-&gt;cp\n\n\n\n\npt\n\ntorchdata\n\n\n\npt-&gt;load\n\n\n\n\n\ntfds\n\ntfds\n\n\n\ntfds-&gt;load\n\n\n\n\n\ndt\n\ndatasets\n\n\n\ndt-&gt;load\n\n\n\n\n\ngr\n\ngrain\n\n\n\n\ngr-&gt;proc\n\n\n\n\n\ntv-&gt;proc\n\n\n\n\n\ntr\n\ntransformers\n\n\n\ntr-&gt;pretr\n\n\n\n\n\nfl\n\nflax\n\n\n\n\nfl-&gt;nn\n\n\n\n\n\noa\n\noptax\n\n\n\noa-&gt;opt\n\n\n\n\n\nob\n\norbax\n\n\n\nob-&gt;cp\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nMinimal necessary code from previous section\n\n\n\n\n\n\nfrom datasets import load_dataset\n\ntrain_size = 5 * 750\nval_size = 5 * 250\n\ntrain_dataset = load_dataset(\"food101\",\n                             split=f\"train[:{train_size}]\")\n\nval_dataset = load_dataset(\"food101\",\n                           split=f\"validation[:{val_size}]\")\n\nlabels_mapping = {}\nindex = 0\nfor i in range(0, len(val_dataset), 250):\n    label = val_dataset[i][\"label\"]\n    if label not in labels_mapping:\n        labels_mapping[label] = index\n        index += 1\n\ninv_labels_mapping = {v: k for k, v in labels_mapping.items()}\n\n\nLoad packages\nPackages necessary for this section:\n\n# general array manipulation\nimport numpy as np\n\n# for image transformation and augmentation\nfrom torchvision.transforms import v2 as T\n\n# to create data loaders\nimport grain.python as grain\n\n\n\n\n\nLet’s preprocess our images to match the methods used in the vision transformer (ViT) introduced by Dosovitskiy A et al. [1] and implemented in JAX. This will be useful when we fine tune this model with the Food dataset in another section.\nThe preprocessing involves normalization and random augmentation (to prevent overfitting):\n\nimg_size = 224\n\ndef to_np_array(pil_image):\n  return np.asarray(pil_image.convert(\"RGB\"))\n\ndef normalize(image):\n    # Image preprocessing matches the one of pretrained ViT\n    mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)\n    std = np.array([0.5, 0.5, 0.5], dtype=np.float32)\n    image = image.astype(np.float32) / 255.0\n    return (image - mean) / std\n\ntv_train_transforms = T.Compose([\n    T.RandomResizedCrop((img_size, img_size), scale=(0.7, 1.0)),\n    T.RandomHorizontalFlip(),\n    T.ColorJitter(0.2, 0.2, 0.2),\n    T.Lambda(to_np_array),\n    T.Lambda(normalize),\n])\n\ntv_test_transforms = T.Compose([\n    T.Resize((img_size, img_size)),\n    T.Lambda(to_np_array),\n    T.Lambda(normalize),\n])\n\ndef get_transform(fn):\n    def wrapper(batch):\n        batch[\"image\"] = [\n            fn(pil_image) for pil_image in batch[\"image\"]\n        ]\n        # map label index between 0 - 19\n        batch[\"label\"] = [\n            labels_mapping[label] for label in batch[\"label\"]\n        ]\n        return batch\n    return wrapper\n\ntrain_transforms = get_transform(tv_train_transforms)\nval_transforms = get_transform(tv_test_transforms)\n\ntrain_dataset = train_dataset.with_transform(train_transforms)\nval_dataset = val_dataset.with_transform(val_transforms)\n\n\nseed = 12\ntrain_batch_size = 32\nval_batch_size = 2 * train_batch_size\n\ntrain_sampler = grain.IndexSampler(\n    len(train_dataset),\n    shuffle=True,\n    seed=seed,\n    shard_options=grain.NoSharding(),\n    num_epochs=1,\n)\n\nval_sampler = grain.IndexSampler(\n    len(val_dataset),\n    shuffle=False,\n    seed=seed,\n    shard_options=grain.NoSharding(),\n    num_epochs=1,\n)\n\ntrain_loader = grain.DataLoader(\n    data_source=train_dataset,\n    sampler=train_sampler,\n    worker_count=4,\n    worker_buffer_size=2,\n    operations=[\n        grain.Batch(train_batch_size, drop_remainder=True),\n    ]\n)\n\nval_loader = grain.DataLoader(\n    data_source=val_dataset,\n    sampler=val_sampler,\n    worker_count=4,\n    worker_buffer_size=2,\n    operations=[\n        grain.Batch(val_batch_size),\n    ]\n)",
+    "text": "Context\nThere are many tools and options. In this example, we use TorchVision to transform and augment images and Grain to create data loaders.\n\n\n\n\n\n\n\n\n\nload\nLoad data\n\n\n\nproc\nProcess data\n\n\n\nload-&gt;proc\n\n\n\n\ntv\n\ntorchvision\n\n\n\n\nnn\nDefine architecture\n\n\n\nproc-&gt;nn\n\n\n\n\npretr\nPre-trained model\n\n\n\n\nopt\nOptimize\n\n\n\nnn-&gt;opt\n\n\n\n\npretr-&gt;nn\n\n\n\n\ncp\nCheckpoint\n\n\n\nopt-&gt;cp\n\n\n\n\npt\n\ntorchdata\n\n\n\npt-&gt;load\n\n\n\n\n\ntfds\n\ntfds\n\n\n\ntfds-&gt;load\n\n\n\n\n\ndt\n\ndatasets\n\n\n\ndt-&gt;load\n\n\n\n\n\ngr\n\ngrain\n\n\n\n\ngr-&gt;proc\n\n\n\n\n\ntv-&gt;proc\n\n\n\n\n\ntr\n\ntransformers\n\n\n\ntr-&gt;pretr\n\n\n\n\n\nfl\n\nflax\n\n\n\n\nfl-&gt;nn\n\n\n\n\n\noa\n\noptax\n\n\n\noa-&gt;opt\n\n\n\n\n\nob\n\norbax\n\n\n\nob-&gt;cp\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nMinimal necessary code from previous section\n\n\n\n\n\n\nfrom datasets import load_dataset\n\ntrain_size = 5 * 750\nval_size = 5 * 250\n\ntrain_dataset = load_dataset(\"food101\",\n                             split=f\"train[:{train_size}]\")\n\nval_dataset = load_dataset(\"food101\",\n                           split=f\"validation[:{val_size}]\")\n\nlabels_mapping = {}\nindex = 0\nfor i in range(0, len(val_dataset), 250):\n    label = val_dataset[i][\"label\"]\n    if label not in labels_mapping:\n        labels_mapping[label] = index\n        index += 1\n\ninv_labels_mapping = {v: k for k, v in labels_mapping.items()}\n\n\nLoad packages\nPackages necessary for this section:\n\n# general array manipulation\nimport numpy as np\n\n# for image transformation and augmentation\nfrom torchvision.transforms import v2 as T\n\n# to create data loaders\nimport grain.python as grain",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with JAX</em></b>",
@@ -18245,6 +18245,42 @@
     "title": "Defining model architecture",
     "section": "Load packages",
     "text": "Load packages\nPackages necessary for this section:\n\n# to define the model architecture\nfrom flax import nnx",
+    "crumbs": [
+      "AI",
+      "<b><em>Intro DL with JAX</em></b>",
+      "Defining model architecture"
+    ]
+  },
+  {
+    "objectID": "ai/jxai/fl_preprocess.html#data-normalization-and-augmentation",
+    "href": "ai/jxai/fl_preprocess.html#data-normalization-and-augmentation",
+    "title": "Preprocessing data",
+    "section": "Data normalization and augmentation",
+    "text": "Data normalization and augmentation\nLet’s preprocess our images to match the methods used in the vision transformer (ViT) introduced by Dosovitskiy A et al. [1] and implemented in JAX. This will be useful when we fine tune this model with the Food dataset in another section.\nThe preprocessing involves normalization and random augmentation (to prevent overfitting) with TorchVision:\n\nimg_size = 224\n\ndef to_np_array(pil_image):\n  return np.asarray(pil_image.convert(\"RGB\"))\n\ndef normalize(image):\n    # Image preprocessing matches the one of pretrained ViT\n    mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)\n    std = np.array([0.5, 0.5, 0.5], dtype=np.float32)\n    image = image.astype(np.float32) / 255.0\n    return (image - mean) / std\n\ntv_train_transforms = T.Compose([\n    T.RandomResizedCrop((img_size, img_size), scale=(0.7, 1.0)),\n    T.RandomHorizontalFlip(),\n    T.ColorJitter(0.2, 0.2, 0.2),\n    T.Lambda(to_np_array),\n    T.Lambda(normalize),\n])\n\ntv_test_transforms = T.Compose([\n    T.Resize((img_size, img_size)),\n    T.Lambda(to_np_array),\n    T.Lambda(normalize),\n])\n\ndef get_transform(fn):\n    def wrapper(batch):\n        batch[\"image\"] = [\n            fn(pil_image) for pil_image in batch[\"image\"]\n        ]\n        # map label index between 0 - 19\n        batch[\"label\"] = [\n            labels_mapping[label] for label in batch[\"label\"]\n        ]\n        return batch\n    return wrapper\n\ntrain_transforms = get_transform(tv_train_transforms)\nval_transforms = get_transform(tv_test_transforms)\n\ntrain_dataset = train_dataset.with_transform(train_transforms)\nval_dataset = val_dataset.with_transform(val_transforms)",
+    "crumbs": [
+      "AI",
+      "<b><em>Intro DL with JAX</em></b>",
+      "Preprocessing data"
+    ]
+  },
+  {
+    "objectID": "ai/jxai/fl_preprocess.html#data-loaders",
+    "href": "ai/jxai/fl_preprocess.html#data-loaders",
+    "title": "Preprocessing data",
+    "section": "Data loaders",
+    "text": "Data loaders\nWe use Grain to create efficient data loaders:\n\nseed = 12\ntrain_batch_size = 32\nval_batch_size = 2 * train_batch_size\n\ntrain_sampler = grain.IndexSampler(\n    len(train_dataset),\n    shuffle=True,\n    seed=seed,\n    shard_options=grain.NoSharding(),\n    num_epochs=1,\n)\n\nval_sampler = grain.IndexSampler(\n    len(val_dataset),\n    shuffle=False,\n    seed=seed,\n    shard_options=grain.NoSharding(),\n    num_epochs=1,\n)\n\ntrain_loader = grain.DataLoader(\n    data_source=train_dataset,\n    sampler=train_sampler,\n    worker_count=4,\n    worker_buffer_size=2,\n    operations=[\n        grain.Batch(train_batch_size, drop_remainder=True),\n    ]\n)\n\nval_loader = grain.DataLoader(\n    data_source=val_dataset,\n    sampler=val_sampler,\n    worker_count=4,\n    worker_buffer_size=2,\n    operations=[\n        grain.Batch(val_batch_size),\n    ]\n)",
+    "crumbs": [
+      "AI",
+      "<b><em>Intro DL with JAX</em></b>",
+      "Preprocessing data"
+    ]
+  },
+  {
+    "objectID": "ai/jxai/fl_nn.html#flax-api",
+    "href": "ai/jxai/fl_nn.html#flax-api",
+    "title": "Defining model architecture",
+    "section": "Flax API",
+    "text": "Flax API\nFlax went through several APIs.\nThe initial nn API—now retired—got replaced in 2020 by the Linen API, still available with the Flax package. In 2024, they launched the NNX API.\nEach iteration has moved further from JAX and closer to Python, with a syntax increasingly similar to PyTorch.\nThe old Linen API is a stateless model framework similar to the Julia package Lux.jl. It follows a strict functional programming approach in which the parameters are separate from the model and are passed as inputs to the forward pass along with the data. This is much closer to the JAX sublanguage, more optimized, but restrictive and unpopular in the deep learning community and among Python users.\nBy contrast, the new NNX API is a stateful model framework similar to PyTorch and the older Julia package Flux.jl: model parameters and optimizer state are stored within the model instance. Flax handles a lot of JAX’s constraints under the hood, making the code more familiar to Python/PyTorch users, simpler, and more forgiving.\nWhile the Linen API still exists, new users are advised to learn the new NNX API.",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with JAX</em></b>",
