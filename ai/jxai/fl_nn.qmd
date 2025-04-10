@@ -199,7 +199,7 @@ from flax import nnx
 from functools import partial
 ```
 
-## Flax API
+## The Flax NNX API
 
 Flax went through several APIs.
 
@@ -207,17 +207,62 @@ The initial `nn` API—now retired—got replaced in 2020 by the [Linen API](htt
 
 Each iteration has moved further from JAX and closer to Python, with a syntax increasingly similar to PyTorch.
 
+While the Linen API still exists, new users are advised to learn the new NNX API.
+
+### Stateful models
+
 The old Linen API is a stateless model framework similar to the Julia package [Lux.jl](https://github.com/LuxDL/Lux.jl). It follows a strict functional programming approach in which the parameters are separate from the model and are passed as inputs to the forward pass along with the data. This is much closer to the JAX sublanguage, more optimized, but restrictive and unpopular in the deep learning community and among Python users.
 
 By contrast, the new NNX API is a stateful model framework similar to [PyTorch](https://github.com/pytorch/pytorch) and the older Julia package [Flux.jl](https://github.com/FluxML/Flux.jl): model parameters and optimizer state are stored within the model instance. Flax handles a lot of JAX's constraints under the hood, making the code more familiar to Python/PyTorch users, simpler, and more forgiving.
 
-While the Linen API still exists, new users are advised to learn the new NNX API.
+The dynamic state handled by NNX is stored in `nnx.Params` and the static state (all types not handled by NNX) are stored directly as Python object attributes. This follows the classic Python [object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) paradigm.
 
-<!-- ##  -->
+### No shape inference
 
-<!-- ## Handling of PRNG -->
+All model dimensions need to be explicitly stated.
 
+### Handling of PRNG
 
+[We saw that JAX has a complex way to handle pseudo-random number generation](fl_numpy#pseudorandom-number-generation). While the Linen API required PRNG to be done explicitly in JAX by the user, the new NNX API defines the random state as an object state stored in a variable and carried by the model.
+
+### What this looks like
+
+Define the model architecture:
+
+```{python}
+class Linear(nnx.Module):
+  def __init__(self, din: int, dout: int, *, rngs: nnx.Rngs):
+    key = rngs.params()
+    self.w = nnx.Param(jax.random.uniform(key, (din, dout)))
+    self.b = nnx.Param(jnp.zeros((dout,)))
+    self.din, self.dout = din, dout
+
+  def __call__(self, x: jax.Array):
+    return x @ self.w + self.b
+```
+
+Instantiate the model:
+
+```{python}
+model = Linear(2, 5, rngs=nnx.Rngs(params=0))
+```
+
+Display the model structure:
+
+```{python}
+nnx.display(model)
+```
+
+:::{.note}
+
+If you have the [penzai package](https://github.com/google-deepmind/penzai) installed, you will see an interactive display of the model.
+
+:::
+
+```{python}
+y = model(x=jnp.ones((1, 2)))
+print("Predictions shape: ", y.shape)
+```
 
 ## Example MLP with Flax NNX
 
@@ -261,9 +306,12 @@ model = MLP(rngs=nnx.Rngs(0))
 nnx.display(model)
 ```
 
-:::{.note}
+:::{.notenoit}
 
-If you have the [penzai package](https://github.com/google-deepmind/penzai) installed, you will see an interactive display of the model.
+NNX API references:
+
+- [flax.nnx.Linear](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/linear.html#flax.nnx.Linear) layer class
+- [flax.nnx.selu](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/activations.html#flax.nnx.selu) SELU activation function
 
 :::
 
@@ -304,6 +352,17 @@ model = LeNet(rngs=nnx.Rngs(0))
 # visualize it
 nnx.display(model)
 ```
+
+:::{.notenoit}
+
+NNX API references:
+
+- [flax.nnx.Conv](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/linear.html#flax.nnx.Conv) convolution module
+- [flax.nnx.Linear](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/linear.html#flax.nnx.Linear) layer class
+- `flax.nnx.max_pool` is [missing in the API documentation](https://github.com/google/flax/issues/4271) as of April 2025
+- [flax.nnx.relu](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/activations.html#flax.nnx.relu) activation function
+
+:::
 
 ## ViT with Flax NNX
 
@@ -438,3 +497,17 @@ y = model(x)
 print("Predictions shape: ", y.shape)
 ```
 
+:::{.notenoit}
+
+NNX API references:
+
+- [flax.nnx.Conv](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/linear.html#flax.nnx.Conv) convolution module
+- [flax.nnx.Dropout](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/stochastic.html#flax.nnx.Dropout) dropout class
+- [flax.nnx.LayerNorm](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/normalization.html#flax.nnx.LayerNorm) layer normalization class
+- [flax.nnx.Linear](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/linear.html#flax.nnx.Linear) linear layer class
+- [flax.nnx.MultiHeadAttention](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/attention.html#flax.nnx.MultiHeadAttention) multi-head attention class
+- [flax.nnx.Param](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/variables.html#flax.nnx.Param) parameter class
+- [flax.nnx.Sequential](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/helpers.html#flax.nnx.Sequential) helper class
+- [flax.nnx.gelu](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/activations.html#flax.nnx.gelu) GELU activation function
+
+:::
