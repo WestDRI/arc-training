@@ -74,6 +74,7 @@ load -> proc -> nn -> opt -> cp [dir=none]
 
 ```{python}
 from datasets import load_dataset
+import matplotlib.pyplot as plt
 
 train_size = 5 * 750
 val_size = 5 * 250
@@ -93,6 +94,23 @@ for i in range(0, len(val_dataset), 250):
         index += 1
 
 inv_labels_mapping = {v: k for k, v in labels_mapping.items()}
+
+def display_datapoints(*datapoints, tag="", names_map=None):
+    num_samples = len(datapoints)
+
+    fig, axs = plt.subplots(1, num_samples, figsize=(20, 10))
+    for i, datapoint in enumerate(datapoints):
+        if isinstance(datapoint, dict):
+            img, label = datapoint["image"], datapoint["label"]
+        else:
+            img, label = datapoint
+
+        if hasattr(img, "dtype") and img.dtype in (np.float32, ):
+            img = ((img - img.min()) / (img.max() - img.min()) * 255.0).astype(np.uint8)
+
+        label_str = f" ({names_map[label]})" if names_map is not None else ""
+        axs[i].set_title(f"{tag} Label: {label}{label_str}")
+        axs[i].imshow(img)
 ```
 
 :::
@@ -207,5 +225,44 @@ val_loader = grain.DataLoader(
     operations=[
         grain.Batch(val_batch_size),
     ]
+)
+```
+
+## Inspect batches
+
+```{python}
+train_batch = next(iter(train_loader))
+val_batch = next(iter(val_loader))
+
+print(
+    "Training batch info:",
+      train_batch["image"].shape,
+      train_batch["image"].dtype,
+      train_batch["label"].shape,
+      train_batch["label"].dtype
+)
+
+print(
+    "Validation batch info:",
+      val_batch["image"].shape,
+      val_batch["image"].dtype,
+      val_batch["label"].shape,
+      val_batch["label"].dtype
+)
+```
+
+Display the first three training and validation items:
+
+```{python}
+display_datapoints(
+    *[(train_batch["image"][i], train_batch["label"][i]) for i in range(3)],
+    tag="(Training) ",
+    names_map={k: train_dataset.features["label"].names[v] for k, v in inv_labels_mapping.items()}
+)
+
+display_datapoints(
+    *[(val_batch["image"][i], val_batch["label"][i]) for i in range(3)],
+    tag="(Validation) ",
+    names_map={k: val_dataset.features["label"].names[v] for k, v in inv_labels_mapping.items()}
 )
 ```
