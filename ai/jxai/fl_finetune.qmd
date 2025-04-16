@@ -1,8 +1,10 @@
 ---
-title: Training models
+title: Fine-tuning the model
 aliases:
   - /ai/jx/fl_training
-author: Marie-Hélène Burle
+author:
+  - Marie-Hélène Burle
+  - Code adapted from JAX's [Implement ViT from scratch](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html)
 ---
 
 :::{.def}
@@ -17,7 +19,183 @@ In this section, we will point to strategies and resources to navigate training.
 
 :::
 
+## Context
+
+```{dot}
+//| echo: false
+//| fig-width: 700px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+pretr [label="Pre-trained model", shape=plaintext, group=g1, fontcolor=gray55]
+opt [label="Optimize", shape=plaintext, group=g1, fontcolor=gray55]
+train [label="Train", shape=plaintext, group=g1]
+cp [label="Checkpoint", shape=plaintext, group=g1, fontcolor=gray55]
+
+pt [label=torchdata, fontcolor=gray55, color=gray55]
+tfds [label=tfds, group=g2, fontcolor=gray55, color=gray55]
+dt [label=datasets, fontcolor=gray55, color=gray55]
+
+gr [label=grain, fontcolor=gray55, color=gray55]
+tv [label=torchvision, fontcolor=gray55, color=gray55]
+
+tr [label=transformers, fontcolor=gray55, color=gray55]
+
+fl1 [label=flax, group=g2, fontcolor=gray55, color=gray55]
+fl2 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+
+oa [label=optax, group=g2, fontcolor=gray55, color=gray55]
+
+jx [label="JAX", fontcolor="#9D22B2", color="#9D22B2"]
+
+ob [label=orbax, group=g2, fontcolor=gray55, color=gray55]
+
+{rank=same; gr load tv tr}
+gr -> load -> tv -> tr [style=invis]
+
+{rank=same; fl1 proc pretr}
+fl1 -> proc -> pretr [style=invis]
+
+{rank=same; jx fl2 opt}
+fl1 -> proc -> pretr [style=invis]
+
+{pt tfds dt} -> load [color=gray55]
+{gr tv} -> proc [color=gray55]
+fl1 -> nn [color=gray55]
+pretr -> nn [dir=none]
+tr -> pretr [color=gray55]
+oa -> opt [color=gray55]
+jx -> fl2 [color="#9D22B2"]
+fl2 -> train [color="#00695C"]
+ob -> cp [color=gray55]
+
+load -> proc -> nn -> opt -> train -> cp [dir=none]
+
+}
+```
+
 :::{.callout-note collapse="true"}
+
+## Minimal necessary code from previous sections
+
+```{python}
+from datasets import load_dataset
+import numpy as np
+from torchvision.transforms import v2 as T
+import grain.python as grain
+
+train_size = 5 * 750
+val_size = 5 * 250
+
+train_dataset = load_dataset("food101",
+                             split=f"train[:{train_size}]")
+
+val_dataset = load_dataset("food101",
+                           split=f"validation[:{val_size}]")
+
+labels_mapping = {}
+index = 0
+for i in range(0, len(val_dataset), 250):
+    label = val_dataset[i]["label"]
+    if label not in labels_mapping:
+        labels_mapping[label] = index
+        index += 1
+
+inv_labels_mapping = {v: k for k, v in labels_mapping.items()}
+
+img_size = 224
+
+def to_np_array(pil_image):
+  return np.asarray(pil_image.convert("RGB"))
+
+def normalize(image):
+    # Image preprocessing matches the one of pretrained ViT
+    mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    image = image.astype(np.float32) / 255.0
+    return (image - mean) / std
+
+tv_train_transforms = T.Compose([
+    T.RandomResizedCrop((img_size, img_size), scale=(0.7, 1.0)),
+    T.RandomHorizontalFlip(),
+    T.ColorJitter(0.2, 0.2, 0.2),
+    T.Lambda(to_np_array),
+    T.Lambda(normalize),
+])
+
+tv_test_transforms = T.Compose([
+    T.Resize((img_size, img_size)),
+    T.Lambda(to_np_array),
+    T.Lambda(normalize),
+])
+
+def get_transform(fn):
+    def wrapper(batch):
+        batch["image"] = [
+            fn(pil_image) for pil_image in batch["image"]
+        ]
+        # map label index between 0 - 19
+        batch["label"] = [
+            labels_mapping[label] for label in batch["label"]
+        ]
+        return batch
+    return wrapper
+
+train_transforms = get_transform(tv_train_transforms)
+val_transforms = get_transform(tv_test_transforms)
+
+train_dataset = train_dataset.with_transform(train_transforms)
+val_dataset = val_dataset.with_transform(val_transforms)
+
+seed = 12
+train_batch_size = 32
+val_batch_size = 2 * train_batch_size
+
+train_sampler = grain.IndexSampler(
+    len(train_dataset),
+    shuffle=True,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1,
+)
+
+val_sampler = grain.IndexSampler(
+    len(val_dataset),
+    shuffle=False,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1,
+)
+
+train_loader = grain.DataLoader(
+    data_source=train_dataset,
+    sampler=train_sampler,
+    worker_count=4,
+    worker_buffer_size=2,
+    operations=[
+        grain.Batch(train_batch_size, drop_remainder=True),
+    ]
+)
+
+val_loader = grain.DataLoader(
+    data_source=val_dataset,
+    sampler=val_sampler,
+    worker_count=4,
+    worker_buffer_size=2,
+    operations=[
+        grain.Batch(val_batch_size),
+    ]
+)
+```
+
+:::
 
 ## Cluster setup
 
@@ -84,8 +262,6 @@ key, model_key = jax.random.split(key)
 
 params = get_initial_params(model_key)
 ```
-
-:::
 
 ## Fundamental functioning
 
