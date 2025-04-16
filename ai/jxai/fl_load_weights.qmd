@@ -1,0 +1,309 @@
+---
+title: Loading pre-trained weights
+author:
+  - Marie-Hélène Burle
+  - Code adapted from JAX's [Implement ViT from scratch](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html)
+---
+
+:::{.def}
+
+
+:::
+
+## Context
+
+```{dot}
+//| echo: false
+//| fig-width: 700px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+pretr [label="Pre-trained model", shape=plaintext, group=g1]
+opt [label="Optimize", shape=plaintext, group=g1, fontcolor=gray55]
+train [label="Train", shape=plaintext, group=g1, fontcolor=gray55]
+cp [label="Checkpoint", shape=plaintext, group=g1, fontcolor=gray55]
+
+pt [label=torchdata, fontcolor=gray55, color=gray55]
+tfds [label=tfds, group=g2, fontcolor=gray55, color=gray55]
+dt [label=datasets, fontcolor=gray55, color=gray55]
+
+gr [label=grain, fontcolor=gray55, color=gray55]
+tv [label=torchvision, fontcolor=gray55, color=gray55]
+
+tr [label=transformers, fontcolor="#669900", color="#669900"]
+
+fl1 [label=flax, group=g2, fontcolor=gray55, color=gray55]
+fl2 [label=flax, group=g2, fontcolor=gray55, color=gray55]
+
+oa [label=optax, group=g2, fontcolor=gray55, color=gray55]
+
+jx [label="JAX", fontcolor=gray55, color=gray55]
+
+ob [label=orbax, group=g2, fontcolor=gray55, color=gray55]
+
+{rank=same; gr load tv tr}
+gr -> load -> tv -> tr [style=invis]
+
+{rank=same; fl1 proc pretr}
+fl1 -> proc -> pretr [style=invis]
+
+{rank=same; jx fl2 opt}
+fl1 -> proc -> pretr [style=invis]
+
+{pt tfds dt} -> load [color=gray55]
+{gr tv} -> proc [color=gray55]
+fl1 -> nn [color=gray55]
+pretr -> nn [dir=none]
+tr -> pretr [color="#669900"]
+oa -> opt [color=gray55]
+jx -> fl2 -> train [color=gray55]
+ob -> cp [color=gray55]
+
+load -> proc -> nn -> opt -> train -> cp [dir=none]
+
+}
+```
+
+:::{.callout-note collapse="true"}
+
+## Minimal necessary code from previous sections
+
+```{python}
+import jax
+import jax.numpy as jnp
+from flax import nnx
+
+class VisionTransformer(nnx.Module):
+    def __init__(
+        self,
+        num_classes: int = 1000,
+        in_channels: int = 3,
+        img_size: int = 224,
+        patch_size: int = 16,
+        num_layers: int = 12,
+        num_heads: int = 12,
+        mlp_dim: int = 3072,
+        hidden_size: int = 768,
+        dropout_rate: float = 0.1,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ):
+        # Patch and position embedding
+        n_patches = (img_size // patch_size) ** 2
+        self.patch_embeddings = nnx.Conv(
+            in_channels,
+            hidden_size,
+            kernel_size=(patch_size, patch_size),
+            strides=(patch_size, patch_size),
+            padding="VALID",
+            use_bias=True,
+            rngs=rngs,
+        )
+
+        initializer = jax.nn.initializers.truncated_normal(stddev=0.02)
+        self.position_embeddings = nnx.Param(
+            initializer(
+                rngs.params(),
+                (1, n_patches + 1, hidden_size),
+                jnp.float32
+            )
+        )
+        self.dropout = nnx.Dropout(dropout_rate, rngs=rngs)
+
+        self.cls_token = nnx.Param(jnp.zeros((1, 1, hidden_size)))
+
+        # Transformer Encoder blocks
+        self.encoder = nnx.Sequential(*[
+            TransformerEncoder(
+                hidden_size,
+                mlp_dim,
+                num_heads,
+                dropout_rate,
+                rngs=rngs
+            )
+            for i in range(num_layers)
+        ])
+        self.final_norm = nnx.LayerNorm(hidden_size, rngs=rngs)
+
+        # Classification head
+        self.classifier = nnx.Linear(hidden_size, num_classes, rngs=rngs)
+
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # Patch and position embedding
+        patches = self.patch_embeddings(x)
+        batch_size = patches.shape[0]
+        patches = patches.reshape(batch_size, -1, patches.shape[-1])
+
+        cls_token = jnp.tile(self.cls_token, [batch_size, 1, 1])
+        x = jnp.concat([cls_token, patches], axis=1)
+        embeddings = x + self.position_embeddings
+        embeddings = self.dropout(embeddings)
+
+        # Encoder blocks
+        x = self.encoder(embeddings)
+        x = self.final_norm(x)
+
+        # fetch the first token
+        x = x[:, 0]
+
+        # Classification
+        return self.classifier(x)
+
+class TransformerEncoder(nnx.Module):
+    def __init__(
+        self,
+        hidden_size: int,
+        mlp_dim: int,
+        num_heads: int,
+        dropout_rate: float = 0.0,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ) -> None:
+
+        self.norm1 = nnx.LayerNorm(hidden_size, rngs=rngs)
+        self.attn = nnx.MultiHeadAttention(
+            num_heads=num_heads,
+            in_features=hidden_size,
+            dropout_rate=dropout_rate,
+            broadcast_dropout=False,
+            decode=False,
+            deterministic=False,
+            rngs=rngs,
+        )
+        self.norm2 = nnx.LayerNorm(hidden_size, rngs=rngs)
+
+        self.mlp = nnx.Sequential(
+            nnx.Linear(hidden_size, mlp_dim, rngs=rngs),
+            nnx.gelu,
+            nnx.Dropout(dropout_rate, rngs=rngs),
+            nnx.Linear(mlp_dim, hidden_size, rngs=rngs),
+            nnx.Dropout(dropout_rate, rngs=rngs),
+        )
+
+    def __call__(self, x: jax.Array) -> jax.Array:
+        x = x + self.attn(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
+        return x
+
+model = VisionTransformer(num_classes=1000)
+```
+
+:::
+
+## Load packages
+
+Package and module necessary for this section:
+
+```{python}
+# 
+from transformers import FlaxViTForImageClassification
+```
+
+
+
+```{python}
+tf_model = FlaxViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
+```
+
+
+```{python}
+# Copies weights from a TF ViT model to a Flax ViT model, reshaping layers
+# to match the expected shapes in Flax.
+def vit_inplace_copy_weights(*, src_model, dst_model):
+    assert isinstance(src_model, FlaxViTForImageClassification)
+    assert isinstance(dst_model, VisionTransformer)
+
+    tf_model_params = src_model.params
+    tf_model_params_fstate = nnx.traversals.flatten_mapping(tf_model_params)
+
+    # Notice the use of `flax.nnx.state`.
+    flax_model_params = nnx.state(dst_model, nnx.Param)
+    flax_model_params_fstate = flax_model_params.flat_state()
+
+    # Mapping from Flax parameter names to TF parameter names.
+    params_name_mapping = {
+        ("cls_token",): ("vit", "embeddings", "cls_token"),
+        ("position_embeddings",): ("vit", "embeddings", "position_embeddings"),
+        **{
+            ("patch_embeddings", x): ("vit", "embeddings", "patch_embeddings", "projection", x)
+            for x in ["kernel", "bias"]
+        },
+        **{
+            ("encoder", "layers", i, "attn", y, x): (
+                "vit", "encoder", "layer", str(i), "attention", "attention", y, x
+            )
+            for x in ["kernel", "bias"]
+            for y in ["key", "value", "query"]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, "attn", "out", x): (
+                "vit", "encoder", "layer", str(i), "attention", "output", "dense", x
+            )
+            for x in ["kernel", "bias"]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, "mlp", "layers", y1, x): (
+                "vit", "encoder", "layer", str(i), y2, "dense", x
+            )
+            for x in ["kernel", "bias"]
+            for y1, y2 in [(0, "intermediate"), (3, "output")]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, y1, x): (
+                "vit", "encoder", "layer", str(i), y2, x
+            )
+            for x in ["scale", "bias"]
+            for y1, y2 in [("norm1", "layernorm_before"), ("norm2", "layernorm_after")]
+            for i in range(12)
+        },
+        **{
+            ("final_norm", x): ("vit", "layernorm", x)
+            for x in ["scale", "bias"]
+        },
+        **{
+            ("classifier", x): ("classifier", x)
+            for x in ["kernel", "bias"]
+        }
+    }
+
+    nonvisited = set(flax_model_params_fstate.keys())
+
+    for key1, key2 in params_name_mapping.items():
+        assert key1 in flax_model_params_fstate, key1
+        assert key2 in tf_model_params_fstate, (key1, key2)
+
+        nonvisited.remove(key1)
+
+        src_value = tf_model_params_fstate[key2]
+        if key2[-1] == "kernel" and key2[-2] in ("key", "value", "query"):
+            shape = src_value.shape
+            src_value = src_value.reshape((shape[0], 12, 64))
+
+        if key2[-1] == "bias" and key2[-2] in ("key", "value", "query"):
+            src_value = src_value.reshape((12, 64))
+
+        if key2[-4:] == ("attention", "output", "dense", "kernel"):
+            shape = src_value.shape
+            src_value = src_value.reshape((12, 64, shape[-1]))
+
+        dst_value = flax_model_params_fstate[key1]
+        assert src_value.shape == dst_value.value.shape, (key2, src_value.shape, key1, dst_value.value.shape)
+        dst_value.value = src_value.copy()
+        assert dst_value.value.mean() == src_value.mean(), (dst_value.value, src_value.mean())
+
+    assert len(nonvisited) == 0, nonvisited
+    # Notice the use of `flax.nnx.update` and `flax.nnx.State`.
+    nnx.update(dst_model, nnx.State.from_flat_path(flax_model_params_fstate))
+
+vit_inplace_copy_weights(src_model=tf_model, dst_model=model)
+```
