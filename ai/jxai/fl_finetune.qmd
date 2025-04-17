@@ -545,7 +545,7 @@ def evaluate_model(epoch):
     print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 ```
 
-## Train model
+## Train the model
 
 ```{python}
 %%time
@@ -555,14 +555,43 @@ for epoch in range(num_epochs):
     evaluate_model(epoch)
 ```
 
+## OOM issues
+
+[Out of memory (OOM)](https://en.wikipedia.org/wiki/Out_of_memory) problems are common when trying to train a model with JAX. See for instance [this question on Stack Overflow](https://stackoverflow.com/q/74143812/9210961) and [this issue in the JAX repo](https://github.com/jax-ml/jax/issues/788).
+
+According to [the JAX documentation on memory allocation](https://docs.jax.dev/en/latest/gpu_memory_allocation.html), you can try the following:
+
+```{.python}
+import os
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+os.environ['XLA_PYTHON_CLIENT_ALLOCATOR'] = 'platform'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.5'
+```
+
+or, if you use IPython (or Jupyter which runs IPython), you can use the equivalent syntax using the [IPython built-in magic command to set environment variables %env](https://ipython.readthedocs.io/en/stable/interactive/magics.html#magic-env):
+
+```{.python}
+%env XLA_PYTHON_CLIENT_PREALLOCATE=false
+%env XLA_PYTHON_CLIENT_ALLOCATOR=platform
+%env XLA_PYTHON_CLIENT_MEM_FRACTION=0.5
+```
+
+None of these solutions worked for me on my machine (where I have one GPU) nor on the training cluster (where there is no GPU).
+
 ## Metrics graphs
 
-```{python}
+If we hadn't run out of memory, we could graph our metrics.
+
+Evolution of the loss during training:
+
+```{.python}
 plt.plot(train_metrics_history["train_loss"], label="Loss value during the training")
 plt.legend()
 ```
 
-```{python}
+Loss and accuracy on the validation set:
+
+```{.python}
 fig, axs = plt.subplots(1, 2, figsize=(10, 10))
 axs[0].set_title("Loss value on validation set")
 axs[0].plot(eval_metrics_history["val_loss"])
@@ -571,6 +600,8 @@ axs[1].plot(eval_metrics_history["val_accuracy"])
 ```
 
 ## Check sample data
+
+And we could look at the model predictions for 5 items:
 
 ```{python}
 test_indices = [1, 250, 500, 750, 1000]
@@ -603,31 +634,4 @@ for i in range(num_samples):
     pred_label_str = names_map[inv_labels_mapping[pred_label]]
     axs[i].set_title(f"Expected: {expected_label_str} vs \nPredicted: {pred_label_str}, P={proba:.2f}")
     axs[i].imshow(img)
-```
-
-
-Create a script:
-
-```{.bash filename="<your_job>.sh"}
-#!/bin/bash
-#SBATCH --account=def-<your_account>
-#SBATCH --time=xxx
-#SBATCH --mem-per-cpu=xxx
-#SBATCH --cpus-per-task=xxx
-#SBATCH --job-name="<your_job>"
-
-# Setup
-module load python/3.11.5
-source ~/env/bin/activate
-python -m pip install --upgrade pip --no-index
-python -m pip install -r requirements.txt --no-index
-
-# Run example
-python main.py --workdir=./ogbg_molpcba --config=configs/default.py
-```
-
-And run the script:
-
-```{.bash}
-sbatch <your_job>.sh
 ```
