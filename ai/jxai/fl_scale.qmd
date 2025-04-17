@@ -13,6 +13,8 @@ This section covers the workflow.
 
 ## Write a Python script
 
+The first step is to put all your code in a Python script that you can evaluate during the job.
+
 Let's call it `main.py`:
 
 :::{.callout-note collapse="true"}
@@ -30,6 +32,7 @@ from flax import nnx
 from transformers import FlaxViTForImageClassification
 import optax
 import matplotlib.pyplot as plt
+from time import time
 
 train_size = 5 * 750
 val_size = 5 * 250
@@ -454,9 +457,15 @@ def evaluate_model(epoch):
     print(f"- total loss: {eval_metrics_history['val_loss'][-1]:0.4f}")
     print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 
+start = time()
+
 for epoch in range(num_epochs):
     train_one_epoch(epoch)
     evaluate_model(epoch)
+
+end = time()
+
+print(f"Training took {round(end-start)/60} minutes")
 
 plt.plot(train_metrics_history["train_loss"], label="Loss value during the training")
 plt.legend()
@@ -475,20 +484,70 @@ plt.savefig('validation.png')
 
 :::{.note}
 
-It doesn't make sense to use [tqdm](https://github.com/tqdm/tqdm) anymore, so remove the corresponding code.
+We have to make a few changes to our code:
 
-We can't display the graphs anymore, so we save them to files.
+- Strip your code of anything unnecessary that you might have used during prototyping.
+
+- It doesn't make sense to use [tqdm](https://github.com/tqdm/tqdm) anymore, so remove the corresponding code.
+
+- We can't display the graphs anymore, so we save them to files with `plt.savefig()`
+
+- When we aren't using IPython (directly or via Jupyter), we don't have access to the built-in magic commands such as `%%time` to time the execution of a cell. Instead, we use the following snippet:
+
+```{.python}
+start = time()
+
+<Code to time>
+
+end = time()
+
+print(f"Training took {round(end-start)/60} minutes.")
+```
+
+In this case, since it is the training that we want to time:
+
+```{.python}
+start = time()
+
+for epoch in range(num_epochs):
+    train_one_epoch(epoch)
+    evaluate_model(epoch)
+
+end = time()
+
+print(f"Training took {round(end-start)/60} minutes.")
+```
 
 :::
 
 ## Write a Slurm script
 
+Then you need to write a Bash script for the Slurm scheduler.
+
 Let's call it `train.sh`:
 
 ```{.bash filename="train.sh"}
 #!/bin/bash
-#SBATCH --account=def-<name>
 #SBATCH --time=10
+#SBATCH --mem-per-cpu=7500M
+#SBATCH --cpus-per-task=4
+
+module load python/3.12.4 arrow/19.0.1
+source /project/60055/env/bin/activate
+
+python main.py
+```
+
+:::{.info}
+
+Our training cluster doesn't require an account and it doesn't have GPUs. It also doesn't have huge amounts of memory. Moreover our code only contains 5 classes of foods to make training much faster. Finally, our Python virtual environment is in `/project` so that we can all access it while you normally would store it in your home.
+
+If you were to train our model on an Alliance cluster at scale, the script would thus look something like this:
+
+```{.bash filename="train.sh"}
+#!/bin/bash
+#SBATCH --account=def-<name>
+#SBATCH --time=5:0:0
 #SBATCH --mem=50G
 #SBATCH --gpus-per-node=1
 
@@ -506,6 +565,16 @@ This assumes that you have a Python virtual environment in `~/env` with all nece
 
 :::
 
+Notice the following differences:
+
+- we provide an account name,
+- we ask for a lot more time (training at scale)—this could even be days or weeks,
+- we ask for a lot more memory,
+- we ask for a GPU—sometimes you will need several GPUs (remember that the same JAX code can run on any device),
+- we source a virtual environment which is in our home.
+
+:::
+
 ## Run the script
 
 ```{.bash}
@@ -519,6 +588,14 @@ To see whether your job is still running and to get the job ID, you can use the 
 ```{.bash}
 sq
 ```
+
+:::{.note}
+
+- PD &emsp;&emsp;&emsp;&nbsp;&nbsp;➔ the job is pending
+- R &emsp;&emsp;&emsp;&emsp;&nbsp;➔ the job is running
+- No output &nbsp;➔ the job is done
+
+:::
 
 While your job is running, you can monitor it by opening a new terminal and, from the login node, running:
 
@@ -551,3 +628,33 @@ Or maximum memory usage with:
 ```{.bash}
 sstat -j <jobID> --format=MaxRSS
 ```
+
+## Get the results
+
+The results will be in a file created by Slurm and called, by default, `slurm-<jobID>.out` (you can change the name of this file by adding an option in your Slurm script).
+
+You can look at them with:
+
+```{.bash}
+bat slurm-<jobID>.out
+```
+
+## Retrieve files
+
+We created two images (`loss.png` and `validation.png`). To retrieve them, you can use `scp` *from your computer*:
+
+```{.bash}
+scp username@hostname:path/file path
+```
+
+For instance:
+
+```{.bash}
+scp userxx@hostname:loss.png ~/
+```
+
+:::{.note}
+
+Replace `hostname` by the hostname for this cluster and `~/` by the path where you want to download your file.
+
+:::
