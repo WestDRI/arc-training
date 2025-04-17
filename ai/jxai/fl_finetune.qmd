@@ -2,6 +2,8 @@
 title: Fine-tuning the model
 aliases:
   - /ai/jx/fl_training
+bibliography: fl.bib
+csl: diabetologia.csl
 author:
   - Marie-Hélène Burle
   - Code adapted from JAX's [Implement ViT from scratch](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html)
@@ -9,13 +11,7 @@ author:
 
 :::{.def}
 
-We talked about how Flax handles state, about loading data, and about model architecture. It is now time to talk about training.
-
-Training models is the crux of deep learning. This is the part that requires a lot of time and resources (and money if you use commercial cloud services). This is also where issues with convergence, underfitting or overfitting, and vanishing or exploding gradients can come in.
-
-Consequently, this is where optimizations and JAX's performance tricks (e.g. JIT compilation) matter the most. This is also where understanding of deep learning theory is important.
-
-In this section, we will point to strategies and resources to navigate training. We will also see how to use the Alliance clusters to train your models.
+In this section, we fine-tune our model with our sample (5 classes) of the [Food-101 dataset](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) [@bossard14].
 
 :::
 
@@ -90,6 +86,11 @@ from datasets import load_dataset
 import numpy as np
 from torchvision.transforms import v2 as T
 import grain.python as grain
+import jax
+import jax.numpy as jnp
+from flax import nnx
+from transformers import FlaxViTForImageClassification
+import optax
 
 train_size = 5 * 750
 val_size = 5 * 250
@@ -116,7 +117,6 @@ def to_np_array(pil_image):
   return np.asarray(pil_image.convert("RGB"))
 
 def normalize(image):
-    # Image preprocessing matches the one of pretrained ViT
     mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
     std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
     image = image.astype(np.float32) / 255.0
@@ -141,7 +141,6 @@ def get_transform(fn):
         batch["image"] = [
             fn(pil_image) for pil_image in batch["image"]
         ]
-        # map label index between 0 - 19
         batch["label"] = [
             labels_mapping[label] for label in batch["label"]
         ]
@@ -193,178 +192,425 @@ val_loader = grain.DataLoader(
         grain.Batch(val_batch_size),
     ]
 )
-```
 
-:::
+class VisionTransformer(nnx.Module):
+    def __init__(
+        self,
+        num_classes: int = 1000,
+        in_channels: int = 3,
+        img_size: int = 224,
+        patch_size: int = 16,
+        num_layers: int = 12,
+        num_heads: int = 12,
+        mlp_dim: int = 3072,
+        hidden_size: int = 768,
+        dropout_rate: float = 0.1,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ):
+        # Patch and position embedding
+        n_patches = (img_size // patch_size) ** 2
+        self.patch_embeddings = nnx.Conv(
+            in_channels,
+            hidden_size,
+            kernel_size=(patch_size, patch_size),
+            strides=(patch_size, patch_size),
+            padding="VALID",
+            use_bias=True,
+            rngs=rngs,
+        )
 
-## Cluster setup
+        initializer = jax.nn.initializers.truncated_normal(stddev=0.02)
+        self.position_embeddings = nnx.Param(
+            initializer(
+                rngs.params(),
+                (1, n_patches + 1, hidden_size),
+                jnp.float32
+            )
+        )
+        self.dropout = nnx.Dropout(dropout_rate, rngs=rngs)
 
-First, let's start an interactive job:
+        self.cls_token = nnx.Param(jnp.zeros((1, 1, hidden_size)))
 
-```{.bash}
-salloc --time=30 --mem-per-cpu=3500M
-```
+        # Transformer Encoder blocks
+        self.encoder = nnx.Sequential(*[
+            TransformerEncoder(
+                hidden_size,
+                mlp_dim,
+                num_heads,
+                dropout_rate,
+                rngs=rngs
+            )
+            for i in range(num_layers)
+        ])
+        self.final_norm = nnx.LayerNorm(hidden_size, rngs=rngs)
 
-Nowadays, IPython (Interactive Python) is known as the kernel used by Jupyter when running Python. Before the existence of Jupyter however, this kernel was created as a better command shell than the default Python shell. For interactive Python sessions in the command line, it is nicer and faster than plain Python with no downside. So we will use it for this course:
+        # Classification head
+        self.classifier = nnx.Linear(hidden_size, num_classes, rngs=rngs)
 
-```{.bash}
-module load ipython-kernel/3.11
-```
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # Patch and position embedding
+        patches = self.patch_embeddings(x)
+        batch_size = patches.shape[0]
+        patches = patches.reshape(batch_size, -1, patches.shape[-1])
 
-Now, let's activate the virtual python environment:
+        cls_token = jnp.tile(self.cls_token, [batch_size, 1, 1])
+        x = jnp.concat([cls_token, patches], axis=1)
+        embeddings = x + self.position_embeddings
+        embeddings = self.dropout(embeddings)
 
-```{.bash}
-source /project/60055/env/bin/activate
-```
+        # Encoder blocks
+        x = self.encoder(embeddings)
+        x = self.final_norm(x)
 
-Finally, we can launch IPython:
+        # fetch the first token
+        x = x[:, 0]
 
-```{.bash}
-ipython
-```
+        # Classification
+        return self.classifier(x)
 
-Then let's rerun our model architecture and initialization of the pytree of model parameters from last course:
+class TransformerEncoder(nnx.Module):
+    def __init__(
+        self,
+        hidden_size: int,
+        mlp_dim: int,
+        num_heads: int,
+        dropout_rate: float = 0.0,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ) -> None:
 
-```{.python}
-import jax
-import jax.numpy as jnp
-from flax import linen as nn
+        self.norm1 = nnx.LayerNorm(hidden_size, rngs=rngs)
+        self.attn = nnx.MultiHeadAttention(
+            num_heads=num_heads,
+            in_features=hidden_size,
+            dropout_rate=dropout_rate,
+            broadcast_dropout=False,
+            decode=False,
+            deterministic=False,
+            rngs=rngs,
+        )
+        self.norm2 = nnx.LayerNorm(hidden_size, rngs=rngs)
 
+        self.mlp = nnx.Sequential(
+            nnx.Linear(hidden_size, mlp_dim, rngs=rngs),
+            nnx.gelu,
+            nnx.Dropout(dropout_rate, rngs=rngs),
+            nnx.Linear(mlp_dim, hidden_size, rngs=rngs),
+            nnx.Dropout(dropout_rate, rngs=rngs),
+        )
 
-class CNN(nn.Module):
-    @nn.compact
-    def __call__(self, x):
-        x = nn.Conv(features=32, kernel_size=(3, 3))(x)
-        x = nn.relu(x)
-        x = nn.avg_pool(x, window_shape=(2, 2), strides=(2, 2))
-        x = nn.Conv(features=64, kernel_size=(3, 3))(x)
-        x = nn.relu(x)
-        x = nn.avg_pool(x, window_shape=(2, 2), strides=(2, 2))
-        x = x.reshape((x.shape[0], -1))
-        x = nn.Dense(features=256)(x)
-        x = nn.relu(x)
-        x = nn.Dense(features=10)(x)
-        x = nn.log_softmax(x)
+    def __call__(self, x: jax.Array) -> jax.Array:
+        x = x + self.attn(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
         return x
 
+model = VisionTransformer(num_classes=1000)
 
-cnn = CNN()
+tf_model = FlaxViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
 
+def vit_inplace_copy_weights(*, src_model, dst_model):
+    assert isinstance(src_model, FlaxViTForImageClassification)
+    assert isinstance(dst_model, VisionTransformer)
 
-def get_initial_params(key):
-    init_shape = jnp.ones((1, 28, 28, 1))
-    initial_params = cnn.init(key, init_shape)
-    return initial_params
+    tf_model_params = src_model.params
+    tf_model_params_fstate = nnx.traversals.flatten_mapping(tf_model_params)
 
+    flax_model_params = nnx.state(dst_model, nnx.Param)
+    flax_model_params_fstate = flax_model_params.flat_state()
 
-key = jax.random.key(0)
-key, model_key = jax.random.split(key)
+    params_name_mapping = {
+        ("cls_token",): ("vit", "embeddings", "cls_token"),
+        ("position_embeddings",): (
+            "vit",
+            "embeddings",
+            "position_embeddings"
+        ),
+        **{
+            ("patch_embeddings", x): (
+                "vit",
+                "embeddings",
+                "patch_embeddings",
+                "projection",
+                x
+            )
+            for x in ["kernel", "bias"]
+        },
+        **{
+            ("encoder", "layers", i, "attn", y, x): (
+                "vit",
+                "encoder",
+                "layer",
+                str(i),
+                "attention",
+                "attention",
+                y,
+                x
+            )
+            for x in ["kernel", "bias"]
+            for y in ["key", "value", "query"]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, "attn", "out", x): (
+                "vit",
+                "encoder",
+                "layer",
+                str(i),
+                "attention",
+                "output",
+                "dense",
+                x
+            )
+            for x in ["kernel", "bias"]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, "mlp", "layers", y1, x): (
+                "vit",
+                "encoder",
+                "layer",
+                str(i),
+                y2,
+                "dense",
+                x
+            )
+            for x in ["kernel", "bias"]
+            for y1, y2 in [(0, "intermediate"), (3, "output")]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, y1, x): (
+                "vit", "encoder", "layer", str(i), y2, x
+            )
+            for x in ["scale", "bias"]
+            for y1, y2 in [
+                    ("norm1", "layernorm_before"),
+                    ("norm2", "layernorm_after")
+            ]
+            for i in range(12)
+        },
+        **{
+            ("final_norm", x): ("vit", "layernorm", x)
+            for x in ["scale", "bias"]
+        },
+        **{
+            ("classifier", x): ("classifier", x)
+            for x in ["kernel", "bias"]
+        }
+    }
 
-params = get_initial_params(model_key)
+    nonvisited = set(flax_model_params_fstate.keys())
+
+    for key1, key2 in params_name_mapping.items():
+        assert key1 in flax_model_params_fstate, key1
+        assert key2 in tf_model_params_fstate, (key1, key2)
+
+        nonvisited.remove(key1)
+
+        src_value = tf_model_params_fstate[key2]
+        if key2[-1] == "kernel" and key2[-2] in ("key", "value", "query"):
+            shape = src_value.shape
+            src_value = src_value.reshape((shape[0], 12, 64))
+
+        if key2[-1] == "bias" and key2[-2] in ("key", "value", "query"):
+            src_value = src_value.reshape((12, 64))
+
+        if key2[-4:] == ("attention", "output", "dense", "kernel"):
+            shape = src_value.shape
+            src_value = src_value.reshape((12, 64, shape[-1]))
+
+        dst_value = flax_model_params_fstate[key1]
+        assert src_value.shape == dst_value.value.shape, (
+            key2, src_value.shape, key1, dst_value.value.shape
+        )
+        dst_value.value = src_value.copy()
+        assert dst_value.value.mean() == src_value.mean(), (
+            dst_value.value, src_value.mean()
+        )
+
+    assert len(nonvisited) == 0, nonvisited
+
+    nnx.update(dst_model, nnx.State.from_flat_path(flax_model_params_fstate))
+
+vit_inplace_copy_weights(src_model=tf_model, dst_model=model)
+
+model.classifier = nnx.Linear(model.classifier.in_features, 5, rngs=nnx.Rngs(0))
+
+num_epochs = 3
+learning_rate = 0.001
+momentum = 0.8
+total_steps = len(train_dataset) // train_batch_size
+
+lr_schedule = optax.linear_schedule(learning_rate, 0.0, num_epochs * total_steps)
+
+optimizer = nnx.Optimizer(model, optax.sgd(lr_schedule, momentum, nesterov=True))
+
+def compute_losses_and_logits(model: nnx.Module, images: jax.Array, labels: jax.Array):
+    logits = model(images)
+
+    loss = optax.softmax_cross_entropy_with_integer_labels(
+        logits=logits, labels=labels
+    ).mean()
+    return loss, logits
+
+@nnx.jit
+def train_step(
+    model: nnx.Module, optimizer: nnx.Optimizer, batch: dict[str, np.ndarray]
+):
+    # Convert np.ndarray to jax.Array on GPU
+    images = jnp.array(batch["image"])
+    labels = jnp.array(batch["label"], dtype=jnp.int32)
+
+    grad_fn = nnx.value_and_grad(compute_losses_and_logits, has_aux=True)
+    (loss, logits), grads = grad_fn(model, images, labels)
+
+    optimizer.update(grads)  # In-place updates.
+
+    return loss
+
+@nnx.jit
+def eval_step(
+    model: nnx.Module, batch: dict[str, np.ndarray], eval_metrics: nnx.MultiMetric
+):
+    # Convert np.ndarray to jax.Array on GPU
+    images = jnp.array(batch["image"])
+    labels = jnp.array(batch["label"], dtype=jnp.int32)
+    loss, logits = compute_losses_and_logits(model, images, labels)
+
+    eval_metrics.update(
+        loss=loss,
+        logits=logits,
+        labels=labels,
+    )
+
+eval_metrics = nnx.MultiMetric(
+    loss=nnx.metrics.Average('loss'),
+    accuracy=nnx.metrics.Accuracy(),
+)
+
+train_metrics_history = {
+    "train_loss": [],
+}
+
+eval_metrics_history = {
+    "val_loss": [],
+    "val_accuracy": [],
+}
 ```
-
-## Fundamental functioning
-
-### Calculate predictions
-
-We can create some random inputs:
-
-```{.python}
-key, x_key = jax.random.split(key)
-
-x = jax.random.normal(x_key, (1, 28, 28, 1))
-```
-
-The predictions of our model based on these inputs are obtained by:
-
-```{.python}
-y = cnn.apply(params, x)
-print(y)
-```
-
-### Update parameters
-
-[Optax](https://optax.readthedocs.io/en/latest/index.html)—another library built on JAX—is a full toolkit for gradient processing and optimization. It contains all the classic optimizers and loss functions and makes it easy to create your own optimizers and optimizer schedulers. Flax initially used its own optimizers but has now fully adopted use of Optax.
-
-Here is the most basic case:
-
-```{.python}
-import optax
-
-learning_rate = 1e-1
-optimiser = optax.sgd(learning_rate)
-print(optimiser)
-```
-
-The optimizer is a gradient transformation. It is a tuple of an `init` and an `update` methods. Those are pure functions following the model of JAX and Flax. This means that they are stateless and that a state needs to be initialized and passed as input, exactly as we saw for Flax models.
-
-Let's initialize the optimizer state:
-
-```{.python}
-optimiser_state = optimiser.init(params)
-```
-
-The update method returns a gradient transformation (that we can later apply to the gradients) and an updated optimizer state.
-
-The gradients are calculated by passing a loss function to `jax.grad` and passing the parameters, the inputs, and the predictions to this transformed function (the derivative):
-
-```{.python}
-grads = jax.grad(<some-loss-function>)(params, x, y)
-```
-
-The loss function can be built from [a large array of Optax loss methods](https://optax.readthedocs.io/en/latest/api/losses.html).
-
-Here is how to use `optimizer.update`:
-
-```{.python}
-updates, optimiser_state = optimiser.update(grads, optimiser_state, params)
-```
-
-## Key regularizations
-
-[Flax makes it easy to apply classic regularizations and optimization techniques](https://flax.readthedocs.io/en/latest/guides/training_techniques/index.html).
-
-[Batch normalization](https://d2l.ai/chapter_convolutional-modern/batch-norm.html) improves convergence speed and has been a classic regularization technique since [the publication of Sergey Ioffe and Christian Szegedy's key paper in 2015](https://arxiv.org/abs/1502.03167). [You can use it by adding a `flax.linen.BatchNorm` layer to your model](https://flax.readthedocs.io/en/latest/guides/training_techniques/batch_norm.html).
-
-Similarly, [dropout techniques](https://d2l.ai/chapter_multilayer-perceptrons/dropout.html#sec-dropout) are implemented [with a `flax.linen.Dropout` layer](https://flax.readthedocs.io/en/latest/guides/training_techniques/dropout.html).
-
-## Getting started
-
-The best way to get started building your own model is to go over [the examples](https://flax.readthedocs.io/en/latest/examples/index.html) provided as template by Flax. They all follow the same format, making it easy to clone and modify them. You can even modify them directly in Google Colab for some of them, making experimentation easy without having to install anything.
-
-:::{.note}
-
-Note however that things are not as simple as the documentation makes it to appear and some of the examples will not run for various reasons (dependency problem, error in code, etc.)
 
 :::
 
-[Let's check this structure and look at a few models](https://github.com/google/flax/tree/main/examples).
+## Load packages
 
-Then let's run the [ogbg-molpcba example](https://github.com/google/flax/tree/main/examples/ogbg_molpcba) together in Google Colab to have access to a free GPU.
+```{python}
+# to have a progress bar during training
+import tqdm
 
-## Running Flax examples in the Alliance clusters
-
-Instead of running these examples in Google Colab, you might want to run them on the Alliance clusters, particularly as you start developing your own model (rather than just run examples to learn techniques).
-
-First, you need to get the model you are interested in to the cluster.
-
-There are many ways you could go about it, but one option is to download the directory of that particular model to your machine as a zip file using [one of several sites making this easy](https://download-directory.github.io/).
-
-For the ogbg-molpcba example, you paste the link "https://github.com/google/flax/tree/main/examples/ogbg_molpcba" in the site.
-
-You can then copy it to the cluster with:
-
-```{.bash}
-scp <path-to-zip-file-on-your-machine> <user-name>@<hostname>:
+# to visualize evolution of loss and sample data
+import matplotlib.pyplot as plt
 ```
 
-It will look something like this (make sure to rename the zip file to remove the spaces or to quote the path):
+## Training and evaluation functions
 
-```{.bash}
-scp examples-ogbg_molpcba.zip userxx@xxx.c3.ca:
+```{python}
+bar_format = "{desc}[{n_fmt}/{total_fmt}]{postfix} [{elapsed}<{remaining}]"
+
+def train_one_epoch(epoch):
+    model.train()
+    with tqdm.tqdm(
+        desc=f"[train] epoch: {epoch}/{num_epochs}, ",
+        total=total_steps,
+        bar_format=bar_format,
+        leave=True,
+    ) as pbar:
+        for batch in train_loader:
+            loss = train_step(model, optimizer, batch)
+            train_metrics_history["train_loss"].append(loss.item())
+            pbar.set_postfix({"loss": loss.item()})
+            pbar.update(1)
+
+def evaluate_model(epoch):
+    model.eval()
+
+    eval_metrics.reset()
+    for val_batch in val_loader:
+        eval_step(model, val_batch, eval_metrics)
+
+    for metric, value in eval_metrics.compute().items():
+        eval_metrics_history[f'val_{metric}'].append(value)
+
+    print(f"[val] epoch: {epoch + 1}/{num_epochs}")
+    print(f"- total loss: {eval_metrics_history['val_loss'][-1]:0.4f}")
+    print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 ```
 
-Then you could [run it using JupyterLab](https://docs.alliancecan.ca/wiki/Advanced_Jupyter_configuration), but a more efficient method is to use `sbatch`.
+## Train model
+
+```{python}
+# Let's use 90% of GPU memory:
+import os
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+```
+
+```{python}
+%%time
+
+for epoch in range(num_epochs):
+    train_one_epoch(epoch)
+    evaluate_model(epoch)
+```
+
+## Metrics graphs
+
+```{python}
+plt.plot(train_metrics_history["train_loss"], label="Loss value during the training")
+plt.legend()
+```
+
+```{python}
+fig, axs = plt.subplots(1, 2, figsize=(10, 10))
+axs[0].set_title("Loss value on validation set")
+axs[0].plot(eval_metrics_history["val_loss"])
+axs[1].set_title("Accuracy on validation set")
+axs[1].plot(eval_metrics_history["val_accuracy"])
+```
+
+## Check sample data
+
+```{python}
+test_indices = [1, 250, 500, 750, 1000]
+
+test_images = jnp.array([val_dataset[i]["image"] for i in test_indices])
+expected_labels = [val_dataset[i]["label"] for i in test_indices]
+
+model.eval()
+preds = model(test_images)
+```
+
+```{python}
+num_samples = len(test_indices)
+names_map = train_dataset.features["label"].names
+
+probas = nnx.softmax(preds, axis=1)
+pred_labels = probas.argmax(axis=1)
+
+
+fig, axs = plt.subplots(1, num_samples, figsize=(20, 10))
+for i in range(num_samples):
+    img, expected_label = test_images[i], expected_labels[i]
+
+    pred_label = pred_labels[i].item()
+    proba = probas[i, pred_label].item()
+    if img.dtype in (np.float32, ):
+        img = ((img - img.min()) / (img.max() - img.min()) * 255.0).astype(np.uint8)
+
+    expected_label_str = names_map[inv_labels_mapping[expected_label]]
+    pred_label_str = names_map[inv_labels_mapping[pred_label]]
+    axs[i].set_title(f"Expected: {expected_label_str} vs \nPredicted: {pred_label_str}, P={proba:.2f}")
+    axs[i].imshow(img)
+```
+
 
 Create a script:
 
