@@ -465,7 +465,7 @@ for epoch in range(num_epochs):
 
 end = time()
 
-print(f"Training took {round(end-start)/60} minutes")
+print(f"Training took {round(end-start/60)} minutes")
 
 plt.plot(train_metrics_history["train_loss"], label="Loss value during the training")
 plt.legend()
@@ -501,7 +501,7 @@ start = time()
 
 end = time()
 
-print(f"Training took {round(end-start)/60} minutes.")
+print(f"Training took {round(end-start/60)} minutes")
 ```
 
 In this case, since it is the training that we want to time:
@@ -515,7 +515,7 @@ for epoch in range(num_epochs):
 
 end = time()
 
-print(f"Training took {round(end-start)/60} minutes.")
+print(f"Training took {round(end-start/60)} minutes")
 ```
 
 :::
@@ -524,13 +524,48 @@ print(f"Training took {round(end-start)/60} minutes.")
 
 Then you need to write a Bash script for the Slurm scheduler.
 
-Let's call it `train.sh`:
+Our training cluster is made of 50 nodes of the `c4-30gb` flavour (each node contains 4 CPU and 30G, meaning 7500M per CPU).
 
-```{.bash filename="train.sh"}
+If we want to train on a single CPU using the maximum amount of memory for that CPU, this is what our script looks like:
+
+```{.bash filename="train_1cpu.sh"}
 #!/bin/bash
-#SBATCH --time=10
+#SBATCH --time=20
 #SBATCH --mem-per-cpu=7500M
-#SBATCH --cpus-per-task=4
+
+module load python/3.12.4 arrow/19.0.1
+source /project/60055/env/bin/activate
+
+python main.py
+```
+
+When I tested this earlier, training took 37 minutes.
+
+JAX and all the packages we are using are automatically capable of making use of multiple CPUs when they are available, so we could instead use of a full node (4 CPU):
+
+```{.bash filename="train_1node.sh"}
+#!/bin/bash
+#SBATCH --time=20
+#SBATCH --mem-per-cpu=7500M
+#SBATCH --ntasks-per-node=4
+#SBATCH --nodes=1
+
+module load python/3.12.4 arrow/19.0.1
+source /project/60055/env/bin/activate
+
+python main.py
+```
+
+When I tested this earlier, training took 11 minutes, thus giving us a speedup of 37 / 11 = 3.4. Not bad at all since the ideal speedup would be 4 (4 CPUs).
+
+Or we could use multiple nodes (here 2 nodes):
+
+```{.bash filename="train_2nodes.sh"}
+#!/bin/bash
+#SBATCH --time=20
+#SBATCH --mem-per-cpu=7500M
+#SBATCH --ntasks-per-node=4
+#SBATCH --nodes=2
 
 module load python/3.12.4 arrow/19.0.1
 source /project/60055/env/bin/activate
@@ -562,6 +597,8 @@ python main.py
 Replace `<name>` by your Alliance account name.
 
 This assumes that you have a Python virtual environment in `~/env` with all necessary packages installed.
+
+Also note that if you are using the Alliance supercomputer Cedar, [there is a policy for this cluster](https://docs.alliancecan.ca/wiki/Cedar) blocking you from running jobs in the `/home` filesystem, so you will have to copy your files to `/scratch` or your `/project` and run the job from there.
 
 :::
 
