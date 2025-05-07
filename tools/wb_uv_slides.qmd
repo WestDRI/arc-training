@@ -1,0 +1,609 @@
+---
+title: A tool to rule them all
+subtitle: Versions, virtual env, and co with ~~pip, pipx, pyenv, virtualenv~~ **uv**
+frontpic: img/uv.png
+frontpicwidth: 35%
+noshadow: noshadow
+author: Marie-Hélène Burle
+date: 2025-05-06
+date-format: long
+execute:
+  error: true
+  echo: true
+format:
+  revealjs:
+    embed-resources: true
+    theme: [default, ../revealjspink.scss]
+    logo: /img/favicon_sfudrac.png
+    highlight-style: ayu
+    code-line-numbers: false
+    template-partials:
+      - ../title-slide.html
+    pointer:
+      color: "#b5111b"
+      pointerSize: 32
+    link-external-newwindow: true
+    footer: <a href="wb_uv.html"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="rgb(38,18,48)" class="bi bi-arrow-90deg-up" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4.854 1.146a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L4 2.707V12.5A2.5 2.5 0 0 0 6.5 15h8a.5.5 0 0 0 0-1h-8A1.5 1.5 0 0 1 5 12.5V2.707l3.146 3.147a.5.5 0 1 0 .708-.708l-4-4z"/></svg>&nbsp;Back to webinar page</a>
+    auto-stretch: false
+revealjs-plugins:
+  - pointer
+---
+
+```{r}
+
+```
+
+# Context
+
+## A cluttered toolkit
+
+<iframe width="900" height="600" src="https://chadsmith.dev/python-packaging/" data-external="1"></iframe>
+
+## Age of Rust {.center}
+
+<iframe width="900" height="600" src="https://docs.astral.sh/uv/" data-external="1"></iframe>
+
+## **uv** {.center}
+
+- Universal tool
+- *Really* fast
+- Excellent dependency resolution with [PubGrub](https://github.com/pubgrub-rs/pubgrub) (you guessed it, also written in Rust)
+- Dependency deduplication
+
+# Warning
+
+:::{.info}
+
+Do not use **uv** on the Alliance clusters. This is for your local computer only
+
+Following is a recap of a good workflow on the Alliance clusters
+
+:::
+
+## Python versions on Alliance clusters (~~**uv**~~) {.center}
+
+Use `module`
+
+:::{.example}
+
+List available Python versions:
+
+:::
+
+```{.bash}
+module spider python
+```
+
+:::{.example}
+
+Check how to load a particular version:
+
+:::
+
+```{.bash}
+module spider python/3.12.4
+```
+
+:::{.example}
+
+Load a particular version:
+
+:::
+
+```{.bash}
+module load python/3.12.4
+```
+
+## Python packages on Alliance clusters (~~**uv**~~) {.center}
+
+Create a Python virtual environment:
+
+```{.bash}
+python -m venv ~/env
+```
+
+Activate it:
+
+```{.bash}
+source ~/env/bin/activate
+```
+
+Update pip from wheel:
+
+```{.bash}
+python -m pip install --upgrade pip --no-index
+```
+
+Use `pip` with `--no-index` to use [wheels](https://docs.alliancecan.ca/wiki/Available_Python_wheels) whenever possible:
+
+```{.bash}
+python -m pip install --no-index jax[cuda12] jax-ai-stack[grain]
+```
+
+# Getting started with **uv**
+
+## Install **uv** {.center}
+
+<iframe width="900" height="600" src="https://docs.astral.sh/uv/getting-started/installation/" data-external="1"></iframe>
+
+## Help {.center}
+
+List of commands and options:
+
+```{.bash}
+uv
+```
+
+List of options:
+
+```{.bash}
+uv <command> -h	   # e.g. uv init -h
+```
+
+Man page:
+
+```{.bash}
+uv help <command>  # e.g. uv help init
+```
+
+# Stuck in a rut
+
+*(When you can't change your workflow)*
+
+## Drop-in replacement {.center}
+
+You can add `uv` in front of your usual `venv` and `pip` commands
+
+This actually runs `uv` (and neither `pip` nor `venv`) so you get the speedup, but it keeps everything compatible
+
+## Create a virtual env {.center}
+
+```{.bash}
+uv venv
+```
+
+:::{.example}
+
+With specific Python version:
+
+:::
+
+```{.bash}
+uv venv --python 3.12
+```
+
+By default, the virtual env is called `.venv`. If you don't change its name, `uv` will use it automatically so you don't need to source it
+
+## Install packages in virtual env {.center}
+
+```{.bash}
+uv pip install jax flax
+```
+
+:::{.example}
+
+From GitHub repo:
+
+:::
+
+```{.bash}
+uv pip install "git+https://github.com/jax-ml/jax"
+uv pip install "git+https://github.com/jax-ml/jax@main"
+uv pip install "git+https://github.com/jax-ml/jax@766e68c4813a30e29b4fcefaa3253a42d0e197be"
+```
+
+:::{.example}
+
+From requirements.txt or [pyproject.toml](https://peps.python.org/pep-0518/) files:
+
+:::
+
+```{.bash}
+uv pip install -r requirements.txt
+uv pip install -r pyproject.toml
+```
+
+## All your usual commands work {.center}
+
+```{.bash}
+uv pip uninstall jax
+uv pip list
+uv pip freeze
+…
+```
+
+# Python versions
+
+## Automatic installation {.center}
+
+Missing Python versions are automatically installed when required
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+uv venv --python 3.12
+```
+
+:::{.note}
+
+If Python 3.12 is missing, `uv` will install it during the creation of this virtual env
+
+:::
+
+## Install Python {.center}
+
+Python versions can also be installed explicitly:
+
+```{.bash}
+uv python install 3.12.3
+uv python install '>=3.8,<3.10'
+```
+
+:::{.example}
+
+Specific implementations (default is `cpython`):
+
+:::
+
+```{.bash}
+uv python install pypy
+uv python install 'pypy>=3.8,<3.10'
+```
+
+## Manage versions {.center}
+
+View installed and available versions:
+
+```{.bash}
+uv python list
+```
+
+Uninstall Python version:
+
+```{.bash}
+uv python uninstall 3.10
+```
+
+:::{.note}
+
+Noe that this is a lot more convenient than `pyenv` which requires the exact Python version number to uninstall (e.g. `pyenv uninstall 3.10.6`)
+
+:::
+
+# Python projects
+
+## Initialize projects {.center}
+
+```{.bash}
+uv init my_project
+```
+
+:::{.example}
+
+With specific Python version:
+
+:::
+
+```{.bash}
+uv init --python 3.12 my_project
+```
+
+:::{.example}
+
+Customize which files get created:
+
+:::
+
+```{.bash}
+uv init --no-readme --no-description
+```
+
+## Project structure {.center}
+
+```{bash}
+eza -aT my_project
+```
+
+```{bash}
+bat -p my_project/pyproject.toml
+```
+
+## Add dependencies {.center}
+
+You need to `cd` into the project, then you can add dependencies:
+
+```{.bash}
+cd my_project
+uv add polars matplotlib
+```
+
+This creates a virtual env called `.venv` and a `uv.lock`:
+
+```{.bash}
+eza -aTL 1
+```
+
+```{bash}
+#| echo: false
+eza -aTL 1  my_project
+```
+
+Here again, no need to source the virtual env as long as you use **uv**
+
+## Project file {.center}
+
+Gets populated automatically with dependencies:
+
+```{.bash}
+bat -p pyproject.toml
+```
+
+```{bash}
+#| echo: false
+bat -p my_project/pyproject.toml
+```
+
+## List explicitly installed dependencies {.center}
+
+```{.bash}
+uv tree -d 1
+```
+
+```{bash}
+#| echo: false
+cd my_project
+uv tree -d 1
+```
+
+## List all dependencies {.center}
+
+```{.bash}
+uv pip list
+```
+
+```{bash}
+#| echo: false
+cd my_project
+uv pip list
+```
+
+## Manage dependencies {.center}
+
+Update all dependencies in lock file and virtual env:
+
+```{.bash}
+uv sync -U
+```
+
+Remove dependencies:
+
+```{.bash}
+uv remove matplotlib
+```
+
+# Did you say fast?
+
+## Python versions **pyenv** vs **uv** {.center}
+
+### **pyenv**
+
+```{.bash}
+pyenv install 3.10
+```
+
+![](img/coffee_break.jpg){width="20%" fig-align="center"}
+
+### **uv**
+
+```{.bash}
+uv python install 3.10
+```
+
+```
+Installed Python 3.10.17 in 1.49s
+```
+
+:::{.note}
+
+Yes, `uv` brags about how fast it installs things... but it can!
+
+:::
+
+## Packages: **pip** vs **uv pip** {.center}
+
+### **pip**
+
+Create virtual env:
+
+```{.bash}
+python -m venv .venv
+```
+
+Activate it:
+
+```{.bash}
+source .venv/bin/activate
+```
+
+Update pip:
+
+```{.bash}
+python -m pip install --upgrade pip
+```
+
+Install package:
+
+```{.bash}
+python -m pip install jax-ai-stack
+```
+
+## Packages: **pip** vs **uv pip** {.center}
+
+### **uv pip**
+
+Create virtual env:
+
+```{.bash}
+uv venv
+```
+
+:::{.info}
+
+I am deleting my entire `uv` cache to make sure that I am not cheating in the comparison. You normally never do that since the cache prevents deduplication (saves space) and makes installations much faster
+
+```{.bash}
+rm -rf ~/.cache/uv
+```
+
+:::
+
+Install package:
+
+```{.bash}
+uv pip install jax-ai-stack
+```
+
+## Packages: **pip** vs **uv pip** {.center}
+
+### **uv pip**
+
+To use the virtual env, I can activate it but I can also access it directly by running commands preceded by `uv run`
+
+:::{.example}
+
+For instance, I can launch a JupyterLab with access to the project virtual env with:
+
+:::
+
+```{.bash}
+uv run --with jupyter jupyter lab
+```
+
+:::{.example}
+
+or run a script with:
+
+:::
+
+```{.bash}
+uv run script.py
+```
+
+# Convenience
+
+## Use case: virtual env with specific Python version {.center}
+
+I needed to install a number of packages for a deep learning course with JAX, including Grain which still requires Python 3.12
+
+Following are the workflows with classic tools vs **uv**
+
+## **pyenv**, **venv**, and **pip** {.center}
+
+Install Python 3.12:
+
+```{.bash}
+pyenv install 3.12
+```
+
+Create virtual env with Python 3.12 (requires identifying the path):
+
+```{.bash}
+~/.pyenv/versions/3.12.10/bin/python -m venv .venv
+```
+
+Activate it:
+
+```{.bash}
+source .venv/bin/activate
+```
+
+Update pip:
+
+```{.bash}
+python -m pip install --upgrade pip
+```
+
+Install packages:
+
+```{.bash}
+python -m pip install datasets jax-ai-stack[grain] matplotlib tqdm transformers
+```
+
+## **uv** {.center}
+
+```{.bash}
+uv init --python 3.12 demo
+```
+
+:::{.note}
+
+Automatically installs Python 3.12 if missing
+
+:::
+
+```{.bash}
+cd demo
+uv add datasets jax-ai-stack[grain] matplotlib tqdm transformers
+```
+
+## **uv** advantages {.center}
+
+Much simpler
+
+Much (*much*!) faster
+
+Leaves me with a nice `pyproject.toml` file:
+
+```
+[project]
+name = "jxai"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=3.5.0",
+    "jax-ai-stack[grain]>=2025.2.5",
+    "matplotlib>=3.10.1",
+    "tqdm>=4.67.1",
+    "transformers>=4.50.3",
+]
+```
+
+and a `uv.lock` file that I can put under version control and share for reproducibility
+
+# Tools
+
+## **pipx** replacement {.center}
+
+Python tools are packages used for convenience (e.g. linters, formatters) across projects, but not necessary for running your code
+
+They are commonly installed via your Linux distribution package manager, Homebrew, or `pipx`
+
+They can also be installed by `uv`:
+
+```{.bash}
+uv tool install ruff
+```
+
+## Use tools without installation {.center}
+
+Tools can even be used without installation (from a temporary install)
+
+```{.bash}
+uvx ruff
+```
+
+:::{.note}
+
+`uvx` is an alias for `uv tool run`
+
+:::
+
+# Resources
+
+[GitHub repo](https://github.com/astral-sh/uv)
+
+[Website](https://docs.astral.sh/uv/)
