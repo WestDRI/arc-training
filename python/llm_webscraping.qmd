@@ -61,13 +61,15 @@ While most of the data on the internet is publicly available, it is illegal to s
 
 ## Example for this workshop
 
-We will use [a website](https://trace.tennessee.edu/utk_graddiss/index.html) from the [University of Tennessee](https://www.utk.edu/) containing a database of PhD theses from that university.
+We will use [a website](https://trace.tennessee.edu/utk_graddiss/index.html) from the [University of Tennessee](https://www.utk.edu/) containing a database of PhD theses from that university which uses the [Digital Commons Network](https://network.bepress.com/).
 
-Our goal is to scrape data from this site to produce a dataframe with the date, major, and advisor for each dissertation.
+Our goal is to scrape data from this site to produce a dataframe with the date, major, and advisor for each dissertation. Scraping any other site which uses the [Digital Commons Network](https://network.bepress.com/) can be done following a similar workflow.
 
 ### Let's look at the site
 
 First of all, let's have a close look at the website we want to scrape to think carefully about what we want to do. Before starting to write code, it is always a good idea to think about what you are trying to achieve with your code.
+
+To see how the website is built, you can open the web inspector. Most browsers allow to right-click on an element and select "inspect" in the menu. Alternatively, Chrome opens the web inspector with F12 and Firefox and Edge with Ctrl+Shift+I (Windows, Linux) or Command+Option+I (macOS).
 
 To create a dataframe with the data for all the dissertations on that first page, we need to do two things:
 
@@ -80,6 +82,12 @@ To create a dataframe with the data for all the dissertations on that first page
 :::{.llm}
 
 Write Python code to scrape the following website: https://trace.tennessee.edu/utk_graddiss/index.html.
+
+As the end result, I want to have a polars dataframe with the following columns:
+
+- Date
+- Major of the thesis
+- Advisor (PI)
 
 :::
 
@@ -145,209 +153,12 @@ Your turn:
 
 :::{.llm}
 
-This works for the first 10 dissertations, but I want all of them.
+Write Python code to scrape the following website: https://scholarworks.utrgv.edu/do/discipline_browser/articles?discipline_key=438.
+
+As the end result, I want to have a polars dataframe with the following columns:
+
+- The defense date
+- The department
+- Both committee members
 
 :::
-
-```{python}
-import requests
-from bs4 import BeautifulSoup
-import polars as pl
-from urllib.parse import urljoin
-import time
-
-BASE_URL = "https://trace.tennessee.edu/utk_graddiss/"
-
-def get_all_dissertation_links():
-	"""Handles pagination to collect all dissertation links"""
-	all_links = []
-	page_num = 1
-
-	while True:
-		page_url = f"{BASE_URL}index{page_num}.html" if page_num > 1 else BASE_URL
-		try:
-			response = requests.get(page_url)
-			response.raise_for_status()
-
-			soup = BeautifulSoup(response.content, "html.parser")
-			links = [urljoin(BASE_URL, a["href"])
-					for a in soup.select(".article-listing a")]
-
-			if not links:
-				break
-
-			all_links.extend(links)
-			page_num += 1
-			time.sleep(1)  # Be polite to the server
-
-		except Exception as e:
-			print(f"Stopped at page {page_num}: {str(e)}")
-			break
-
-	return all_links
-
-def get_dissertation_data(link):
-	"""Scrapes individual dissertation page with error handling"""
-	try:
-		page = requests.get(link, timeout=10)
-		page.raise_for_status()
-		soup = BeautifulSoup(page.content, "html.parser")
-
-		return {
-			"Date": soup.select_one("#publication_date p").text.strip(),
-			"Major": soup.select_one("#department p").text.strip(),
-			"Advisor": soup.select_one("#advisor1 p").text.strip(),
-			"URL": link
-		}
-
-	except Exception as e:
-		print(f"Failed on {link}: {str(e)}")
-		return None
-
-def build_full_dataset():
-	"""Main function to create complete dataset"""
-	links = get_all_dissertation_links()
-	print(f"Found {len(links)} dissertations to process")
-
-	data = []
-	for link in links:
-		result = get_dissertation_data(link)
-		if result:
-			data.append(result)
-		time.sleep(0.5)  # Throttle requests
-
-	return pl.DataFrame(data).unique()  # Remove duplicates
-
-# Usage
-full_df = build_full_dataset()
-print(f"Final dataset contains {len(full_df)} records")
-full_df.head()
-```
-
-Here, things fall apart. The first code worked, but didn't scrape all the data. This one is just a mess.
-
-So let's go back to the first code and try to work through it. As you can see LLMs are impressive for easy tasks, but far from perfect at this point when things become more elaborate. But they can still truly help you get there.
-
-> # Reduced to 10 for testing; remove slice for full 100
-
-"What is a slice in Python?"
-"How do I remove the slice in the following Python code: `for link in links[:10]:`"
-
-```{python}
-import requests
-from bs4 import BeautifulSoup
-import polars as pl
-from urllib.parse import urljoin
-
-BASE_URL = "https://trace.tennessee.edu/utk_graddiss/index.html"
-
-def get_dissertation_data():
-	# Get main page and extract dissertation URLs
-	main_page = requests.get(BASE_URL)
-	soup = BeautifulSoup(main_page.content, "html.parser")
-
-	# Extract individual dissertation links
-	links = [urljoin(BASE_URL, a["href"])
-			 for a in soup.select(".article-listing a")]
-
-	data = []
-
-	for link in links:
-		try:
-			# Get individual dissertation page
-			page = requests.get(link)
-			page_soup = BeautifulSoup(page.content, "html.parser")
-
-			# Extract required fields
-			date = page_soup.select_one("#publication_date p").text.strip()
-			major = page_soup.select_one("#department p").text.strip()
-			advisor = page_soup.select_one("#advisor1 p").text.strip()
-
-			data.append({
-				"Date": date,
-				"Major": major,
-				"Advisor": advisor
-			})
-
-		except Exception as e:
-			print(f"Error processing {link}: {str(e)}")
-
-	return pl.DataFrame(data)
-
-# Usage
-df = get_dissertation_data()
-print(df)
-```
-
-```{python}
-import requests
-from bs4 import BeautifulSoup
-import polars as pl
-from urllib.parse import urljoin
-import time
-
-BASE_URL = "https://trace.tennessee.edu/utk_graddiss/"
-FIRST_PAGE = BASE_URL + "index.html"
-
-def get_all_dissertation_links():
-	links = []
-	page_num = 1
-
-	while True:
-		if page_num == 1:
-			page_url = FIRST_PAGE
-		else:
-			page_url = f"{BASE_URL}index{page_num}.html"
-
-		print(f"Scraping: {page_url}")
-		response = requests.get(page_url)
-		if response.status_code != 200:
-			break  # No more pages
-
-		soup = BeautifulSoup(response.content, "html.parser")
-		page_links = [urljoin(page_url, a["href"])
-					  for a in soup.select(".article-listing a")]
-
-		if not page_links:
-			break  # No more dissertation links found
-
-		links.extend(page_links)
-		page_num += 1
-		time.sleep(0.5)  # Be polite to the server
-
-	return links
-
-def get_dissertation_data():
-	links = get_all_dissertation_links()
-	data = []
-
-	for link in links:
-		try:
-			page = requests.get(link)
-			page_soup = BeautifulSoup(page.content, "html.parser")
-
-			date = page_soup.select_one("#publication_date p")
-			major = page_soup.select_one("#department p")
-			advisor = page_soup.select_one("#advisor1 p")
-
-			# Handle missing fields gracefully
-			date = date.text.strip() if date else ""
-			major = major.text.strip() if major else ""
-			advisor = advisor.text.strip() if advisor else ""
-
-			data.append({
-				"Date": date,
-				"Major": major,
-				"Advisor": advisor
-			})
-
-		except Exception as e:
-			print(f"Error processing {link}: {str(e)}")
-		time.sleep(0.2)  # Be polite to the server
-
-	return pl.DataFrame(data)
-
-# Usage
-df = get_dissertation_data()
-print(df)
-```
