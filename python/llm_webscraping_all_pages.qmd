@@ -1,0 +1,113 @@
+---
+title: Getting the full data
+author: Marie-Hélène Burle
+---
+
+## Getting the full data
+
+```{python}
+def get_dissertation_data(BASE_URL):
+    # Get main page and extract dissertation URLs
+    main_page = requests.get(BASE_URL)
+    soup = BeautifulSoup(main_page.content, "html.parser")
+
+    # Extract individual dissertation links
+    links = [urljoin(BASE_URL, a["href"])
+             for a in soup.select(".article-listing a")]
+
+    data = []
+
+    for link in links[:10]:  # Reduced to 10 for testing; remove slice for full 100
+        try:
+            # Get individual dissertation page
+            page = requests.get(link)
+            page_soup = BeautifulSoup(page.content, "html.parser")
+
+            # Extract required fields
+            date = page_soup.select_one("#publication_date p").text.strip()
+            major = page_soup.select_one("#department p").text.strip()
+            advisor = page_soup.select_one("#advisor1 p").text.strip()
+
+            data.append({
+                "Date": date,
+                "Major": major,
+                "Advisor": advisor
+            })
+
+        except Exception as e:
+            print(f"Error processing {link}: {str(e)}")
+
+    return pl.DataFrame(data)
+```
+
+We can verify that it still works:
+
+```{python}
+df = get_dissertation_data(BASE_URL)
+print(df)
+```
+
+:::{.note}
+
+Note that we now have to pass the argument `BASE_URL` to the function.
+
+:::
+
+Let's look at the `range` function to understand how it works:
+
+```{python}
+for i in range(5):
+    print(i)
+```
+
+`range(5)` is the same as `range(0, 5)`. It goes from `0`—since Python starts indexing at `0`—and that left boundary is included to `4` because the right boundary (`5` here) is excluded.
+
+So `range(116)` would go from `0` to `115`. You could verify it with:
+
+```{.python}
+for i in range(116):
+    print(i)
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+- We want numbers from `2` to `117`, so what arguments do we need to pass to the `range` function? \
+- How can you test it?
+
+:::
+
+Applied to the series of webpages, that would be:
+
+```{.python}
+for i in range(2, 118):
+    print(f"https://trace.tennessee.edu/utk_graddiss/index.{i}.html")
+```
+
+This is good, so let's create a list with those webpages.
+
+First, we initialize an empty list of the proper length (this makes the code much more efficient than forcing Python to perform dynamic memory allocation at each iteration of the loop):
+
+```{python}
+url_list = [None] * 116
+```
+
+Now we can fill in the list with the URLs with a loop:
+
+```{python}
+for i in range(2, 118):
+    url_list[i] = f"https://trace.tennessee.edu/utk_graddiss/index.{i}.html"
+```
+
+Let's print our list to make sure that all is good:
+
+```{python}
+print(url_list)
+```
+
+
