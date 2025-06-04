@@ -59,25 +59,35 @@ Web scraping is a general term for a set of tools which allow for the extraction
 
 While most of the data on the internet is publicly available, it is illegal to scrape some sites and you should always look into the policy of a site before attempting to scrape it. Some sites will also block you if you submit too many requests in a short amount of time, so remember to scrape responsibly.
 
-## Example for this workshop
+## Webscraping example
 
 We will use [a website](https://trace.tennessee.edu/utk_graddiss/index.html) from the [University of Tennessee](https://www.utk.edu/) containing a database of PhD theses from that university which uses the [Digital Commons Network](https://network.bepress.com/).
 
 Our goal is to scrape data from this site to produce a dataframe with the date, major, and advisor for each dissertation. Scraping any other site which uses the [Digital Commons Network](https://network.bepress.com/) can be done following a similar workflow.
 
-### Let's look at the site
+### Site exploration
 
 First of all, let's have a close look at the website we want to scrape to think carefully about what we want to do. Before starting to write code, it is always a good idea to think about what you are trying to achieve with your code.
 
 To see how the website is built, you can open the web inspector. Most browsers allow to right-click on an element and select "inspect" in the menu. Alternatively, Chrome opens the web inspector with F12 and Firefox and Edge with Ctrl+Shift+I (Windows, Linux) or Command+Option+I (macOS).
 
-To create a dataframe with the data for all the dissertations on that first page, we need to do two things:
+To create a dataframe with the data for all the dissertations on the first page, we need to do two things:
 
 - Step 1: from the [dissertations database first page](https://trace.tennessee.edu/utk_graddiss/index.html), we want to scrape the list of URLs for the dissertation pages.
 
 - Step 2: once we have the URLs, we want to scrape those pages too to get the date, major, and advisor for each dissertation.
 
-### Let's try to scrape the data
+:::{.note}
+
+Note that we are only scraping the first page (with the 100 most recent theses) to keep things simple. If you wanted to get all the data from the site, you would have to create a loop and repeat this over all 117 pages of the site.
+
+:::
+
+### LLM code
+
+Let's use an LLM to get us started.
+
+Here is the prompt I used:
 
 :::{.llm}
 
@@ -97,15 +107,15 @@ from bs4 import BeautifulSoup
 import polars as pl
 from urllib.parse import urljoin
 
-BASE_URL = "https://trace.tennessee.edu/utk_graddiss/index.html"
+base_url = "https://trace.tennessee.edu/utk_graddiss/index.html"
 
 def get_dissertation_data():
 	# Get main page and extract dissertation URLs
-	main_page = requests.get(BASE_URL)
+	main_page = requests.get(base_url)
 	soup = BeautifulSoup(main_page.content, "html.parser")
 
 	# Extract individual dissertation links
-	links = [urljoin(BASE_URL, a["href"])
+	links = [urljoin(base_url, a["href"])
 			 for a in soup.select(".article-listing a")]
 
 	data = []
@@ -137,6 +147,12 @@ df = get_dissertation_data()
 print(df)
 ```
 
+:::{.note}
+
+The package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/)—loaded in Python as `bs4`—transforms (parses) HTML data into a parse tree, which makes extracting information easier.
+
+:::
+
 :::{.exo}
 
 :::{.yourturn}
@@ -147,18 +163,131 @@ Your turn:
 
 - Did it work? Go to the site and verify the data.
 
-- What is the problem?
+- What is the problem? Can you fix it?
 
 :::
 
-:::{.llm}
+### Code improvements
 
-Write Python code to scrape the following website: https://scholarworks.utrgv.edu/do/discipline_browser/articles?discipline_key=438.
+LLMs can be very helpful in getting you started, but you will often have to tweak the code to improve it—even when it works.
 
-As the end result, I want to have a polars dataframe with the following columns:
+We now have code that works, but its downside is that we created a function that can only work on one webpage... so it is of limited use. If, for instance, we wanted to apply that function to the second page of the site (<https://trace.tennessee.edu/utk_graddiss/index.2.html>), we can't because it doesn't accept any argument. The URL of the site is *inside* the function. This is called [hard coding](https://en.wikipedia.org/wiki/Hard_coding) and it isn't a good coding practice.
 
-- The defense date
-- The department
-- Both committee members
+A better approach would be to create a function accepting the URL of the page we want to scrape as argument. It is actually really easy to modify the code to get this:
+
+```{python}
+def get_dissertation_data(base_url):
+    # Get main page and extract dissertation URLs
+    main_page = requests.get(base_url)
+    soup = BeautifulSoup(main_page.content, "html.parser")
+
+    # Extract individual dissertation links
+    links = [urljoin(base_url, a["href"])
+             for a in soup.select(".article-listing a")]
+
+    data = []
+
+    for link in links:
+        try:
+            # Get individual dissertation page
+            page = requests.get(link)
+            page_soup = BeautifulSoup(page.content, "html.parser")
+
+            # Extract required fields
+            date = page_soup.select_one("#publication_date p").text.strip()
+            major = page_soup.select_one("#department p").text.strip()
+            advisor = page_soup.select_one("#advisor1 p").text.strip()
+
+            data.append({
+                "Date": date,
+                "Major": major,
+                "Advisor": advisor
+            })
+
+        except Exception as e:
+            print(f"Error processing {link}: {str(e)}")
+
+    return pl.DataFrame(data)
+```
+
+Now, if we want to use the function on that first page, we need to pass the URL as an argument:
+
+```{python}
+df = get_dissertation_data(base_url)
+```
+
+You can verify that the code still works:
+
+```{python}
+print(df)
+```
+
+The code looks very similar, but it now allows us to scrape the data from any page of the website.
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
 
 :::
+
+Scrape the data from the sixth page (<https://trace.tennessee.edu/utk_graddiss/index.6.html>).
+
+:::
+
+Another improvement that we can make to the code is to add a little delay between requests because some sites will block requests if they are too frequent.
+
+For this we need to load the `time` module:
+
+```{python}
+import time
+```
+
+Then add `time.sleep(0.1)` in the loop:
+
+```{.python}
+def get_dissertation_data(base_url):
+    # Get main page and extract dissertation URLs
+    main_page = requests.get(base_url)
+    soup = BeautifulSoup(main_page.content, "html.parser")
+
+    # Extract individual dissertation links
+    links = [urljoin(base_url, a["href"])
+             for a in soup.select(".article-listing a")]
+
+    data = []
+
+    for link in links:
+        try:
+            # Get individual dissertation page
+            page = requests.get(link)
+            page_soup = BeautifulSoup(page.content, "html.parser")
+
+            # Extract required fields
+            date = page_soup.select_one("#publication_date p").text.strip()
+            major = page_soup.select_one("#department p").text.strip()
+            advisor = page_soup.select_one("#advisor1 p").text.strip()
+
+            data.append({
+                "Date": date,
+                "Major": major,
+                "Advisor": advisor
+
+            # Add 0.1 s between each request to the site
+            time.sleep(0.1)
+            })
+
+        except Exception as e:
+            print(f"Error processing {link}: {str(e)}")
+
+    return pl.DataFrame(data)
+```
+
+### Save data to file
+
+If you want to export the data and save it to a CSV file, you can do this:
+
+```{.python}
+df.write_csv("dissertations_data.csv")
+```
