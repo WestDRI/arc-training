@@ -495,10 +495,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#html-and-css" id="toc-html-and-css" class="nav-link" data-scroll-target="#html-and-css">HTML and CSS</a></li>
   <li><a href="#web-scrapping" id="toc-web-scrapping" class="nav-link" data-scroll-target="#web-scrapping">Web scrapping</a></li>
   </ul></li>
-  <li><a href="#example-for-this-workshop" id="toc-example-for-this-workshop" class="nav-link" data-scroll-target="#example-for-this-workshop">Example for this workshop</a>
+  <li><a href="#webscraping-example" id="toc-webscraping-example" class="nav-link" data-scroll-target="#webscraping-example">Webscraping example</a>
   <ul>
-  <li><a href="#lets-look-at-the-site" id="toc-lets-look-at-the-site" class="nav-link" data-scroll-target="#lets-look-at-the-site">Let’s look at the site</a></li>
-  <li><a href="#lets-try-to-scrape-the-data" id="toc-lets-try-to-scrape-the-data" class="nav-link" data-scroll-target="#lets-try-to-scrape-the-data">Let’s try to scrape the data</a></li>
+  <li><a href="#site-exploration" id="toc-site-exploration" class="nav-link" data-scroll-target="#site-exploration">Site exploration</a></li>
+  <li><a href="#llm-code" id="toc-llm-code" class="nav-link" data-scroll-target="#llm-code">LLM code</a></li>
+  <li><a href="#code-improvements" id="toc-code-improvements" class="nav-link" data-scroll-target="#code-improvements">Code improvements</a></li>
+  <li><a href="#save-data-to-file" id="toc-save-data-to-file" class="nav-link" data-scroll-target="#save-data-to-file">Save data to file</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -568,22 +570,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>While most of the data on the internet is publicly available, it is illegal to scrape some sites and you should always look into the policy of a site before attempting to scrape it. Some sites will also block you if you submit too many requests in a short amount of time, so remember to scrape responsibly.</p>
 </section>
 </section>
-<section id="example-for-this-workshop" class="level2">
-<h2 class="anchored" data-anchor-id="example-for-this-workshop">Example for this workshop</h2>
+<section id="webscraping-example" class="level2">
+<h2 class="anchored" data-anchor-id="webscraping-example">Webscraping example</h2>
 <p>We will use <a href="https://trace.tennessee.edu/utk_graddiss/index.html">a website</a> from the <a href="https://www.utk.edu/">University of Tennessee</a> containing a database of PhD theses from that university which uses the <a href="https://network.bepress.com/">Digital Commons Network</a>.</p>
 <p>Our goal is to scrape data from this site to produce a dataframe with the date, major, and advisor for each dissertation. Scraping any other site which uses the <a href="https://network.bepress.com/">Digital Commons Network</a> can be done following a similar workflow.</p>
-<section id="lets-look-at-the-site" class="level3">
-<h3 class="anchored" data-anchor-id="lets-look-at-the-site">Let’s look at the site</h3>
+<section id="site-exploration" class="level3">
+<h3 class="anchored" data-anchor-id="site-exploration">Site exploration</h3>
 <p>First of all, let’s have a close look at the website we want to scrape to think carefully about what we want to do. Before starting to write code, it is always a good idea to think about what you are trying to achieve with your code.</p>
 <p>To see how the website is built, you can open the web inspector. Most browsers allow to right-click on an element and select “inspect” in the menu. Alternatively, Chrome opens the web inspector with F12 and Firefox and Edge with Ctrl+Shift+I (Windows, Linux) or Command+Option+I (macOS).</p>
-<p>To create a dataframe with the data for all the dissertations on that first page, we need to do two things:</p>
+<p>To create a dataframe with the data for all the dissertations on the first page, we need to do two things:</p>
 <ul>
 <li><p>Step 1: from the <a href="https://trace.tennessee.edu/utk_graddiss/index.html">dissertations database first page</a>, we want to scrape the list of URLs for the dissertation pages.</p></li>
 <li><p>Step 2: once we have the URLs, we want to scrape those pages too to get the date, major, and advisor for each dissertation.</p></li>
 </ul>
+<div class="note">
+<p>Note that we are only scraping the first page (with the 100 most recent theses) to keep things simple. If you wanted to get all the data from the site, you would have to create a loop and repeat this over all 117 pages of the site.</p>
+</div>
 </section>
-<section id="lets-try-to-scrape-the-data" class="level3">
-<h3 class="anchored" data-anchor-id="lets-try-to-scrape-the-data">Let’s try to scrape the data</h3>
+<section id="llm-code" class="level3">
+<h3 class="anchored" data-anchor-id="llm-code">LLM code</h3>
+<p>Let’s use an LLM to get us started.</p>
+<p>Here is the prompt I used:</p>
 <div class="llm">
 <p>Write Python code to scrape the following website: https://trace.tennessee.edu/utk_graddiss/index.html.</p>
 <p>As the end result, I want to have a polars dataframe with the following columns:</p>
@@ -593,21 +600,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Advisor (PI)</li>
 </ul>
 </div>
-<div id="2075ac41" class="cell" data-execution_count="1">
+<div id="67cdd041" class="cell" data-execution_count="2">
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> requests</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> bs4 <span class="im">import</span> BeautifulSoup</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> urllib.parse <span class="im">import</span> urljoin</span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>BASE_URL <span class="op">=</span> <span class="st">"https://trace.tennessee.edu/utk_graddiss/index.html"</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>base_url <span class="op">=</span> <span class="st">"https://trace.tennessee.edu/utk_graddiss/index.html"</span></span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_dissertation_data():</span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get main page and extract dissertation URLs</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    main_page <span class="op">=</span> requests.get(BASE_URL)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    main_page <span class="op">=</span> requests.get(base_url)</span>
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    soup <span class="op">=</span> BeautifulSoup(main_page.content, <span class="st">"html.parser"</span>)</span>
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Extract individual dissertation links</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    links <span class="op">=</span> [urljoin(BASE_URL, a[<span class="st">"href"</span>])</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    links <span class="op">=</span> [urljoin(base_url, a[<span class="st">"href"</span>])</span>
 <span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>             <span class="cf">for</span> a <span class="kw">in</span> soup.select(<span class="st">".article-listing a"</span>)]</span>
 <span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    data <span class="op">=</span> []</span>
@@ -657,24 +664,139 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 └─────────┴─────────────────────────────────┴────────────────────────┘</code></pre>
 </div>
 </div>
+<div class="note">
+<p>The package <a href="https://beautiful-soup-4.readthedocs.io/en/latest/">Beautiful Soup</a>—loaded in Python as <code>bs4</code>—transforms (parses) HTML data into a parse tree, which makes extracting information easier.</p>
+</div>
 <div class="exo">
 <div class="yourturn">
 <p>Your turn:</p>
 </div>
 <ul>
 <li><p>Did it work? Go to the site and verify the data.</p></li>
-<li><p>What is the problem?</p></li>
+<li><p>What is the problem? Can you fix it?</p></li>
 </ul>
 </div>
-<div class="llm">
-<p>Write Python code to scrape the following website: https://scholarworks.utrgv.edu/do/discipline_browser/articles?discipline_key=438.</p>
-<p>As the end result, I want to have a polars dataframe with the following columns:</p>
-<ul>
-<li>The defense date</li>
-<li>The department</li>
-<li>Both committee members</li>
-</ul>
+</section>
+<section id="code-improvements" class="level3">
+<h3 class="anchored" data-anchor-id="code-improvements">Code improvements</h3>
+<p>LLMs can be very helpful in getting you started, but you will often have to tweak the code to improve it—even when it works.</p>
+<p>We now have code that works, but its downside is that we created a function that can only work on one webpage… so it is of limited use. If, for instance, we wanted to apply that function to the second page of the site (<a href="https://trace.tennessee.edu/utk_graddiss/index.2.html" class="uri">https://trace.tennessee.edu/utk_graddiss/index.2.html</a>), we can’t because it doesn’t accept any argument. The URL of the site is <em>inside</em> the function. This is called <a href="https://en.wikipedia.org/wiki/Hard_coding">hard coding</a> and it isn’t a good coding practice.</p>
+<p>A better approach would be to create a function accepting the URL of the page we want to scrape as argument. It is actually really easy to modify the code to get this:</p>
+<div id="2dea7a8e" class="cell" data-execution_count="3">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_dissertation_data(base_url):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get main page and extract dissertation URLs</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    main_page <span class="op">=</span> requests.get(base_url)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    soup <span class="op">=</span> BeautifulSoup(main_page.content, <span class="st">"html.parser"</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Extract individual dissertation links</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    links <span class="op">=</span> [urljoin(base_url, a[<span class="st">"href"</span>])</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>             <span class="cf">for</span> a <span class="kw">in</span> soup.select(<span class="st">".article-listing a"</span>)]</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    data <span class="op">=</span> []</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> link <span class="kw">in</span> links:</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Get individual dissertation page</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>            page <span class="op">=</span> requests.get(link)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>            page_soup <span class="op">=</span> BeautifulSoup(page.content, <span class="st">"html.parser"</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Extract required fields</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>            date <span class="op">=</span> page_soup.select_one(<span class="st">"#publication_date p"</span>).text.strip()</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>            major <span class="op">=</span> page_soup.select_one(<span class="st">"#department p"</span>).text.strip()</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>            advisor <span class="op">=</span> page_soup.select_one(<span class="st">"#advisor1 p"</span>).text.strip()</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>            data.append({</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>                <span class="st">"Date"</span>: date,</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>                <span class="st">"Major"</span>: major,</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>                <span class="st">"Advisor"</span>: advisor</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"Error processing </span><span class="sc">{</span>link<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span><span class="bu">str</span>(e)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pl.DataFrame(data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
+<p>Now, if we want to use the function on that first page, we need to pass the URL as an argument:</p>
+<div id="d482832d" class="cell" data-execution_count="4">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> get_dissertation_data(base_url)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>You can verify that the code still works:</p>
+<div id="37a9fb04" class="cell" data-execution_count="5">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(df)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>shape: (100, 3)
+┌─────────┬─────────────────────────────────┬────────────────────────┐
+│ Date    ┆ Major                           ┆ Advisor                │
+│ ---     ┆ ---                             ┆ ---                    │
+│ str     ┆ str                             ┆ str                    │
+╞═════════╪═════════════════════════════════╪════════════════════════╡
+│ 8-2024  ┆ History                         ┆ Jay Rubenstein         │
+│ 12-2024 ┆ Biochemistry and Cellular and … ┆ Dr. Rebecca A. Prosser │
+│ 5-2024  ┆ Business Administration         ┆ Larry A. Fauver        │
+│ 8-2024  ┆ Electrical Engineering          ┆ Dan Wilson             │
+│ 12-2024 ┆ Mechanical Engineering          ┆ Prashant Singh         │
+│ …       ┆ …                               ┆ …                      │
+│ 5-2024  ┆ Mechanical Engineering          ┆ Feng-Yuan Zhang        │
+│ 8-2024  ┆ Computer Science                ┆ Scott Ruoti            │
+│ 8-2024  ┆ Mechanical Engineering          ┆ Tony L. Schmitz        │
+│ 8-2024  ┆ Microbiology                    ┆ Shigetoshi Eda         │
+│ 8-2024  ┆ Energy Science and Engineering  ┆ David C. Donovan       │
+└─────────┴─────────────────────────────────┴────────────────────────┘</code></pre>
+</div>
+</div>
+<p>The code looks very similar, but it now allows us to scrape the data from any page of the website.</p>
+<div class="exo">
+<div class="yourturn">
+<p>Your turn:</p>
+</div>
+<p>Scrape the data from the sixth page (<a href="https://trace.tennessee.edu/utk_graddiss/index.6.html" class="uri">https://trace.tennessee.edu/utk_graddiss/index.6.html</a>).</p>
+</div>
+<p>Another improvement that we can make to the code is to add a little delay between requests because some sites will block requests if they are too frequent.</p>
+<p>For this we need to load the <code>time</code> module:</p>
+<div id="91700d50" class="cell" data-execution_count="6">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Then add <code>time.sleep(0.1)</code> in the loop:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_dissertation_data(base_url):</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get main page and extract dissertation URLs</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    main_page <span class="op">=</span> requests.get(base_url)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    soup <span class="op">=</span> BeautifulSoup(main_page.content, <span class="st">"html.parser"</span>)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Extract individual dissertation links</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    links <span class="op">=</span> [urljoin(base_url, a[<span class="st">"href"</span>])</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>             <span class="cf">for</span> a <span class="kw">in</span> soup.select(<span class="st">".article-listing a"</span>)]</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    data <span class="op">=</span> []</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> link <span class="kw">in</span> links:</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Get individual dissertation page</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>            page <span class="op">=</span> requests.get(link)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>            page_soup <span class="op">=</span> BeautifulSoup(page.content, <span class="st">"html.parser"</span>)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Extract required fields</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>            date <span class="op">=</span> page_soup.select_one(<span class="st">"#publication_date p"</span>).text.strip()</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>            major <span class="op">=</span> page_soup.select_one(<span class="st">"#department p"</span>).text.strip()</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>            advisor <span class="op">=</span> page_soup.select_one(<span class="st">"#advisor1 p"</span>).text.strip()</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>            data.append({</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>                <span class="st">"Date"</span>: date,</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>                <span class="st">"Major"</span>: major,</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>                <span class="st">"Advisor"</span>: advisor</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Add 0.1 s between each request to the site</span></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>            time.sleep(<span class="fl">0.1</span>)</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"Error processing </span><span class="sc">{</span>link<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span><span class="bu">str</span>(e)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pl.DataFrame(data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="save-data-to-file" class="level3">
+<h3 class="anchored" data-anchor-id="save-data-to-file">Save data to file</h3>
+<p>If you want to export the data and save it to a CSV file, you can do this:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>df.write_csv(<span class="st">"dissertations_data.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
