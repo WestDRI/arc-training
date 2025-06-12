@@ -21,6 +21,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -367,12 +402,14 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#using-a-token" id="toc-using-a-token" class="nav-link" data-scroll-target="#using-a-token">Using a token</a></li>
   <li><a href="#using-ssh" id="toc-using-ssh" class="nav-link" data-scroll-target="#using-ssh">Using SSH</a>
   <ul>
+  <li><a href="#generate-ssh-key-pair" id="toc-generate-ssh-key-pair" class="nav-link" data-scroll-target="#generate-ssh-key-pair">Generate SSH key pair</a></li>
   <li><a href="#ssh-agent" id="toc-ssh-agent" class="nav-link" data-scroll-target="#ssh-agent">SSH agent</a>
   <ul class="collapse">
-  <li><a href="#linux-and-macos" id="toc-linux-and-macos" class="nav-link" data-scroll-target="#linux-and-macos">Linux and macOS</a></li>
+  <li><a href="#linux" id="toc-linux" class="nav-link" data-scroll-target="#linux">Linux</a></li>
   <li><a href="#macos" id="toc-macos" class="nav-link" data-scroll-target="#macos">macOS</a></li>
   <li><a href="#windows" id="toc-windows" class="nav-link" data-scroll-target="#windows">Windows</a></li>
   </ul></li>
+  <li><a href="#add-the-public-key-to-github" id="toc-add-the-public-key-to-github" class="nav-link" data-scroll-target="#add-the-public-key-to-github">Add the public key to GitHub</a></li>
   </ul></li>
   </ul></li>
   </ul>
@@ -450,17 +487,24 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="using-ssh" class="level3">
 <h3 class="anchored" data-anchor-id="using-ssh">Using SSH</h3>
-<p><a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh">To use SSH</a>, you first need to <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#generating-a-new-ssh-key">generate an SSH key pair</a>, then <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account#adding-a-new-ssh-key-to-your-account">add the public key to your GitHub account</a>.</p>
-<section id="ssh-agent" class="level4">
-<h4 class="anchored" data-anchor-id="ssh-agent">SSH agent</h4>
 <p>An SSH key pair is a set of 2 files: the private key and the public key. You keep the private key securely on your machine—think of it as a key to open a lock—and you upload the public key to GitHub (or other places such as the Alliance clusters)—think of that as a lock.</p>
 <p>Your private key allows to “open the lock” if it matches the public key.</p>
-<p>People can see your public key, but they can’t generate the private key from it. Since you are the only one having the matching private key, you are the only one able to open that lock and log in securely … unless someone steals your private key (if they get access to your computer).</p>
-<p>To add a level of safety, you can set a passphrase when you generate an SSH key pair. Now, to open that lock (public key), not only you need to have the matching private key, but you also need to enter the passphrase.</p>
-<p>But that means that you will have to enter your passphrase each time you push and pull to GitHub, which is not much more convenient than using tokens!</p>
-<p>The trick here is to use an SSH agent to cache your passphrase and not have to type it each time.</p>
-<section id="linux-and-macos" class="level5">
-<h5 class="anchored" data-anchor-id="linux-and-macos">Linux and macOS</h5>
+<p>People can see your public key, but they can’t generate the private key from it. Since you are the only one having the matching private key, you are the only one able to open that lock and log in securely—unless someone steals your private key (if they get access to your computer).</p>
+<p>To add a level of safety, you can set a passphrase when you generate an SSH key pair. That way, to open that lock (public key), not only you need to have the matching private key, but you also need to enter the passphrase.</p>
+<section id="generate-ssh-key-pair" class="level4">
+<h4 class="anchored" data-anchor-id="generate-ssh-key-pair">Generate SSH key pair</h4>
+<p>From Git Bash (Windows), Terminal (macOS), or your usual terminal emulator (Linux), run:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh-keygen</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<ul>
+<li><p>When prompted to <code>Enter a file in which to save the key</code>, you can press <code>Enter</code> to accept the default file name and location. If you have already created SSH key pairs, <code>ssh-keygen</code> may ask to overwrite another pair. In that case, give your new key a custom name.</p></li>
+<li><p>When prompted to enter a passphrase, do so, then when prompted to enter it again, do so again.</p></li>
+</ul>
+</section>
+<section id="ssh-agent" class="level4">
+<h4 class="anchored" data-anchor-id="ssh-agent">SSH agent</h4>
+<p>If you do not want to enter the passphrase of your SSH key pair each time you push to GitHub, you can use an SSH agent to cache your passphrase.</p>
+<section id="linux" class="level5">
+<h5 class="anchored" data-anchor-id="linux">Linux</h5>
 <p>For those using Linux, you can refer to <a href="https://wiki.archlinux.org/title/SSH_keys#SSH_agents">the Arch Linux wiki section on SSH agent</a>.</p>
 </section>
 <section id="macos" class="level5">
@@ -470,12 +514,33 @@ ul.task-list li input[type="checkbox"] {
 <section id="windows" class="level5">
 <h5 class="anchored" data-anchor-id="windows">Windows</h5>
 <p>On Windows, you first <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent">add your SSH key to the SSH agent</a>, then you can <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/working-with-ssh-key-passphrases#auto-launching-ssh-agent-on-git-for-windows">set your SSH agent to launch automatically when you open Git Bash</a>.</p>
+</section>
+</section>
+<section id="add-the-public-key-to-github" class="level4">
+<h4 class="anchored" data-anchor-id="add-the-public-key-to-github">Add the public key to GitHub</h4>
+<p>Here are the steps:</p>
+<ul>
+<li>Copy the content of your public key.</li>
+</ul>
+<div class="notenoit">
+<p>To do this, you can <code>cat</code> its content to the terminal with (modify the file name if you used a custom name):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> ~/.ssh/id_rsa.pub</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Select the output and copy it.</p>
+</div>
+<ul>
+<li>Go to your GitHub account, click your profile photo in the top right corner, then click <span class="codelike">Settings</span>.</li>
+<li>In the <span class="codelike">Access</span> section of the sidebar, click <span class="codelike">SSH and GPG keys</span>.</li>
+<li>Click <span class="codelike">New SSH key</span>.</li>
+<li>In the <span class="codelike">Title</span> field, add a description for the key.</li>
+<li>Select <span class="codelike">authentication</span> as the type of key.</li>
+<li>In the <span class="codelike">Key</span> field, paste your public key.</li>
+<li>Click <span class="codelike">Add SSH key</span>.</li>
+</ul>
 <div class="info">
 <p>If you are having issue setting up SSH for GitHub, you can <a href="#using-a-token">use a token</a> today and look into this later.</p>
 </div>
 
 
-</section>
 </section>
 </section>
 </section>
