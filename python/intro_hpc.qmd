@@ -1,17 +1,17 @@
 ---
-title: Python on supercomputers
+title: Python at scale
 author: Marie-Hélène Burle
 ---
 
 :::{.def}
 
-This section gives a brief introduction on how to use Python on the [Digital Research Alliance of Canada](https://alliancecan.ca/en) supercomputers.
+This section gives a brief introduction on how to use Python efficiently at scale on the [Digital Research Alliance of Canada](https://alliancecan.ca/en) supercomputers.
 
 :::
 
-## Interactive sessions for HPC
+## The problem with Jupyter
 
-When you launch a Jupyter session from a JupyterHub, you are running a Slurm job on a compute node. If you want to play for 8 hours in Jupyter, you are requesting an 8 hour job. Now, most of the time you spend on Jupyter is spent typing, running bits and pieces of code, or doing nothing at all. If you ask for GPUs, many CPUs, and lots of RAM, all of it will remain idle most of the time. This is a suboptimal use of resources.
+When you launch a Jupyter session from a JupyterHub, you are running a Slurm job on compute nodes. If you want to play for 8 hours in Jupyter, you are requesting an 8 hour job. Now, most of the time you spend on Jupyter is spent typing, thinking, running bits and pieces of code, or doing nothing at all. If you ask for GPUs, many CPUs, and lots of RAM, all of it will remain idle most of the time. This is a suboptimal use of resources.
 
 In addition, if you ask for lots of resources for a long time, you will have to wait for a while before they get allocated to you.
 
@@ -19,127 +19,195 @@ Lastly, you will go through your allocations quickly.
 
 All of this applies equally for interactive sessions launched from an SSH session with `salloc`.
 
+Ideally, you want to ensure that heavy duty resources that you request are actually put to use to run your heavy calculations and do not seat idle.
+
 ## A better approach
 
-A more efficient strategy is to develop and test your code with small samples, few iterations, etc. in an interactive job (from an SSH session in the cluster with `salloc`), on your own computer, or in Jupyter. Once you are confident that your code works, launch an `sbatch` job from an SSH session in the cluster to run the code as a script on all your data. This ensures that heavy duty resources that you requested are actually put to use to run your heavy calculations and not seating idle while you are thinking, typing, etc.
+Below is what the workflow looks like.
 
-## Logging in the cluster
+### Prototype your code
 
-Open a terminal emulator:
+Develop and test your Python code interactively to take advantage of the fact that Python is an interpreted language. Do this with little data, few samples, few iterations, and any other method you can use to make the code run faster. Use your own machine, a small interactive job in the cluster with `salloc` using IPython, or a small JupyterHub session.
 
-Windows users: &emsp;launch [MobaXTerm](https://mobaxterm.mobatek.net/). \
-macOS users: &emsp;&emsp;launch Terminal. \
-Linux users: &emsp;&emsp;&ensp;&nbsp;launch xterm or the terminal emulator of your choice.
+Once you are confident that your code works, move on to the next steps.
 
-Then access the cluster through secure shell:
+### SSH connection to a cluster
+
+You will need the username and password that you already used to access JupyterHub. In addition, you will now need a hostname that we will give you.
+
+#### Run the ssh command
+
+##### &nbsp;•&nbsp; Linux and macOS users
+
+Linux users: &ensp;&ensp;open the terminal emulator of your choice.\
+macOS users: &nbsp;&nbsp;open "Terminal".
+
+Then type:
 
 ```{.bash}
-$ ssh <username>@<hostname>    # enter password
+ssh userxx@hostname
 ```
 
-## Accessing Python
+and press `Enter`.
+
+:::{.note}
+
+- Replace `userxx` by your username (e.g. `user09`).
+- Replace `hostname` by the hostname we will give you the day of the workshop.
+
+:::
+
+When asked:
+
+> Are you sure you want to continue connecting (yes/no/[fingerprint])?
+
+Answer: "yes".
+
+##### &nbsp;•&nbsp; Windows users
+
+We suggest using [the free version of MobaXterm](https://mobaxterm.mobatek.net/download-home-edition.html), a software that comes with a terminal emulator and a GUI interface for SSH sessions.
+
+Here is how to install MobaXterm:
+
+- download the "Installer edition" to your computer (green button to the right),
+- unzip the file,
+- double-click on the `.msi` file to launch the installation.
+
+Here is how to log in with MobaXterm:
+
+- open MobaXterm,
+- click on [Session]{.codelike} (top left corner),
+- click on [SSH]{.codelike} (top left corner),
+- fill in the [Remote host *]{.codelike} box with the cluster hostname we gave you,
+- tick the box [Specify username]{.codelike},
+- fill in the box with the username you selected (e.g. `user09`),
+- press [OK]{.codelike},
+- when asked `Are you sure you want to continue connecting (yes/no/[fingerprint])?`, answer: "yes".
+
+:::{.note}
+
+[Here](https://mobaxterm.mobatek.net/demo.html) is a live demo.
+
+:::
+
+#### Enter the password
+
+When prompted, enter the password we gave you.
+
+[You will not see anything happen as you type the password. This is normal and it is working, so keep on typing the password.]{.emph}
+
+:::{.note}
+
+This is called blind typing and is a Linux safety feature. It can be unsettling at first not to get any feed-back while typing as it really looks like it is not working. Type slowly and make sure not to make typos.
+
+:::
+
+Then press `Enter`.
+
+You are now logged in and your prompt should look like the following (with your actual username):
+
+```
+[userxx@login1 ~]$
+```
+
+#### Troubleshooting
+
+Problems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.
+
+### Load a Python module
 
 This is done with the [Lmod](https://github.com/TACC/Lmod) tool through the [module](https://docs.computecanada.ca/wiki/Utiliser_des_modules/en) command. You can find the full documentation [here](https://lmod.readthedocs.io/en/latest/010_user.html) and below are the subcommands you will need:
 
 ```{.bash}
 # get help on the module command
-$ module help
-$ module --help
-$ module -h
+module help
+module --help
+module -h
 
 # list modules that are already loaded
-$ module list
+module list
 
 # see which modules are available for Python
-$ module spider python
+module spider python
 
-# see how to load Python 3.10.2
-$ module spider python/3.10.2
+# see how to load Python 3.13.2
+module spider python/3.13.2
 
-# load Python 3.10.2 with the required gcc module first
-# (the order is important)
-$ module load gcc/7.3.0 python/3.10.2
+# to load Python 3.13.2, you need StdEnv/2023
+# but it is loaded by default
+# you can verify with module list
+# so we can load our Python module directly
+module load python/3.13.2
 
 # you can see that we now have Python 3.10.2 loaded
-$ module list
+module list
+
+# verify the Python version
+python --version
 ```
 
-## Copying files to the cluster
+### Copy files to the cluster
 
-We will create a `python_workshop` directory in `~/scratch`, then copy our Python script in it.
-
-```{.bash}
-$ mkdir ~/scratch/python_job
-```
-
-Open a new terminal window and from your local terminal (make sure that you are not on the remote terminal by looking at the bash prompt) run:
+If you need to copy files to the cluster, open a new terminal window on your machine and **from your local terminal** (make sure that you are not on the remote terminal by looking at the bash prompt) run:
 
 ```{.bash}
-$ scp /local/path/to/sort.jl <username>@<hostname>:scratch/python_job
-$ scp /local/path/to/psort.jl <username>@<hostname>:scratch/python_job
+scp /local/path/to/file <username>@<hostname>:path/in/cluster
 
 # enter password
 ```
 
-## Job scripts
+For those using MobaXTerm, you can also drag and drop files in the GUI.
 
-We will not run an interactive session with Python on the cluster: we already have Python scripts ready to run. All we need to do is to write job scripts to submit to Slurm, the job scheduler used by the Alliance clusters.
+### Create the virtual env
 
-We will create 2 scripts: one to run Python on one core and one on as many cores as are available.
+```{.bash}
+python -m venv ~/env
+source ~/env/bin/activate
+python -m pip install --upgrade --no-index pip
+python -m pip install --no-index <package>
+```
 
-:::{.exo}
+### Launch a job
 
-:::{.yourturn}
+Now you need to write a job script for the Slurm scheduler.
 
-Your turn:
+The [Alliance wiki](https://docs.alliancecan.ca/wiki/Technical_documentation) is a great source of information on how to get started. The section on [running jobs](https://docs.alliancecan.ca/wiki/Running_jobs) in particular should be very useful.
+
+:::{.example}
+
+Here is an example of Slurm script:
 
 :::
-
-How many processors are there on our training cluster?
-
-:::
-
-Save your job scripts in the files `~/scratch/python_job/job_python1c.sh` and `job_python2c.sh` for one and two cores respectively.
-
-Here is what our single core Slurm script looks like:
 
 ```{.bash}
 #!/bin/bash
-#SBATCH --job-name=python1c			# job name
-#SBATCH --time=00:01:00				# max walltime 1 min
-#SBATCH --cpus-per-task=1           # number of cores
-#SBATCH --mem=1000					# max memory (default unit is megabytes)
-#SBATCH --output=python1c%j.out		# file name for the output
-#SBATCH --error=python1c%j.err		# file name for errors
-# %j gets replaced with the job number
+#SBATCH --job-name=python_run1		# job name
+#SBATCH --time=05:00:00				# max walltime 5 h
+#SBATCH --cpus-per-task=8           # number of cores
+#SBATCH --mem=9000					# max memory (default unit is megabytes)
+#SBATCH --output=python_run1%j.out	# file name for the output
+#SBATCH --error=python_run1%j.err	# file name for errors
 
-python sort.py
+# run your Python script 
+python <your-script-name>.py
 ```
 
-:::{.exo}
+:::{.note}
 
-:::{.yourturn}
-
-Your turn:
+`%j` gets replaced with the job number which is automatically generated by Slurm.
 
 :::
 
-Write the script for 2 cores.
-
-:::
-
-Now, we can submit our jobs to the cluster:
+Then, you can submit your job to the cluster:
 
 ```{.bash}
-$ cd ~/scratch/python_job
-$ sbatch job_python1c.sh
-$ sbatch job_python2c.sh
+sbatch <your-slurm-script-name>.sh
 ```
 
-And we can check their status with:
+And you can check its status with:
 
 ```{.bash}
-$ sq	  # This is an Alliance alias for `squeue -u $USER $@`
+sq	  # This is an Alliance alias for `squeue -u $USER $@`
 ```
 
 :::{.note}
@@ -149,61 +217,4 @@ $ sq	  # This is an Alliance alias for `squeue -u $USER $@`
 
 :::
 
-<!-- module avail python               # several versions available -->
-<!-- module load python/3.8.10 -->
-<!-- virtualenv --no-download astro    # install Python tools in your $HOME/astro -->
-<!-- source astro/bin/activate -->
-<!-- pip install --no-index --upgrade pip -->
-<!-- pip install --no-index numpy jupyter pandas            # all these will go into your $HOME/astro -->
-<!-- avail_wheels --name "*tensorflow_gpu*" --all_versions   # check out the available packages -->
-<!-- pip install --no-index tensorflow_gpu==2.2.0            # if needed, install a specific version -->
-<!-- ... -->
-<!-- deactivate -->
-<!-- Once created, you would use it with: -->
-
-<!-- source ~/astro/bin/activate -->
-<!-- python -->
-<!-- ... -->
-<!-- deactivate -->
-
-## Run Python on our training cluster
-
-This is not the method I recommend for this workshop, but I am adding it as this is something you might want to use if you need to run heavy computations.
-
-First, you need to load the Python module.
-
-See which Python modules are available:
-
-```{.bash}
-module spider python
-```
-
-See how to install one module:
-
-:::{.example}
-
-Example:
-
-:::
-
-```{.bash}
-module spider python/3.11.5
-```
-
-Load the required dependencies (first) and the module:
-
-```{.bash}
-module load StdEnv/2023 python/3.11.5
-```
-
-You can check that the modules were loaded with:
-
-```{.bash}
-module list
-```
-
-And verify the Python version with:
-
-```{.bash}
-python --version
-```
+If you don't get any output when you run `sq`, it means that the job has finished running.
