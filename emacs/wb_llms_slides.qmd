@@ -14,7 +14,7 @@ execute:
   echo: true
 format:
   revealjs:
-    <!-- embed-resources: true -->
+    embed-resources: true
     theme: [default, ../revealjsemacs.scss]
     logo: /img/favicon_sfudrac.png
     highlight-style: ayu
@@ -31,37 +31,105 @@ revealjs-plugins:
   - pointer
 ---
 
-## *Warning* {.center}
+## Warning {.center}
 
-I normally don't share my Emacs init code because it relies on many idiosyncratic setups that I have on my machine—key bindings in particular. Moreover, the packages READMEs give much better code snippets and are a much better place to start
+I normally don't share my Emacs init code because it relies on a remapping of the semi-colon as a `ring-map` which makes my keybindings absurd on another machine. I also use [straight.el](https://github.com/radian-software/straight.el) for packages installations and it itself [requires to be installed](https://github.com/radian-software/straight.el?tab=readme-ov-file#getting-started) first
 
-But I keep being asked for it after each webinar. So here, I am sharing it
+But I keep being asked for my code after each webinar. So this time, I am sharing it
 
-Don't copy-paste it in your init file: it would break a lot of things. Instead, use it to inspire you for potential setups (or, better still, **go to the packages READMEs instead**)
+[Don't copy-paste it in your init file: it would break your Emacs]{.emph}. Instead, use it to inspire your potential setup or, better still, **go to the packages READMEs**. They provide a much better place to start
 
 You have been warned... 🙂
 
+## Safe API key storage {.center}
+
+Your LLMs API keys, login credentials, or passwords should never appear as plain text in your init file
+
+Some packages provide mechanisms for safe storing or logging
+
+Others don't. In that case, there are multiple options. My favourites are based on [auth-source](https://www.gnu.org/software/emacs/manual/html_mono/auth.html) and [GPG](https://www.gnupg.org/)
+
+## Safe API key storage: authinfo.gpg {.center}
+
+Create a `~/.authinfo.gpg` file with your keys in the format:
+
+```{.bash}
+machine <hostname> login <username> password <password>
+```
+
+If you need a function to retrieve your key, use:
+
+```{.lisp}
+(lambda ()
+  (auth-source-pick-first-password
+    :host "<hostname>"
+    :user "<username>"))
+```
+
+If you need a string, simply use:
+
+```{.lisp}
+(auth-source-pick-first-password
+  :host "<hostname>"
+  :user "<username>")
+```
+
+## Safe API key storage: pass {.center}
+
+Use [the standard Unix password manager](https://www.gnu.org/software/emacs/manual/html_node/auth/The-Unix-password-store.html) to store your API key by running in a Unix shell:
+
+```{.bash}
+pass insert <key-name>
+# enter your API key twice when prompted
+```
+
+Function:
+
+```{.lisp}
+(lambda ()
+  (auth-source-pass-get 'secret "<key-name>"))
+```
+
+String:
+
+```{.lisp}
+(auth-source-pass-get 'secret "<key-name>")
+```
+
 # [copilot.el](https://github.com/copilot-emacs/copilot.el)
 
-[GitHub copilot](https://github.com/features/copilot) code completion
+[GitHub copilot](https://github.com/features/copilot) code completion \
+(built on top of the GitHub [copilot-language-server](https://github.com/github/copilot-language-server-release))
 
 ## Requirements {.center}
 
-- access to [GitHub copilot](https://github.com/features/copilot)
+Access to [GitHub copilot](https://github.com/features/copilot)
 
 :::{.note}
 
-There is a free tier available to everybody
-
-Pro available free for students, teachers, maintainers of popular open-source projects
-
+Free tier available to everybody \
+Pro available free for students, teachers, maintainers of popular open-source projects \
 Paid subscriptions for Pro and Pro+
 
 :::
 
-- Emacs 27+
+Emacs ≥ 27
 
-- Node.js 22+
+Node.js ≥ 22
+
+## Installation {.center}
+
+Install and load the package and dependency [with your favourite method](https://github.com/copilot-emacs/copilot.el?tab=readme-ov-file#configurations)
+
+Install the copilot server with `M-x copilot-install-server`
+
+Login to Copilot with `M-x copilot-login` and follow the instructions
+
+:::{.note}
+
+You can test the setup with `M-x copilot-diagnose`
+
+:::
 
 ## My setup (see [warning](#a-note-of-caution)) {.center}
 
@@ -71,15 +139,16 @@ Paid subscriptions for Pro and Pro+
 
 (use-package copilot
 	:straight (:host github
-			   :repo "copilot-emacs/copilot.el"
+ 			   :repo "copilot-emacs/copilot.el"
 			   :files ("dist" "*.el"))
-  :bind (("C-8" . copilot-complete)
-  :map copilot-completion-map
-  ("C-j" . copilot-accept-completion)
-  ("C-f" . copilot-accept-completion-by-word)
-  ("C-t" . copilot-accept-completion-by-line)
-  ("M-n" . copilot-next-completion)
-  ("M-p" . copilot-previous-completion)))
+	:bind (("C-8" . copilot-complete)
+		   ("; j c" . copilot-mode)
+		   :map copilot-completion-map
+		   ("C-j" . copilot-accept-completion)
+		   ("C-f" . copilot-accept-completion-by-word)
+		   ("C-t" . copilot-accept-completion-by-line)
+		   ("M-n" . copilot-next-completion)
+		   ("M-p" . copilot-previous-completion)))
 ```
 
 # [copilot-chat.el](https://github.com/chep/copilot-chat.el)
@@ -88,19 +157,37 @@ Paid subscriptions for Pro and Pro+
 
 ## Requirements {.center}
 
-- access to [GitHub copilot](https://github.com/features/copilot)
+Access to [GitHub copilot](https://github.com/features/copilot)
 
-:::{.note}
+## Functionality {.center}
 
-There is a free tier available to everybody
+Chat with a model
 
-Pro available free for students, teachers, maintainers of popular open-source projects
+:::{.notenoit}
 
-Paid subscriptions for Pro and Pro+
+Markdown or Org markup \
+Chats can be saved and restored \
+Buffers can be added or removed as context \
+Can choose model
 
 :::
 
-## Functionality {.center}
+AI pair programming
+
+:::{.notenoit}
+
+Write tests \
+Explain code/function at point/symbol at point \
+Review code \
+Document code \
+Fix code \
+Optimize code \
+Modify code \
+Customize prompts
+
+:::
+
+Generate commit messages
 
 ## My setup (see [warning](#a-note-of-caution)) {.center}
 
@@ -111,40 +198,59 @@ Paid subscriptions for Pro and Pro+
 (use-package copilot-chat
   :straight (:host github:repo "chep/copilot-chat.el" :files ("*.el"))
   :after (org markdown-mode)
-  :bind (("; C" . copilot-chat-display)
-    :map prog-mode-map				                  ; ask Copilot to:
-    ;; explain symbol under point
-    ("; p e s" . copilot-chat-explain-symbol-at-line)
-    ;; explain function under point
-    ("; p e f" . copilot-chat-explain-defun)
-    ;; explain selected code
-    ("; p e c" . copilot-chat-explain)
-    ;; review selected code
-    ("; p r c" . copilot-chat-review)
-    ;; review current buffer
-    ("; p r b" . copilot-chat-review-whole-buffer)
-    ;; document selected code
-    ("; p d c" . copilot-chat-doc)
-    ;; fix selected code
-    ("; p f c" . copilot-chat-fix)
-    ;; optimize selected code
-    ("; p o c" . copilot-chat-optimize)
-    ;; write tests for selected code
-    ("; p t c" . copilot-chat-test)
-    ;; apply a custom prompt to the function body under point
-    ;; (instruct on how to refactor the function)
-    ("; p c f" . copilot-chat-custom-prompt-function)
-    :map copilot-chat-org-prompt-mode-map
-    ("C-<return>" . copilot-chat-prompt-send)
-    :map org-mode-map
-    ("; p l" . copilot-chat-prompt-split-and-list)))
+  :bind (("; C" . copilot-chat)
+         ("; c y" . copilot-chat-yank)
+         ("; c m" . copilot-chat-set-model)
+         :map prog-mode-map
+         ;; explain symbol under point
+         ("; p e s" . copilot-chat-explain-symbol-at-line)
+         ;; explain function under point
+         ("; p e f" . copilot-chat-explain-defun)
+         ;; explain selected code
+         ("; p e c" . copilot-chat-explain)
+         ;; review selected code
+         ("; p r c" . copilot-chat-review)
+         ;; review current buffer
+         ("; p r b" . copilot-chat-review-whole-buffer)
+         ;; document selected code
+         ("; p d c" . copilot-chat-doc)
+         ;; fix selected code
+         ("; p f c" . copilot-chat-fix)
+         ;; optimize selected code
+         ("; p o c" . copilot-chat-optimize)
+         ;; write tests for selected code
+         ("; p t c" . copilot-chat-test)
+         ;; apply a custom prompt to the function body under point
+         ;; (instruct on how to refactor the function)
+         ("; p c f" . copilot-chat-custom-prompt-function)
+         :map copilot-chat-org-prompt-mode-map
+         ("C-<return>" . copilot-chat-prompt-send)
+         :map org-mode-map
+         ("; p l" . copilot-chat-prompt-split-and-list)))
 ```
 
 # [gptel](https://github.com/karthink/gptel)
 
-Access any LLM from any buffer
+Access LLMs from any buffer
 
+## Requirements {.center}
 
+API key(s) for model(s), GitHub copilot, or model(s) running locally
+
+## Functionality {.center}
+
+Chat in dedicated buffer or from any buffer
+
+:::{.notenoit}
+
+Markdown or Org markup \
+Choose model \
+Add/remove context (including media) \
+Set temperature
+
+:::
+
+[A number of packages](https://github.com/karthink/gptel?tab=readme-ov-file#packages-using-gptel) are built on top of gptel
 
 ## My setup (see [warning](#a-note-of-caution)) {.center}
 
@@ -165,7 +271,23 @@ Access any LLM from any buffer
 
 A shell to access LLMs
 
+## Requirements {.center}
 
+API key(s) for model(s) or local model(s)
+
+## Functionality {.center}
+
+Chat in an Emacs shell
+
+:::{.notenoit}
+
+Choose and swap models \
+Describe code \
+Proofread text \
+Write commits messages \
+Save/restore transcripts
+
+:::
 
 ## My setup (see [warning](#a-note-of-caution)) {.center}
 
@@ -175,33 +297,64 @@ A shell to access LLMs
   :straight (:type git :host github :repo "xenodium/shell-maker"))
 
 (use-package chatgpt-shell
-  :straight (:type git
-  		     :host github \
+  :straight (:type git :host github
 			 :repo "xenodium/chatgpt-shell"
 			 :files ("chatgpt-shell*.el"))
-  :custom
+  :init
   (setq chatgpt-shell-google-key
-    (lambda ()
-      (auth-source-pick-first-password
-	   :host "generativelanguage.googleapis.com"))))
+	(lambda ()
+	  (auth-source-pick-first-password
+	   :host "google_api_key" :user "secret")))
+  :bind ("; c s" . chatgpt-shell))
 ```
 
 # [aidermacs](https://github.com/MatthewZMD/aidermacs)
 
-[aider](https://github.com/Aider-AI/aider) in Emacs
+[aider](https://github.com/Aider-AI/aider) in Emacs \
+(forget about Cursor)
 
+## Requirements {.center}
 
+API key(s) for model(s) or local model(s)
+
+Emacs ≥ 26.1
+
+[aider](https://github.com/Aider-AI/aider)
+
+[transient](https://github.com/magit/transient)
+
+## Functionality {.center}
+
+[Ediff](https://www.gnu.org/software/emacs/manual/html_mono/ediff.html) of AI-generated changes \
+Custom prompts \
+Code/chat/help/[architect](https://aider.chat/2024/09/26/architect.html) modes \
+Integrates with [vterm](https://github.com/akermu/emacs-libvterm) \
+Auto-detects project root \
+Voice commands \
+Retrieves web content \
+Writes tests \
+Debugs code \
+Weak model for fast easy tasks \
+[TRAMP](https://www.gnu.org/software/tramp/) support \
+Easy passing of [aider options](https://aider.chat/docs/config/options.html)
 
 ## My setup (see [warning](#a-note-of-caution)) {.center}
 
 ```{.lisp}
-
+(use-package aidermacs
+  :bind (("; c a" . aidermacs-transient-menu))
+  :config
+  (setenv "GOOGLE_API_KEY" (auth-source-pick-first-password
+			    :host "google_api_key"
+			    :user "secret"))
+  :custom
+  (aidermacs-default-chat-mode 'architect)
+  (aidermacs-default-model "gemini"))
 ```
 
 ## Alternative: [aider.el](https://github.com/tninja/aider.el) {.center}
 
-[aidermacs](https://github.com/MatthewZMD/aidermacs) is a fork of [aider.el](https://github.com/tninja/aider.el)
+[aider.el](https://github.com/tninja/aider.el) is the initial project [aidermacs](https://github.com/MatthewZMD/aidermacs) was forked from
 
 - [aider.el](https://github.com/tninja/aider.el) is closer to [aider](https://github.com/Aider-AI/aider) (the original CLI tool)
 - [aidermacs](https://github.com/MatthewZMD/aidermacs) integrates more into Emacs
-
