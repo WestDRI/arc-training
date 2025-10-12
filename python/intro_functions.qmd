@@ -32,7 +32,7 @@ Let's start with the simple case in which our function does not accept any argum
 
 ```{python}
 def hello():
-    print('Hello')
+    print('Hello!')
 ```
 
 Then we call it:
@@ -55,7 +55,7 @@ Let's step this up with a function which can accept an argument:
 
 ```{python}
 def greetings(name):
-    print('Hello ' + name)
+    print('Hello ' + name + '!')
 ```
 
 This time, this works:
@@ -72,13 +72,56 @@ greetings()
 
 🙁
 
+### F-strings
+
+To be more fancy, you can use a [formatted string literal](https://docs.python.org/3/reference/lexical_analysis.html#f-strings) or f-string instead of a simple string. F-strings allow to include the expressions that are replaced by arguments to be included inside the string and to format them.
+
+To use them, you use `f` or `F` just before the string expression (without space) as in `f'This is a formatted string literal'`. Then you include the expressions that will be replaced by arguments inside the string, but in curly braces as in `f'This is a formatted string literal with an {expression}'`.
+
+:::{.example}
+
+Example:
+
+:::
+
+```{python}
+def greetings(name):
+    print(f'Hello {name}!')
+
+greetings('Marie')
+```
+
+:::{.note}
+
+Note the difference in syntax. Here, we aren't using `+` anymore as we aren't concatenating a series of strings. Instead, we create a single string which includes the expression `name` that will be replaced by the argument.
+
+:::
+
+With f-strings, you can now add formatting to the output.
+
+:::{.example}
+
+Example:
+
+:::
+
+```{python}
+# Add quotes around the expression
+def greetings(name):
+    print(f'Hello {name!r}!')
+
+greetings('Marie')
+```
+
+You can explore more tricks that can be done with f-strings in [the official Python tutorials](https://docs.python.org/3/tutorial/inputoutput.html#tut-f-strings).
+
 ## Function with a facultative argument
 
 Let's make this even more fancy: a function with a facultative argument. That is, a function which accepts an argument, but also has a default value for when we do not provide any argument:
 
 ```{python}
-def howdy(name='you'):
-    print('Hello ' + name)
+def howdy(name='everyone'):
+    print(f'Hello {name}!')
 ```
 
 We can call it without argument (making use of the default value):
@@ -96,7 +139,7 @@ howdy('Marie')
 This was better, but ...
 
 ```{python}
-howdy('Marie', 'Paul')
+howdy('Marie', 'Alex')
 ```
 
 ... this does not work.
@@ -107,13 +150,13 @@ We could create a function which takes two arguments:
 
 ```{python}
 def hey(name1, name2):
-    print('Hello ' + name1 + ', ' + name2)
+    print(f'Hello {name1} and {name2}!')
 ```
 
 Which solves our problem:
 
 ```{python}
-hey('Marie', 'Paul')
+hey('Marie', 'Alex')
 ```
 
 But it is terribly limiting:
@@ -130,33 +173,73 @@ hey('Marie')
 
 ```{python}
 # Nor to mention this...
-hey('Marie', 'Paul', 'Alex')
+hey('Marie', 'Alex', 'Luc')
 ```
 
 ## Function with any number of args
 
-Let's create a truly great function which handles all our cases:
+Let's create a function which handles all cases.
+
+We will have to break it down into the various scenarios, but [we already saw how to do this](intro_control_flow#if-statements) in the previous lesson with `if` statements.
+
+The scenarios are:
+
+- no name given (we need to set some default somehow),
+- one name given (no grammar syntax needs adding),
+- two names given (we need to add "and"),
+- more than two names (we need to add commas after all but the last name and we need to add "and" before the last name).
+
+We saw above [how to create a default value](#function-with-a-facultative-argument). Here, we will use a different approach that will make our life easier. We will use the argument as the list of names. That allows us to get its length (to see which scenario we are in) and to index it (to add the grammar syntax at the right place).
+
+Finally, we need a way to make the function work with any number of arguments. To do this, we use an [arbitrary argument list](https://docs.python.org/3/tutorial/controlflow.html#arbitrary-argument-lists) with `*` followed by a name. When the function already accepts some arguments, by convention, people use `*args` to signify that any number of additional arguments can be passed to the function. But you can use any name preceded by the asterisk.
+
+Here, because we will only use the starred argument, let's call it `*names`.
+
+[This](https://stackoverflow.com/q/36901/9210961) and [that](https://stackoverflow.com/q/3394835/9210961) Stack Overflow questions attracted a lot of very useful answers to explain the concepts of `*` and `**`.
+
+Here is our function:
 
 ```{python}
-def hi(name='you', *args):
-    result = ''
-    for i in args:
-        result += (', ' + i)
-    print('Hello ' + name + result)
+def hi(*names):
+    # Case 1: No names were provided.
+    if not names:
+        print("Hello everyone!")
+        return
+
+    # Case 2: Only one name was provided.
+    if len(names) == 1:
+        # names is a tuple, so we access the first element with names[0]
+        print(f"Hello {names[0]}!")
+        return
+
+    # Case 3: Two names were provided.
+    if len(names) == 2:
+        print(f"Hello {names[0]} and {names[1]}!")
+        return
+
+    # Case 4: Three or more names were provided (the general case).
+    # We take all names except the last one for the main list.
+    all_but_last = names[:-1]
+    last_person = names[-1]
+
+    # We join the main list with commas.
+    greeting_list = ", ".join(all_but_last)
+
+    # Then we construct the final sentence.
+    print(f"Hello {greeting_list}, and {last_person}!")
 ```
 
-And let's test it:
+Let's test it:
 
 ```{python}
 hi()
 hi('Marie')
-hi('Marie', 'Paul')
-hi('Marie', 'Paul', 'Alex')
+hi('Marie', 'Alex')
+hi('Marie', 'Alex', 'Luc')
+hi('Marie', 'Alex', 'Luc', 'Grace')
 ```
 
-Everything works!
-
-<!-- ## Returning values -->
+Everything works! 🙂
 
 ## Documenting functions
 
@@ -166,7 +249,7 @@ It is a good habit to document what your functions do. As with comments, those "
 
 Remember the function definition syntax we saw at the start of this chapter? To be more exhaustive, we should have written it this way:
 
-```default
+```{.python}
 def <name>(<arguments>):
     """<docstrings>"""
     <body>
@@ -179,19 +262,41 @@ Example:
 :::
 
 ```{python}
-def hi(name='you', *args):
-    """Print a greeting"""
-    result = ''
-    for i in args:
-        result += (', ' + i)
-    print('Hello ' + name + result)
+def hi(*names):
+    """Greets a variable number of people with proper grammar."""
+    # Case 1: No names were provided.
+    if not names:
+        print("Hello everyone!")
+        return
+
+    # Case 2: Only one name was provided.
+    if len(names) == 1:
+        # names is a tuple, so we access the first element with names[0]
+        print(f"Hello {names[0]}!")
+        return
+
+    # Case 3: Two names were provided.
+    if len(names) == 2:
+        print(f"Hello {names[0]} and {names[1]}!")
+        return
+
+    # Case 4: Three or more names were provided (the general case).
+    # We take all names except the last one for the main list.
+    all_but_last = names[:-1]
+    last_person = names[-1]
+
+    # We join the main list with commas.
+    greeting_list = ", ".join(all_but_last)
+
+    # Then we construct the final sentence.
+    print(f"Hello {greeting_list}, and {last_person}!")
 ```
 
 [PEP 8](https://peps.python.org/pep-0008/#maximum-line-length)—the style guide for Python code—suggests a maximum of 72 characters per line for docstrings.
 
 If your docstring is longer, you should create a multi-line one. In that case, [PEP 257](https://peps.python.org/pep-0257/#multi-line-docstrings) suggests to have a summary line at the top (right after the opening set of triple quotes), then leave a blank line, then have your long docstrings (which can occupy multiple lines), and finally have the closing set of triple quotes on a line of its own:
 
-```default
+```{.python}
 def <name>(<arguments>):
     """<summary docstrings line>"""
 
@@ -207,22 +312,39 @@ Example:
 :::
 
 ```{python}
-def hi(name='you', *args):
-    """Print a greeting
-
-    Accepts any number of arguments
+def hi(*names):
     """
-    result = ''
-    for i in args:
-        result += (', ' + i)
-    print('Hello ' + name + result)
+    Greets a variable number of people with proper grammar.
+
+    This function uses *args to accept any number of string arguments.
+    """
+    # Case 1: No names were provided.
+    if not names:
+        print("Hello everyone!")
+        return
+
+    # Case 2: Only one name was provided.
+    if len(names) == 1:
+        # names is a tuple, so we access the first element with names[0]
+        print(f"Hello {names[0]}!")
+        return
+
+    # Case 3: Two names were provided.
+    if len(names) == 2:
+        print(f"Hello {names[0]} and {names[1]}!")
+        return
+
+    # Case 4: Three or more names were provided (the general case).
+    # We take all names except the last one for the main list.
+    all_but_last = names[:-1]
+    last_person = names[-1]
+
+    # We join the main list with commas.
+    greeting_list = ", ".join(all_but_last)
+
+    # Then we construct the final sentence.
+    print(f"Hello {greeting_list}, and {last_person}!")
 ```
-
-:::{.note}
-
-You can (and should) document modules, classes, and methods in the same way.
-
-:::
 
 You can now access the documentation of your function as you would any Python function:
 
@@ -235,3 +357,73 @@ Or:
 ```{python}
 print(hi.__doc__)
 ```
+
+## Returning values
+
+So far, all the functions we looked at printed something. Often, you will want your functions to calculate some result. This result needs to be "returned". This is done with the keyword `return`.
+
+:::{.example}
+
+Example:
+
+:::
+
+Let's a dummy function:
+
+```{python}
+def add_one(value):
+    value + 1
+```
+
+And test it:
+
+```{python}
+add_one(4)
+```
+
+We don't get any result. That's because our function is not returning anything. To fix it, we need to return the result:
+
+```{python}
+def add_one(value):
+    return value + 1
+```
+
+Now it works:
+
+```{python}
+add_one(4)
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Write a function that calculates an area. It should:
+
+- be documented,
+- accept 2 arguments: `length` and `width`,
+- print an error message if `length` and/or `width` is negative.
+
+:::
+
+<!-- ```{python} -->
+<!-- def calculate_area(length, width): -->
+<!--     """Calculates the area of a rectangle. -->
+
+<!--     Args: -->
+<!--         length: The length of the rectangle. -->
+<!--         width: The width of the rectangle. -->
+
+<!--     Returns: -->
+<!--         The calculated area of the rectangle. -->
+<!--     """ -->
+<!--     if length < 0 or width < 0: -->
+<!--         print('Neither length nor width can be negative.') -->
+<!--     else: -->
+<!--         area = length * width -->
+<!--         return area -->
+<!-- ``` -->
