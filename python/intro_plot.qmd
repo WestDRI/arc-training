@@ -5,35 +5,162 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-There are many packages that provide 2D plotting in Python. Here is an overview of the most popular ones.
+There are many packages that provide plotting in Python. Here is an overview of the most popular ones.
 
 :::
 
-## matplotlib
+## [matplotlib](https://matplotlib.org/)
 
-[matplotlib](https://matplotlib.org/) provides full control over the plots.
+[matplotlib](https://matplotlib.org/) is a very popular Python plotting library because it provides full control over the plots and produces graphs well-suited for publications. Many [plot types](https://matplotlib.org/stable/plot_types/index.html) can be created.
 
-You can have a look at the various [plot types](https://matplotlib.org/stable/plot_types/index.html) that can be created as well as some [plot examples](https://matplotlib.org/stable/gallery/index.html).
+The downside of having full control is that it has a verbose imperative syntax. It also produces non-interactive plots.
 
-## seaborn
+### Example
+
+Here is one of the [matplotlib website examples](https://matplotlib.org/stable/gallery/index.html) to give you an idea of the syntax:
+
+```{python}
+import matplotlib.pyplot as plt
+import numpy as np
+
+# make data:
+np.random.seed(1)
+x = np.random.uniform(-3, 3, 256)
+y = np.random.uniform(-3, 3, 256)
+z = (1 - x/2 + x**5 + y**3) * np.exp(-x**2 - y**2)
+levels = np.linspace(z.min(), z.max(), 7)
+
+# plot:
+fig, ax = plt.subplots()
+
+ax.plot(x, y, 'o', markersize=2, color='grey')
+ax.tricontourf(x, y, z, levels=levels)
+
+ax.set(xlim=(-3, 3), ylim=(-3, 3))
+
+plt.show()
+```
+
+## [seaborn](https://seaborn.pydata.org/)
+
+Seaborn is a higher level library built on top of matplotlib. This means that the plots are also non-interactive and that the options are more limited. On the plus side, the declarative syntax is very easy, making it a nice library for exploratory data analysis (EDA).
+
+### Example
+
+Here is one example from the [seaborn gallery](https://seaborn.pydata.org/examples/index.html):
+
+```{python}
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.set_theme(style="dark")
+
+# Simulate data from a bivariate Gaussian
+n = 10000
+mean = [0, 0]
+cov = [(2, .4), (.4, .2)]
+rng = np.random.RandomState(0)
+x, y = rng.multivariate_normal(mean, cov, n).T
+
+# Draw a combo histogram and scatterplot with density contours
+f, ax = plt.subplots(figsize=(6, 6))
+sns.scatterplot(x=x, y=y, s=5, color=".15")
+sns.histplot(x=x, y=y, bins=50, pthresh=.1, cmap="mako")
+sns.kdeplot(x=x, y=y, levels=5, color="w", linewidths=1)
+```
+
+### Website
 
 <iframe width="750" height="600" src="https://seaborn.pydata.org/" data-external="1"></iframe>
 
-## plotly
+## [bokeh](http://bokeh.org/)
 
-<iframe width="750" height="600" src="https://plotly.com/javascript/" data-external="1"></iframe>
+Bokeh creates interactive plots great for dashboards and web apps. It is more efficient than other libraries for streaming or interactions with large datasets. It does have a fairly steep learning curve.
 
-## bokeh
+### Website
 
-<iframe width="750" height="600" src="https://demo.bokeh.org/" data-external="1"></iframe>
+<iframe width="750" height="600" src="https://bokeh.org/" data-external="1"></iframe>
 
-## plotnine
+## [plotly](https://plotly.com/python/)
 
-<iframe width="750" height="600" src="https://plotnine.org/" data-external="1"></iframe>
+Plotly also creates interactive plots and its declarative option with the Plotly Express framework makes it very easy to use (the imperative approach is also possible). Static plots however are less sophisticated than with matplotlib and it is not as good as Bokeh for dashboard interactions.
 
-## Vega-Altair
+### Example
+
+```{python}
+import plotly.express as px
+df = px.data.tips()
+
+fig = px.density_contour(df, x="total_bill", y="tip")
+fig.update_traces(contours_coloring="fill", contours_showlabels = True)
+fig.show()
+```
+
+### Website
+
+<iframe width="750" height="600" src="https://plotly.com/python/" data-external="1"></iframe>
+
+## [Vega-Altair](https://altair-viz.github.io/)
+
+Vega-Altair is a declarative library with an easy syntax and interactive plots options, ideal for EDA.
+
+### Example
+
+```{.python}
+import altair as alt
+from vega_datasets import data
+
+source = data.us_employment()
+
+predicate = alt.datum.nonfarm_change > 0
+color = alt.when(predicate).then(alt.value("steelblue")).otherwise(alt.value("orange"))
+
+alt.Chart(source).mark_bar().encode(
+    x="month:T",
+    y="nonfarm_change:Q",
+    color=color
+).properties(width=600)
+```
+
+![](img/plot_altair.png)
+
+### Website
 
 <iframe width="750" height="600" src="https://altair-viz.github.io/" data-external="1"></iframe>
+
+## [plotnine](https://plotnine.org/)
+
+Plotnine is an adaptation to Python of the popular R library [ggplot2](https://ggplot2.tidyverse.org/) based on the grammar of graphics concept.
+
+### Example
+
+```{.python}
+from plotnine import (
+    ggplot,
+    aes,
+    theme_matplotlib,
+    theme_set,
+    geom_tile,
+    scale_fill_continuous,
+    coord_cartesian
+)
+
+from plotnine.data import faithfuld
+
+# Set default theme for all the plots
+theme_set(theme_matplotlib())
+
+(
+    ggplot(faithfuld, aes("waiting", "eruptions", fill="density")) 
+    + geom_tile()
+)
+```
+
+![](img/plot_plotnine.png)
+
+### Website
+
+<iframe width="750" height="600" src="https://plotnine.org/" data-external="1"></iframe>
 
 ## Summary
 
@@ -41,7 +168,7 @@ Library     |  Syntax        |  Interactivity  |  Ideal for            |  Weakne
 ------------+----------------+-----------------+-----------------------+-------------------------------
 Matplotlib  |  Imperative    |  No             |  Publications         |  Verbose, non-interactive
 Seaborn     |  Declarative   |  No             |  Statistical EDA      |  Limited for rare plot types
-Plotly      |  Imperative    |  Yes            |  Dashboards           |  Static output less flexible
 Bokeh       |  Imperative    |  Yes            |  Live web apps        |  Styling is less intuitive
+Plotly      |  Both          |  Yes            |  Dashboards           |  Static output less flexible
 Altair      |  Declarative   |  Yes            |  Fast EDA, web        |  Fewer custom options
 Plotnine    |  Declarative   |  No             |  R users              |  Somewhat niche
