@@ -37,7 +37,6 @@ revealjs-plugins:
 - I am making an opinionated decision to use [uv](https://docs.astral.sh/uv/) for installation
 - Notebooks are great for prototyping but [not at scale](intro_hpc)
 - `marimo` is not available on the Alliance clusters at this point
-- Throughout this talk, I am using code blocks to represent notebook cells
 
 # A new notebook
 
@@ -377,7 +376,7 @@ Example:
 
 :::
 
-```{.python}
+```{.python filename="cell"}
 print("This is a console output.")
 ```
 
@@ -401,7 +400,7 @@ Example:
 
 :::
 
-```{.python}
+```{.python filename="cell"}
 "This is a cell output."
 ```
 
@@ -437,12 +436,12 @@ Variables prefixed with `_` are cell local
 
 (names can thus be reused between cells)
 
-```{.python}
+```{.python filename="cell 0"}
 _a = 3
 print(_a)
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 print(_a)
 ```
 
@@ -454,7 +453,7 @@ name '_a' is not defined
 
 `_i` can be reused between cells:
 
-```{.python}
+```{.python filename="cell"}
 for _i in range(10):
     print(_i)
 ```
@@ -481,7 +480,7 @@ Variables created in functions don't enter the global environment
 
 ➔ their names can be reused in functions in different cells
 
-```{.python}
+```{.python filename="cell"}
 def _():
      for i in range(10):
          print(i)
@@ -495,21 +494,21 @@ _()
 
 ## Mutations do not call re-runs {.center}
 
-If you run the following 3 cells:
+Let's consider:
 
-```{.python}
+```{.python filename="cell 0"}
 l = [1, 2, 3]
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 len(l)
 ```
 
-```{.python}
+```{.python filename="cell 2"}
 l.append(4)
 ```
 
-running the 3^rd^ cell will not update the 2^nd^ one
+running the [cell 2]{.codelike} will not update [cell 1]{.codelike}
 
 ---
 
@@ -523,12 +522,12 @@ running the 3^rd^ cell will not update the 2^nd^ one
 
 Mutate variables in the cells in which they are defined
 
-```{.python}
+```{.python filename="cell 0"}
 l = [1, 2, 3]
 l.append(4)
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 len(l)
 ```
 
@@ -546,19 +545,19 @@ len(l)
 
 Create new variables
 
-```{.python}
+```{.python filename="cell 0"}
 l = [1, 2, 3]
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 len(l)
 ```
 
-```{.python}
+```{.python filename="cell 2"}
 l2 = l + [4]
 ```
 
-```{.python}
+```{.python filename="cell 3"}
 len(l2)
 ```
 
@@ -574,21 +573,21 @@ Automatically deletes variables defined in them (and cells with refs to them are
 
 This would make the DAG impossible:
 
-```{.python}
+```{.python filename="cell 0"}
 var1 = 4
 print(var2)
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 var2 = 7
 print(var1)
 ```
 
 ## Attributes are not tracked {.center}
 
-Assignments to attributes aren't tracked
+Assignments to attributes aren't tracked:
 
-```{.python}
+```{.python filename="cell 0"}
 class Object(object):
     pass
 
@@ -596,15 +595,15 @@ obj = Object()
 obj.somefield = "somevalue"
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 print(obj.somefield)
 ```
 
-```{.python}
+```{.python filename="cell 2"}
 obj.somefield = "newvalue"
 ```
 
-The 2^nd^ cell is not re-run and updated automatically
+[cell 1]{.codelike} is not re-run and updated automatically
 
 ## Dataflow programming {.center}
 
@@ -614,13 +613,144 @@ The execution order is determined by the DAG
 
 This is a totally valid notebook:
 
-```{.python}
+```{.python filename="cell 0"}
 print(new_var)
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 new_var = 8
 ```
+
+## Dataflow programming {.center}
+
+These are perfectly equivalent notebooks (they have the same DAG):
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+```{.python filename="cell 0"}
+a = 3
+```
+
+```{.python filename="cell 1"}
+a1 = 8.9
+a2 = 8.3
+```
+
+```{.python filename="cell 2"}
+a3 = 3.0
+```
+
+```{.python filename="cell 3"}
+a4 = 1.2
+```
+
+```{.python filename="cell 4"}
+my_list = [a1, a2, a3, a4]
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+```{.python filename="cell 0"}
+my_list = [a1, a2, a3, a4]
+```
+
+```{.python filename="cell 1"}
+a = 3
+```
+
+```{.python filename="cell 2"}
+a3 = 3.0
+```
+
+```{.python filename="cell 3"}
+a1 = 8.9
+a2 = 8.3
+```
+
+```{.python filename="cell 4"}
+a4 = 1.2
+```
+
+:::
+
+::::
+
+## Dataflow navigation {.center}
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+Here is our notebook:
+
+```{.python filename="cell 0"}
+a = 3
+```
+
+```{.python filename="cell 1"}
+a1 = 8.9
+a2 = 8.3
+```
+
+```{.python filename="cell 2"}
+a3 = 3.0
+```
+
+```{.python filename="cell 3"}
+a4 = 1.2
+```
+
+```{.python filename="cell 4"}
+my_list = [a1, a2, a3, a4]
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+&emsp;&emsp;This is the corresponding DAG:
+
+```{dot}
+//| echo: false
+//| fig-width: 350px
+
+strict digraph {
+
+rankdir="LR"
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", shape=plaintext, shape=oval, fontcolor=gray, color=gray]
+edge [color="#0099cc"]
+
+0 [label="cell 0"]
+1 [label="cell 1"]
+2 [label="cell 2"]
+3 [label="cell 3"]
+4 [label="cell 4"]
+
+{rank=same; 0 1 2 3 4}
+
+0 -> 1 -> 2 -> 3 [style=invis]
+
+0
+1 -> 4
+2 -> 4
+3 -> 4
+}
+```
+
+:::
+
+::::
 
 ## Dataflow navigation {.center}
 
@@ -629,27 +759,6 @@ Navigating and understanding the dataflow is made easy by a number of tools:
 - Minimap (`Ctrl-Shift-i`)
 - Dependency explorer (left menu)
 - Reference highlighting and jumping (hover on underlined refs, `Ctrl+click` to jump to defs)
-
-## Dataflow navigation {.center}
-
-Let's look at dependency graph of the following cells:
-
-```{.python}
-a1 = 8.9
-a2 = 8.3
-```
-
-```{.python}
-a3 = 3.0
-```
-
-```{.python}
-a4 = 1.2
-```
-
-```{.python}
-my_list = [a1, a2, a3, a4]
-```
 
 ## Managing runs {.center}
 
@@ -675,25 +784,40 @@ You can turn cells into markdown and select [raw strings](https://docs.python.or
 
 ## Markdown extensions {.center}
 
-```default
+```{.default filename="cell"}
 /// details | Click for details.
 
 You can create accordion blocks.
 ///
 ```
 
-```default
+```{.default filename="cell"}
 /// admonition | Tips
 
 You can create info blocks.
 ///
 ```
 
-```default
+```{.default filename="cell"}
 /// attention | Be careful!
 
 You can create warning blocks.
 ///
+```
+
+## Plots {.center}
+
+Plotting works as you would expect
+
+JavaScript interactivity also works
+
+```{.python filename="cell"}
+import plotly.express as px
+df = px.data.tips()
+
+fig = px.density_contour(df, x="total_bill", y="tip")
+fig.update_traces(contours_coloring="fill", contours_showlabels = True)
+fig.show()
 ```
 
 ## Apps {.center}
@@ -746,7 +870,7 @@ Every notebook loads the `marimo` module automatically
 
 Interactive elements make use of the module, so it is convenient to create an alias:
 
-```{.python}
+```{.python filename="cell 0"}
 import marimo as mo
 ```
 
@@ -756,7 +880,7 @@ You create an element with one of the `mo.ui` methods
 
 Call it at the end of the cell to display it:
 
-```{.python}
+```{.python filename="cell 1"}
 slider = mo.ui.slider(start=1, stop=10, step=1)
 slider
 ```
@@ -769,7 +893,7 @@ UI elements are `defs`
 
 You can embed it in a markdown output and format it with an [f-string](https://docs.python.org/3/tutorial/inputoutput.html#tut-f-strings):
 
-```{.python}
+```{.python filename="cell 1"}
 slider = mo.ui.slider(start=1, stop=10, step=1)
 mo.md(f"Pick a value: {slider}")
 ```
@@ -778,13 +902,13 @@ mo.md(f"Pick a value: {slider}")
 
 You then need to access its value in another cell:
 
-```{.python}
+```{.python filename="cell 2"}
 slider.value
 ```
 
 Which you can also embed in some markdown:
 
-```{.python}
+```{.python filename="cell 2"}
 mo.md(f"You picked the value: {slider.value}")
 ```
 
@@ -792,14 +916,14 @@ mo.md(f"You picked the value: {slider.value}")
 
 Create a date selector element:
 
-```{.python}
+```{.python filename="cell 0"}
 date = mo.ui.date()
 mo.md(f"Select a date: {date}")
 ```
 
 Print the selected date:
 
-```{.python}
+```{.python filename="cell 1"}
 mo.md(f"Your selected date is: {date.value}")
 ```
 
@@ -807,7 +931,7 @@ mo.md(f"Your selected date is: {date.value}")
 
 Similar to [tqdm](https://github.com/tqdm/tqdm):
 
-```{.python}
+```{.python filename="cell"}
 import time
 
 for i in mo.status.progress_bar(range(50)):
@@ -867,7 +991,7 @@ def _():
 
 Now, add in the cell:
 
-```{.python}
+```{.python filename="cell 0"}
 x = 8
 y = 9
 ```
@@ -904,11 +1028,11 @@ Cell dependencies are passed as arguments to the function:
 
 Notebook cells:
 
-```{.python}
+```{.python filename="cell 1"}
 print(x)
 ```
 <br><br>
-```{.python}
+```{.python filename="cell 2"}
 print(x, y)
 ```
 
@@ -943,12 +1067,12 @@ def _(x, y):
 
 `mo.defs` and `mo.refs` output the defs and refs of a cell:
 
-```{.python}
+```{.python filename="cell 0"}
 var = 8
 print(f"The defs are: {mo.defs()} and the refs are: {mo.refs()}")
 ```
 
-```{.python}
+```{.python filename="cell 1"}
 var + 7
 print(f"The defs are: {mo.defs()} and the refs are: {mo.refs()}")
 ```
