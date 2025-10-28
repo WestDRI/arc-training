@@ -34,7 +34,7 @@ revealjs-plugins:
 
 ## Notes {.center}
 
-- I am making an opinionated decision to use [uv](https://docs.astral.sh/uv/) (because it is great)
+- I am making an opinionated decision to use [uv](https://docs.astral.sh/uv/) for installation
 - Notebooks are great for prototyping but [not at scale](intro_hpc)
 - `marimo` is not available on the Alliance clusters at this point
 - Throughout this talk, I am using code blocks to represent notebook cells
@@ -43,31 +43,31 @@ revealjs-plugins:
 
 ## What's wrong with Jupyter? {.center}
 
-Jupyter notebooks are very popular but they come with
+Jupyter notebooks are very popular but they come with downsides:
 
-- a nightmare for version control
-- an awkward JSON file format
-- [reproducibility issues](https://blog.jetbrains.com/datalore/2020/12/17/we-downloaded-10-000-000-jupyter-notebooks-from-github-this-is-what-we-learned/#consistency-of-notebooks)
+- Version control nightmare
+- Awkward JSON file format
+- [Reproducibility issues](https://blog.jetbrains.com/datalore/2020/12/17/we-downloaded-10-000-000-jupyter-notebooks-from-github-this-is-what-we-learned/#consistency-of-notebooks)
 
-## DAG notebooks {.center}
+## DAG dataflow {.center}
 
-marimo notebooks automatically generate an [intermediate representation (IR)](https://en.wikipedia.org/wiki/Intermediate_representation) in the form of a [directed acyclic graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) of
+marimo notebooks automatically generate an [intermediate representation (IR)](https://en.wikipedia.org/wiki/Intermediate_representation) in the form of a [directed acyclic graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) of:
 
-- *definitions* of global variables
-- *references* of global variables
+- *definitions* (`defs`) of global variables
+- *references* (`refs`) of global variables
 
 Each cell is parsed into an [abstract syntax tree (AST)](https://en.wikipedia.org/wiki/Abstract_syntax_tree)
 
 Statically inferred (no runtime tracing)
 
-## Saved as Python file {.center}
+## Python files {.center}
 
 ::::{.columns}
 
 :::{.column width="50%"}
 
 Notebooks are saved as `.py` files \
-Each cell stored as a function \
+Each cell is stored as a function \
 Pure functions can be reused as modules
 
 :::
@@ -97,8 +97,8 @@ Pure functions can be reused as modules
 :::{.column width="55%"}
 
 Easy version control \
-Directly executable as script or web app \
-Readable in any text editor
+Directly executable as scripts or web apps \
+Readable in text editors
 
 :::
 
@@ -110,25 +110,31 @@ Readable in any text editor
 
 Notebooks are automatically updated when values are changed via interactions
 
-## Apps {.center}
+## Cool features {.center}
+
+- Turn notebooks into apps
+- Integrated AI
+- Docstrings on hover
 
 ## The constraints {.center}
 
-[Global variables must be unique]{.emph}
+All this comes at the cost of some constraints:
 
-Variables local to a cell are created with `_`
+- Global variables must be unique
+- In-place transformations are not allowed
+- Mutations and attributes are not tracked
 
-[In-place transformations are not allowed]{.emph}
+:::{.note}
+
+All this is good practice for strict functional programming (and [JAX](https://docs.jax.dev/en/latest/index.html))!
+
+:::
 
 ## Computation cost {.center}
 
 There is a cost to updating the DAG at each change
 
-This can be controlled by disabling/enabling:
-
-- autorun on startup
-- specific cells
-- autorun on cell change (lazy execution)
+Runtime configurations and cell settings allow to control when re-runs happen
 
 # Getting started
 
@@ -152,43 +158,110 @@ uv add --dev marimo
 uv add --dev ruff basedpyright mcp
 ```
 
+## Launch a notebook {.center}
+
+```{.bash}
+marimo edit notebook.py
+```
+
+:::{.notenoit}
+
+If you installed with [uv](https://docs.astral.sh/uv/), first activate the virtual env or run instead:
+
+```{.bash}
+uv run marimo edit notebook.py
+```
+
+:::
+
 ## Configuration {.center}
 
-Via GUI
+*Via GUI*
 
-- Notebook settings
-- User settings
+![](img/settings.svg) [top right corner (Notebook settings)]{.small} ➔ [User settings]{.codelike}
 
-User settings saved in `~/.config/marimo/marimo.toml` or similar \
-Logs found at `~/.cache/marimo/logs` or similar
+---
 
-## Key bindings {.center}
+<br><br><br><br><br>
 
-Displayed by xxx
+### Package manager
 
-## Package manager {.center}
+![](img/settings.svg){fig-alt="noshadow"} ➔ [User settings]{.codelike} ➔ [Packages & Data]{.codelike} ➔ [Package Management]{.codelike} ➔ [Manager]{.codelike}: `uv`
 
-User [settings]{.codelike} ➔ [Package Management]{.codelike} ➔ [Manager]{.codelike}: `uv`
+---
 
-## AI pair programming {.center}
+<br><br>
 
-### Code completion
+### AI pair programming {.center}
+
+#### Code completion
 
 Use [GitHub Copilot](https://github.com/features/copilot) without account
 
-### AI assistant
+#### AI assistant
 
 Use any of the classic LLMs with API key
 
-### MCP servers
+#### MCP servers
 
 - `marimo` docs
 - [Context7](https://context7.com/)
 
+---
+
+User settings are saved in `~/.config/marimo/marimo.toml` [(or similar in different OS)]{.small}
+
+```{.toml}
+[mcp]
+presets = ["marimo", "context7"]
+
+[mcp.mcpServers]
+
+[runtime]
+watcher_on_save = "lazy"
+auto_reload = "off"
+default_sql_output = "auto"
+auto_instantiate = true
+std_stream_max_bytes = 1000000
+default_auto_download = []
+on_cell_change = "autorun"
+output_max_bytes = 8000000
+reactive_tests = true
+
+[formatting]
+line_length = 79
+
+[completion]
+copilot = "github"
+activate_on_typing = true
+
+[snippets]
+custom_paths = []
+include_default_snippets = true
+
+[keymap]
+preset = "default"
+destructive_delete = true
+```
+
+:::{.note}
+
+Logs are found at `~/.cache/marimo/logs` [(or similar)]{.small}
+
+:::
+
+## Official website {.center}
+
+Excellent documentation:
+
+[User guides](https://docs.marimo.io/guides/)
+
+[API reference](https://docs.marimo.io/api/)
+
 ## Tutorials {.center}
 
 ```{.bash}
-uv run marimo tutorial intro
+marimo tutorial intro
 ```
 
 For more tutorials, replace `intro` with any of:
@@ -203,19 +276,71 @@ For more tutorials, replace `intro` with any of:
 `markdown-format` \
 `for-jupyter-users`
 
+:::{.notenoit}
+
+If you installed with [uv](https://docs.astral.sh/uv/), first activate the virtual env or run instead:
+
+```{.bash}
+uv run marimo tutorial intro
+```
+
+:::
+
+## Key bindings {.center}
+
+Vim kbd available
+
+#### Command mode
+
+`Esc`
+
+With vim keybindings are enabled or other issues, use `Ctrl+Esc` or `Shift+Esc` instead
+
+Navigation between cells, copy/cut/paste cells
+
+#### Edit mode
+
+`Enter` or click on a cell
+
+Edit content
+
+## Key bindings {.center}
+
+Customizable. List displayed by `Ctrl-Shift-h`
+
+![](img/marimo_kbd.png){width="45%" fig-align="center"}
+
 ## ipynb notebooks conversion {.center}
 
 ```{.bash}
 marimo convert notebook.ipynb -o notebook.py
 ```
 
+:::{.note}
+
 IPython magics are replaced by Python functions
+
+:::
+
+:::{.notenoit}
+
+After a `uv` install, run (or activate the virtual env):
+
+```{.bash}
+uv run marimo convert notebook.ipynb -o notebook.py
+```
+
+:::
 
 # General Usage
 
-## Package installation {.center}
+## Installing Python packages {.center}
 
-Using `uv`:
+*Directly in the notebook* following a pop-up when trying to use uninstalled package
+
+:::{.notenoit}
+
+Of course this can also be done *via the command line:*
 
 ```{.bash}
 uv add <package>
@@ -231,23 +356,41 @@ Example:
 uv add numpy
 ```
 
-or via GUI (after it has been [set properly](package-manager))
+:::
 
-## Outputs display {.center}
+## Outputs displays {.center}
 
-2 types of outputs:
+::::{.columns}
 
-- console outputs
-- cell outputs
+:::{.column width="49%"}
 
-## Console outputs {.center}
+### Console outputs
 
 Text written to `stdout`/`stderr`
 
 ➔ displayed below cells by default \
 ➔ hidden in app mode
 
-## Cell outputs {.center}
+:::{.example}
+
+Example:
+
+:::
+
+```{.python}
+print("This is a console output.")
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+### Cell outputs
+
+<br>
 
 ➔ displayed above cells by default \
 ➔ shown in app mode
@@ -258,33 +401,41 @@ Example:
 
 :::
 
-Compare:
-
-```{.python}
-print("This is a console output.")
-```
-
 ```{.python}
 "This is a cell output."
 ```
 
+:::
+
+::::
+
 ## Forbidden re-assignments {.center}
 
-Variables can be reassigned within cells, but not in different cells as it would break the DAG
+Variables re-assignments are OK within cells, but not across cells
 
-The cell with the re-assignment will not run
+The cells with re-assignments will not run
 
-:::{.notenoit}
+:::{.note}
 
-Even reusing `i` in loops is a problem
+Reusing `i` in loops across cells won't work
+
+`+=`, `-=`, etc. won't run
 
 :::
 
-## Variables local to cells {.center}
+---
 
-Variables prefixed with `_` are local to cells
+### Solutions
 
-(and names can thus be reused between cells)
+::::{.columns}
+
+:::{.column width="47%"}
+
+#### Use cell local variables
+
+Variables prefixed with `_` are cell local
+
+(names can thus be reused between cells)
 
 ```{.python}
 _a = 3
@@ -295,20 +446,56 @@ print(_a)
 print(_a)
 ```
 
+```
+name '_a' is not defined
+```
+
 :::{.notenoit}
 
-So `_i` can be reused between cells:
+`_i` can be reused between cells:
 
 ```{.python}
 for _i in range(10):
-    ...
+    print(_i)
 ```
 
 :::
 
+:::
+
+:::{.column width="6%"}
+
+<br><br><br><br><br>
+
+&ensp;or
+
+:::
+
+:::{.column width="47%"}
+
+#### Wrap in functions
+
+Functions create local environments
+
+Variables created in functions don't enter the global environment
+
+➔ their names can be reused in functions in different cells
+
+```{.python}
+def _():
+     for i in range(10):
+         print(i)
+
+_()
+```
+
+:::
+
+::::
+
 ## Mutations do not call re-runs {.center}
 
-If you run the following in 3 distinct cells:
+If you run the following 3 cells:
 
 ```{.python}
 l = [1, 2, 3]
@@ -324,25 +511,68 @@ l.append(4)
 
 running the 3^rd^ cell will not update the 2^nd^ one
 
-## += and similar won't run {.center}
+---
 
-## Refs and defs {.center}
+<br><br>
+
+### Solutions
+
+::::{.columns}
+
+:::{.column width="47%"}
+
+Mutate variables in the cells in which they are defined
 
 ```{.python}
-var = 8
-print(mo.defs(), mo.refs())
+l = [1, 2, 3]
+l.append(4)
 ```
 
 ```{.python}
-var + 7
-print(mo.defs(), mo.refs())
+len(l)
 ```
 
-## Dataflow programming {.center}
+:::
 
-Execution order ≠ cell order
+:::{.column width="6%"}
+
+<br><br><br>
+
+&ensp;or
+
+:::
+
+:::{.column width="47%"}
+
+Create new variables
+
+```{.python}
+l = [1, 2, 3]
+```
+
+```{.python}
+len(l)
+```
+
+```{.python}
+l2 = l + [4]
+```
+
+```{.python}
+len(l2)
+```
+
+:::
+
+::::
+
+## Deleting cells {.center}
+
+Automatically deletes variables defined in them (and cells with refs to them are re-run)
 
 ## No cycles permitted {.center}
+
+This would make the DAG impossible:
 
 ```{.python}
 var1 = 4
@@ -354,23 +584,388 @@ var2 = 7
 print(var1)
 ```
 
-## Attribute changes don't call re-runs {.center}
+## Attributes are not tracked {.center}
 
-# Interactive user interface
+Assignments to attributes aren't tracked
 
-## Example {.center}
+```{.python}
+class Object(object):
+    pass
+
+obj = Object()
+obj.somefield = "somevalue"
+```
+
+```{.python}
+print(obj.somefield)
+```
+
+```{.python}
+obj.somefield = "newvalue"
+```
+
+The 2^nd^ cell is not re-run and updated automatically
+
+## Dataflow programming {.center}
+
+Execution order $\neq$ cell order
+
+The execution order is determined by the DAG
+
+This is a totally valid notebook:
+
+```{.python}
+print(new_var)
+```
+
+```{.python}
+new_var = 8
+```
+
+## Dataflow navigation {.center}
+
+Navigating and understanding the dataflow is made easy by a number of tools:
+
+- Minimap (`Ctrl-Shift-i`)
+- Dependency explorer (left menu)
+- Reference highlighting and jumping (hover on underlined refs, `Ctrl+click` to jump to defs)
+
+## Dataflow navigation {.center}
+
+Let's look at dependency graph of the following cells:
+
+```{.python}
+a1 = 8.9
+a2 = 8.3
+```
+
+```{.python}
+a3 = 3.0
+```
+
+```{.python}
+a4 = 1.2
+```
+
+```{.python}
+my_list = [a1, a2, a3, a4]
+```
+
+## Managing runs {.center}
+
+Re-running heavy computations to update the notebooks can be costly
+
+This can be controlled by disabling/enabling:
+
+- autorun on startup
+- autorun on cell change (lazy execution)
+- specific cells
+
+## Markdown {.center}
+
+You can turn cells into markdown and select [raw strings](https://docs.python.org/3/reference/lexical_analysis.html#raw-strings) and/or [f-string](https://docs.python.org/3/tutorial/inputoutput.html#tut-f-strings)
+
+![](img/marimo_md.png){fig-align="right" width="30%"}
+
+:::{.right}
+
+[at the bottom right corner of every cell]{.small}
+
+:::
+
+## Markdown extensions {.center}
+
+```default
+/// details | Click for details.
+
+You can create accordion blocks.
+///
+```
+
+```default
+/// admonition | Tips
+
+You can create info blocks.
+///
+```
+
+```default
+/// attention | Be careful!
+
+You can create warning blocks.
+///
+```
+
+## Apps {.center}
+
+You can run a notebook as an app with:
+
+```{.bash}
+marimo run notebook.py
+```
+
+## AI {.center}
+
+### Completion
+
+Provided out of the box with [GitHub Copilot](https://github.com/copilot/). Tab to complete
+
+### Generate cells with AI
+
+Box at the bottom of notebook
+
+### Cells refactoring
+
+In the menu of each cell
+
+## AI {.center}
+
+### Chat
+
+Button on the left menu opens a chat panel
+
+### Going crazy
+
+`marimo new` asks an LLM to generate a full notebook from scratch:
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+marimo new "Create a cool-looking 3D plot with matplotlib."
+```
+
+# Interactive UI
+
+## The marimo module {.center}
+
+Every notebook loads the `marimo` module automatically
+
+Interactive elements make use of the module, so it is convenient to create an alias:
 
 ```{.python}
 import marimo as mo
 ```
+
+## Create an interactive element {.center}
+
+You create an element with one of the `mo.ui` methods
+
+Call it at the end of the cell to display it:
 
 ```{.python}
 slider = mo.ui.slider(start=1, stop=10, step=1)
 slider
 ```
 
+:::{.note}
+
+UI elements are `defs`
+
+:::
+
+You can embed it in a markdown output and format it with an [f-string](https://docs.python.org/3/tutorial/inputoutput.html#tut-f-strings):
+
+```{.python}
+slider = mo.ui.slider(start=1, stop=10, step=1)
+mo.md(f"Pick a value: {slider}")
+```
+
+## Access the value {.center}
+
+You then need to access its value in another cell:
+
 ```{.python}
 slider.value
 ```
 
-## UI elements are defs {.center}
+Which you can also embed in some markdown:
+
+```{.python}
+mo.md(f"You picked the value: {slider.value}")
+```
+
+## Example {.center}
+
+Create a date selector element:
+
+```{.python}
+date = mo.ui.date()
+mo.md(f"Select a date: {date}")
+```
+
+Print the selected date:
+
+```{.python}
+mo.md(f"Your selected date is: {date.value}")
+```
+
+## Progress bars {.center}
+
+Similar to [tqdm](https://github.com/tqdm/tqdm):
+
+```{.python}
+import time
+
+for i in mo.status.progress_bar(range(50)):
+    print(i)
+    time.sleep(0.1)
+```
+
+# Under the hood
+
+## Python files for notebooks {.center}
+
+Notebooks get written in Python as:
+
+```{.python filename="notebook.py"}
+import marimo
+
+__generated_with = "<some version>"
+app = marimo.App()
+
+"<your cells go here>"
+
+if __name__ == "__main__":
+    app.run()
+```
+
+## Notebook settings {.center}
+
+Added as:
+
+```{.python filename="notebook.py"}
+import marimo
+
+__generated_with = "<some version>"
+app = marimo.App(width="medium", css_file="custom.css", auto_download=["html"])
+
+"<your cells go here>"
+
+if __name__ == "__main__":
+    app.run()
+```
+
+## What are cells really? {.center}
+
+Cells are functions wrapped by an `@app.cell` decorator
+
+This makes them easy to turn into apps
+
+When you create an empty cell, your `.py` file (let's call it `notebook.py`) sees the following added:
+
+```{.python filename="notebook.py"}
+@app.cell
+def _():
+    return
+```
+
+## What are cells really? {.center}
+
+Now, add in the cell:
+
+```{.python}
+x = 8
+y = 9
+```
+
+and you get in your `.py` file:
+
+```{.python filename="notebook.py"}
+@app.cell
+def _():
+    x = 8
+    y = 9
+    return
+```
+
+## What are cells really? {.center}
+
+Hide the code and the script turns into:
+
+```{.python filename="notebook.py"}
+@app.cell(hide_code=True)
+def _():
+    x = 8
+    y = 9
+    return
+```
+
+## References {.center}
+
+Cell dependencies are passed as arguments to the function:
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+Notebook cells:
+
+```{.python}
+print(x)
+```
+<br><br>
+```{.python}
+print(x, y)
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+Corresponding Python file:
+
+```{.python filename="notebook.py"}
+@app.cell
+def _(x):
+    print(x)
+    return
+```
+
+```{.python filename="notebook.py"}
+@app.cell
+def _(x, y):
+    print(x, y)
+    return
+```
+
+:::
+
+::::
+
+## Print refs and defs {.center}
+
+`mo.defs` and `mo.refs` output the defs and refs of a cell:
+
+```{.python}
+var = 8
+print(f"The defs are: {mo.defs()} and the refs are: {mo.refs()}")
+```
+
+```{.python}
+var + 7
+print(f"The defs are: {mo.defs()} and the refs are: {mo.refs()}")
+```
+
+## How is md turned into Python? {.center}
+
+Markdown text is wrapped in `mo.md` functions:
+
+```{.python filename="notebook.py"}
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    ## Heading
+
+    Some markdown with some *italic* formatting.
+    """
+    )
+    return
+```
