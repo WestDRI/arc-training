@@ -7933,7 +7933,7 @@
     "href": "ai/pt/pt_hpc.html#data",
     "title": "Deep learning on production clusters",
     "section": "Data",
-    "text": "Data\n\nCopy files to/from the cluster\n\nFew files\nIf you need to copy files to or from the cluster, you can use scp from your local machine.\n\nCopy file from your computer to the cluster\n[local]$ scp &lt;/local/path/to/file&gt; &lt;user&gt;@&lt;hostname&gt;:&lt;path/in/cluster&gt;\n\nExpressions between the &lt; and &gt; signs need to be replaced by the relevant information (without those signs).\n\n\n\nCopy file from the cluster to your computer\n[local]$ scp &lt;user&gt;@&lt;hostname&gt;:&lt;cluster/path/to/file&gt; &lt;/local/path&gt;\n\n\n\nLarge amount of data\nUse Globus for large data transfers.\n\nThe Alliance is starting to store classic ML datasets on its clusters. So if your research uses a common dataset, it may be worth inquiring whether it might be available before downloading a copy.\n\n\n\n\nLarge collections of files\nThe Alliance clusters are optimized for very large files and are slowed by large collections of small files. Datasets with many small files need to be turned into single-file archives with tar. Failing to do so will affect performance not just for you, but for all users of the cluster.\n$ tar cf &lt;data&gt;.tar &lt;path/to/dataset/directory&gt;/*\n\n\nIf you want to also compress the files, replace tar cf with tar czf\nAs a modern alternative to tar, you can use Dar",
+    "text": "Data\n\nCopy files to/from the cluster\n\nFew files\nIf you need to copy files to or from the cluster, you can use scp from your local machine.\nCopy file from your computer to the cluster:\n[local]$ scp &lt;/local/path/to/file&gt; &lt;user&gt;@&lt;hostname&gt;:&lt;path/in/cluster&gt;\n\nExpressions between the &lt; and &gt; signs need to be replaced by the relevant information (without those signs).\n\nCopy file from the cluster to your computer:\n[local]$ scp &lt;user&gt;@&lt;hostname&gt;:&lt;cluster/path/to/file&gt; &lt;/local/path&gt;\n\n\nLarge amount of data\nUse Globus for large data transfers.\n\nThe Alliance is starting to store classic ML datasets on its clusters. So if your research uses a common dataset, it may be worth inquiring whether it might be available before downloading a copy.\n\n\n\n\nLarge collections of files\nThe Alliance clusters are optimized for very large files and are slowed by large collections of small files. Datasets with many small files need to be turned into single-file archives with tar. Failing to do so will affect performance not just for you, but for all users of the cluster.\n$ tar cf &lt;data&gt;.tar &lt;path/to/dataset/directory&gt;/*\n\n\nIf you want to also compress the files, replace tar cf with tar czf\nAs a modern alternative to tar, you can use Dar",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -7957,7 +7957,7 @@
     "href": "ai/pt/pt_hpc.html#batch-jobs",
     "title": "Deep learning on production clusters",
     "section": "Batch jobs",
-    "text": "Batch jobs\nAs soon as you have a working Python script, you want to submit a batch job instead of running an interactive job. To do that, you need to write an sbatch script.\n\nJob script\n\nHere is an example script:\n\n#!/bin/bash\n#SBATCH --job-name=&lt;name&gt;*            # job name\n#SBATCH --account=def-&lt;account&gt;\n#SBATCH --time=&lt;time&gt;                 # max walltime in D-HH:MM or HH:MM:SS\n#SBATCH --cpus-per-task=&lt;number&gt;      # number of cores\n#SBATCH --gres=gpu:&lt;type&gt;:&lt;number&gt;    # type and number of GPU(s) per node\n#SBATCH --mem=&lt;mem&gt;                   # max memory (default unit is MB) per node\n#SBATCH --output=%x_%j.out*           # file name for the output\n#SBATCH --error=%x_%j.err*            # file name for errors\n#SBATCH --mail-user=&lt;email_address&gt;*\n#SBATCH --mail-type=ALL*\n\n# Load modules\n# (Do not use this in our workshop since we aren't using GPUs)\n# (Note: loading the Python module is not necessary\n# when you activate a Python virtual environment)\n# module load cudacore/.10.1.243 cuda/10 cudnn/7.6.5\n\n# Create a variable with the directory for your ML project\nSOURCEDIR=~/&lt;path/project/dir&gt;\n\n# Activate your Python virtual environment\nsource ~/env/bin/activate\n\n# Transfer and extract data to a compute node\nmkdir $SLURM_TMPDIR/data\ntar xf ~/projects/def-&lt;user&gt;/&lt;data&gt;.tar -C $SLURM_TMPDIR/data\n\n# Run your Python script on the data\npython $SOURCEDIR/&lt;script&gt;.py $SLURM_TMPDIR/data\n\n\n%x will get replaced by the script name and %j by the job number\nIf you compressed your data with tar czf, you need to extract it with tar xzf\nSBATCH options marked with a * are optional\nThere are various other options for email notifications\n\n\nYou may wonder why we transferred data to a compute node. This makes any I/O operation involving your data a lot faster, so it will speed up your code. Here is how this works:\nFirst, we create a temporary data directory in $SLURM_TMPDIR:\n$ mkdir $SLURM_TMPDIR/data\n\nThe variable $SLURM_TMPDIR is created by Slurm on the compute node where a job is running. Its path is /localscratch/&lt;user&gt;.&lt;jobid&gt;.0. Anything in it gets deleted when the job is done.\n\nThen we extract the data into it:\n$ tar xf ~/projects/def-&lt;user&gt;/&lt;data&gt;.tar -C $SLURM_TMPDIR/data\nIf your data is not in a tar file, you can simply copy it to the compute node running your job:\n$ cp -r ~/projects/def-&lt;user&gt;/&lt;data&gt; $SLURM_TMPDIR/data\n\n\nJob handling\n\nSubmit a job\n$ cd &lt;/dir/containing/job&gt;\n$ sbatch &lt;jobscript&gt;.sh\n\n\nCheck the status of your job(s)\n$ sq\n\nPD = pending\nR = running\nCG = completing (Slurm is doing the closing processes)\nNo information = your job has finished running\n\n\n\nCancel a job\n$ scancel &lt;jobid&gt;\n\n\nDisplay efficiency measures of a completed job\n$ seff &lt;jobid&gt;",
+    "text": "Batch jobs\nAs soon as you have a working Python script, you want to submit a batch job instead of running an interactive job. To do that, you need to write an sbatch script.\n\nJob script\n\nHere is an example script:\n\n#!/bin/bash\n#SBATCH --job-name=&lt;name&gt;*            # job name\n#SBATCH --account=def-&lt;account&gt;\n#SBATCH --time=&lt;time&gt;                 # max walltime in D-HH:MM or HH:MM:SS\n#SBATCH --cpus-per-task=&lt;number&gt;      # number of cores\n#SBATCH --gres=gpu:&lt;type&gt;:&lt;number&gt;    # type and number of GPU(s) per node\n#SBATCH --mem=&lt;mem&gt;                   # max memory (default unit is MB) per node\n#SBATCH --output=%x_%j.out*           # file name for the output\n#SBATCH --error=%x_%j.err*            # file name for errors\n#SBATCH --mail-user=&lt;email_address&gt;*\n#SBATCH --mail-type=ALL*\n\n# Load modules\n# (Do not use this in our workshop since we aren't using GPUs)\n# (Note: loading the Python module is not necessary\n# when you activate a Python virtual environment)\n# module load cudacore/.10.1.243 cuda/10 cudnn/7.6.5\n\n# Create a variable with the directory for your ML project\nSOURCEDIR=~/&lt;path/project/dir&gt;\n\n# Activate your Python virtual environment\nsource ~/env/bin/activate\n\n# Transfer and extract data to a compute node\nmkdir $SLURM_TMPDIR/data\ntar xf ~/projects/def-&lt;user&gt;/&lt;data&gt;.tar -C $SLURM_TMPDIR/data\n\n# Run your Python script on the data\npython $SOURCEDIR/&lt;script&gt;.py $SLURM_TMPDIR/data\n\n\n%x will get replaced by the script name and %j by the job number\nIf you compressed your data with tar czf, you need to extract it with tar xzf\nSBATCH options marked with a * are optional\nThere are various other options for email notifications\n\n\nYou may wonder why we transferred data to a compute node. This makes any I/O operation involving your data a lot faster, so it will speed up your code. Here is how this works:\nFirst, we create a temporary data directory in $SLURM_TMPDIR:\n$ mkdir $SLURM_TMPDIR/data\n\nThe variable $SLURM_TMPDIR is created by Slurm on the compute node where a job is running. Its path is /localscratch/&lt;user&gt;.&lt;jobid&gt;.0. Anything in it gets deleted when the job is done.\n\nThen we extract the data into it:\n$ tar xf ~/projects/def-&lt;user&gt;/&lt;data&gt;.tar -C $SLURM_TMPDIR/data\nIf your data is not in a tar file, you can simply copy it to the compute node running your job:\n$ cp -r ~/projects/def-&lt;user&gt;/&lt;data&gt; $SLURM_TMPDIR/data\n\n\nJob handling\n\nSubmit a job\n$ cd &lt;/dir/containing/job&gt;\n$ sbatch &lt;jobscript&gt;.sh\n\n\nCheck the status of your job(s)\n$ sq\n\nPD = pending\nR = running\nCG = completing (Slurm is doing the closing processes)\nNo information = your job has finished running\n\n\n\nCancel a job\n$ scancel &lt;jobid&gt;\n\n\nEfficiency of completed job\n$ seff &lt;jobid&gt;",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -7981,7 +7981,7 @@
     "href": "ai/pt/pt_hpc.html#code-testing",
     "title": "Deep learning on production clusters",
     "section": "Code testing",
-    "text": "Code testing\nIt might be wise to test your code in an interactive job before submitting a really big batch job to Slurm.\n\nActivate your Python virtual environment\n$ source ~/env/bin/activate\n\n\nStart an interactive job\n\nExample:\n\n$ salloc --account=def-&lt;account&gt; --gres=gpu:1 --cpus-per-task=6 --mem=32000 --time=0:30:0\n\n\nPrepare the data\nCreate a temporary data directory in $SLURM_TMPDIR:\n(env) $ mkdir $SLURM_TMPDIR/data\n\nThe variable $SLURM_TMPDIR is created by Slurm on the compute node where a job is running. Its path is /localscratch/&lt;user&gt;.&lt;jobid&gt;.0. Anything in it gets deleted when the job is done.\n\nExtract the data into it:\n(env) $ tar xf ~/projects/def-&lt;user&gt;/&lt;data&gt;.tar -C $SLURM_TMPDIR/data\n\n\nTry to run your code\nPlay in Python to test your code:\n(env) $ python\n&gt;&gt;&gt; import torch\n&gt;&gt;&gt; ...\nTo exit the virtual environment, run:\n(env) $ deactivate",
+    "text": "Code testing\nIt might be wise to test your code in an interactive job before submitting a really big batch job to Slurm.\n\nActivate your virtual environment\n$ source ~/env/bin/activate\n\n\nStart an interactive job\n\nExample:\n\n$ salloc --account=def-&lt;account&gt; --gres=gpu:1 --cpus-per-task=6 --mem=32000 --time=0:30:0\n\n\nPrepare the data\nCreate a temporary data directory in $SLURM_TMPDIR:\n(env) $ mkdir $SLURM_TMPDIR/data\n\nThe variable $SLURM_TMPDIR is created by Slurm on the compute node where a job is running. Its path is /localscratch/&lt;user&gt;.&lt;jobid&gt;.0. Anything in it gets deleted when the job is done.\n\nExtract the data into it:\n(env) $ tar xf ~/projects/def-&lt;user&gt;/&lt;data&gt;.tar -C $SLURM_TMPDIR/data\n\n\nTry to run your code\nPlay in Python to test your code:\n(env) $ python\n&gt;&gt;&gt; import torch\n&gt;&gt;&gt; ...\nTo exit the virtual environment, run:\n(env) $ deactivate",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -8005,7 +8005,7 @@
     "href": "ai/pt/pt_hpc.html#tensorboard-on-the-cluster",
     "title": "Deep learning on production clusters",
     "section": "TensorBoard on the cluster",
-    "text": "TensorBoard on the cluster\nTensorBoard allows to visually track your model metrics (e.g. loss, accuracy, model graph, etc.). It requires a lot of processing power however, so if you want to use it on an Alliance cluster, do not run it from the login node. Instead, run it as part of your job. This section guides you through the whole workflow.\n\nLaunch TensorBoard\nFirst, you need to launch TensorBoard in the background (with a trailing &) before running your Python script. To do so, ad to your sbatch script:\ntensorboard --logdir=/tmp/&lt;your log dir&gt; --host 0.0.0.0 &\n\nExample:\n\n#!/bin/bash\n#SBATCH ...\n...\n\ntensorboard --logdir=/tmp/&lt;your log dir&gt; --host 0.0.0.0 &\npython $SOURCEDIR/&lt;script&gt;.py $SLURM_TMPDIR/data\n\n\nCreate a connection between the compute node and your computer\nOnce the job is running, you need to create a connection between the compute node running TensorBoard and your computer.\nFirst, you need to find the hostname of the compute node running the Tensorboard server. This is the value under NODELIST for your job when you run:\n$ sq\nThen, from your computer, enter this ssh command:\n[local]$ ssh -N -f -L localhost:6006:&lt;node hostname&gt;:6006 &lt;user&gt;@&lt;cluster&gt;.computecanada.ca\n\nReplace &lt;node hostname&gt; by the compute node hostname you just identified, &lt;user&gt; by your user name, and &lt;cluster&gt; by the name of the Alliance cluster hostname—e.g. beluga, cedar, graham.\n\n\n\nAccess TensorBoard\nYou can now open a browser (on your computer) and go to http://localhost:6006 to monitor your model running on a compute node in the cluster!",
+    "text": "TensorBoard on the cluster\nTensorBoard allows to visually track your model metrics (e.g. loss, accuracy, model graph, etc.). It requires a lot of processing power however, so if you want to use it on an Alliance cluster, do not run it from the login node. Instead, run it as part of your job. This section guides you through the whole workflow.\n\nLaunch TensorBoard\nFirst, you need to launch TensorBoard in the background (with a trailing &) before running your Python script. To do so, ad to your sbatch script:\ntensorboard --logdir=/tmp/&lt;your log dir&gt; --host 0.0.0.0 &\n\nExample:\n\n#!/bin/bash\n#SBATCH ...\n...\n\ntensorboard --logdir=/tmp/&lt;your log dir&gt; --host 0.0.0.0 &\npython $SOURCEDIR/&lt;script&gt;.py $SLURM_TMPDIR/data\n\n\nConnection with your computer\nOnce the job is running, you need to create a connection between the compute node running TensorBoard and your computer.\nFirst, you need to find the hostname of the compute node running the Tensorboard server. This is the value under NODELIST for your job when you run:\n$ sq\nThen, from your computer, enter this ssh command:\n[local]$ ssh -N -f -L localhost:6006:&lt;node hostname&gt;:6006 &lt;user&gt;@&lt;cluster&gt;.computecanada.ca\n\nReplace &lt;node hostname&gt; by the compute node hostname you just identified, &lt;user&gt; by your user name, and &lt;cluster&gt; by the name of the Alliance cluster hostname—e.g. beluga, cedar, graham.\n\n\n\nAccess TensorBoard\nYou can now open a browser (on your computer) and go to http://localhost:6006 to monitor your model running on a compute node in the cluster!",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -8067,7 +8067,7 @@
     "href": "ai/pt/pt_choosing_frameworks.html#proprietary-tools-a-word-of-caution",
     "title": "Which framework to choose?",
     "section": "Proprietary tools: a word of caution",
-    "text": "Proprietary tools: a word of caution\nAs a student, it is tempting to have the following perspective:\n\nMy university pays for this very expensive license. I have free access to this very expensive tool. It would be foolish not to make use of it while I can!\n\nWhen there are no equivalent or better open-source tools, that might be true. But when superior open-source tools exist, these university licenses are more of a trap than a gift.\nHere are some of the reasons you should be wary of proprietary tools:\n\nResearchers who do not have access to the tool cannot reproduce your methods\nLarge Canadian universities may offer a license for the tool, but grad students in other countries, independent researchers, researchers in small organizations, etc. may not have access to a free license (or tens of thousands of dollars to pay for it).\n\n\nOnce you graduate, you may not have access to the tool anymore\nOnce you leave your Canadian institution, you may become one of those researchers who do not have access to that tool. This means that you will not be able to re-run your thesis analyses, re-use your methods, and apply the skills you learnt. The time you spent learning that expensive tool you could play with for free may feel a lot less like a gift then.\n\n\nYour university may stop paying for a license\nAs commercial tools fall behind successful open-source ones, some universities may decide to stop purchasing a license. It happened during my years at SFU with an expensive and clunky citation manager which, after having been promoted for years by the library through countless workshops, got abandoned in favour of a much better free and open-source one.\n\n\nYou may get locked-in\nProprietary tools often come with proprietary formats and, depending on the tool, it may be painful (or impossible) to convert your work to another format. When that happens, you are locked-in.\n\n\nProprietary tools are often black boxes\nIt is often impossible to see the source code of proprietary software.\n\n\nLong-term access\nIt is often very difficult to have access to old versions of proprietary tools (and this can be necessary to reproduce old studies). When companies disappear, the tools they produced usually disappear with them. open-source tools, particularly those who have their code under version control in repositories such as GitHub, remain fully accessible (including all stages of development), and if they get abandoned, their maintenance can be taken over or restarted by others.\n\n\nThe licenses you have access to may be limiting and a cause of headache\nFor instance, the Alliance does not have an unlimited number of MATLAB licenses. Since these licenses come with complex rules (one license needed for each node, additional licenses for each toolbox, additional licenses for newer tools, etc.), it can quickly become a nightmare to navigate through it all. You may want to have a look at some of the comments in this thread.\n\n\nProprietary tools fall behind popular open-source tools\nEven large teams of software engineers cannot compete against an active community of researchers developing open-source tools. When open-source tools become really popular, the number of users contributing to their development vastly outnumbers what any company can provide. The testing, licensing, and production of proprietary tools are also too slow to keep up with quickly evolving fields of research. (Of course, open-source tools which do not take off and remain absolutely obscure do not see the benefit of a vast community.)\n\n\nProprietary tools often fail to address specialized edge cases needed in research\nIt is not commercially sound to develop cutting edge capabilities so specialized in a narrow subfield that they can only target a minuscule number of customers. But this is often what research needs. With open-source tools, researchers can develop the capabilities that fit their very specific needs. So while commercial tools are good and reliable for large audiences, they are often not the best in research. This explains the success of R over tools such as SASS or Stata in the past decade.",
+    "text": "Proprietary tools: a word of caution\nAs a student, it is tempting to have the following perspective:\n\nMy university pays for this very expensive license. I have free access to this very expensive tool. It would be foolish not to make use of it while I can!\n\nWhen there are no equivalent or better open-source tools, that might be true. But when superior open-source tools exist, these university licenses are more of a trap than a gift.\nHere are some of the reasons you should be wary of proprietary tools:\n\nClosed research\nResearchers who do not have access to the tool cannot reproduce your methods.\nLarge Canadian universities may offer a license for the tool, but grad students in other countries, independent researchers, researchers in small organizations, etc. may not have access to a free license (or tens of thousands of dollars to pay for it).\n\n\nNon-transferable skills\nOnce you graduate, you may not have access to the tool anymore.\nOnce you leave your Canadian institution, you may become one of those researchers who do not have access to that tool. This means that you will not be able to re-run your thesis analyses, re-use your methods, and apply the skills you learnt. The time you spent learning that expensive tool you could play with for free may feel a lot less like a gift then.\n\n\nUncertainty of access\nYour university may stop paying for a license.\nAs commercial tools fall behind successful open-source ones, some universities may decide to stop purchasing a license. It happened during my years at SFU with an expensive and clunky citation manager which, after having been promoted for years by the library through countless workshops, got abandoned in favour of a much better free and open-source one.\n\n\nLocked-in files\nTo switch to another tool is not easy.\nProprietary tools often come with proprietary formats and, depending on the tool, it may be painful (or impossible) to convert your work to another format. When that happens, you are locked-in.\n\n\nLack of transparency\nProprietary tools are black boxes.\nIt is impossible to see the source code of proprietary software, so you don’t know what it really does with your code.\n\n\nLong-term reproducibility issues\nReproducing old methods is likely to be impossible.\nIt is often very difficult to have access to old versions of proprietary tools (and this can be necessary to reproduce old studies). When companies disappear, the tools they produced usually disappear with them. open-source tools, particularly those who have their code under version control in repositories such as GitHub, remain fully accessible (including all stages of development), and if they get abandoned, their maintenance can be taken over or restarted by others.\n\n\nCause for license headaches\nThe licenses you have access to may be limiting and require jumping through hoops.\nFor instance, the Alliance does not have an unlimited number of MATLAB licenses. Since these licenses come with complex rules (one license needed for each node, additional licenses for each toolbox, additional licenses for newer tools, etc.), it can quickly become a nightmare to navigate through it all. You may want to have a look at some of the comments in this thread.\n\n\nLack of competitiveness\nProprietary tools fall behind popular open-source tools.\nEven large teams of software engineers cannot compete against an active community of researchers developing open-source tools. When open-source tools become really popular, the number of users contributing to their development vastly outnumbers what any company can provide. The testing, licensing, and production of proprietary tools are also too slow to keep up with quickly evolving fields of research. (Of course, open-source tools which do not take off and remain absolutely obscure do not see the benefit of a vast community.)\n\n\nMismatch for research\nProprietary tools often fail to address specialized edge cases needed in research.\nIt is not commercially sound to develop cutting-edge capabilities so specialized in a narrow subfield that they can only target a minuscule number of customers. But this is often what research needs. With open-source tools, researchers can develop the capabilities that fit their very specific needs. So while commercial tools are good and reliable for large audiences, they are often not the best in research. This explains the success of R over tools such as SASS or Stata in the past decade.",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -8115,7 +8115,7 @@
     "href": "ai/pt/pt_autograd.html#backpropagation",
     "title": "Automatic differentiation",
     "section": "Backpropagation",
-    "text": "Backpropagation\nFirst, we need to talk about backpropagation: the backward pass following each forward pass and which adjusts the model’s parameters to minimize the output of the loss function.\nThe last 2 videos of 3Blue1Brown neural network series explains backpropagation and its manual calculation very well.\n\nWhat is backpropagation? (14 min)\n\n\nThere is one minor terminological error in this video: they call the use of mini-batches stochastic gradient descent. In fact, this is called mini-batch gradient descent. Stochastic gradient descent uses a single example at each iteration.\n\n\n\nHow does backpropagation work? (10 min)",
+    "text": "Backpropagation\nFirst, we need to talk about backpropagation: the backward pass following each forward pass and which adjusts the model’s parameters to minimize the output of the loss function.\nThe last 2 videos of 3Blue1Brown neural network series explains backpropagation and its manual calculation very well.\n\nWhat is backpropagation?\n14 min video.\n\n\nThere is one minor terminological error in this video: they call the use of mini-batches stochastic gradient descent. In fact, this is called mini-batch gradient descent. Stochastic gradient descent uses a single example at each iteration.\n\n\n\nHow does backpropagation work?\n10 min video.",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -8127,7 +8127,7 @@
     "href": "ai/pt/pt_autograd.html#automatic-differentiation",
     "title": "Automatic differentiation",
     "section": "Automatic differentiation",
-    "text": "Automatic differentiation\nIf we had to do all this manually, it would be absolute hell. Thankfully, many tools—including PyTorch—can do this automatically.\n\nTracking computations\nFor the automation of the calculation of all those derivatives through chain rules, PyTorch needs to track computations during the forward pass.\nPyTorch does not however track all the computations on all the tensors (this would be extremely memory intensive!). To start tracking computations on a vector, set the requires_grad attribute to True:\n\nimport torch\n\nx = torch.ones(2, 4, requires_grad=True)\nx\n\ntensor([[1., 1., 1., 1.],\n        [1., 1., 1., 1.]], requires_grad=True)\n\n\n\nThe grad_fun attribute\nWhenever a tensor is created by an operation involving a tracked tensor, it has a grad_fun attribute:\n\ny = x + 1\ny\n\ntensor([[2., 2., 2., 2.],\n        [2., 2., 2., 2.]], grad_fn=&lt;AddBackward0&gt;)\n\n\n\ny.grad_fn\n\n&lt;AddBackward0 at 0x739b484f8250&gt;\n\n\n\n\nJudicious tracking\nYou don’t want to track more than is necessary. There are multiple ways to avoid tracking what you don’t want.\nYou can stop tracking computations on a tensor with the method detach:\n\nx\n\ntensor([[1., 1., 1., 1.],\n        [1., 1., 1., 1.]], requires_grad=True)\n\n\n\nx.detach_()\n\ntensor([[1., 1., 1., 1.],\n        [1., 1., 1., 1.]])\n\n\nYou can change its requires_grad flag:\n\nx = torch.zeros(2, 3, requires_grad=True)\nx\n\ntensor([[0., 0., 0.],\n        [0., 0., 0.]], requires_grad=True)\n\n\n\nx.requires_grad_(False)\n\ntensor([[0., 0., 0.],\n        [0., 0., 0.]])\n\n\nAlternatively, you can wrap any code you don’t want to track under with torch.no_grad():\n\nx = torch.ones(2, 4, requires_grad=True)\n\nwith torch.no_grad():\n    y = x + 1\n\ny\n\ntensor([[2., 2., 2., 2.],\n        [2., 2., 2., 2.]])\n\n\n\nCompare this with what we just did above.\n\n\n\n\nCalculating gradients\nLet’s calculate gradients manually, then use autograd, in a very simple case: imagine that \\(x\\), \\(y\\), and \\(z\\) are tensors containing the parameters of a model and that the error \\(e\\) could be calculated with the equation:\n\\[e=2x^4-y^3+3z^2\\]\n\nManual derivative calculation\nLet’s see how we would do this manually.\nFirst, we need the model parameters tensors:\n\nx = torch.tensor([1., 2.])\ny = torch.tensor([3., 4.])\nz = torch.tensor([5., 6.])\n\nWe calculate \\(e\\) following the above equation:\n\ne = 2*x**4 - y**3 + 3*z**2\n\nThe gradients of the error \\(e\\) w.r.t. the parameters \\(x\\), \\(y\\), and \\(z\\) are:\n\\[\\frac{de}{dx}=8x^3\\] \\[\\frac{de}{dy}=-3y^2\\] \\[\\frac{de}{dz}=6z\\]\nWe can calculate them with:\n\ngradient_x = 8*x**3\ngradient_x\n\ntensor([ 8., 64.])\n\n\n\ngradient_y = -3*y**2\ngradient_y\n\ntensor([-27., -48.])\n\n\n\ngradient_z = 6*z\ngradient_z\n\ntensor([30., 36.])\n\n\n\n\nAutomatic derivative calculation\nFor this method, we need to define our model parameters with requires_grad set to True:\n\nx = torch.tensor([1., 2.], requires_grad=True)\ny = torch.tensor([3., 4.], requires_grad=True)\nz = torch.tensor([5., 6.], requires_grad=True)\n\n\\(e\\) is calculated in the same fashion (except that here, all the computations on \\(x\\), \\(y\\), and \\(z\\) are tracked):\n\ne = 2*x**4 - y**3 + 3*z**2\n\nThe backward propagation is done automatically with:\n\ne.backward(torch.tensor([1., 1.]))\n\nAnd we have our 3 partial derivatives:\n\nprint(x.grad)\nprint(y.grad)\nprint(z.grad)\n\ntensor([ 8., 64.])\ntensor([-27., -48.])\ntensor([30., 36.])\n\n\n\n\nComparison\nThe result is the same, as can be tested with:\n\n8*x**3 == x.grad\n\ntensor([True, True])\n\n\n\n-3*y**2 == y.grad\n\ntensor([True, True])\n\n\n\n6*z == z.grad\n\ntensor([True, True])\n\n\nOf course, calculating the gradients manually here was extremely easy, but imagine how tedious and lengthy it would be to write the chain rules to calculate the gradients of all the composite functions in a neural network manually…",
+    "text": "Automatic differentiation\nIf we had to do all this manually, it would be absolute hell. Thankfully, many tools—including PyTorch—can do this automatically.\n\nTracking computations\nFor the automation of the calculation of all those derivatives through chain rules, PyTorch needs to track computations during the forward pass.\nPyTorch does not however track all the computations on all the tensors (this would be extremely memory intensive!). To start tracking computations on a vector, set the requires_grad attribute to True:\n\nimport torch\n\nx = torch.ones(2, 4, requires_grad=True)\nx\n\n\n---------------------------------------------------------------------------\nModuleNotFoundError                       Traceback (most recent call last)\nCell In[1], line 1\n----&gt; 1 import torch\n      3 x = torch.ones(2, 4, requires_grad=True)\n      4 x\n\nModuleNotFoundError: No module named 'torch'\n\n\n\n\nThe grad_fun attribute\nWhenever a tensor is created by an operation involving a tracked tensor, it has a grad_fun attribute:\n\ny = x + 1\ny\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[2], line 1\n----&gt; 1 y = x + 1\n      2 y\n\nNameError: name 'x' is not defined\n\n\n\n\ny.grad_fn\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[3], line 1\n----&gt; 1 y.grad_fn\n\nNameError: name 'y' is not defined\n\n\n\n\n\nJudicious tracking\nYou don’t want to track more than is necessary. There are multiple ways to avoid tracking what you don’t want.\nYou can stop tracking computations on a tensor with the method detach:\n\nx\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[4], line 1\n----&gt; 1 x\n\nNameError: name 'x' is not defined\n\n\n\n\nx.detach_()\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[5], line 1\n----&gt; 1 x.detach_()\n\nNameError: name 'x' is not defined\n\n\n\nYou can change its requires_grad flag:\n\nx = torch.zeros(2, 3, requires_grad=True)\nx\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[6], line 1\n----&gt; 1 x = torch.zeros(2, 3, requires_grad=True)\n      2 x\n\nNameError: name 'torch' is not defined\n\n\n\n\nx.requires_grad_(False)\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[7], line 1\n----&gt; 1 x.requires_grad_(False)\n\nNameError: name 'x' is not defined\n\n\n\nAlternatively, you can wrap any code you don’t want to track under with torch.no_grad():\n\nx = torch.ones(2, 4, requires_grad=True)\n\nwith torch.no_grad():\n    y = x + 1\n\ny\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[8], line 1\n----&gt; 1 x = torch.ones(2, 4, requires_grad=True)\n      3 with torch.no_grad():\n      4     y = x + 1\n\nNameError: name 'torch' is not defined\n\n\n\n\nCompare this with what we just did above.\n\n\n\n\nCalculating gradients\nLet’s calculate gradients manually, then use autograd, in a very simple case: imagine that \\(x\\), \\(y\\), and \\(z\\) are tensors containing the parameters of a model and that the error \\(e\\) could be calculated with the equation:\n\\[e=2x^4-y^3+3z^2\\]\n\nManual derivative calculation\nLet’s see how we would do this manually.\nFirst, we need the model parameters tensors:\n\nx = torch.tensor([1., 2.])\ny = torch.tensor([3., 4.])\nz = torch.tensor([5., 6.])\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[9], line 1\n----&gt; 1 x = torch.tensor([1., 2.])\n      2 y = torch.tensor([3., 4.])\n      3 z = torch.tensor([5., 6.])\n\nNameError: name 'torch' is not defined\n\n\n\nWe calculate \\(e\\) following the above equation:\n\ne = 2*x**4 - y**3 + 3*z**2\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[10], line 1\n----&gt; 1 e = 2*x**4 - y**3 + 3*z**2\n\nNameError: name 'x' is not defined\n\n\n\nThe gradients of the error \\(e\\) w.r.t. the parameters \\(x\\), \\(y\\), and \\(z\\) are:\n\\[\\frac{de}{dx}=8x^3\\] \\[\\frac{de}{dy}=-3y^2\\] \\[\\frac{de}{dz}=6z\\]\nWe can calculate them with:\n\ngradient_x = 8*x**3\ngradient_x\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[11], line 1\n----&gt; 1 gradient_x = 8*x**3\n      2 gradient_x\n\nNameError: name 'x' is not defined\n\n\n\n\ngradient_y = -3*y**2\ngradient_y\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[12], line 1\n----&gt; 1 gradient_y = -3*y**2\n      2 gradient_y\n\nNameError: name 'y' is not defined\n\n\n\n\ngradient_z = 6*z\ngradient_z\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[13], line 1\n----&gt; 1 gradient_z = 6*z\n      2 gradient_z\n\nNameError: name 'z' is not defined\n\n\n\n\n\nAutomatic derivative calculation\nFor this method, we need to define our model parameters with requires_grad set to True:\n\nx = torch.tensor([1., 2.], requires_grad=True)\ny = torch.tensor([3., 4.], requires_grad=True)\nz = torch.tensor([5., 6.], requires_grad=True)\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[14], line 1\n----&gt; 1 x = torch.tensor([1., 2.], requires_grad=True)\n      2 y = torch.tensor([3., 4.], requires_grad=True)\n      3 z = torch.tensor([5., 6.], requires_grad=True)\n\nNameError: name 'torch' is not defined\n\n\n\n\\(e\\) is calculated in the same fashion (except that here, all the computations on \\(x\\), \\(y\\), and \\(z\\) are tracked):\n\ne = 2*x**4 - y**3 + 3*z**2\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[15], line 1\n----&gt; 1 e = 2*x**4 - y**3 + 3*z**2\n\nNameError: name 'x' is not defined\n\n\n\nThe backward propagation is done automatically with:\n\ne.backward(torch.tensor([1., 1.]))\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[16], line 1\n----&gt; 1 e.backward(torch.tensor([1., 1.]))\n\nNameError: name 'e' is not defined\n\n\n\nAnd we have our 3 partial derivatives:\n\nprint(x.grad)\nprint(y.grad)\nprint(z.grad)\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[17], line 1\n----&gt; 1 print(x.grad)\n      2 print(y.grad)\n      3 print(z.grad)\n\nNameError: name 'x' is not defined\n\n\n\n\n\nComparison\nThe result is the same, as can be tested with:\n\n8*x**3 == x.grad\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[18], line 1\n----&gt; 1 8*x**3 == x.grad\n\nNameError: name 'x' is not defined\n\n\n\n\n-3*y**2 == y.grad\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[19], line 1\n----&gt; 1 -3*y**2 == y.grad\n\nNameError: name 'y' is not defined\n\n\n\n\n6*z == z.grad\n\n\n---------------------------------------------------------------------------\nNameError                                 Traceback (most recent call last)\nCell In[20], line 1\n----&gt; 1 6*z == z.grad\n\nNameError: name 'z' is not defined\n\n\n\nOf course, calculating the gradients manually here was extremely easy, but imagine how tedious and lengthy it would be to write the chain rules to calculate the gradients of all the composite functions in a neural network manually…",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -10580,7 +10580,7 @@
     "href": "ai/pt/pt_checkpoints.html#checkpointing",
     "title": "Saving/loading models and checkpointing",
     "section": "Checkpointing",
-    "text": "Checkpointing\n\nCreating a checkpoint\ntorch.save({\n    'epoch': epoch,\n    'model_state_dict': model.state_dict(),\n    'optimizer_state_dict': optimizer.state_dict(),\n    'loss': loss,\n    ...\n}, \"model.pt\")\n\n\nResuming training from a checkpoint\nRecreate the state of your model from the checkpoint:\nmodel = TheModelClass(*args, **kwargs)\noptimizer = TheOptimizerClass(*args, **kwargs)\n\ncheckpoint = torch.load(\"model.pt\")\nmodel.load_state_dict(checkpoint['model_state_dict'])\noptimizer.load_state_dict(checkpoint['optimizer_state_dict'])\nepoch = checkpoint['epoch']\nloss = checkpoint['loss']\nResume training:\nmodel.train()",
+    "text": "Checkpointing\n\nCreating a checkpoint\ntorch.save({\n    'epoch': epoch,\n    'model_state_dict': model.state_dict(),\n    'optimizer_state_dict': optimizer.state_dict(),\n    'loss': loss,\n    ...\n}, \"model.pt\")\n\n\nResuming training\nRecreate the state of your model from the checkpoint:\nmodel = TheModelClass(*args, **kwargs)\noptimizer = TheOptimizerClass(*args, **kwargs)\n\ncheckpoint = torch.load(\"model.pt\")\nmodel.load_state_dict(checkpoint['model_state_dict'])\noptimizer.load_state_dict(checkpoint['optimizer_state_dict'])\nepoch = checkpoint['epoch']\nloss = checkpoint['loss']\nResume training:\nmodel.train()",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -19894,7 +19894,7 @@
     "href": "tools/top_wb.html",
     "title": "Tools webinars",
     "section": "",
-    "text": "ypst: a new typesetting system\n\n\n\n\n: the new R Markdown\n\n\n\n\nA great Git UI: Lazygit\n\n\n\n\nuv package manager\n\n\n\n\n\n\nData version control with\n\n\n\n\nFun tools for the command line\n\n\n\n\nMore command line tools\n\n\n\n\nModern shell utilities\n\n\n\n\n\n\nGetting online help & asking questions",
+    "text": "Next gen Python   notebooks\n\n\n\n\nypst: a new typesetting system\n\n\n\n\n: the new R Markdown\n\n\n\n\nA great Git UI: Lazygit\n\n\n\n\n\n\nuv package manager\n\n\n\n\nData version control with\n\n\n\n\nFun tools for the command line\n\n\n\n\nMore command line tools\n\n\n\n\n\n\nModern shell utilities\n\n\n\n\nGetting online help & asking questions",
     "crumbs": [
       "Tools",
       "<b><em>Webinars</em></b>"
@@ -21031,5 +21031,401 @@
     "title": "A little demo of programming in",
     "section": "Regular R training",
     "text": "Regular R training\nEach region under the Alliance offers regular courses and workshops in R (and many other topics)\nIn the west, Alex Razoumov and myself offer regular free workshops, courses, and webinars for researchers in Canadian academic institutions\nYou can find our program here or join our mailing list here"
+  },
+  {
+    "objectID": "tools/wb_marimo.html",
+    "href": "tools/wb_marimo.html",
+    "title": "The next generation of Python notebooks",
+    "section": "",
+    "text": "Project Jupyter was extremely innovative when, back in 2011, they built an open source Notebook on top of the IPython shell (itself an improvement over the Python shell). Notebooks proved an extremely popular tool for literate programming and are widely used today.\nThey do however come with two major issues:\n\nThey are a nightmare for version control.\nThe JSON-like format of the .ipynb files used by Jupyter makes versioning a challenge without the use of proprietary tools or hacky back and forth conversions with, for instance, jupytext.\nIt is easy to forget to rerun cells in order and publish a non-reproducible notebook.\nA study of 10 million notebooks published on GitHub found that 36% of them had been run in a non-linear fashion.\n\nmarimo is a new generation of open source notebook for Python that addresses these problems by using a dataflow graph under the hood ensuring that cells remain up to date and using .py as its file format. marimo notebooks also provide excellent interactivity with direct synchronization with the Python kernel. Consequently, these new notebooks have seen a surge in popularity since their launch in 2023.\nIn this webinar, I will demo the installation and usage of marimo notebooks.\n\nSlides (Click and wait: this reveal.js presentation may take a little time to load.)",
+    "crumbs": [
+      "Tools",
+      "<b><em>Webinars</em></b>",
+      "Next gen Python notebooks"
+    ]
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#notes",
+    "href": "tools/wb_marimo_slides.html#notes",
+    "title": "The next generation of Python notebooks",
+    "section": "Notes",
+    "text": "Notes\n\nI am making an opinionated decision to use uv for installation\nNotebooks are great for prototyping but not at scale\nmarimo is not available on the Alliance clusters at this point"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#whats-wrong-with-jupyter",
+    "href": "tools/wb_marimo_slides.html#whats-wrong-with-jupyter",
+    "title": "The next generation of Python notebooks",
+    "section": "What’s wrong with Jupyter?",
+    "text": "What’s wrong with Jupyter?\nJupyter notebooks are very popular but they come with downsides:\n\nVersion control nightmare\nAwkward JSON file format\nReproducibility issues"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#dag-dataflow",
+    "href": "tools/wb_marimo_slides.html#dag-dataflow",
+    "title": "The next generation of Python notebooks",
+    "section": "DAG dataflow",
+    "text": "DAG dataflow\nmarimo notebooks automatically generate an intermediate representation (IR) in the form of a directed acyclic graph (DAG) of:\n\ndefinitions (defs) of global variables\nreferences (refs) of global variables\n\nEach cell is parsed into an abstract syntax tree (AST)\nStatically inferred (no runtime tracing)"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#python-files",
+    "href": "tools/wb_marimo_slides.html#python-files",
+    "title": "The next generation of Python notebooks",
+    "section": "Python files",
+    "text": "Python files\n\n\nNotebooks are saved as .py files\nEach cell is stored as a function\nPure functions can be reused as modules\n\n\n\n\n\n\n\n\n\n\n ➔\n\nEasy version control\nDirectly executable as scripts or web apps\nReadable in text editors"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#interactive-elements",
+    "href": "tools/wb_marimo_slides.html#interactive-elements",
+    "title": "The next generation of Python notebooks",
+    "section": "Interactive elements",
+    "text": "Interactive elements\nmarimo.ui creates interactive user interface (UI) elements with first-class support\nNotebooks are automatically updated when values are changed via interactions"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#cool-features",
+    "href": "tools/wb_marimo_slides.html#cool-features",
+    "title": "The next generation of Python notebooks",
+    "section": "Cool features",
+    "text": "Cool features\n\nTurn notebooks into apps\nIntegrated AI\nDocstrings on hover"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#the-constraints",
+    "href": "tools/wb_marimo_slides.html#the-constraints",
+    "title": "The next generation of Python notebooks",
+    "section": "The constraints",
+    "text": "The constraints\nAll this comes at the cost of some constraints:\n\nGlobal variables must be unique\nIn-place transformations are not allowed\nMutations and attributes are not tracked\n\n\nAll this is good practice for strict functional programming (and JAX)!"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#computation-cost",
+    "href": "tools/wb_marimo_slides.html#computation-cost",
+    "title": "The next generation of Python notebooks",
+    "section": "Computation cost",
+    "text": "Computation cost\nThere is a cost to updating the DAG at each change\nRuntime configurations and cell settings allow to control when re-runs happen"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#installation",
+    "href": "tools/wb_marimo_slides.html#installation",
+    "title": "The next generation of Python notebooks",
+    "section": "Installation",
+    "text": "Installation\nCreate a uv project:\nuv init --bare\nInstall marimo in it as a development dependency:\nuv add --dev marimo\n(Optional) add tools marimo can make use of:\nuv add --dev ruff basedpyright mcp"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#launch-a-notebook",
+    "href": "tools/wb_marimo_slides.html#launch-a-notebook",
+    "title": "The next generation of Python notebooks",
+    "section": "Launch a notebook",
+    "text": "Launch a notebook\nmarimo edit notebook.py\n\nIf you installed with uv, first activate the virtual env or run instead:\nuv run marimo edit notebook.py"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#configuration",
+    "href": "tools/wb_marimo_slides.html#configuration",
+    "title": "The next generation of Python notebooks",
+    "section": "Configuration",
+    "text": "Configuration\nVia GUI\n top right corner (Notebook settings) ➔ User settings"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#official-website",
+    "href": "tools/wb_marimo_slides.html#official-website",
+    "title": "The next generation of Python notebooks",
+    "section": "Official website",
+    "text": "Official website\nExcellent documentation:\nUser guides\nAPI reference"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#tutorials",
+    "href": "tools/wb_marimo_slides.html#tutorials",
+    "title": "The next generation of Python notebooks",
+    "section": "Tutorials",
+    "text": "Tutorials\nmarimo tutorial intro\nFor more tutorials, replace intro with any of:\ndataflow\nui\nmarkdown\nplots\nsql\nlayout\nfileformat\nmarkdown-format\nfor-jupyter-users\n\nIf you installed with uv, first activate the virtual env or run instead:\nuv run marimo tutorial intro"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#key-bindings",
+    "href": "tools/wb_marimo_slides.html#key-bindings",
+    "title": "The next generation of Python notebooks",
+    "section": "Key bindings",
+    "text": "Key bindings\nVim kbd available\nCommand mode\nEsc\nWith vim keybindings are enabled or other issues, use Ctrl+Esc or Shift+Esc instead\nNavigation between cells, copy/cut/paste cells\nEdit mode\nEnter or click on a cell\nEdit content"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#key-bindings-1",
+    "href": "tools/wb_marimo_slides.html#key-bindings-1",
+    "title": "The next generation of Python notebooks",
+    "section": "Key bindings",
+    "text": "Key bindings\nCustomizable. List displayed by Ctrl-Shift-h"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#ipynb-notebooks-conversion",
+    "href": "tools/wb_marimo_slides.html#ipynb-notebooks-conversion",
+    "title": "The next generation of Python notebooks",
+    "section": "ipynb notebooks conversion",
+    "text": "ipynb notebooks conversion\nmarimo convert notebook.ipynb -o notebook.py\n\nIPython magics are replaced by Python functions\n\n\nAfter a uv install, run (or activate the virtual env):\nuv run marimo convert notebook.ipynb -o notebook.py"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#installing-python-packages",
+    "href": "tools/wb_marimo_slides.html#installing-python-packages",
+    "title": "The next generation of Python notebooks",
+    "section": "Installing Python packages",
+    "text": "Installing Python packages\nDirectly in the notebook following a pop-up when trying to use uninstalled package\n\nOf course this can also be done via the command line:\nuv add &lt;package&gt;\n\nExample:\n\nuv add numpy"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#outputs-displays",
+    "href": "tools/wb_marimo_slides.html#outputs-displays",
+    "title": "The next generation of Python notebooks",
+    "section": "Outputs displays",
+    "text": "Outputs displays\n\n\nConsole outputs\nText written to stdout/stderr\n➔ displayed below cells by default\n➔ hidden in app mode\n\nExample:\n\n\n\ncell\n\nprint(\"This is a console output.\")\n\n\n\n\nCell outputs\n\n➔ displayed above cells by default\n➔ shown in app mode\n\nExample:\n\n\n\ncell\n\n\"This is a cell output.\""
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#forbidden-re-assignments",
+    "href": "tools/wb_marimo_slides.html#forbidden-re-assignments",
+    "title": "The next generation of Python notebooks",
+    "section": "Forbidden re-assignments",
+    "text": "Forbidden re-assignments\nVariables re-assignments are OK within cells, but not across cells\nThe cells with re-assignments will not run\n\nReusing i in loops across cells won’t work\n+=, -=, etc. won’t run"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#mutations-do-not-call-re-runs",
+    "href": "tools/wb_marimo_slides.html#mutations-do-not-call-re-runs",
+    "title": "The next generation of Python notebooks",
+    "section": "Mutations do not call re-runs",
+    "text": "Mutations do not call re-runs\nLet’s consider:\n\n\ncell 0\n\nl = [1, 2, 3]\n\n\n\ncell 1\n\nlen(l)\n\n\n\ncell 2\n\nl.append(4)\n\nrunning the cell 2 will not update cell 1"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#deleting-cells",
+    "href": "tools/wb_marimo_slides.html#deleting-cells",
+    "title": "The next generation of Python notebooks",
+    "section": "Deleting cells",
+    "text": "Deleting cells\nAutomatically deletes variables defined in them (and cells with refs to them are re-run)"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#no-cycles-permitted",
+    "href": "tools/wb_marimo_slides.html#no-cycles-permitted",
+    "title": "The next generation of Python notebooks",
+    "section": "No cycles permitted",
+    "text": "No cycles permitted\nThis would make the DAG impossible:\n\n\ncell 0\n\nvar1 = 4\nprint(var2)\n\n\n\ncell 1\n\nvar2 = 7\nprint(var1)"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#attributes-are-not-tracked",
+    "href": "tools/wb_marimo_slides.html#attributes-are-not-tracked",
+    "title": "The next generation of Python notebooks",
+    "section": "Attributes are not tracked",
+    "text": "Attributes are not tracked\nAssignments to attributes aren’t tracked:\n\n\ncell 0\n\nclass Object(object):\n    pass\n\nobj = Object()\nobj.somefield = \"somevalue\"\n\n\n\ncell 1\n\nprint(obj.somefield)\n\n\n\ncell 2\n\nobj.somefield = \"newvalue\"\n\ncell 1 is not re-run and updated automatically"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#dataflow-programming",
+    "href": "tools/wb_marimo_slides.html#dataflow-programming",
+    "title": "The next generation of Python notebooks",
+    "section": "Dataflow programming",
+    "text": "Dataflow programming\nExecution order \\(\\neq\\) cell order\nThe execution order is determined by the DAG\nThis is a totally valid notebook:\n\n\ncell 0\n\nprint(new_var)\n\n\n\ncell 1\n\nnew_var = 8"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#dataflow-programming-1",
+    "href": "tools/wb_marimo_slides.html#dataflow-programming-1",
+    "title": "The next generation of Python notebooks",
+    "section": "Dataflow programming",
+    "text": "Dataflow programming\nThese are perfectly equivalent notebooks (they have the same DAG):\n\n\n\n\ncell 0\n\na = 3\n\n\n\ncell 1\n\na1 = 8.9\na2 = 8.3\n\n\n\ncell 2\n\na3 = 3.0\n\n\n\ncell 3\n\na4 = 1.2\n\n\n\ncell 4\n\nmy_list = [a1, a2, a3, a4]\n\n\n\n\n\n\ncell 0\n\nmy_list = [a1, a2, a3, a4]\n\n\n\ncell 1\n\na = 3\n\n\n\ncell 2\n\na3 = 3.0\n\n\n\ncell 3\n\na1 = 8.9\na2 = 8.3\n\n\n\ncell 4\n\na4 = 1.2"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#dataflow-navigation",
+    "href": "tools/wb_marimo_slides.html#dataflow-navigation",
+    "title": "The next generation of Python notebooks",
+    "section": "Dataflow navigation",
+    "text": "Dataflow navigation\n\n\nHere is our notebook:\n\n\ncell 0\n\na = 3\n\n\n\ncell 1\n\na1 = 8.9\na2 = 8.3\n\n\n\ncell 2\n\na3 = 3.0\n\n\n\ncell 3\n\na4 = 1.2\n\n\n\ncell 4\n\nmy_list = [a1, a2, a3, a4]\n\n\n\n\n  This is the corresponding DAG:\n\n\n\n\n\n\n\n\n\n0\n\ncell 0\n\n\n\n1\n\ncell 1\n\n\n\n\n2\n\ncell 2\n\n\n\n\n4\n\ncell 4\n\n\n\n1-&gt;4\n\n\n\n\n\n3\n\ncell 3\n\n\n\n\n2-&gt;4\n\n\n\n\n\n3-&gt;4"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#dataflow-navigation-1",
+    "href": "tools/wb_marimo_slides.html#dataflow-navigation-1",
+    "title": "The next generation of Python notebooks",
+    "section": "Dataflow navigation",
+    "text": "Dataflow navigation\nNavigating and understanding the dataflow is made easy by a number of tools:\n\nMinimap (Ctrl-Shift-i)\nDependency explorer (left menu)\nReference highlighting and jumping (hover on underlined refs, Ctrl+click to jump to defs)"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#managing-runs",
+    "href": "tools/wb_marimo_slides.html#managing-runs",
+    "title": "The next generation of Python notebooks",
+    "section": "Managing runs",
+    "text": "Managing runs\nRe-running heavy computations to update the notebooks can be costly\nThis can be controlled by disabling/enabling:\n\nautorun on startup\nautorun on cell change (lazy execution)\nspecific cells"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#markdown",
+    "href": "tools/wb_marimo_slides.html#markdown",
+    "title": "The next generation of Python notebooks",
+    "section": "Markdown",
+    "text": "Markdown\nYou can turn cells into markdown and select raw strings and/or f-string\n\n\n\n\n\n\nat the bottom right corner of every cell"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#markdown-extensions",
+    "href": "tools/wb_marimo_slides.html#markdown-extensions",
+    "title": "The next generation of Python notebooks",
+    "section": "Markdown extensions",
+    "text": "Markdown extensions\n\n\ncell\n\n/// details | Click for details.\n\nYou can create accordion blocks.\n///\n\n\n\ncell\n\n/// admonition | Tips\n\nYou can create info blocks.\n///\n\n\n\ncell\n\n/// attention | Be careful!\n\nYou can create warning blocks.\n///"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#plots",
+    "href": "tools/wb_marimo_slides.html#plots",
+    "title": "The next generation of Python notebooks",
+    "section": "Plots",
+    "text": "Plots\nPlotting works as you would expect\nJavaScript interactivity also works\n\n\ncell\n\nimport plotly.express as px\ndf = px.data.tips()\n\nfig = px.density_contour(df, x=\"total_bill\", y=\"tip\")\nfig.update_traces(contours_coloring=\"fill\", contours_showlabels = True)\nfig.show()"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#script",
+    "href": "tools/wb_marimo_slides.html#script",
+    "title": "The next generation of Python notebooks",
+    "section": "Script",
+    "text": "Script\nYou can run a notebook as a script, without having to do any conversion, with:\npython notebook.py"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#apps",
+    "href": "tools/wb_marimo_slides.html#apps",
+    "title": "The next generation of Python notebooks",
+    "section": "Apps",
+    "text": "Apps\nYou can run a notebook as an app with:\nmarimo run notebook.py"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#ai",
+    "href": "tools/wb_marimo_slides.html#ai",
+    "title": "The next generation of Python notebooks",
+    "section": "AI",
+    "text": "AI\nCompletion\nProvided out of the box with GitHub Copilot. Tab to complete\nGenerate cells with AI\nBox at the bottom of notebook\nCells refactoring\nIn the menu of each cell"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#ai-1",
+    "href": "tools/wb_marimo_slides.html#ai-1",
+    "title": "The next generation of Python notebooks",
+    "section": "AI",
+    "text": "AI\nChat\nButton on the left menu opens a chat panel\nGoing crazy\nmarimo new asks an LLM to generate a full notebook from scratch:\n\nExample:\n\nmarimo new \"Create a cool-looking 3D plot with matplotlib.\""
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#the-marimo-module",
+    "href": "tools/wb_marimo_slides.html#the-marimo-module",
+    "title": "The next generation of Python notebooks",
+    "section": "The marimo module",
+    "text": "The marimo module\nEvery notebook loads the marimo module automatically\nInteractive elements make use of the module, so it is convenient to create an alias:\n\n\ncell 0\n\nimport marimo as mo"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#create-an-interactive-element",
+    "href": "tools/wb_marimo_slides.html#create-an-interactive-element",
+    "title": "The next generation of Python notebooks",
+    "section": "Create an interactive element",
+    "text": "Create an interactive element\nYou create an element with one of the mo.ui methods\nCall it at the end of the cell to display it:\n\n\ncell 1\n\nslider = mo.ui.slider(start=1, stop=10, step=1)\nslider\n\n\nUI elements are defs\n\nYou can embed it in a markdown output and format it with an f-string:\n\n\ncell 1\n\nslider = mo.ui.slider(start=1, stop=10, step=1)\nmo.md(f\"Pick a value: {slider}\")"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#access-the-value",
+    "href": "tools/wb_marimo_slides.html#access-the-value",
+    "title": "The next generation of Python notebooks",
+    "section": "Access the value",
+    "text": "Access the value\nYou then need to access its value in another cell:\n\n\ncell 2\n\nslider.value\n\nWhich you can also embed in some markdown:\n\n\ncell 2\n\nmo.md(f\"You picked the value: {slider.value}\")"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#example",
+    "href": "tools/wb_marimo_slides.html#example",
+    "title": "The next generation of Python notebooks",
+    "section": "Example",
+    "text": "Example\nCreate a date selector element:\n\n\ncell 0\n\ndate = mo.ui.date()\nmo.md(f\"Select a date: {date}\")\n\nPrint the selected date:\n\n\ncell 1\n\nmo.md(f\"Your selected date is: {date.value}\")"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#progress-bars",
+    "href": "tools/wb_marimo_slides.html#progress-bars",
+    "title": "The next generation of Python notebooks",
+    "section": "Progress bars",
+    "text": "Progress bars\nSimilar to tqdm:\n\n\ncell\n\nimport time\n\nfor i in mo.status.progress_bar(range(50)):\n    print(i)\n    time.sleep(0.1)"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#python-files-for-notebooks",
+    "href": "tools/wb_marimo_slides.html#python-files-for-notebooks",
+    "title": "The next generation of Python notebooks",
+    "section": "Python files for notebooks",
+    "text": "Python files for notebooks\nNotebooks get written in Python as:\n\n\nnotebook.py\n\nimport marimo\n\n__generated_with = \"&lt;some version&gt;\"\napp = marimo.App()\n\n\"&lt;your cells go here&gt;\"\n\nif __name__ == \"__main__\":\n    app.run()"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#notebook-settings",
+    "href": "tools/wb_marimo_slides.html#notebook-settings",
+    "title": "The next generation of Python notebooks",
+    "section": "Notebook settings",
+    "text": "Notebook settings\nAdded as:\n\n\nnotebook.py\n\nimport marimo\n\n__generated_with = \"&lt;some version&gt;\"\napp = marimo.App(width=\"medium\", css_file=\"custom.css\", auto_download=[\"html\"])\n\n\"&lt;your cells go here&gt;\"\n\nif __name__ == \"__main__\":\n    app.run()"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#what-are-cells-really",
+    "href": "tools/wb_marimo_slides.html#what-are-cells-really",
+    "title": "The next generation of Python notebooks",
+    "section": "What are cells really?",
+    "text": "What are cells really?\nCells are functions wrapped by an @app.cell decorator\nThis makes them easy to turn into apps\nWhen you create an empty cell, your .py file (let’s call it notebook.py) sees the following added:\n\n\nnotebook.py\n\n@app.cell\ndef _():\n    return"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#what-are-cells-really-1",
+    "href": "tools/wb_marimo_slides.html#what-are-cells-really-1",
+    "title": "The next generation of Python notebooks",
+    "section": "What are cells really?",
+    "text": "What are cells really?\nNow, add in the cell:\n\n\ncell 0\n\nx = 8\ny = 9\n\nand you get in your .py file:\n\n\nnotebook.py\n\n@app.cell\ndef _():\n    x = 8\n    y = 9\n    return"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#what-are-cells-really-2",
+    "href": "tools/wb_marimo_slides.html#what-are-cells-really-2",
+    "title": "The next generation of Python notebooks",
+    "section": "What are cells really?",
+    "text": "What are cells really?\nHide the code and the script turns into:\n\n\nnotebook.py\n\n@app.cell(hide_code=True)\ndef _():\n    x = 8\n    y = 9\n    return"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#references",
+    "href": "tools/wb_marimo_slides.html#references",
+    "title": "The next generation of Python notebooks",
+    "section": "References",
+    "text": "References\nCell dependencies are passed as arguments to the function:\n\n\nNotebook cells:\n\n\ncell 1\n\nprint(x)\n\n\n\n\ncell 2\n\nprint(x, y)\n\n\n\n\nCorresponding Python file:\n\n\nnotebook.py\n\n@app.cell\ndef _(x):\n    print(x)\n    return\n\n\n\nnotebook.py\n\n@app.cell\ndef _(x, y):\n    print(x, y)\n    return"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#print-refs-and-defs",
+    "href": "tools/wb_marimo_slides.html#print-refs-and-defs",
+    "title": "The next generation of Python notebooks",
+    "section": "Print refs and defs",
+    "text": "Print refs and defs\nmo.defs and mo.refs output the defs and refs of a cell:\n\n\ncell 0\n\nvar = 8\nprint(f\"The defs are: {mo.defs()} and the refs are: {mo.refs()}\")\n\n\n\ncell 1\n\nvar + 7\nprint(f\"The defs are: {mo.defs()} and the refs are: {mo.refs()}\")"
+  },
+  {
+    "objectID": "tools/wb_marimo_slides.html#how-is-md-turned-into-python",
+    "href": "tools/wb_marimo_slides.html#how-is-md-turned-into-python",
+    "title": "The next generation of Python notebooks",
+    "section": "How is md turned into Python?",
+    "text": "How is md turned into Python?\nMarkdown text is wrapped in mo.md functions:\n\n\nnotebook.py\n\n@app.cell\ndef _(mo):\n    mo.md(\n        r\"\"\"\n    ## Heading\n\n    Some markdown with some *italic* formatting.\n    \"\"\"\n    )\n    return"
+  },
+  {
+    "objectID": "ai/pt/pt_mnist.html#explore-model-metrics",
+    "href": "ai/pt/pt_mnist.html#explore-model-metrics",
+    "title": "Example: classifying the MNIST dataset",
+    "section": "Explore model metrics",
+    "text": "Explore model metrics\nTensorBoard is a web visualization toolkit developed by TensorFlow which can be used with PyTorch.\nBecause we have sent our model’s metrics logs to TensorBoard as part of our code, a directory called runs with those logs was created in our ~/mnist directory.\n\nLaunch TensorBoard\nTensorBoard requires too much processing power to be run on the login node. When you run long jobs, the best strategy is to launch it in the background as part of the job. This allows you to monitor your model as it is running (and cancel it if things don’t look right).\n\nExample:\n\n#!/bin/bash\n#SBATCH ...\n#SBATCH ...\n\ntensorboard --logdir=runs --host 0.0.0.0 &\npython ~/mnist/nn.py\nBecause we only have 1 GPU and are taking turns running our jobs, we need to keep our jobs very short here. So we will launch a separate job for TensorBoard. This time, we will launch an interactive job:\nsalloc --time=1:0:0 --mem=2000M\nTo launch TensorBoard, we need to activate our Python virtual environment (TensorBoard was installed by pip):\nsource ~/projects/def-sponsor00/env/bin/activate\nThen we can launch TensorBoard in the background:\ntensorboard --logdir=~/mnist/runs --host 0.0.0.0 &\nNow, we need to create a connection with SSH tunnelling between your computer and the compute note running your TensorBoard job.\n\n\nConnect to TensorBoard\nYou need to connect to TensorBoard from your computer to monitor the metrics.\nFrom a new terminal on your computer, run:\nssh -NfL localhost:6006:&lt;hostname&gt;:6006 userxxx@uu.c3.ca\n\nReplace &lt;hostname&gt; by the name of the compute node running your salloc job. You can find it by looking at your prompt (your prompt shows &lt;username&gt;@&lt;hostname&gt;).\nReplace &lt;userxxx&gt; by your user name.\n\nNow, you can open a browser on your computer and access TensorBoard at http://localhost:6006.",
+    "crumbs": [
+      "AI",
+      "<b><em>Intro DL with PyTorch</em></b>",
+      "Example: the MNIST"
+    ]
+  },
+  {
+    "objectID": "ai/pt/pt_nn.html#what-are-nn",
+    "href": "ai/pt/pt_nn.html#what-are-nn",
+    "title": "Introduction to neural networks",
+    "section": "What are NN?",
+    "text": "What are NN?\n19 min video.\n\n\nAs you develop your own ML models, if you find that your mathematical background is shaky, 3blue1brown also has an excellent series of videos on linear algebra and an equally great one on calculus.",
+    "crumbs": [
+      "AI",
+      "<b><em>Intro DL with PyTorch</em></b>",
+      "Introduction to NN"
+    ]
+  },
+  {
+    "objectID": "ai/pt/pt_nn.html#how-do-nn-learn",
+    "href": "ai/pt/pt_nn.html#how-do-nn-learn",
+    "title": "Introduction to neural networks",
+    "section": "How do NN learn?",
+    "text": "How do NN learn?\n21 min video.",
+    "crumbs": [
+      "AI",
+      "<b><em>Intro DL with PyTorch</em></b>",
+      "Introduction to NN"
+    ]
+  },
+  {
+    "objectID": "ai/pt/pt_nn.html#types-of-nn",
+    "href": "ai/pt/pt_nn.html#types-of-nn",
+    "title": "Introduction to neural networks",
+    "section": "Types of NN",
+    "text": "Types of NN\nSlides (Click and wait: the presentation might take a few instants to load)",
+    "crumbs": [
+      "AI",
+      "<b><em>Intro DL with PyTorch</em></b>",
+      "Introduction to NN"
+    ]
   }
 ]
