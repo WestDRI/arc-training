@@ -1,0 +1,921 @@
+---
+title: Accelerated array computing and flexible differentiation with
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+*Content from [the webinar slides](wb_jax_slides.qmd) for easier browsing.*
+
+:::
+
+## Context
+
+### What is JAX?
+
+- Library for Python developed by Google.
+- Key data structure: Array.
+- Composition, transformation, and differentiation of numerical programs.
+- Compilation for CPUs, GPUs, and TPUs.
+- NumPy-like and lower-level APIs.
+- Requires strict functional programming.
+
+### Why JAX?
+
+```{dot}
+//| echo: false
+//| fig-height: 450px
+
+strict digraph {
+  
+bgcolor="transparent"
+graph [fontname="Inconsolata, sans-serif"]
+node [fontname="Inconsolata, sans-serif", fontsize=15]
+
+01 [label="Autodiff method", shape=underline, group=g1, group=g1, fontcolor=gray55, color=gray55]
+1 [label="Static graph\nand XLA", shape=plaintext, group=g1, group=g1]
+2 [label="Dynamic graph", shape=plaintext, group=g1]
+4 [label="Dynamic graph\nand XLA", shape=plaintext, group=g1]
+5 [label="Pseudo-dynamic\nand XLA", shape=plaintext, group=g1]
+
+02 [label="Framework", shape=underline, group=g2, fontcolor=gray55, color=gray55]
+a [label="TensorFlow", shape=oval, group=g2, color=darkorange4, fontcolor=darkorange4]
+b [label="PyTorch", shape=oval, group=g2, color=chocolate, fontcolor=chocolate]
+d [label="TensorFlow2", shape=oval, group=g2, color=darkorange4, fontcolor=darkorange4]
+e [label="JAX", shape=oval, group=g2, color=deepskyblue3, fontcolor=deepskyblue3]
+
+03 [label=Advantage, shape=underline, group=g3, fontcolor=gray55, color=gray55]
+7 [label="Mostly\noptimized AD", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+8 [label="Convenient", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+9 [label="Convenient", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+10 [label="Convenient and\nmostly optimized AD", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+
+04 [label=Disadvantage, shape=underline, group=g4, fontcolor=gray55, color=gray55]
+A [label="Manual writing of IR", shape=plaintext, fontcolor=darkorchid2, group=g4]
+B [label="Limited AD optimization", shape=plaintext, fontcolor=darkorchid2, group=g4]
+D [label="Disappointing speed", shape=plaintext, fontcolor=darkorchid2, group=g4]
+E [label="Pure functions", shape=plaintext, fontcolor=darkorchid2, group=g4]
+
+{rank=same; 01 02 03 04}
+{rank=same; 1 a 7 A}
+{rank=same; 2 b 8 B}
+{rank=same; 4 d 9 D}
+{rank=same; 5 e 10 E}
+
+01 -> 02 -> 03 -> 04 [style=invis]
+1 -> a -> 7 -> A [style=invis]
+2 -> b -> 8 -> B [style=invis]
+4 -> d -> 9 -> D [style=invis]
+5 -> e -> 10 -> E [style=invis]
+
+01 -> 1 [style=invis]
+1 -> 2 -> 4 -> 5 [color=gray55]
+02 -> a -> b -> d -> e [style=invis]
+03 -> 7 -> 8 -> 9 -> 10 [style=invis]
+04 -> A -> B -> D -> E [style=invis]
+
+}
+```
+
+Summarized from [a blog post](https://www.stochasticlifestyle.com/engineering-trade-offs-in-automatic-differentiation-from-tensorflow-and-pytorch-to-jax-and-julia/) by [Chris Rackauckas](https://chrisrackauckas.com/).
+
+## Getting started
+
+### Installation
+
+<br>
+Install from pip wheels:
+
+- Personal computer: use wheels installation commands [from official site](https://jax.readthedocs.io/en/latest/installation.html).
+- Alliance clusters: `python -m pip install jax --no-index`.
+
+:::{.note}
+
+Windows: GPU support only via WSL.
+
+:::
+
+### The NumPy API
+
+:::{.panel-tabset}
+
+#### NumPy
+
+```{python}
+import numpy as np
+
+print(np.array([(1, 2, 3), (4, 5, 6)]))
+```
+
+```{python}
+print(np.arange(5))
+```
+
+```{python}
+print(np.zeros(2))
+```
+
+```{python}
+print(np.linspace(0, 2, 9))
+```
+
+#### JAX NumPy
+
+```{.python}
+import jax.numpy as jnp
+
+print(jnp.array([(1, 2, 3), (4, 5, 6)]))
+```
+
+```
+[[1 2 3]
+ [4 5 6]]
+```
+
+```{.python}
+print(jnp.arange(5))
+```
+
+```
+[0 1 2 3 4]
+```
+
+```{.python}
+print(jnp.zeros(2))
+```
+
+```
+[0. 0.]
+```
+
+```{.python}
+print(jnp.linspace(0, 2, 9))
+```
+
+```
+[0.   0.25 0.5  0.75 1.   1.25 1.5  1.75 2.  ]
+```
+
+:::
+
+## But JAX NumPy is not NumPy...
+
+### Different types
+
+:::{.panel-tabset}
+
+#### Numpy
+
+```{python}
+type(np.zeros((2, 3)))
+```
+
+#### JAX NumPy
+
+```{.python}
+type(jnp.zeros((2, 3)))
+```
+
+```
+jaxlib.xla_extension.ArrayImpl
+```
+
+:::
+
+### Different default data types
+
+:::{.panel-tabset}
+
+#### Numpy
+
+```{python}
+np.zeros((2, 3)).dtype
+```
+
+#### JAX NumPy
+
+```{.python}
+jnp.zeros((2, 3)).dtype
+```
+
+```
+dtype('float32')
+```
+
+:::{.note}
+
+Standard for DL and libraries built for accelerators. \
+Float64 are very slow on GPUs and not supported on TPUs.
+
+:::
+
+:::
+
+### Immutable arrays
+
+:::{.panel-tabset}
+
+#### Numpy
+
+```{python}
+a = np.arange(5)
+a[0] = 9
+print(a)
+```
+
+#### JAX NumPy
+
+```{.python}
+a = jnp.arange(5)
+a[0] = 9
+```
+
+```
+TypeError: '<class 'jaxlib.xla_extension.ArrayImpl'>' object does not support item assignment. JAX arrays are immutable.
+```
+
+```{.python}
+b = a.at[0].set(9)
+print(b)
+```
+
+```
+[9 1 2 3 4]
+```
+
+:::
+
+### Strict input control
+
+:::{.panel-tabset}
+
+#### Numpy
+
+NumPy is easy-going:
+
+```{python}
+np.sum([1.0, 2.0])  # argument is a list
+```
+
+```{python}
+np.sum((1.0, 2.0))  # argument is a tuple
+```
+
+#### JAX NumPy
+
+To avoid inefficiencies, JAX will only accept arrays:
+
+```{.python}
+jnp.sum([1.0, 2.0])
+```
+
+```
+TypeError: sum requires ndarray or scalar arguments, got <class 'list'>
+```
+
+```{.python}
+jnp.sum((1.0, 2.0))
+```
+
+```
+TypeError: sum requires ndarray or scalar arguments, got <class 'tuple'>
+```
+
+:::
+
+### Out of bounds indexing
+
+:::{.panel-tabset}
+
+#### Numpy
+
+NumPy will error if you index out of bounds:
+
+```{python}
+print(np.arange(5)[10])
+```
+
+#### JAX NumPy
+
+JAX will silently return the closest boundary:
+
+```{.python}
+print(jnp.arange(5)[10])
+```
+
+```
+4
+```
+
+:::
+
+### PRNG
+
+Traditional [pseudorandom number generators](https://en.wikipedia.org/wiki/Pseudorandom_number_generator) are based on nondeterministic state of OS.
+
+Slow and problematic for parallel executions.
+
+JAX relies on explicitly-set random state called a *key*:
+
+```{.python}
+from jax import random
+
+initial_key = random.PRNGKey(18)
+print(initial_key)
+```
+
+```
+[ 0 18]
+```
+
+Each key can only be used for one random function, but it can be split into new keys:
+
+```{.python}
+new_key1, new_key2 = random.split(initial_key)
+```
+
+:::{.note}
+
+`initial_key` can't be used anymore now.
+
+:::
+
+```{.python}
+print(new_key1)
+```
+
+```
+[4197003906 1654466292]
+```
+
+```{.python}
+print(new_key2)
+```
+
+```
+[1685972163 1654824463]
+```
+
+We need to keep one key to split whenever we need and we can use the other one.
+
+To make sure we don't reuse a key by accident, it is best to overwrite the initial key with one of the new ones.
+
+Here are easier names:
+
+```{.python}
+key = random.PRNGKey(18)
+key, subkey = random.split(key)
+```
+
+We can now use `subkey` to generate a random array:
+
+```{.python}
+x = random.normal(subkey, (3, 2))
+```
+
+### Benchmarking
+
+JAX uses asynchronous dispatch.
+
+Instead of waiting for a computation to complete before control returns to Python, the computation is dispatched to an accelerator and a [future](https://en.wikipedia.org/wiki/Futures_and_promises) is created.
+
+To get proper timings, we need to make sure the future is resolved by using the `block_until_ready()` method.
+
+## JAX functioning
+
+```{dot}
+//| echo: false
+//| fig-height: 600px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+edge [color=gray55]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label=" Transformations ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
+
+```{dot}
+//| echo: false
+//| fig-height: 600px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+edge [color=gray55]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label="Vectorization\nParallelization\n   Differentiation  ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
+
+## JIT compilation
+
+### JIT syntax
+
+```{.python}
+from jax import jit
+
+key = random.PRNGKey(8)
+key, subkey1, subkey2 = random.split(key, 3)
+
+a = random.normal(subkey1, (500, 500))
+b = random.normal(subkey2, (500, 500))
+
+def sum_squared_error(a, b):
+    return jnp.sum((a-b)**2)
+```
+
+Our function could simply be used as:
+
+```{.python}
+sse = sum_squared_error(a, b)
+```
+
+Our code will run faster if we create a JIT compiled version and use that instead:
+
+```{.python}
+sum_squared_error_jit = jit(sum_squared_error)
+
+sse = sum_squared_error_jit(a, b)
+```
+
+Alternatively, this can be written as:
+
+```{.python}
+sse = jit(sum_squared_error)(a, b)
+```
+
+Or with the `@jit` decorator:
+
+```{.python}
+@jit
+def sum_squared_error(a, b):
+    return jnp.sum((a - b) ** 2)
+
+sse = sum_squared_error(a, b)
+```
+
+### Static vs traced variables
+
+```{.python}
+@jit
+def cond_func(x):
+    if x < 0.0:
+        return x ** 2.0
+    else:
+        return x ** 3.0
+
+print(cond_func(1.0))
+```
+
+```
+jax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[]
+```
+
+JIT compilation uses tracing of the code based on shape and dtype so that the same compiled code can be reused for new values with the same characteristics.
+
+Tracer objects are not real values but abstract representation that are more general.
+
+Here, an abstract general value does not work as it wouldn't know which branch to take.
+
+One solution is to tell `jit()` to exclude the problematic arguments from tracing ...
+
+... with arguments positions:
+
+```{.python}
+def cond_func(x):
+    if x < 0.0:
+        return x ** 2.0
+    else:
+        return x ** 3.0
+
+cond_func_jit = jit(cond_func, static_argnums=(0,))
+
+print(cond_func_jit(2.0))
+print(cond_func_jit(-2.0))
+```
+
+```
+8.0
+4.0
+```
+
+... with arguments names:
+
+```{.python}
+def cond_func(x):
+    if x < 0.0:
+        return x ** 2.0
+    else:
+        return x ** 3.0
+
+cond_func_jit_alt = jit(cond_func, static_argnames="x")
+
+print(cond_func_jit_alt(2.0))
+print(cond_func_jit_alt(-2.0))
+```
+
+```
+8.0
+4.0
+```
+
+### Control flow primitives
+
+Another solution, is to use one of the structured control flow primitives:
+
+```{.python}
+from jax import lax
+
+lax.cond(False, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([2.]))
+```
+
+```
+Array([8.], dtype=float32)
+```
+
+```{.python}
+lax.cond(True, lambda x: x ** 2.0, lambda x: x ** 3.0, jnp.array([-2.]))
+```
+
+```
+Array([4.], dtype=float32)
+```
+
+Other control flow primitives:
+
+- `lax.while_loop`
+- `lax.fori_loop`
+- `lax.scan`
+
+Other pseudo dynamic control flow functions:
+
+- `lax.select` (NumPy API `jnp.where` and `jnp.select`)
+- `lax.switch` (NumPy API `jnp.piecewise`)
+
+### Static vs traced operations
+
+Similarly, you can mark problematic operations as static so that they don't get traced during JIT compilation:
+
+```{.python}
+@jit
+def f(x):
+    return x.reshape(jnp.array(x.shape).prod())
+
+x = jnp.ones((2, 3))
+print(f(x))
+```
+
+```
+TypeError: Shapes must be 1D sequences of concrete values of integer type, got [Traced<ShapedArray(int32[])>with<DynamicJaxprTrace(level=1/0)>]
+```
+
+The problem here is that the shape of the argument to `prod()` depends on the value of `x` which is unknown at compilation time.
+
+One solution is to use the NumPy version of `prod()`:
+
+```{.python}
+import numpy as np
+
+@jit
+def f(x):
+    return x.reshape((np.prod(x.shape)))
+
+print(f(x))
+```
+
+```
+[1. 1. 1. 1. 1. 1.]
+```
+
+## Functionally pure functions
+
+### Jaxprs
+
+```{.python}
+import jax
+
+x = jnp.array([1., 4., 3.])
+y = jnp.array([8., 1., 2.])
+
+def f(x, y):
+    return 2 * x**jax.make_jaxpr(f)(x, y) 
+```
+
+```
+{ lambda ; a:f32[3] b:f32[3]. let
+    c:f32[3] = integer_pow[y=2] a
+    d:f32[3] = mul 2.0 c
+    e:f32[3] = add d b
+  in (e,) }
+```
+
+### Outputs only based on inputs
+
+```{.python}
+def f(x):
+    return a + x
+```
+
+`f` uses the variable `a` from the global environment.
+
+The output does not solely depend on the inputs: *not a pure function*.
+
+```{.python}
+a = jnp.ones(3)
+print(a)
+```
+
+```
+[1. 1. 1.]
+```
+
+```{.python}
+def f(x):
+    return print(jit(f)(jnp.ones(3)))
+```
+
+```
+[2. 2. 2.]
+```
+
+:::{.note}
+
+Things seem ok here because this is the first run (tracing).
+
+:::
+
+Now, let's change the value of `a` to an array of zeros:
+
+```{.python}
+a = jnp.zeros(3)
+print(a)
+```
+
+```
+[0. 0. 0.]
+```
+
+And rerun the same code:
+
+```{.python}
+print(jit(f)(jnp.ones(3)))
+```
+
+```
+[2. 2. 2.]
+```
+
+:::{.note}
+
+Our cached compiled program is run and we get a wrong result.
+
+:::
+
+The new value for `a` will only take effect if we re-trigger tracing by changing the shape and/or dtype of `x`:
+
+```{.python}
+a = jnp.zeros(4)
+print(a)
+```
+
+```
+[0. 0. 0. 0.]
+```
+
+```{.python}
+print(jit(f)(jnp.ones(4)))
+```
+
+```
+[1. 1. 1. 1.]
+```
+
+Passing to `f()` an argument of a different shape forced retracing.
+
+### No side effects
+
+Side effects: anything beside returned output.
+
+Examples:
+
+- Printing to standard output
+- Reading from file/writing to file
+- Modifying a global variable
+
+The side effects will happen during tracing, but not on subsequent runs. You cannot rely on side effects in your code.
+
+```{.python}
+def f(a, b):
+    print("Calculating sum")
+    return print(jit(f)(jnp.arange(3), jnp.arange(3)))
+```
+
+```
+Calculating sum
+[0 2 4]
+```
+
+:::{.note}
+
+Printing happened here because this is the first run.
+
+:::
+
+Let's rerun the function:
+
+```{.python}
+print(jit(f)(jnp.arange(3), jnp.arange(3)))
+```
+
+```
+[0 2 4]
+```
+
+This time, no printing.
+
+## Other transformations
+
+### Automatic differentiation
+
+Considering the function `f`:
+
+```{.python}
+f = lambda x: x**3 + 2*x**2 - 3*x + 8
+```
+
+We can create a new function `dfdx` that computes the gradient of `f` w.r.t. `x`:
+
+```{.python}
+from jax import grad
+
+dfdx = grad(f)
+```
+
+`dfdx` returns the derivatives.
+
+```{.python}
+print(dfdx(1.))
+```
+
+```
+4.0
+```
+
+### Composing transformations
+
+Transformations can be composed:
+
+```{.python}
+print(jit(grad(f))(1.))
+```
+
+```
+4.0
+```
+
+```{.python}
+print(grad(jit(f))(1.))
+```
+
+```
+4.0
+```
+
+### Forward and reverse modes
+
+Other autodiff methods:
+
+- Reverse-mode vector-Jacobian products: `jax.vjp`
+- Forward-mode Jacobian-vector products: `jax.jvp`
+
+### Higher-order differentiation
+
+With a single variable, the `grad` function calls can be nested:
+
+```{.python}
+d2fdx = grad(dfdx)   # function to compute 2nd order derivatives
+d3fdx = grad(d2fdx)  # function to compute 3rd order derivatives
+...
+```
+
+With several variables:
+
+- `jax.jacfwd` for forward-mode
+- `jax.jacrev` for reverse-mode
+
+### Pytrees
+
+JAX has a nested container structure: *pytree* extremely useful for DNN.
+
+### Vectorization and parallelization
+
+Other transformations for parallel run of computations across batches of arrays:
+
+- Automatic vectorization with `jax.vmap`
+- Parallelization across devices with `jax.pmap`
+
+## Pushing optimizations further
+
+### [Lax](https://jax.readthedocs.io/en/latest/jax.lax.html) API
+
+`jax.numpy` is a high-level NumPy-like API wrapped around `jax.lax`.
+
+`jax.lax` is a more efficient lower-level API itself wrapped around XLA.
+
+### [Pallas](https://jax.readthedocs.io/en/latest/pallas/index.html): extension to write GPU and TPU kernels
+
+```{dot}
+//| echo: false
+//| fig-height: 580px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+edge [color=gray55]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+triton [label="Triton", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+mosaic [label="Mosaic", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label="Vectorization\nParallelization\n   Differentiation  ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> triton [dir=none]
+hlo -> mosaic [dir=none]
+
+triton -> GPU [shape=doubleoctagon]
+mosaic -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
