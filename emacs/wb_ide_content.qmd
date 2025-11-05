@@ -1,0 +1,459 @@
+---
+title: Emacs as a programming IDE
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+*Content from [the webinar slides](wb_ide_slides.qmd) for easier browsing.*
+
+:::
+
+I am not trying to start [an editor war](https://en.wikipedia.org/wiki/Editor_war) here
+
+![https://cube-drone.com](img/emacs1.jpg)
+
+Particularly as there are now excellent IDEs for Python, Julia, and R without Emacs learning curve (think [VS Code](https://code.visualstudio.com/), [RStudio](https://posit.co/download/rstudio-desktop/), or [JupyterLab](https://jupyter.org/))
+
+<center>![](img/learning_curve.jpg)</center>
+
+## Why I still use (and love) Emacs
+
+- Bookmarking
+- Fully customizable
+- Kbd for everything
+- Org mode (org tables!)
+- Organization of windows
+- Search and replace with regexp
+- [Ediff](https://www.gnu.org/software/emacs/manual/html_mono/ediff.html)
+- Macros
+- Emacs everywhere (emails, Slack, Telegram with [mu4e](https://github.com/djcb/mu), [emacs-slack](https://github.com/yuya373/emacs-slack), [telega](https://github.com/zevlg/telega.el))
+
+### [Helm](https://github.com/emacs-helm/helm)
+
+- Searching in buffer
+- Navigating open buffers and recent files
+- Navigating file sections
+- Selecting from kill ring
+- Moving in mark ring
+- Looking at active modes
+
+### Completion
+
+[company-mode](https://github.com/company-mode/company-mode)
+
+:::{.fragment}
+[yasnippet](https://github.com/joaotavora/yasnippet)
+:::
+
+:::{.fragment}
+[Dynamic abbrev expansion](https://www.gnu.org/software/emacs/manual/html_node/emacs/Abbrevs.html)
+:::
+
+### Undoing/redoing with [undo-tree](https://github.com/tarsiiformes/undo-tree)
+
+#### Linear systems: classic undo/redo
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Have some file</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Make some edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Make more edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" "))---4((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Make more edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current---4((" "))
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Can undo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" ")):::current---3((" "))---4((" "))
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Undo some more</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current---4((" "))
+   classDef current stroke: #f96, stroke-width: 2px
+```
+
+<center>Can redo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" "))-.-4((" ")):::lost
+   3((" "))---5((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px
+   classDef lost stroke-dasharray: 3 4
+```
+
+<center>Make new edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current-.-4((" ")):::lost
+   3((" "))---5((" "))
+   classDef current stroke: #f96, stroke-width: 2px
+   classDef lost stroke-dasharray: 3 4
+```
+
+<center>Can still undo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" ")):::current---3((" "))-.-4((" ")):::lost
+   3((" "))---5((" "))
+   classDef current stroke: #f96, stroke-width: 2px
+   classDef lost stroke-dasharray: 3 4
+```
+
+<center>Can still undo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current-.-4((" ")):::lost
+   3((" "))---5((" "))
+   classDef current stroke: #f96, stroke-width: 2px
+   classDef lost stroke-dasharray: 3 4
+```
+
+<center>And can redo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" "))-.-4((" ")):::lost
+   3((" "))---5((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px
+   classDef lost stroke-dasharray: 3 4
+```
+
+<center>But some edits are forever lost</center>
+
+#### Linear systems: Emacs
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  themeVariables:
+    fontSize: 10
+  rankSpacing: 10
+---
+flowchart TD
+   1((1)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Have some file</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Make some edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2))---3((3)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Make more edits</center>
+
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2))---3((3))---4((4)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Make more edits</center>
+
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2))---3((3))---4((4))---5((3)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>The first undo adds a new point to the chain of edits</center>
+
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2))---3((3))---4((4))---5((3))---6((2)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>More undoing keeps adding points to the chain</center>
+
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>There is no redo: you stop undoing, then start again to undo the undo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3))---8((5)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>You can make new edits</center>
+
+<center>Nothing ever gets lost, but you might get headaches</center>
+
+<center>Example: let's go back to the starting point</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+---
+config:
+  rankSpacing: 10
+---
+flowchart TD
+   1((1))---2((2))---3((3))---4((4))---5((3))---6((2))---7((3))---8((5))---9((3))---10((2))---11((3))---12((4))---13((3))---14((2))---15((1)):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+#### Non linear system: undo-tree
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Have some file</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Make some edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Make some edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" "))---4((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Make some edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current---4((" "))
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Undo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" ")):::current---3((" "))---4((" "))
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Undo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" ")):::current---4((" "))
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Redo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" "))---4((" "))
+   3((" "))---5((" ")):::current
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Make new edits</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" "))---4((" "))
+   3((" ")):::current---5((" "))
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Undo</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" "))---2((" "))---3((" "))---4((" ")):::current
+   3((" "))---5((" "))
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Switch branch and redo the old version</center>
+
+```{mermaid}
+%%| echo: false
+%%| fig-align: center
+flowchart TD
+   1((" ")):::current---2((" "))---3((" "))---4((" "))
+   3((" "))---5((" "))
+   classDef current stroke: #f96, stroke-width: 2px, color: #f96
+```
+
+<center>Nothing gets lost and it is more sane to navigate the history</center>
+
+## Emacs with Python
+
+Emacs comes with a Python mode that provides syntax highlighting. For a full IDE experience, there are multiple options, the most popular of which being the [elpy](https://github.com/jorgenschaefer/elpy) package
+
+![Code from [matplotlib](https://matplotlib.org/stable/gallery/lines_bars_and_markers/spectrum_demo.html#sphx-glr-gallery-lines-bars-and-markers-spectrum-demo-py)](img/emacs_python.jpg){width="78%"}
+
+## Emacs with R
+
+R is—as Emacs—[GNU](https://en.wikipedia.org/wiki/GNU) software and has been integrated with Emacs via the [ESS (Emacs Speaks Statistics)](https://github.com/emacs-ess/ESS) package for a very long time
+
+<center>![](img/emacs_ess.png){width="78%"}</center>
+
+## Emacs with Julia
+
+The [julia-mode](https://github.com/JuliaEditorSupport/julia-emacs) package provides syntax highlighting and the [julia-repl](https://github.com/tpapp/julia-repl) package implements a fully functional Julia REPL, optionally with the [emacs-libvterm](https://github.com/akermu/emacs-libvterm) package
+
+![Code from [Beautiful Makie](https://beautiful.makie.org/dev/examples/generated/2d/streamplot/poincare_vander/)](img/emacs_julia.jpg){width="78%"}
+
+ESS also provides an IDE for Julia, but it does not allow for the funky Julia-specific REPL
+
+Another sophisticated option is to use [julia-mode](https://github.com/JuliaEditorSupport/julia-emacs) with the [julia-snail](https://github.com/gcv/julia-snail) package

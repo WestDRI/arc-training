@@ -1,0 +1,728 @@
+---
+title: A brief intro to
+author: and how to use it for deep learning
+---
+
+:::{.def}
+
+*Content from [the intro slides](fl_jax_slides.qmd) for easier browsing.*
+
+:::
+
+## What is JAX?
+
+- Library for Python developed by Google.
+- Key data structure: Array.
+- Composition, transformation, and differentiation of numerical programs.
+- Compilation for CPUs, GPUs, and TPUs.
+- NumPy-like and lower-level APIs.
+- Requires strict functional programming.
+
+## Why JAX?
+
+### Fast
+
+- **Default data type suited for deep learning.**
+
+  Like [PyTorch](https://pytorch.org/), uses float32 as default. This level of precision is suitable for deep learning and increases efficiency (by contrast, [NumPy](https://numpy.org/) defaults to float64).
+
+- **[JIT compilation](https://en.wikipedia.org/wiki/Just-in-time_compilation).**
+
+- The same code can run on [CPUs](https://en.wikipedia.org/wiki/Central_processing_unit) or on **accelerators** ([GPUs](https://en.wikipedia.org/wiki/Graphics_processing_unit) and [TPUs](https://en.wikipedia.org/wiki/Tensor_Processing_Unit)).
+
+- **[XLA (Accelerated Linear Algebra)](https://github.com/openxla/xla) optimization.**
+
+- **Asynchronous dispatch.**
+
+- **Vectorization, data parallelism, and sharding.**
+
+  All levels of shared and distributed memory parallelism are supported.
+
+### Great AD
+
+```{dot}
+//| echo: false
+//| fig-height: 450px
+
+strict digraph {
+
+bgcolor="transparent"
+graph [fontname="Inconsolata, sans-serif"]
+node [fontname="Inconsolata, sans-serif", fontsize=15]
+
+01 [label="Autodiff method", shape=underline, group=g1, group=g1, fontcolor=gray55, color=gray55]
+1 [label="Static graph\nand XLA", shape=plaintext, group=g1, group=g1]
+2 [label="Dynamic graph", shape=plaintext, group=g1]
+4 [label="Dynamic graph\nand XLA", shape=plaintext, group=g1]
+5 [label="Pseudo-dynamic\nand XLA", shape=plaintext, group=g1]
+
+02 [label="Framework", shape=underline, group=g2, fontcolor=gray55, color=gray55]
+a [label="TensorFlow", shape=oval, group=g2, color=darkorange4, fontcolor=darkorange4]
+b [label="PyTorch", shape=oval, group=g2, color=chocolate, fontcolor=chocolate]
+d [label="TensorFlow2", shape=oval, group=g2, color=darkorange4, fontcolor=darkorange4]
+e [label="JAX", shape=oval, group=g2, color=deepskyblue3, fontcolor=deepskyblue3]
+
+03 [label=Advantage, shape=underline, group=g3, fontcolor=gray55, color=gray55]
+7 [label="Mostly\noptimized AD", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+8 [label="Convenient", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+9 [label="Convenient", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+10 [label="Convenient and\nmostly optimized AD", shape=plaintext, fontcolor=darkolivegreen, group=g3]
+
+04 [label=Disadvantage, shape=underline, group=g4, fontcolor=gray55, color=gray55]
+A [label="Manual writing of IR", shape=plaintext, fontcolor=darkorchid2, group=g4]
+B [label="Limited AD optimization", shape=plaintext, fontcolor=darkorchid2, group=g4]
+D [label="Disappointing speed", shape=plaintext, fontcolor=darkorchid2, group=g4]
+E [label="Pure functions", shape=plaintext, fontcolor=darkorchid2, group=g4]
+
+{rank=same; 01 02 03 04}
+{rank=same; 1 a 7 A}
+{rank=same; 2 b 8 B}
+{rank=same; 4 d 9 D}
+{rank=same; 5 e 10 E}
+
+01 -> 02 -> 03 -> 04 [style=invis]
+1 -> a -> 7 -> A [style=invis]
+2 -> b -> 8 -> B [style=invis]
+4 -> d -> 9 -> D [style=invis]
+5 -> e -> 10 -> E [style=invis]
+
+01 -> 1 [style=invis]
+1 -> 2 -> 4 -> 5 [color=gray55]
+02 -> a -> b -> d -> e [style=invis]
+03 -> 7 -> 8 -> 9 -> 10 [style=invis]
+04 -> A -> B -> D -> E [style=invis]
+
+}
+```
+
+:::{.figure-caption}
+
+Summarized from [a blog post](https://www.stochasticlifestyle.com/engineering-trade-offs-in-automatic-differentiation-from-tensorflow-and-pytorch-to-jax-and-julia/) by [Chris Rackauckas](https://chrisrackauckas.com/)
+
+:::
+
+### Close to the math
+
+Considering the function `f`:
+
+```{.python}
+f = lambda x: x**3 + 2*x**2 - 3*x + 8
+```
+
+We can create a new function `dfdx` that computes the gradient of `f` w.r.t. `x`:
+
+```{.python}
+from jax import grad
+
+dfdx = grad(f)
+```
+
+`dfdx` returns the derivatives:
+
+```{.python}
+print(dfdx(1.))
+```
+
+```
+4.0
+```
+
+### Forward and reverse modes
+
+- reverse-mode vector-Jacobian products: `jax.vjp`
+- forward-mode Jacobian-vector products: `jax.jvp`
+
+### Higher-order differentiation
+
+With a single variable, the `grad` function calls can be nested:
+
+```{.python}
+d2fdx = grad(dfdx)   # function to compute 2nd order derivatives
+d3fdx = grad(d2fdx)  # function to compute 3rd order derivatives
+...
+```
+
+With several variables, you have to use the functions:
+
+- `jax.jacfwd` for forward-mode,
+- `jax.jacrev` for reverse-mode.
+
+### How does it work?
+
+```{dot}
+//| echo: false
+//| fig-height: 600px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label="Transformation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label=" Transformations ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
+
+```{dot}
+//| echo: false
+//| fig-height: 600px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label=" Just-in-time \n(JIT)\ncompilation", shape=rectangle, color=chocolate, fontcolor=chocolate]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label="Vectorization\nParallelization\n   Differentiation  ", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
+
+```{dot}
+//| echo: false
+//| fig-height: 600px
+
+strict digraph {
+
+node [fontname="Inconsolata, sans-serif"]
+bgcolor="transparent"
+
+tracer  [label=Tracing, shape=rectangle, color=darkviolet, fontcolor=darkviolet]
+jit [label="jax.jit", shape=rectangle, color=chocolate, fontcolor=chocolate]
+xla [label="Accelerated\n Linear Algebra \n(XLA)", shape=rectangle, color=deeppink3, fontcolor=deeppink3]
+transform [label="jax.vmap\njax.pmap\njax.grad", shape=rectangle, color=chocolate, fontcolor=chocolate]
+
+CPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+GPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+TPU [shape=octagon, color=darkslategray4, fontcolor=darkslategray4]
+
+
+py [label="Pure Python\nfunctions", color=gray50, fontcolor=gray50]
+jaxpr [label="Jaxprs\n(JAX expressions)\nintermediate\nrepresentation\n(IR)", color=gray30, fontcolor=gray30]
+hlo [label="High-level\noptimized (HLO)\nprogram", color=gray10, fontcolor=gray10]
+
+py -> tracer [dir=none]
+tracer -> jaxpr
+jaxpr -> jit [dir=none]
+jit -> hlo
+hlo -> xla [dir=none]
+
+xla -> CPU [shape=doubleoctagon]
+xla -> GPU
+xla -> TPU
+
+jaxpr -> transform [dir=both, minlen=3]
+{rank=same; jaxpr transform}
+
+}
+```
+
+### Not a deep learning library
+
+```{dot}
+//| echo: false
+
+strict digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif"]
+
+jx [label="JAX", fontcolor="#9D22B2", color="#9D22B2"]
+
+dl [label="Deep learning", fontcolor="#5E98F6", shape=plaintext]
+ll [label="LLMs", fontcolor="#5E98F6", shape=plaintext]
+op [label="Optimizers", fontcolor="#5E98F6", shape=plaintext]
+so [label="Solvers", fontcolor="#5E98F6", shape=plaintext]
+pp [label="Probabilistic\nprogramming", fontcolor="#5E98F6", shape=plaintext]
+pm [label="Probabilistic\nmodeling", fontcolor="#5E98F6", shape=plaintext]
+ph [label="Physics\nsimulations", fontcolor="#5E98F6", shape=plaintext]
+
+{ll so ph} -> jx [dir=back, color="#5E98F6"]
+jx -> {pp dl pm op} [color="#5E98F6"]
+
+}
+```
+
+### Ideal for DL
+
+JAX is a Python sublanguage ideal for deep learning.
+
+```{dot}
+//| echo: false
+
+strict digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif"]
+
+jx [label="JAX", fontcolor="#9D22B2", color="#9D22B2"]
+
+dl [label="Deep learning", fontcolor="#5E98F6", shape=plaintext]
+ll [label="LLMs", fontcolor=gray55, shape=plaintext]
+op [label="Optimizers", fontcolor="#5E98F6", shape=plaintext]
+so [label="Solvers", fontcolor=gray55, shape=plaintext]
+pp [label="Probabilistic\nprogramming", fontcolor=gray55, shape=plaintext]
+pm [label="Probabilistic\nmodeling", fontcolor=gray55, shape=plaintext]
+ph [label="Physics\nsimulations", fontcolor=gray55, shape=plaintext]
+
+{ll so ph} -> jx [dir=back, color=gray55]
+jx -> {pp pm} [color=gray55]
+jx -> {dl op} [color="#5E98F6"]
+
+}
+```
+
+## JAX for deep learning
+
+### Deep learning libraries
+
+```{dot}
+//| echo: false
+
+strict digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif"]
+
+jx [label="JAX", fontcolor="#9D22B2", color="#9D22B2"]
+
+dl [label="Deep learning", fontcolor="#5E98F6", shape=plaintext]
+op [label="Optimizers", fontcolor="#5E98F6", shape=plaintext]
+
+jx -> {dl op} [color="#5E98F6"]
+
+fl [label="Flax", fontcolor="#5E98F6", color="#5E98F6"]
+eq [label="Equinox", fontcolor="#5E98F6", color="#5E98F6"]
+ke [label="Keras", fontcolor="#5E98F6", color="#5E98F6"]
+oa [label="Optax", fontcolor="#5E98F6", color="#5E98F6"]
+oi [label="Optimix", fontcolor="#5E98F6", color="#5E98F6"]
+
+dl -> fl [dir=none, color="#5E98F6"]
+dl -> eq [dir=none, color="#5E98F6"]
+dl -> ke [dir=none, color="#5E98F6"]
+
+op -> oa [dir=none, color="#5E98F6"]
+op -> oi [dir=none, color="#5E98F6"]
+
+}
+```
+
+### This course
+
+```{dot}
+//| echo: false
+
+strict digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif"]
+ 
+jx [label="JAX", fontcolor="#9D22B2", color="#9D22B2"]
+
+dl [label="Deep learning", fontcolor="#5E98F6", shape=plaintext]
+op [label="Optimizers", fontcolor="#5E98F6", shape=plaintext]
+
+jx -> {dl op} [color="#5E98F6"]
+
+fl [label="Flax", fontcolor="#5E98F6", color="#5E98F6"]
+eq [label="Equinox", fontcolor=gray55, color=gray55]
+ke [label="Keras", fontcolor=gray55, color=gray55]
+oa [label="Optax", fontcolor="#5E98F6", color="#5E98F6"]
+oi [label="Optimix", fontcolor=gray55, color=gray55]
+
+dl -> fl [dir=none, color="#5E98F6"]
+dl -> eq [dir=none, color=gray55]
+dl -> ke [dir=none, color=gray55]
+
+op -> oa [dir=none, color="#5E98F6"]
+op -> oi [dir=none, color=gray55]
+
+}
+```
+
+## Modular approach
+
+### Data loaders
+
+```{dot}
+//| echo: false
+//| fig-width: 500px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1]
+
+pt [label=torchdata, fontcolor=darkorange4, color=darkorange4]
+tfds [label=tfds, group=g2, fontcolor=darkorange4, color=darkorange4]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+{pt tfds dt} -> load [color=darkorange4]
+
+}
+```
+
+### Data transformations
+
+```{dot}
+//| echo: false
+//| fig-width: 500px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1]
+
+pt [label=torchdata, fontcolor=darkorange4, color=darkorange4]
+tfds [label=tfds, group=g2, fontcolor=darkorange4, color=darkorange4]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+gr [label=grain, fontcolor=orangered3, color=orangered3]
+tv [label=torchvision, fontcolor=orangered3, color=orangered3]
+
+{rank=same; gr load tv}
+gr -> load -> tv [style=invis]
+
+{pt tfds dt} -> load [color=darkorange4]
+{gr tv} -> proc [color=orangered3]
+
+load -> proc [dir=none]
+
+}
+```
+
+### Core deep learning library
+
+```{dot}
+//| echo: false
+//| fig-width: 500px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1]
+
+pt [label=torchdata, fontcolor=darkorange4, color=darkorange4]
+tfds [label=tfds, group=g2, fontcolor=darkorange4, color=darkorange4]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+gr [label=grain, fontcolor=orangered3, color=orangered3]
+tv [label=torchvision, fontcolor=orangered3, color=orangered3]
+
+fl [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+
+{rank=same; gr load tv}
+gr -> load -> tv [style=invis]
+
+{pt tfds dt} -> load [color=darkorange4]
+{gr tv} -> proc [color=orangered3]
+fl -> nn [color="#00695C"]
+
+load -> proc -> nn [dir=none]
+
+}
+```
+
+### Optimizer and loss functions
+
+```{dot}
+//| echo: false
+//| fig-width: 500px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+opt [label="Hyperparameters", shape=plaintext, group=g1]
+
+pt [label=torchdata, fontcolor=darkorange4, color=darkorange4]
+tfds [label=tfds, group=g2, fontcolor=darkorange4, color=darkorange4]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+gr [label=grain, fontcolor=orangered3, color=orangered3]
+tv [label=torchvision, fontcolor=orangered3, color=orangered3]
+
+fl [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+
+oa [label=optax, group=g2, fontcolor="#21A89B", color="#21A89B"]
+
+{rank=same; gr load tv}
+gr -> load -> tv [style=invis]
+
+{pt tfds dt} -> load [color=darkorange4]
+{gr tv} -> proc [color=orangered3]
+fl -> nn [color="#00695C"]
+oa -> opt [color="#21A89B"]
+
+load -> proc -> nn -> opt [dir=none]
+
+}
+```
+
+### Train
+
+```{dot}
+//| echo: false
+//| fig-width: 700px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+opt [label="Hyperparameters", shape=plaintext, group=g1, fontcolor=gray55]
+train [label="Train", shape=plaintext, group=g1]
+
+pt [label=torchdata, fontcolor=darkorange4, color=darkorange4]
+tfds [label=tfds, group=g2, fontcolor=darkorange4, color=darkorange4]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+gr [label=grain, fontcolor=orangered3, color=orangered3]
+tv [label=torchvision, fontcolor=orangered3, color=orangered3]
+
+fl1 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+fl2 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+
+oa [label=optax, group=g2, fontcolor="#21A89B", color="#21A89B"]
+
+jx [label=jax, group=g2, fontcolor="#9D22B2", color="#9D22B2"]
+
+{rank=same; gr load tv}
+gr -> load -> tv [style=invis]
+
+{rank=same; jx fl2 opt}
+jx -> fl2 -> opt [style=invis]
+
+{pt tfds dt} -> load [color=darkorange4]
+{gr tv} -> proc [color=orangered3]
+fl1 -> nn [color="#00695C"]
+oa -> opt [color="#21A89B"]
+jx -> fl2 [color="#9D22B2"]
+fl2 -> train [color="#00695C"]
+
+load -> proc -> nn -> opt -> train [dir=none]
+
+}
+```
+
+### Checkpointing
+
+```{dot}
+//| echo: false
+//| fig-width: 700px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+opt [label="Hyperparameters", shape=plaintext, group=g1, fontcolor=gray55]
+train [label="Train", shape=plaintext, group=g1, fontcolor=gray55]
+cp [label="Checkpoint", shape=plaintext, group=g1]
+
+pt [label=torchdata, fontcolor=darkorange4, color=darkorange4]
+tfds [label=tfds, group=g2, fontcolor=darkorange4, color=darkorange4]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+gr [label=grain, fontcolor=orangered3, color=orangered3]
+tv [label=torchvision, fontcolor=orangered3, color=orangered3]
+
+fl1 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+fl2 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+
+oa [label=optax, group=g2, fontcolor="#21A89B", color="#21A89B"]
+
+jx [label=jax, group=g2, fontcolor="#9D22B2", color="#9D22B2"]
+
+ob [label=orbax, group=g2, fontcolor="#336699", color="#336699"]
+
+{rank=same; gr load tv}
+gr -> load -> tv [style=invis]
+
+{rank=same; jx fl2 opt}
+jx -> fl2 -> opt [style=invis]
+
+{pt tfds dt} -> load [color=darkorange4]
+{gr tv} -> proc [color=orangered3]
+fl1 -> nn [color="#00695C"]
+oa -> opt [color="#21A89B"]
+jx -> fl2 [color="#9D22B2"]
+ob -> cp [color="#336699"]
+
+load -> proc -> nn -> opt -> train -> cp [dir=none]
+
+}
+```
+
+### Transfer learning
+
+```{dot}
+//| echo: false
+//| fig-width: 700px
+
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+pretr [label="Pre-trained model", shape=plaintext, group=g1]
+opt [label="Hyperparameters", shape=plaintext, group=g1, fontcolor=gray55]
+train [label="Train", shape=plaintext, group=g1, fontcolor=gray55]
+cp [label="Checkpoint", shape=plaintext, group=g1, fontcolor=gray55]
+
+pt [label=torchdata, fontcolor=darkorange4, color=darkorange4]
+tfds [label=tfds, group=g2, fontcolor=darkorange4, color=darkorange4]
+dt [label=datasets, fontcolor=darkorange4, color=darkorange4]
+
+gr [label=grain, fontcolor=orangered3, color=orangered3]
+tv [label=torchvision, fontcolor=orangered3, color=orangered3]
+
+tr [label=transformers, fontcolor="#669900", color="#669900"]
+
+fl1 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+fl2 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+
+oa [label=optax, group=g2, fontcolor="#21A89B", color="#21A89B"]
+
+jx [label=jax, group=g2, fontcolor="#9D22B2", color="#9D22B2"]
+
+ob [label=orbax, group=g2, fontcolor="#336699", color="#336699"]
+
+{rank=same; gr load tv tr}
+gr -> load -> tv -> tr [style=invis]
+
+{rank=same; fl1 proc pretr}
+fl1 -> proc -> pretr [style=invis]
+
+{rank=same; jx fl2 opt}
+jx -> fl2 -> opt [style=invis]
+
+{pt tfds dt} -> load [color=darkorange4]
+{gr tv} -> proc [color=orangered3]
+fl1 -> nn [color="#00695C"]
+pretr -> nn [dir=none]
+tr -> pretr [color="#669900"]
+oa -> opt [color="#21A89B"]
+jx -> fl2 [color="#9D22B2"]
+fl2 -> train [color="#00695C"]
+ob -> cp [color="#336699"]
+
+load -> proc -> nn -> opt -> train -> cp [dir=none]
+
+}
+```
+
+## Installation
+
+### Installing JAX
+
+|            | Linux x86_64 | Linux aarch64 | Mac x86_64   | Mac aarch64  | Windows x86_64 | Windows WSL2 x86_64 |
+|------------|--------------|---------------|--------------|--------------|----------------|---------------------|
+| CPU        | yes          | yes           | yes          | yes          | yes            | yes                 |
+| NVIDIA GPU | yes          | yes           | no           | n/a          | no             | experimental        |
+| Google TPU | yes          | n/a           | n/a          | n/a          | n/a            | n/a                 |
+| AMD GPU    | yes          | no            | experimental | n/a          | no             | no                  |
+| Apple GPU  | n/a          | no            | n/a          | experimental | n/a            | n/a                 |
+| Intel GPU  | experimental | n/a           | n/a          | n/a          | no             | no                  |
+
+:::{.figure-caption}
+
+From [JAX documentation](https://docs.jax.dev/en/latest/installation.html#supported-platforms)
+
+:::
+
+If you install packages which depend on JAX (e.g. Flax), they will by default install the CPU version of JAX. If you want to run JAX on GPUs, make sure to first install `jax[cuda12]`.
+
+You can install the CPU version on your machine to prototype and use a GPU version on the clusters (we have wheels).
+
+### Complementary libraries
+
+The modular approach has the downside that several libraries are required and conflicts between dependencies can be a problem.
+
+The meta-library [jax-ai-stack](https://github.com/jax-ml/jax-ai-stack) makes this easier to manage (install `jax[cuda12]` first for GPU).
+
+Note that for now TensorFlow and packages which depend on it (e.g. TFDS, grain) are still stuck at Python 3.12, so you can't use a newer Python version if you want to use some of them.
+
+:::{.def}
+
+On your machine (*and your machine only*), a great tool to manage Python versions and packages is [uv](https://github.com/astral-sh/uv) (see [our webinar](/python/wb_uv.qmd)). On the clusters, you have to use `module` to load the Python version you want and `pip` to install packages.
+
+:::

@@ -1,0 +1,215 @@
+---
+title: Modern Emacs
+subtitle: New tools that make Emacs better and faster
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+*Content from [the webinar slides](wb_new_tools_slides.qmd) for easier browsing.*
+
+:::
+
+## Faster Emacs
+
+### Lexical binding
+
+*Introduced in version 24* \
+*[Lexical binding](https://www.gnu.org/software/emacs/manual/html_node/elisp/Lexical-Binding.html) can be used instead of dynamic binding for Emacs Lisp code* \
+*Set as a file local variable*
+
+:::{.fragment}
+
+#### Dynamic binding
+
+Name resolution depends on program state (runtime context), determined at run time \
+**Global environment for all variables**
+
+Makes modifying behaviour easy
+
+:::
+
+:::{.fragment}
+
+#### Lexical binding
+
+Name resolution depends on lexical context (static context), determined at compile time \
+**Local environments of functions and `let`, `defconst`, `defvar`, etc. expressions**
+
+Makes compiler optimization much easier → ***faster Elisp code = faster Emacs***
+
+:::
+
+### JIT native compilation
+
+*Introduced in version 28* \
+*Requires [libgccjit](https://gcc.gnu.org/wiki/JIT)* \
+*[Build Emacs `--with-native-compilation`](https://www.emacswiki.org/emacs/GccEmacs)* \
+*Packages can also be compiled natively (automatic with [straight](https://github.com/radian-software/straight.el))*
+
+- [Faster startup](https://news.ycombinator.com/item?id=24117853)
+- [Speedup of 2.5 to 5](https://www.gnu.org/software/emacs/manual/html_node/elisp/Native-Compilation.html) compared to corresponding byte-compiled code
+
+### Lazy loading
+
+*Built-in since version 29* \
+*Fine-tuned loading of packages with [use-package](https://github.com/jwiegley/use-package)* \
+*Integrates nicely with [straight](https://github.com/radian-software/straight.el)*
+
+- Faster startup time
+- More organized init file
+- Easier to reload configurations for single package
+
+## Perfect parsing
+
+### Accurate syntax tree
+
+*Built-in since version 29* \
+*[Tree-sitter](https://tree-sitter.github.io/tree-sitter/) for [Emacs](https://www.emacswiki.org/emacs/Tree-sitter)* \
+*Code is parsed accurately instead of using regexp*
+
+- Perfect syntax highlighting, indentation, and navigation
+- Faster
+
+Simplest setup with [treesit-auto](https://github.com/renzmann/treesit-auto):
+
+```{.commonlisp}
+(use-package treesit-auto
+  :config
+  (treesit-auto-add-to-auto-mode-alist 'all))
+```
+
+## More efficient completions
+
+### History of code completion in Emacs: [IDO](https://www.gnu.org/software/emacs/manual/html_mono/ido.html)
+
+![From [Xah Emacs Blog](https://wilkesley.org/~ian/xah/emacs/emacs_iswitch_vs_ido.html)](img/ido.png)
+
+### History of code completion in Emacs: [IDO vertical](https://github.com/creichert/ido-vertical-mode.el)
+
+![From [oremacs](https://oremacs.com/2015/02/09/ido-vertical/)](img/ido_vertical.png)
+
+### History of code completion in Emacs: [HELM](https://github.com/emacs-helm/helm)
+
+![From [oracleyue](https://github.com/emacs-helm/helm/issues/2023)](img/helm.png){width="60%"}
+
+### History of code completion in Emacs: [Ivy](https://github.com/abo-abo/swiper)
+
+*With optional Counsel & Swiper*
+
+![From [abo-abo/swiper](https://github.com/abo-abo/swiper)](img/ivy.png)
+
+### New framework
+
+*External packages* \
+*Use default Emacs functions (less code)* \
+***Faster**, flexible, customizable with discrete units*
+
+### Packages
+
+::::{.columns}
+
+:::{.column width="52%"}
+
+#### Minibuffer
+
+- [vertico](https://github.com/minad/vertico) &emsp;&emsp;&nbsp;frontend completion UI
+- [orderless](https://github.com/oantolin/orderless) &emsp;backend completion style
+- [consult](https://github.com/minad/consult) &emsp;&emsp;backend completion functions
+- [marginalia](https://github.com/minad/marginalia/) &ensp;annotations
+- [embark](https://github.com/oantolin/embark/) &emsp;&nbsp;&nbsp;&nbsp;actions on completion buffer
+
+:::
+
+:::{.column width="48%"}
+
+#### In buffer
+
+- [corfu](https://github.com/minad/corfu) &emsp;&emsp;&nbsp;frontend completion UI
+- [orderless](https://github.com/oantolin/orderless) &nbsp;backend completion style
+- [cape](https://github.com/minad/cape) &emsp;&emsp;&ensp;backend completion functions
+- *[eglot](https://github.com/joaotavora/eglot) &emsp;&emsp;&nbsp;&nbsp;backend LSP client*
+
+:::
+
+::::
+
+### Compared to previous frameworks
+
+- Integrates beautifully with internal Emacs functions
+- Easy jump back & forth between buffer and completion buffer
+- Much faster than HELM
+- Lightning fast previews with auto-closing buffers
+- Easy customization
+
+### Example configuration
+
+*Vertico (frontend for completion in minibuffer)*
+
+```{.commonlisp}
+(use-package vertico
+  :init
+  (vertico-mode 1)
+  (vertico-multiform-mode 1)
+  :config
+  (setq vertico-multiform-commands
+	'((consult-line buffer)
+	  (consult-line-thing-at-point buffer)
+	  (consult-recent-file buffer)
+	  (consult-mode-command buffer)
+	  (consult-complex-command buffer)
+	  (embark-bindings buffer)
+	  (consult-locate buffer)
+	  (consult-project-buffer buffer)
+	  (consult-ripgrep buffer)
+	  (consult-fd buffer)))
+  :bind (:map vertico-map
+	      ("C-k" . kill-whole-line)
+	      ("C-u" . kill-whole-line)
+	      ("C-o" . vertico-next-group)
+	      ("<tab>" . minibuffer-complete)
+	      ("M-<return>" . minibuffer-force-complete-and-exit)))
+
+;; save search history
+(use-package savehist
+  :init
+  (savehist-mode 1))
+```
+
+### Language Server Protocol client
+
+*Built-in since version 29*
+
+[Eglot](https://github.com/joaotavora/eglot) (Emacs Polyglot) allows to connect to [a programming language server](https://github.com/joaotavora/eglot?tab=readme-ov-file#connecting-to-a-server)
+
+#### Example: Julia
+
+Need to install an [LSP for Julia](https://github.com/non-Jedi/eglot-jl):
+
+```{.commonlisp}
+(straight-use-package 'eglot-jl)
+```
+
+Then run `eglot-jl-init`
+
+Now `eglot` in a Julia buffer connects to the server
+
+:::{.note}
+
+Similarly, you can install an [LSP for R](https://cran.r-project.org/web/packages/languageserver/index.html) or [Python](https://github.com/microsoft/pyright) or any language and use Eglot with R, Python, or whatever language
+
+:::
+
+### ❤ to all Emacs developers and maintainers
+
+In particular,
+
+developers, maintainers, and contributors to Emacs core, \
+developers and maintainers to some of the mentioned packages: \
+[Daniel Mendler](https://github.com/minad) \
+[Omar Antolín Camarena](https://github.com/oantolin) \
+[João Távora](https://github.com/joaotavora) \
+[Robb Enzmann](https://github.com/renzmann) \
+[John Wiegley](https://github.com/jwiegley) \
+[Adam B](https://github.com/non-Jedi) \
+and all their contributors

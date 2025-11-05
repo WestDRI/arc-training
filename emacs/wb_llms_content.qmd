@@ -1,0 +1,397 @@
+---
+title: AI pair programming &<br>LLMs chats in Emacs
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+*Content from [the webinar slides](wb_llms_slides.qmd) for easier browsing.*
+
+:::
+
+## Warning about my setup
+
+I normally don't share my Emacs init code because it relies on a remapping of the semi-colon as a `ring-map` which makes my keybindings absurd on another machine. I also use [straight.el](https://github.com/radian-software/straight.el) for packages installations and it itself [requires to be installed](https://github.com/radian-software/straight.el?tab=readme-ov-file#getting-started) first
+
+But I keep being asked for my code after each webinar. So this time, I am sharing it
+
+[Don't copy-paste it in your init file: it would break your Emacs]{.emph}. Instead, use it to inspire your potential setup or, better still, **go to the packages READMEs**. They provide a much better place to start
+
+You have been warned... 🙂
+
+## Privacy warning
+
+Most companies offer a free tier. These may come with lower speed, limited tokens, older models
+
+[The free tier always come with a lack of privacy: your LLM usage is used for model training]{.emph}
+
+Paid services normally come with more privacy protections, but the landscape is fast evolving and accidents happen
+
+Be mindful of what you type when you interact with LLMs. Do not type sensitive information in your prompt
+
+## Safe API key storage
+
+Your LLMs API keys, login credentials, or passwords should never appear as plain text in your init file
+
+Some packages provide mechanisms for safe storing or logging
+
+Others don't. In that case, there are multiple options. My favourites are based on [auth-source](https://www.gnu.org/software/emacs/manual/html_mono/auth.html) and [GPG](https://www.gnupg.org/)
+
+## Safe API key storage: authinfo.gpg
+
+Create a `~/.authinfo.gpg` file with your keys in the format:
+
+```{.bash}
+machine <hostname> login <username> password <password>
+```
+
+If you need a function to retrieve your key, use:
+
+```{.lisp}
+(lambda ()
+  (auth-source-pick-first-password
+    :host "<hostname>"
+    :user "<username>"))
+```
+
+If you need a string, simply use:
+
+```{.lisp}
+(auth-source-pick-first-password
+  :host "<hostname>"
+  :user "<username>")
+```
+
+## Safe API key storage: pass
+
+Use [the standard Unix password manager](https://www.gnu.org/software/emacs/manual/html_node/auth/The-Unix-password-store.html) to store your API key by running in a Unix shell:
+
+```{.bash}
+pass insert <key-name>
+# enter your API key twice when prompted
+```
+
+Function:
+
+```{.lisp}
+(lambda ()
+  (auth-source-pass-get 'secret "<key-name>"))
+```
+
+String:
+
+```{.lisp}
+(auth-source-pass-get 'secret "<key-name>")
+```
+
+## [copilot.el](https://github.com/copilot-emacs/copilot.el)
+
+[GitHub copilot](https://github.com/features/copilot) code completion \
+(built on top of the GitHub [copilot-language-server](https://github.com/github/copilot-language-server-release))
+
+### Requirements
+
+Access to [GitHub copilot](https://github.com/features/copilot)
+
+:::{.note}
+
+Free tier available to everybody \
+Pro available free for students, teachers, maintainers of popular open-source projects \
+Paid subscriptions for Pro and Pro+
+
+:::
+
+Emacs ≥ 27
+
+Node.js ≥ 22
+
+### Installation
+
+Install and load the package and dependency [with your favourite method](https://github.com/copilot-emacs/copilot.el?tab=readme-ov-file#configurations)
+
+Install the copilot server with `M-x copilot-install-server`
+
+Login to Copilot with `M-x copilot-login` and follow the instructions
+
+:::{.note}
+
+You can test the setup with `M-x copilot-diagnose`
+
+:::
+
+### My setup (see [warning](#warning-about-my-setup))
+
+```{.lisp}
+;; dependency
+(straight-use-package 'editorconfig)
+
+(use-package copilot
+	:straight (:host github
+ 			   :repo "copilot-emacs/copilot.el"
+			   :files ("dist" "*.el"))
+	:bind (("C-8" . copilot-complete)
+		   ("; j c" . copilot-mode)
+		   :map copilot-completion-map
+		   ("C-j" . copilot-accept-completion)
+		   ("C-f" . copilot-accept-completion-by-word)
+		   ("C-t" . copilot-accept-completion-by-line)
+		   ("M-n" . copilot-next-completion)
+		   ("M-p" . copilot-previous-completion)))
+```
+
+## [copilot-chat.el](https://github.com/chep/copilot-chat.el)
+
+[GitHub copilot](https://github.com/features/copilot) chat
+
+### Requirements
+
+Access to [GitHub copilot](https://github.com/features/copilot)
+
+### Functionality
+
+Chat with a model
+
+:::{.notenoit}
+
+Markdown or Org markup \
+Chats can be saved and restored \
+Buffers can be added or removed as context \
+Can choose model
+
+:::
+
+AI pair programming
+
+:::{.notenoit}
+
+Write tests \
+Explain code/function at point/symbol at point \
+Review code \
+Document code \
+Fix code \
+Optimize code \
+Modify code \
+Customize prompts
+
+:::
+
+Generate commit messages
+
+### My setup (see [warning](#warning-about-my-setup))
+
+```{.lisp}
+;; dependency
+(straight-use-package 'magit)
+
+(use-package copilot-chat
+  :straight (:host github:repo "chep/copilot-chat.el" :files ("*.el"))
+  :after (org markdown-mode)
+  :bind (("; c c" . copilot-chat)
+         ("; c y" . copilot-chat-yank)
+         ("; c m" . copilot-chat-set-model)
+         :map prog-mode-map
+         ;; explain symbol under point
+         ("; c e s" . copilot-chat-explain-symbol-at-line)
+         ;; explain function under point
+         ("; c e f" . copilot-chat-explain-defun)
+         ;; explain selected code
+         ("; c e c" . copilot-chat-explain)
+         ;; review selected code
+         ("; c r c" . copilot-chat-review)
+         ;; review current buffer
+         ("; c r b" . copilot-chat-review-whole-buffer)
+         ;; document selected code
+         ("; c d" . copilot-chat-doc)
+         ;; fix selected code
+         ("; c f c" . copilot-chat-fix)
+         ;; optimize selected code
+         ("; c o" . copilot-chat-optimize)
+         ;; write tests for selected code
+         ("; c t" . copilot-chat-test)
+         ;; apply a custom prompt to the function body under point
+         ;; (instruct on how to refactor the function)
+         ("; c f f" . copilot-chat-custom-prompt-function)
+         :map copilot-chat-org-prompt-mode-map
+         ("C-<return>" . copilot-chat-prompt-send)
+         :map org-mode-map
+         ("; c g" . copilot-chat-prompt-split-and-list)))
+```
+
+## [gptel](https://github.com/karthink/gptel)
+
+Access LLMs from any buffer
+
+### Requirements
+
+API key(s) for model(s), GitHub copilot, or model(s) running locally
+
+### Functionality
+
+Chat in dedicated buffer or from any buffer
+
+:::{.notenoit}
+
+Markdown or Org markup \
+Choose model \
+Add/remove context (including media) \
+Set temperature
+
+:::
+
+[A number of packages](https://github.com/karthink/gptel?tab=readme-ov-file#packages-using-gptel) are built on top of gptel
+
+### My setup (see [warning](#warning-about-my-setup))
+
+```{.lisp}
+(use-package gptel
+  :config
+  (setq
+   gptel-model 'gemini-2.5-pro
+   gptel-backend (gptel-make-gemini "Gemini"
+				   :key #'gptel-api-key-from-auth-source
+				   :stream t))
+  :bind (("; g g" . gptel)
+		 ("; g s" . gptel-send)
+		 ("; g m" . gptel-menu)))
+```
+
+## [mcp.el](https://github.com/lizqwerscott/mcp.el)
+
+Emacs client for [MCP](https://modelcontextprotocol.io/)
+
+### Functionality
+
+[mcp.el](https://github.com/lizqwerscott/mcp.el) integrates easily with [gptel](https://github.com/karthink/gptel) and [copilot-chat.el](https://github.com/chep/copilot-chat.el)
+
+The LLMs you use can then access any MCP server you setup
+
+### My setup (see [warning](#warning-about-my-setup))
+
+:::{.note}
+
+I use the [Context7](https://github.com/upstash/context7) MCP server
+
+:::
+
+```{.lisp}
+(use-package mcp
+  :after (:any gptel copilot-chat)
+  :custom (mcp-hub-servers
+           `(("context7" . (:command "npx"
+			    :args ("-y" "@upstash/context7-mcp@latest" "--api-key" ,(auth-source-pick-first-password
+										                                 :host "context7_api_key"
+										                                 :user "secret"))))))
+  :config (require 'mcp-hub)
+  :hook (after-init . mcp-hub-start-all-server))
+```
+
+### Integration with [gptel](https://github.com/karthink/gptel)
+
+To have [gptel integrate with mcp.el](https://github.com/karthink/gptel#model-context-protocol-mcp-integration) and automatically use the servers you have set, add to the gptel `:config` declaration:
+
+```{.lisp}
+(require 'gptel-integrations) ; always needed
+(gptel-mcp-connect)	          ; to connect automatically
+```
+
+:::{.note}
+
+Alternatively, you can call `gptel-mcp-connect` and `gptel-mcp-disconnect` to enable/disable servers manually
+
+:::
+
+### Integration with [copilot-chat.el](https://github.com/chep/copilot-chat.el)
+
+Use `copilot-chat-set-mcp-servers` to enable or disable servers
+
+## [chatgpt-shell](https://github.com/xenodium/chatgpt-shell)
+
+A shell to access LLMs
+
+### Requirements
+
+API key(s) for model(s) or local model(s)
+
+### Functionality
+
+Chat in an Emacs shell
+
+:::{.notenoit}
+
+Choose and swap models \
+Describe code \
+Proofread text \
+Write commits messages \
+Save/restore transcripts
+
+:::
+
+### My setup (see [warning](#warning-about-my-setup))
+
+```{.lisp}
+;; dependency
+(use-package shell-maker
+  :straight (:type git :host github :repo "xenodium/shell-maker"))
+
+(use-package chatgpt-shell
+  :straight (:type git :host github
+			 :repo "xenodium/chatgpt-shell"
+			 :files ("chatgpt-shell*.el"))
+  :init
+  (setq chatgpt-shell-google-key
+	(lambda ()
+	  (auth-source-pick-first-password
+	   :host "google_api_key" :user "secret")))
+  :bind ("; c s" . chatgpt-shell))
+```
+
+## [aidermacs](https://github.com/MatthewZMD/aidermacs)
+
+[aider](https://github.com/Aider-AI/aider) in Emacs \
+(forget about Cursor)
+
+### Requirements
+
+API key(s) for model(s) or local model(s)
+
+Emacs ≥ 26.1
+
+[aider](https://github.com/Aider-AI/aider)
+
+[transient](https://github.com/magit/transient)
+
+### Functionality
+
+[Ediff](https://www.gnu.org/software/emacs/manual/html_mono/ediff.html) of AI-generated changes \
+Custom prompts \
+Code/chat/help/[architect](https://aider.chat/2024/09/26/architect.html) modes \
+Integrates with [vterm](https://github.com/akermu/emacs-libvterm) \
+Auto-detects project root \
+Voice commands \
+Retrieves web content \
+Writes tests \
+Debugs code \
+Weak model for fast easy tasks \
+[TRAMP](https://www.gnu.org/software/tramp/) support \
+Easy passing of [aider options](https://aider.chat/docs/config/options.html)
+
+### My setup (see [warning](#warning-about-my-setup))
+
+```{.lisp}
+(use-package aidermacs
+  :bind (("; c a" . aidermacs-transient-menu))
+  :config
+  (setenv "GOOGLE_API_KEY" (auth-source-pick-first-password
+			    :host "google_api_key"
+			    :user "secret"))
+  :custom
+  (aidermacs-default-chat-mode 'architect)
+  (aidermacs-default-model "gemini"))
+```
+
+### Alternative: [aider.el](https://github.com/tninja/aider.el)
+
+[aider.el](https://github.com/tninja/aider.el) is the initial project [aidermacs](https://github.com/MatthewZMD/aidermacs) was forked from
+
+- [aider.el](https://github.com/tninja/aider.el) is closer to [aider](https://github.com/Aider-AI/aider) (the original CLI tool)
+- [aidermacs](https://github.com/MatthewZMD/aidermacs) integrates more into Emacs
