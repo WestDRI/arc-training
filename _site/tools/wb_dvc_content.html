@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.25">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Marie-Hélène Burle">
+
+<title>Version control for data science &amp; machine learning with DVC – Research Computing</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../tools/wb_tools1.html" rel="next">
+<link href="../tools/wb_dvc.html" rel="prev">
+<link href="..//img/favicon_sfu.png" rel="icon" type="image/png">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-c9a9bd7999149d530c8bcab90992bf24.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-3ab34fd50eaf4c251bc27ae6cc09dd28.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script async="" src="https://www.googletagmanager.com/gtag/js?id=G-7E8D6VP6FH"></script>
+
+<script type="text/javascript">
+
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
+</script>
+
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="../index.html" class="navbar-brand navbar-brand-logo">
+    <img src="../img/favicon_sfudrac.png" alt="SFU &amp; DRAC logos" class="navbar-logo light-content">
+    <img src="../img/favicon_sfudrac.png" alt="SFU &amp; DRAC logos" class="navbar-logo dark-content">
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../ai/index.html"> 
+<span class="menu-text">AI</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../r/index.html"> 
+<span class="menu-text">R</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../python/index.html"> 
+<span class="menu-text">Python</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../julia/index.html"> 
+<span class="menu-text">Julia</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../git/index.html"> 
+<span class="menu-text">Git</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../bash/index.html"> 
+<span class="menu-text">Bash/Zsh</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../emacs/index.html"> 
+<span class="menu-text">Emacs</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="../tools/index.html" aria-current="page"> 
+<span class="menu-text">Tools</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools tools-wide">
+    <a href="https://github.com/WestDRI" title="" class="quarto-navigation-tool px-1" aria-label="GitHub organization" target="_blank"><i class="bi bi-github"></i></a>
+    <a href="https://docs.alliancecan.ca/wiki/Technical_documentation" title="" class="quarto-navigation-tool px-1" aria-label="Alliance wikipedia" target="_blank"><i class="bi bi-wikipedia"></i></a>
+    <a href="https://www.youtube.com/channel/UCfgds4Qf7VFOv4ORRvFFmhw" title="" class="quarto-navigation-tool px-1" aria-label="YouTube channel" target="_blank"><i class="bi bi-youtube"></i></a>
+    <a href="../calendar.html" title="Upcoming training events" class="quarto-navigation-tool px-1" aria-label="Training calendar"><i class="bi bi-calendar-week"></i></a>
+    <a href="../newsletter.html" title="Training events mailing list" class="quarto-navigation-tool px-1" aria-label="Newsletter"><i class="bi bi-envelope-fill"></i></a>
+    <a href="../contact.html" title="Contact" class="quarto-navigation-tool px-1" aria-label="Contact us"><i class="bi bi-mailbox2"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <a class="flex-grow-1 no-decor" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+          <h1 class="quarto-secondary-nav-title">Version control for data science &amp; machine learning with DVC</h1>
+        </a>     
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+      <a href="../index.html" class="sidebar-logo-link">
+      </a>
+      </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><br>&nbsp;<em><b>Tools</b></em><br><br></span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/ws_quarto.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em><b>Workshops</b></em></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/ws_quarto.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Authoring with Quarto</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/top_wb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Webinars</em></b></span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/wb_marimo.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Next gen Python notebooks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/wb_marimo_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <span class="sidebar-item-text sidebar-link text-start">
+ <span class="menu-text">A new typesetting system</span></span>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/wb_quarto.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quarto: the new R Markdown</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/wb_quarto_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/wb_lazygit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A great Git TUI: lazygit</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/wb_lazygit_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/wb_uv.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">`uv` package manager</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/wb_uv_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/wb_dvc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data version control with DVC</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/wb_dvc_content.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <span class="sidebar-item-text sidebar-link text-start">
+ <span class="menu-text">Fun tools for the command line</span></span>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <span class="sidebar-item-text sidebar-link text-start">
+ <span class="menu-text">More command line tools</span></span>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/wb_tools3.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Modern shell utilities</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/wb_tools3_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../tools/wb_help.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting help online</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools/wb_help_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title"><em>On this page:</em></h2>
+   
+  <ul>
+  <li><a href="#on-version-control" id="toc-on-version-control" class="nav-link active" data-scroll-target="#on-version-control">On version control</a>
+  <ul>
+  <li><a href="#extending-git-for-data" id="toc-extending-git-for-data" class="nav-link" data-scroll-target="#extending-git-for-data">Extending Git for data</a></li>
+  <li><a href="#git-for-models-and-experiments" id="toc-git-for-models-and-experiments" class="nav-link" data-scroll-target="#git-for-models-and-experiments">Git for models and experiments</a></li>
+  <li><a href="#many-moving-parts" id="toc-many-moving-parts" class="nav-link" data-scroll-target="#many-moving-parts">Many moving parts</a></li>
+  </ul></li>
+  <li><a href="#enters-dvc" id="toc-enters-dvc" class="nav-link" data-scroll-target="#enters-dvc">Enters DVC</a>
+  <ul>
+  <li><a href="#dvc-principles" id="toc-dvc-principles" class="nav-link" data-scroll-target="#dvc-principles">DVC principles</a></li>
+  <li><a href="#installation" id="toc-installation" class="nav-link" data-scroll-target="#installation">Installation</a></li>
+  <li><a href="#how-to-run" id="toc-how-to-run" class="nav-link" data-scroll-target="#how-to-run">How to run</a></li>
+  <li><a href="#acknowledgements" id="toc-acknowledgements" class="nav-link" data-scroll-target="#acknowledgements">Acknowledgements</a></li>
+  <li><a href="#the-project" id="toc-the-project" class="nav-link" data-scroll-target="#the-project">The project</a></li>
+  <li><a href="#initialize-git-repo" id="toc-initialize-git-repo" class="nav-link" data-scroll-target="#initialize-git-repo">Initialize Git repo</a></li>
+  <li><a href="#initialize-dvc-project" id="toc-initialize-dvc-project" class="nav-link" data-scroll-target="#initialize-dvc-project">Initialize DVC project</a></li>
+  <li><a href="#commit-dvc-system-files" id="toc-commit-dvc-system-files" class="nav-link" data-scroll-target="#commit-dvc-system-files">Commit DVC system files</a></li>
+  <li><a href="#prepare-repo" id="toc-prepare-repo" class="nav-link" data-scroll-target="#prepare-repo">Prepare repo</a></li>
+  <li><a href="#clean-working-tree" id="toc-clean-working-tree" class="nav-link" data-scroll-target="#clean-working-tree">Clean working tree</a></li>
+  </ul></li>
+  <li><a href="#tracking-data-with-dvc" id="toc-tracking-data-with-dvc" class="nav-link" data-scroll-target="#tracking-data-with-dvc">Tracking data with DVC</a>
+  <ul>
+  <li><a href="#put-data-under-dvc-tracking" id="toc-put-data-under-dvc-tracking" class="nav-link" data-scroll-target="#put-data-under-dvc-tracking">Put data under DVC tracking</a></li>
+  <li><a href="#tracked-data" id="toc-tracked-data" class="nav-link" data-scroll-target="#tracked-data">Tracked data</a></li>
+  <li><a href="#data-deduplication" id="toc-data-deduplication" class="nav-link" data-scroll-target="#data-deduplication">Data (de)duplication</a></li>
+  <li><a href="#commit-the-metafiles" id="toc-commit-the-metafiles" class="nav-link" data-scroll-target="#commit-the-metafiles">Commit the metafiles</a></li>
+  <li><a href="#track-changes-to-the-data" id="toc-track-changes-to-the-data" class="nav-link" data-scroll-target="#track-changes-to-the-data">Track changes to the data</a></li>
+  <li><a href="#add-changes-to-dvc" id="toc-add-changes-to-dvc" class="nav-link" data-scroll-target="#add-changes-to-dvc">Add changes to DVC</a></li>
+  <li><a href="#check-out-older-versions" id="toc-check-out-older-versions" class="nav-link" data-scroll-target="#check-out-older-versions">Check out older versions</a></li>
+  <li><a href="#git-workflows" id="toc-git-workflows" class="nav-link" data-scroll-target="#git-workflows">Git workflows</a></li>
+  </ul></li>
+  <li><a href="#collaboration" id="toc-collaboration" class="nav-link" data-scroll-target="#collaboration">Collaboration</a>
+  <ul>
+  <li><a href="#classic-workflow" id="toc-classic-workflow" class="nav-link" data-scroll-target="#classic-workflow">Classic workflow</a></li>
+  <li><a href="#dvc-remotes" id="toc-dvc-remotes" class="nav-link" data-scroll-target="#dvc-remotes">DVC remotes</a></li>
+  <li><a href="#commit-remote-config" id="toc-commit-remote-config" class="nav-link" data-scroll-target="#commit-remote-config">Commit remote config</a></li>
+  <li><a href="#push-to-remotes" id="toc-push-to-remotes" class="nav-link" data-scroll-target="#push-to-remotes">Push to remotes</a></li>
+  <li><a href="#pull-from-remotes" id="toc-pull-from-remotes" class="nav-link" data-scroll-target="#pull-from-remotes">Pull from remotes</a></li>
+  </ul></li>
+  <li><a href="#tracking-experiments" id="toc-tracking-experiments" class="nav-link" data-scroll-target="#tracking-experiments">Tracking experiments</a>
+  <ul>
+  <li><a href="#dvc-pipelines" id="toc-dvc-pipelines" class="nav-link" data-scroll-target="#dvc-pipelines">DVC pipelines</a></li>
+  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
+  <li><a href="#create-a-pipeline" id="toc-create-a-pipeline" class="nav-link" data-scroll-target="#create-a-pipeline">Create a pipeline</a>
+  <ul>
+  <li><a href="#st-stage-data-preparation" id="toc-st-stage-data-preparation" class="nav-link" data-scroll-target="#st-stage-data-preparation">1<sup>st</sup> stage (data preparation)</a></li>
+  <li><a href="#nd-stage-training" id="toc-nd-stage-training" class="nav-link" data-scroll-target="#nd-stage-training">2<sup>nd</sup> stage (training)</a></li>
+  <li><a href="#rd-stage-evaluation" id="toc-rd-stage-evaluation" class="nav-link" data-scroll-target="#rd-stage-evaluation">3<sup>rd</sup> stage (evaluation)</a></li>
+  </ul></li>
+  <li><a href="#commit-pipeline" id="toc-commit-pipeline" class="nav-link" data-scroll-target="#commit-pipeline">Commit pipeline</a></li>
+  <li><a href="#visualize-pipeline-in-a-dag" id="toc-visualize-pipeline-in-a-dag" class="nav-link" data-scroll-target="#visualize-pipeline-in-a-dag">Visualize pipeline in a DAG</a></li>
+  <li><a href="#run-pipeline" id="toc-run-pipeline" class="nav-link" data-scroll-target="#run-pipeline">Run pipeline</a></li>
+  <li><a href="#dvc-repro-breakdown" id="toc-dvc-repro-breakdown" class="nav-link" data-scroll-target="#dvc-repro-breakdown">dvc repro breakdown</a></li>
+  <li><a href="#results-of-the-run" id="toc-results-of-the-run" class="nav-link" data-scroll-target="#results-of-the-run">Results of the run</a></li>
+  <li><a href="#clean-working-tree-1" id="toc-clean-working-tree-1" class="nav-link" data-scroll-target="#clean-working-tree-1">Clean working tree</a></li>
+  <li><a href="#modify-pipeline" id="toc-modify-pipeline" class="nav-link" data-scroll-target="#modify-pipeline">Modify pipeline</a></li>
+  <li><a href="#going-further-next-time" id="toc-going-further-next-time" class="nav-link" data-scroll-target="#going-further-next-time">Going further … next time</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title d-none d-lg-block">Version control for data science &amp; machine learning with DVC</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Marie-Hélène Burle </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="def">
+<p><em>Content from <a href="../tools/wb_dvc_slides.html">the webinar slides</a> for easier browsing.</em></p>
+</div>
+<section id="on-version-control" class="level2">
+<h2 class="anchored" data-anchor-id="on-version-control">On version control</h2>
+<p>I won’t introduce here the benefits of using a good version control system such as <a href="https://git-scm.com/">Git</a>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="img/vc.jpg" class="img-fluid figure-img" style="width:45.0%"></p>
+<figcaption>On the benefits of VCS</figcaption>
+</figure>
+</div>
+<section id="extending-git-for-data" class="level3">
+<h3 class="anchored" data-anchor-id="extending-git-for-data">Extending Git for data</h3>
+<p>While Git is a wonderful tool for text files versioning (code, writings in markup formats), it isn’t a tool to manage changes to datasets.</p>
+<p>Several open source tools—each with a different structure and functioning—extend Git capabilities to track data: <a href="https://git-lfs.com/">Git LFS</a>, <a href="https://git-annex.branchable.com/">git-annex</a>, <a href="https://github.com/treeverse/lakeFS">lakeFS</a>, <a href="https://github.com/dolthub/dolt">Dolt</a>, <a href="https://github.com/datalad/datalad">DataLad</a>.</p>
+</section>
+<section id="git-for-models-and-experiments" class="level3">
+<h3 class="anchored" data-anchor-id="git-for-models-and-experiments">Git for models and experiments</h3>
+<p>Reproducible research and collaboration on data science and machine learning projects involve more than datasets management:</p>
+<p>Experiments and the models they produce also need to be tracked.</p>
+</section>
+<section id="many-moving-parts" class="level3">
+<h3 class="anchored" data-anchor-id="many-moving-parts">Many moving parts</h3>
+<div class="right">
+<p><span class="small">*hp = hyperparameter</span></p>
+</div>
+<div class="cell" data-fig-height="50%" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<svg width="672" height="NaN" viewbox="0.00 0.00 422.00 188.00" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)">
+<!-- data1 -->
+<g id="node1" class="node">
+<title>data1</title>
+<ellipse fill="none" stroke="darkviolet" stroke-width="0.5" cx="27" cy="-162" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="27" y="-159.3" font-family="Inconsolata, sans-serif" font-size="9.00">data1</text>
+</g>
+<!-- model1 -->
+<g id="node7" class="node">
+<title>model1</title>
+<ellipse fill="none" stroke="#009acd" stroke-width="0.5" cx="135" cy="-90" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="135" y="-87.3" font-family="Inconsolata, sans-serif" font-size="9.00">model1</text>
+</g>
+<!-- data1&#45;&gt;model1 -->
+<g id="edge1" class="edge">
+<title>data1-&gt;model1</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M45.81,-148.81C64.24,-136.86 92.35,-118.64 112.08,-105.86"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="116.4,-103.05 113.43,-107.66 114.31,-104.41 112.21,-105.77 112.21,-105.77 112.21,-105.77 114.31,-104.41 110.98,-103.88 116.4,-103.05 116.4,-103.05"></polygon>
+</g>
+<!-- model2 -->
+<g id="node8" class="node">
+<title>model2</title>
+<ellipse fill="none" stroke="#009acd" stroke-width="0.5" cx="207" cy="-90" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="207" y="-87.3" font-family="Inconsolata, sans-serif" font-size="9.00">model2</text>
+</g>
+<!-- data1&#45;&gt;model2 -->
+<g id="edge2" class="edge">
+<title>data1-&gt;model2</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M48.13,-150.51C52.97,-148.25 58.12,-145.96 63,-144 109.96,-125.16 124.04,-126.84 171,-108 174.35,-106.66 177.84,-105.15 181.26,-103.61"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="185.87,-101.49 182.26,-105.62 183.59,-102.54 181.32,-103.58 181.32,-103.58 181.32,-103.58 183.59,-102.54 180.38,-101.53 185.87,-101.49 185.87,-101.49"></polygon>
+</g>
+<!-- model3 -->
+<g id="node9" class="node">
+<title>model3</title>
+<ellipse fill="none" stroke="#009acd" stroke-width="0.5" cx="279" cy="-90" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="279" y="-87.3" font-family="Inconsolata, sans-serif" font-size="9.00">model3</text>
+</g>
+<!-- data1&#45;&gt;model3 -->
+<g id="edge3" class="edge">
+<title>data1-&gt;model3</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M47.59,-150.23C52.54,-147.93 57.88,-145.69 63,-144 140.46,-118.39 165.54,-133.61 243,-108 246.52,-106.84 250.14,-105.41 253.67,-103.89"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="258.41,-101.77 254.77,-105.87 256.13,-102.79 253.85,-103.82 253.85,-103.82 253.85,-103.82 256.13,-102.79 252.93,-101.76 258.41,-101.77 258.41,-101.77"></polygon>
+</g>
+<!-- data2 -->
+<g id="node2" class="node">
+<title>data2</title>
+<ellipse fill="none" stroke="darkviolet" stroke-width="0.5" cx="99" cy="-162" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="99" y="-159.3" font-family="Inconsolata, sans-serif" font-size="9.00">data2</text>
+</g>
+<!-- data2&#45;&gt;model1 -->
+<g id="edge4" class="edge">
+<title>data2-&gt;model1</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M107.35,-144.76C112.39,-134.96 118.87,-122.36 124.29,-111.83"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="126.7,-107.15 126.41,-112.62 125.55,-109.37 124.41,-111.59 124.41,-111.59 124.41,-111.59 125.55,-109.37 122.41,-110.56 126.7,-107.15 126.7,-107.15"></polygon>
+</g>
+<!-- data2&#45;&gt;model2 -->
+<g id="edge5" class="edge">
+<title>data2-&gt;model2</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M117.81,-148.81C136.24,-136.86 164.35,-118.64 184.08,-105.86"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="188.4,-103.05 185.43,-107.66 186.31,-104.41 184.21,-105.77 184.21,-105.77 184.21,-105.77 186.31,-104.41 182.98,-103.88 188.4,-103.05 188.4,-103.05"></polygon>
+</g>
+<!-- data2&#45;&gt;model3 -->
+<g id="edge6" class="edge">
+<title>data2-&gt;model3</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M120.13,-150.51C124.97,-148.25 130.12,-145.96 135,-144 181.96,-125.16 196.04,-126.84 243,-108 246.35,-106.66 249.84,-105.15 253.26,-103.61"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="257.87,-101.49 254.26,-105.62 255.59,-102.54 253.32,-103.58 253.32,-103.58 253.32,-103.58 255.59,-102.54 252.38,-101.53 257.87,-101.49 257.87,-101.49"></polygon>
+</g>
+<!-- data3 -->
+<g id="node3" class="node">
+<title>data3</title>
+<ellipse fill="none" stroke="darkviolet" stroke-width="0.5" cx="171" cy="-162" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="171" y="-159.3" font-family="Inconsolata, sans-serif" font-size="9.00">data3</text>
+</g>
+<!-- data3&#45;&gt;model1 -->
+<g id="edge7" class="edge">
+<title>data3-&gt;model1</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M162.65,-144.76C157.61,-134.96 151.13,-122.36 145.71,-111.83"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="143.3,-107.15 147.59,-110.56 144.45,-109.37 145.59,-111.59 145.59,-111.59 145.59,-111.59 144.45,-109.37 143.59,-112.62 143.3,-107.15 143.3,-107.15"></polygon>
+</g>
+<!-- data3&#45;&gt;model2 -->
+<g id="edge8" class="edge">
+<title>data3-&gt;model2</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M179.35,-144.76C184.39,-134.96 190.87,-122.36 196.29,-111.83"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="198.7,-107.15 198.41,-112.62 197.55,-109.37 196.41,-111.59 196.41,-111.59 196.41,-111.59 197.55,-109.37 194.41,-110.56 198.7,-107.15 198.7,-107.15"></polygon>
+</g>
+<!-- data3&#45;&gt;model3 -->
+<g id="edge9" class="edge">
+<title>data3-&gt;model3</title>
+<path fill="none" stroke="darkviolet" stroke-width="0.5" d="M189.81,-148.81C208.24,-136.86 236.35,-118.64 256.08,-105.86"></path>
+<polygon fill="darkviolet" stroke="darkviolet" stroke-width="0.5" points="260.4,-103.05 257.43,-107.66 258.31,-104.41 256.21,-105.77 256.21,-105.77 256.21,-105.77 258.31,-104.41 254.98,-103.88 260.4,-103.05 260.4,-103.05"></polygon>
+</g>
+<!-- hp1 -->
+<g id="node4" class="node">
+<title>hp1</title>
+<ellipse fill="none" stroke="#528b8b" stroke-width="0.5" cx="243" cy="-162" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="243" y="-159.3" font-family="Inconsolata, sans-serif" font-size="9.00">hp1</text>
+</g>
+<!-- hp1&#45;&gt;model1 -->
+<g id="edge10" class="edge">
+<title>hp1-&gt;model1</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M224.19,-148.81C205.76,-136.86 177.65,-118.64 157.92,-105.86"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="153.6,-103.05 159.02,-103.88 155.69,-104.41 157.79,-105.77 157.79,-105.77 157.79,-105.77 155.69,-104.41 156.57,-107.66 153.6,-103.05 153.6,-103.05"></polygon>
+</g>
+<!-- hp1&#45;&gt;model2 -->
+<g id="edge11" class="edge">
+<title>hp1-&gt;model2</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M234.65,-144.76C229.61,-134.96 223.13,-122.36 217.71,-111.83"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="215.3,-107.15 219.59,-110.56 216.45,-109.37 217.59,-111.59 217.59,-111.59 217.59,-111.59 216.45,-109.37 215.59,-112.62 215.3,-107.15 215.3,-107.15"></polygon>
+</g>
+<!-- hp1&#45;&gt;model3 -->
+<g id="edge12" class="edge">
+<title>hp1-&gt;model3</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M251.35,-144.76C256.39,-134.96 262.87,-122.36 268.29,-111.83"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="270.7,-107.15 270.41,-112.62 269.55,-109.37 268.41,-111.59 268.41,-111.59 268.41,-111.59 269.55,-109.37 266.41,-110.56 270.7,-107.15 270.7,-107.15"></polygon>
+</g>
+<!-- hp2 -->
+<g id="node5" class="node">
+<title>hp2</title>
+<ellipse fill="none" stroke="#528b8b" stroke-width="0.5" cx="315" cy="-162" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="315" y="-159.3" font-family="Inconsolata, sans-serif" font-size="9.00">hp2</text>
+</g>
+<!-- hp2&#45;&gt;model1 -->
+<g id="edge13" class="edge">
+<title>hp2-&gt;model1</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M293.87,-150.51C289.03,-148.25 283.88,-145.96 279,-144 232.04,-125.16 217.96,-126.84 171,-108 167.65,-106.66 164.16,-105.15 160.74,-103.61"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="156.13,-101.49 161.62,-101.53 158.41,-102.54 160.68,-103.58 160.68,-103.58 160.68,-103.58 158.41,-102.54 159.74,-105.62 156.13,-101.49 156.13,-101.49"></polygon>
+</g>
+<!-- hp2&#45;&gt;model2 -->
+<g id="edge14" class="edge">
+<title>hp2-&gt;model2</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M296.19,-148.81C277.76,-136.86 249.65,-118.64 229.92,-105.86"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="225.6,-103.05 231.02,-103.88 227.69,-104.41 229.79,-105.77 229.79,-105.77 229.79,-105.77 227.69,-104.41 228.57,-107.66 225.6,-103.05 225.6,-103.05"></polygon>
+</g>
+<!-- hp2&#45;&gt;model3 -->
+<g id="edge15" class="edge">
+<title>hp2-&gt;model3</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M306.65,-144.76C301.61,-134.96 295.13,-122.36 289.71,-111.83"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="287.3,-107.15 291.59,-110.56 288.45,-109.37 289.59,-111.59 289.59,-111.59 289.59,-111.59 288.45,-109.37 287.59,-112.62 287.3,-107.15 287.3,-107.15"></polygon>
+</g>
+<!-- hp3 -->
+<g id="node6" class="node">
+<title>hp3</title>
+<ellipse fill="none" stroke="#528b8b" stroke-width="0.5" cx="387" cy="-162" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="387" y="-159.3" font-family="Inconsolata, sans-serif" font-size="9.00">hp3</text>
+</g>
+<!-- hp3&#45;&gt;model1 -->
+<g id="edge16" class="edge">
+<title>hp3-&gt;model1</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M366.41,-150.23C361.46,-147.93 356.12,-145.69 351,-144 273.54,-118.39 248.46,-133.61 171,-108 167.48,-106.84 163.86,-105.41 160.33,-103.89"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="155.59,-101.77 161.07,-101.76 157.87,-102.79 160.15,-103.82 160.15,-103.82 160.15,-103.82 157.87,-102.79 159.23,-105.87 155.59,-101.77 155.59,-101.77"></polygon>
+</g>
+<!-- hp3&#45;&gt;model2 -->
+<g id="edge17" class="edge">
+<title>hp3-&gt;model2</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M365.87,-150.51C361.03,-148.25 355.88,-145.96 351,-144 304.04,-125.16 289.96,-126.84 243,-108 239.65,-106.66 236.16,-105.15 232.74,-103.61"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="228.13,-101.49 233.62,-101.53 230.41,-102.54 232.68,-103.58 232.68,-103.58 232.68,-103.58 230.41,-102.54 231.74,-105.62 228.13,-101.49 228.13,-101.49"></polygon>
+</g>
+<!-- hp3&#45;&gt;model3 -->
+<g id="edge18" class="edge">
+<title>hp3-&gt;model3</title>
+<path fill="none" stroke="#528b8b" stroke-width="0.5" d="M368.19,-148.81C349.76,-136.86 321.65,-118.64 301.92,-105.86"></path>
+<polygon fill="#528b8b" stroke="#528b8b" stroke-width="0.5" points="297.6,-103.05 303.02,-103.88 299.69,-104.41 301.79,-105.77 301.79,-105.77 301.79,-105.77 299.69,-104.41 300.57,-107.66 297.6,-103.05 297.6,-103.05"></polygon>
+</g>
+<!-- performance -->
+<g id="node10" class="node">
+<title>performance</title>
+<ellipse fill="none" stroke="#8b4500" stroke-width="0.5" cx="207" cy="-18" rx="77.42" ry="18"></ellipse>
+<text text-anchor="middle" x="207" y="-15.3" font-family="Inconsolata, sans-serif" font-size="9.00">performance1 ... performance27</text>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge19" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M109.6,-83.27C95.77,-72.41 115.97,-48.53 148.1,-33.14"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="152.92,-30.93 149.31,-35.06 150.65,-31.97 148.38,-33.01 148.38,-33.01 148.38,-33.01 150.65,-31.97 147.44,-30.96 152.92,-30.93 152.92,-30.93"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge22" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M115.91,-77.13C116.8,-65.57 133.81,-47.93 155.71,-35.11"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="160.15,-32.61 156.9,-37.02 157.97,-33.84 155.79,-35.06 155.79,-35.06 155.79,-35.06 157.97,-33.84 154.69,-33.1 160.15,-32.61 160.15,-32.61"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge25" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M128.7,-72.41C135.05,-61.69 149.21,-47.76 164.82,-36.81"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="169.25,-33.8 166.37,-38.47 167.18,-35.21 165.11,-36.61 165.11,-36.61 165.11,-36.61 167.18,-35.21 163.85,-34.75 169.25,-33.8 169.25,-33.8"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge28" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M140.67,-72.05C149.05,-61.79 162.41,-48.67 175.25,-38.04"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="179.21,-34.83 176.74,-39.73 177.27,-36.4 175.33,-37.98 175.33,-37.98 175.33,-37.98 177.27,-36.4 173.91,-36.23 179.21,-34.83 179.21,-34.83"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge31" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M149.57,-74.83C160.05,-64.64 174.35,-50.74 186.06,-39.36"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="189.92,-35.61 187.9,-40.7 188.13,-37.35 186.33,-39.09 186.33,-39.09 186.33,-39.09 188.13,-37.35 184.77,-37.48 189.92,-35.61 189.92,-35.61"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge34" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M155.95,-78.37C170.02,-68.18 186.95,-52.52 198.03,-39.84"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="201.28,-36.01 199.76,-41.28 199.66,-37.92 198.04,-39.82 198.04,-39.82 198.04,-39.82 199.66,-37.92 196.33,-38.37 201.28,-36.01 201.28,-36.01"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge37" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M159.4,-81.9C178.79,-72.26 199.62,-54.61 210.05,-40.46"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="212.94,-36.19 212,-41.59 211.53,-38.26 210.13,-40.33 210.13,-40.33 210.13,-40.33 211.53,-38.26 208.27,-39.07 212.94,-36.19 212.94,-36.19"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge40" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M160.75,-84.51C187.64,-75.76 213.56,-55.91 222.68,-40.33"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="224.95,-35.66 224.79,-41.14 223.86,-37.9 222.77,-40.15 222.77,-40.15 222.77,-40.15 223.86,-37.9 220.74,-39.17 224.95,-35.66 224.95,-35.66"></polygon>
+</g>
+<!-- model1&#45;&gt;performance -->
+<g id="edge43" class="edge">
+<title>model1-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M161.72,-85.99C197.58,-78.12 228.69,-56.36 235.46,-39.76"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="236.76,-34.8 237.67,-40.2 236.13,-37.22 235.49,-39.63 235.49,-39.63 235.49,-39.63 236.13,-37.22 233.32,-39.07 236.76,-34.8 236.76,-34.8"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge20" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M180.9,-85.24C153.51,-76.28 146.29,-53.24 159.23,-36.86"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="162.95,-32.85 161.2,-38.04 161.25,-34.68 159.55,-36.51 159.55,-36.51 159.55,-36.51 161.25,-34.68 157.9,-34.98 162.95,-32.85 162.95,-32.85"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge23" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M182.32,-82.54C166.69,-72.66 162.64,-53.4 170.17,-38.67"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="172.88,-34.25 172.18,-39.69 171.57,-36.38 170.27,-38.51 170.27,-38.51 170.27,-38.51 171.57,-36.38 168.35,-37.34 172.88,-34.25 172.88,-34.25"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge26" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M186.75,-78.06C179.81,-67.95 178.22,-52.63 181.98,-40.13"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="183.76,-35.32 184.13,-40.79 182.89,-37.67 182.02,-40.01 182.02,-40.01 182.02,-40.01 182.89,-37.67 179.91,-39.23 183.76,-35.32 183.76,-35.32"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge29" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M195.56,-73.46C193.3,-63.91 192.9,-51.52 194.37,-40.97"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="195.24,-35.96 196.6,-41.27 194.81,-38.42 194.38,-40.89 194.38,-40.89 194.38,-40.89 194.81,-38.42 192.17,-40.5 195.24,-35.96 195.24,-35.96"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge32" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M207,-71.7C207,-62.46 207,-50.98 207,-41.11"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="207,-36.1 209.25,-41.1 207,-38.6 207,-41.1 207,-41.1 207,-41.1 207,-38.6 204.75,-41.1 207,-36.1 207,-36.1"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge35" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M218.44,-73.46C220.7,-63.91 221.1,-51.52 219.63,-40.97"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="218.76,-35.96 221.83,-40.5 219.19,-38.42 219.62,-40.89 219.62,-40.89 219.62,-40.89 219.19,-38.42 217.4,-41.27 218.76,-35.96 218.76,-35.96"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge38" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M227.25,-78.06C234.19,-67.95 235.78,-52.63 232.02,-40.13"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="230.24,-35.32 234.09,-39.23 231.11,-37.67 231.98,-40.01 231.98,-40.01 231.98,-40.01 231.11,-37.67 229.87,-40.79 230.24,-35.32 230.24,-35.32"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge41" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M231.68,-82.54C247.31,-72.66 251.36,-53.4 243.83,-38.67"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="241.12,-34.25 245.65,-37.34 242.43,-36.38 243.73,-38.51 243.73,-38.51 243.73,-38.51 242.43,-36.38 241.82,-39.69 241.12,-34.25 241.12,-34.25"></polygon>
+</g>
+<!-- model2&#45;&gt;performance -->
+<g id="edge44" class="edge">
+<title>model2-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M233.1,-85.24C260.49,-76.28 267.71,-53.24 254.77,-36.86"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="251.05,-32.85 256.1,-34.98 252.75,-34.68 254.45,-36.51 254.45,-36.51 254.45,-36.51 252.75,-34.68 252.8,-38.04 251.05,-32.85 251.05,-32.85"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge21" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M252.28,-85.99C216.42,-78.12 185.31,-56.36 178.54,-39.76"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="177.24,-34.8 180.68,-39.07 177.87,-37.22 178.51,-39.63 178.51,-39.63 178.51,-39.63 177.87,-37.22 176.33,-40.2 177.24,-34.8 177.24,-34.8"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge24" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M253.25,-84.51C226.36,-75.76 200.44,-55.91 191.32,-40.33"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="189.05,-35.66 193.26,-39.17 190.14,-37.9 191.23,-40.15 191.23,-40.15 191.23,-40.15 190.14,-37.9 189.21,-41.14 189.05,-35.66 189.05,-35.66"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge27" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M254.6,-81.9C235.21,-72.26 214.38,-54.61 203.95,-40.46"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="201.06,-36.19 205.73,-39.07 202.47,-38.26 203.87,-40.33 203.87,-40.33 203.87,-40.33 202.47,-38.26 202,-41.59 201.06,-36.19 201.06,-36.19"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge30" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M258.05,-78.37C243.98,-68.18 227.05,-52.52 215.97,-39.84"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="212.72,-36.01 217.67,-38.37 214.34,-37.92 215.96,-39.82 215.96,-39.82 215.96,-39.82 214.34,-37.92 214.24,-41.28 212.72,-36.01 212.72,-36.01"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge33" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M264.43,-74.83C253.95,-64.64 239.65,-50.74 227.94,-39.36"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="224.08,-35.61 229.23,-37.48 225.87,-37.35 227.67,-39.09 227.67,-39.09 227.67,-39.09 225.87,-37.35 226.1,-40.7 224.08,-35.61 224.08,-35.61"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge36" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M273.33,-72.05C264.95,-61.79 251.59,-48.67 238.75,-38.04"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="234.79,-34.83 240.09,-36.23 236.73,-36.4 238.67,-37.98 238.67,-37.98 238.67,-37.98 236.73,-36.4 237.26,-39.73 234.79,-34.83 234.79,-34.83"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge39" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M285.3,-72.41C278.95,-61.69 264.79,-47.76 249.18,-36.81"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="244.75,-33.8 250.15,-34.75 246.82,-35.21 248.89,-36.61 248.89,-36.61 248.89,-36.61 246.82,-35.21 247.63,-38.47 244.75,-33.8 244.75,-33.8"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge42" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M298.09,-77.13C297.2,-65.57 280.19,-47.93 258.29,-35.11"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="253.85,-32.61 259.31,-33.1 256.03,-33.84 258.21,-35.06 258.21,-35.06 258.21,-35.06 256.03,-33.84 257.1,-37.02 253.85,-32.61 253.85,-32.61"></polygon>
+</g>
+<!-- model3&#45;&gt;performance -->
+<g id="edge45" class="edge">
+<title>model3-&gt;performance</title>
+<path fill="none" stroke="#009acd" stroke-width="0.5" d="M304.4,-83.27C318.23,-72.41 298.03,-48.53 265.9,-33.14"></path>
+<polygon fill="#009acd" stroke="#009acd" stroke-width="0.5" points="261.08,-30.93 266.56,-30.96 263.35,-31.97 265.62,-33.01 265.62,-33.01 265.62,-33.01 263.35,-31.97 264.69,-35.06 261.08,-30.93 261.08,-30.93"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>How did we get <code>performance17</code> again? 🤯</p>
+</section>
+</section>
+<section id="enters-dvc" class="level2">
+<h2 class="anchored" data-anchor-id="enters-dvc">Enters DVC</h2>
+<section id="dvc-principles" class="level3">
+<h3 class="anchored" data-anchor-id="dvc-principles">DVC principles</h3>
+<p>Large files (datasets, models…) are kept outside Git.<br>
+Each large file or directory put under DVC tracking has an associated <code>.dvc</code> file.<br>
+Git only tracks the <code>.dvc</code> files (metadata).</p>
+<p>Workflows can be tracked for collaboration and reproducibility.</p>
+<p>DVC functions as a Makefile and allows to only rerun what is necessary.</p>
+</section>
+<section id="installation" class="level3">
+<h3 class="anchored" data-anchor-id="installation">Installation</h3>
+<p>For Linux (other OSes, refer to <a href="https://dvc.org/doc/install">the doc</a>):</p>
+<ul>
+<li><p><code>pip</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install dvc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p><code>conda</code></p></li>
+<li><p><a href="https://github.com/pypa/pipx">pipx</a> (if you want <code>dvc</code> available everywhere without having to activate virtual envs):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pipx</span> install dvc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+</ul>
+<div class="note">
+<p>Optional dependencies <code>[s3]</code>, <code>[gdrive]</code>, etc. for remote storage.</p>
+</div>
+</section>
+<section id="how-to-run" class="level3">
+<h3 class="anchored" data-anchor-id="how-to-run">How to run</h3>
+<p>Multiple options:</p>
+<ul>
+<li><p>Terminal:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p><a href="https://marketplace.visualstudio.com/items?itemName=Iterative.dvc">VS Code extension</a></p></li>
+<li><p>Python library if installed via <code>pip</code> or <code>conda</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> dvc.api</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+</ul>
+<div class="note">
+<p>In this webinar, I will use DVC through the command line.</p>
+</div>
+</section>
+<section id="acknowledgements" class="level3">
+<h3 class="anchored" data-anchor-id="acknowledgements">Acknowledgements</h3>
+<p>Code and data for this webinar modified from:</p>
+<ul>
+<li><a href="https://realpython.com/">Real Python</a></li>
+<li><a href="https://handbook.datalad.org/">DataLad handbook</a></li>
+<li><a href="https://dvc.org/doc">DVC documentation</a></li>
+</ul>
+</section>
+<section id="the-project" class="level3">
+<h3 class="anchored" data-anchor-id="the-project">The project</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">tree</span> <span class="at">-L</span> 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>├── LICENSE
+├── data
+│&nbsp;&nbsp; ├── prepared
+│&nbsp;&nbsp; └── raw
+│&nbsp;&nbsp;     ├── train
+│&nbsp;&nbsp;     └── val
+├── metrics
+├── model
+├── requirements.txt
+└── src
+    ├── evaluate.py
+    ├── prepare.py
+    └── train.py</code></pre>
+</section>
+<section id="initialize-git-repo" class="level3">
+<h3 class="anchored" data-anchor-id="initialize-git-repo">Initialize Git repo</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> init</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Initialized empty Git repository in dvc/.git/</code></pre>
+<p>This creates the <code>.git</code> directory.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>On branch main
+
+No commits yet
+
+Untracked files:
+    LICENSE
+    data/
+    requirements.txt
+    src/</code></pre>
+</section>
+<section id="initialize-dvc-project" class="level3">
+<h3 class="anchored" data-anchor-id="initialize-dvc-project">Initialize DVC project</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> init</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Initialized DVC repository.
+
+You can now commit the changes to git.</code></pre>
+<div class="notenoline">
+<p>You will also see a note about usage analytics collection and info on how to opt out.</p>
+</div>
+<p>A <code>.dvc</code> directory and a <code>.dvcignore</code> file got created.</p>
+</section>
+<section id="commit-dvc-system-files" class="level3">
+<h3 class="anchored" data-anchor-id="commit-dvc-system-files">Commit DVC system files</h3>
+<p>DVC automatically staged its system file for us:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>On branch main
+
+No commits yet
+
+Changes to be committed:
+    new file:   .dvc/.gitignore
+    new file:   .dvc/config
+    new file:   .dvcignore
+
+Untracked files:
+    LICENSE
+    data/
+    requirements.txt
+    src/</code></pre>
+<p>So we can directly commit:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Initialize DVC"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="prepare-repo" class="level3">
+<h3 class="anchored" data-anchor-id="prepare-repo">Prepare repo</h3>
+<p>Let’s work in a virtual environment:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create venv and add to .gitignore</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> venv venv <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> venv <span class="op">&gt;</span> .gitignore</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Activate venv</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> venv/bin/activate</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Update pip</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pip install <span class="at">--upgrade</span> pip</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Install packages needed</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pip install <span class="at">-r</span> requirements.txt</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="clean-working-tree" class="level3">
+<h3 class="anchored" data-anchor-id="clean-working-tree">Clean working tree</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add .gitignore LICENSE requirements.txt</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Add general files"</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add src</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Add scripts"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>On branch main
+Untracked files:
+    data/</code></pre>
+<div class="note">
+<p>Now, it is time to deal with the data.</p>
+</div>
+</section>
+</section>
+<section id="tracking-data-with-dvc" class="level2">
+<h2 class="anchored" data-anchor-id="tracking-data-with-dvc">Tracking data with DVC</h2>
+<section id="put-data-under-dvc-tracking" class="level3">
+<h3 class="anchored" data-anchor-id="put-data-under-dvc-tracking">Put data under DVC tracking</h3>
+<p>We are still not tracking any data:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>There are no data or pipelines tracked in this project yet.</code></pre>
+<p>You can choose what to track as a unit (i.e.&nbsp;each picture individually, the whole <code>data</code> directory as a unit).</p>
+<p>Let’s break it down by set:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> add data/raw/train</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> add data/raw/val</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This adds data to <code>.dvc/cache/files</code> and created 3 files in <code>data/raw</code>:</p>
+<ul>
+<li><code>.gitignore</code></li>
+<li><code>train.dvc</code></li>
+<li><code>val.dvc</code></li>
+</ul>
+<p>The <code>.gitignore</code> tells Git not to track the data:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> data/raw/.gitignore</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>/train
+/val</code></pre>
+<p>The <code>.dvc</code> files contain the metadata for the cached directories.</p>
+</section>
+<section id="tracked-data" class="level3">
+<h3 class="anchored" data-anchor-id="tracked-data">Tracked data</h3>
+<p>We are all good:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Data and pipelines are up to date.</code></pre>
+</section>
+<section id="data-deduplication" class="level3">
+<h3 class="anchored" data-anchor-id="data-deduplication">Data (de)duplication</h3>
+<p>Link between checked-out version of a file/directory and the cache:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 41%">
+<col style="width: 37%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th style="text-align: center;">Duplication</th>
+<th style="text-align: center;">Editable</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Reflinks*</td>
+<td style="text-align: center;">Only when needed</td>
+<td style="text-align: center;">Yes</td>
+</tr>
+<tr class="even">
+<td>Hardlinks/Symlinks</td>
+<td style="text-align: center;">No</td>
+<td style="text-align: center;">No</td>
+</tr>
+<tr class="odd">
+<td>Copies</td>
+<td style="text-align: center;">Yes</td>
+<td style="text-align: center;">Yes : Cache ⟷ working directory {tbl-colwidths=“[44, 28, 28]”}</td>
+</tr>
+</tbody>
+</table>
+<div class="notenoit">
+<p>*Reflinks only available for a few file systems (Btrfs, XFS, OCFS2, or APFS).</p>
+</div>
+</section>
+<section id="commit-the-metafiles" class="level3">
+<h3 class="anchored" data-anchor-id="commit-the-metafiles">Commit the metafiles</h3>
+<p>The metafiles should be put under Git version control.</p>
+<div class="note">
+<p>You can configure DVC to automatically stage its newly created system files:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> config <span class="pp">[--</span><span class="ss">system</span><span class="pp">]</span> <span class="pp">[--</span><span class="ss">global</span><span class="pp">]</span> core.autostage true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>You can then commit directly:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Initial version of data"</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>On branch main
+nothing to commit, working tree clean</code></pre>
+</section>
+<section id="track-changes-to-the-data" class="level3">
+<h3 class="anchored" data-anchor-id="track-changes-to-the-data">Track changes to the data</h3>
+<p>Let’s make some change to the data:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> data/raw/val/n03445777/ILSVRC2012_val<span class="pp">*</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Remember that Git is not tracking the data:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">On</span> branch main</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nothing</span> to commit, working tree clean</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>But DVC is:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>data/raw/val.dvc:
+    changed outs:
+            modified:           data/raw/val</code></pre>
+</section>
+<section id="add-changes-to-dvc" class="level3">
+<h3 class="anchored" data-anchor-id="add-changes-to-dvc">Add changes to DVC</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> add data/raw/val</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Data and pipelines are up to date.</code></pre>
+<p>Now we need to commit the changes to the <code>.dvc</code> file to Git:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>On branch main
+Changes to be committed:
+    modified:   data/raw/val.dvc</code></pre>
+<div class="note">
+<p>Staging happened automatically because I have set the <code>autostage</code> option to <code>true</code> on my system.</p>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Delete data/raw/val/n03445777/ILSVRC2012_val*"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="check-out-older-versions" class="level3">
+<h3 class="anchored" data-anchor-id="check-out-older-versions">Check out older versions</h3>
+<p>What if we want to go back to the 1st version of our data?</p>
+<p>For this, we first use Git to checkout the proper commit, then run <code>dvc checkout</code> to have the data catch up to the <code>.dvc</code> file.</p>
+<p>To avoid forgetting to run the commands that will make DVC catch up to Git, we can automate this process by installing Git hooks:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb40"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> install</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<hr>
+<p>Now, all we have to do is to checkout the commit we want:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb41"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> log <span class="at">--oneline</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>94b520b (HEAD -&gt; main) Delete data/raw/val/n03445777/ILSVRC2012_val*
+92837a6 Initial version of data
+dd961c6 Add scripts
+db9c14e Initialize repo
+7e08586 Initialize DVC</code></pre>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb43"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout 92837a6</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The version of the data in the working directory got automatically switched to match the <code>.dvc</code> file:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb44"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Data and pipelines are up to date.</code></pre>
+<p>You can look at your files to verify that the deleted files are back.</p>
+</section>
+<section id="git-workflows" class="level3">
+<h3 class="anchored" data-anchor-id="git-workflows">Git workflows</h3>
+<p><code>git checkout</code> is ok to have a look, but a detached HEAD is not a good place to create new commits.</p>
+<p>Let’s create a new branch and switch to it:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> switch <span class="at">-c</span> alternative</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Switched to a new branch 'alternative'</code></pre>
+<p>Going back and forth between both versions of our data is now as simple as switching branch:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb48"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> switch main</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> switch alternative</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="collaboration" class="level2">
+<h2 class="anchored" data-anchor-id="collaboration">Collaboration</h2>
+<section id="classic-workflow" class="level3">
+<h3 class="anchored" data-anchor-id="classic-workflow">Classic workflow</h3>
+<p>The Git project (including <code>.dvc</code> files) go to a Git remote (GitHub/GitLab/Bitbucket/server).</p>
+<p>The data go to a DVC remote (AWS/Azure/Google Drive/server/etc.).</p>
+</section>
+<section id="dvc-remotes" class="level3">
+<h3 class="anchored" data-anchor-id="dvc-remotes">DVC remotes</h3>
+<p>DVC can use many cloud storage or remote machines/server via SSH, WebDAV, etc.</p>
+<p>Let’s create a local remote here:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb49"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a directory outside the project</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> ../remote</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Setup default (-d) remote</span></span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> remote add <span class="at">-d</span> local_remote ../remote</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Setting 'local_remote' as a default remote.</code></pre>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> .dvc/config</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>[core]
+    remote = local_remote
+['remote "local_remote"']
+    url = ../../remote</code></pre>
+</section>
+<section id="commit-remote-config" class="level3">
+<h3 class="anchored" data-anchor-id="commit-remote-config">Commit remote config</h3>
+<p>The new remote configuration should be committed:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb53"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>On branch alternative
+
+Changes not staged for commit:
+    modified:   .dvc/config</code></pre>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb55"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add .</span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Config remote"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="push-to-remotes" class="level3">
+<h3 class="anchored" data-anchor-id="push-to-remotes">Push to remotes</h3>
+<p>Let’s push the data from the cache (<code>.dvc/cache</code>) to the remote:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb56"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> push</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>2702 files pushed</code></pre>
+<div class="note">
+<p>With Git hooks installed, <code>dvc push</code> is automatically run after <code>git push</code>.</p>
+<p>(But the data is pushed to the DVC remote while the files tracked by Git get pushed to the Git remote).</p>
+</div>
+<p>By default, the entire data cache gets pushed to the remote, but there are many options.</p>
+<div class="example">
+<p>Example: only push data corresponding to a certain <code>.dvc</code> files.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb58"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> push data/raw/val.dvc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="pull-from-remotes" class="level3">
+<h3 class="anchored" data-anchor-id="pull-from-remotes">Pull from remotes</h3>
+<p><code>dvc fetch</code> downloads data from the remote into the cache. To have it update the working directory, follow by <code>dvc checkout</code>.</p>
+<p>You can do these 2 commands at the same time with <code>dvc pull</code>.</p>
+</section>
+</section>
+<section id="tracking-experiments" class="level2">
+<h2 class="anchored" data-anchor-id="tracking-experiments">Tracking experiments</h2>
+<section id="dvc-pipelines" class="level3">
+<h3 class="anchored" data-anchor-id="dvc-pipelines">DVC pipelines</h3>
+<p>DVC pipelines create reproducible workflows and are functionally similar to Makefiles.</p>
+<p>Each step in a pipeline is created with <code>dvc stage add</code> and add an entry to a <code>dvc.yaml</code> file.</p>
+<div class="note">
+<p><code>dvc stage add</code> options:</p>
+<p><code>-n</code>: name of stage<br>
+<code>-d</code>: dependency<br>
+<code>-o</code>: output</p>
+</div>
+<p>Each stage contains:</p>
+<ul>
+<li><code>cmd</code>: the command executed</li>
+<li><code>deps</code>: the dependencies</li>
+<li><code>outs</code>: the outputs</li>
+</ul>
+<p>The file is then used to visualize the pipeline and run it.</p>
+</section>
+<section id="example" class="level3">
+<h3 class="anchored" data-anchor-id="example">Example</h3>
+<p>Let’s create a pipeline to run a classifier on our data.</p>
+<p>The pipeline contains 3 steps:</p>
+<ul>
+<li>prepare</li>
+<li>train</li>
+<li>evaluate</li>
+</ul>
+</section>
+<section id="create-a-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="create-a-pipeline">Create a pipeline</h3>
+<section id="st-stage-data-preparation" class="level4">
+<h4 class="anchored" data-anchor-id="st-stage-data-preparation">1<sup>st</sup> stage (data preparation)</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb59"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> stage add <span class="at">-n</span> prepare <span class="at">-d</span> src/prepare.py <span class="at">-d</span> data/raw <span class="dt">\</span></span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-o</span> data/prepared/train.csv <span class="at">-o</span> data/prepared/test.csv <span class="dt">\</span></span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a>    python src/prepare.py</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Added stage 'prepare' in 'dvc.yaml'</code></pre>
+</section>
+<section id="nd-stage-training" class="level4">
+<h4 class="anchored" data-anchor-id="nd-stage-training">2<sup>nd</sup> stage (training)</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb61"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> stage add <span class="at">-n</span> train <span class="at">-d</span> src/train.py <span class="at">-d</span> data/prepared/train.csv <span class="dt">\</span></span>
+<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-o</span> model/model.joblib <span class="dt">\</span></span>
+<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a>    python src/train.py</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Added stage `train` in 'dvc.yaml'</code></pre>
+</section>
+<section id="rd-stage-evaluation" class="level4">
+<h4 class="anchored" data-anchor-id="rd-stage-evaluation">3<sup>rd</sup> stage (evaluation)</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb63"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> stage add <span class="at">-n</span> evaluate <span class="at">-d</span> src/evaluate.py <span class="at">-d</span> model/model.joblib <span class="dt">\</span></span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-M</span> metrics/accuracy.json <span class="dt">\</span></span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>    python src/evaluate.py</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Added stage `evaluate` in 'dvc.yaml'</code></pre>
+</section>
+</section>
+<section id="commit-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="commit-pipeline">Commit pipeline</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb65"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Define pipeline"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>prepare:
+    changed deps:
+            modified:           data/raw
+            modified:           src/prepare.py
+    changed outs:
+            deleted:            data/prepared/test.csv
+            deleted:            data/prepared/train.csv
+train:
+    changed deps:
+            deleted:            data/prepared/train.csv
+            modified:           src/train.py
+    changed outs:
+            deleted:            model/model.joblib
+evaluate:
+    changed deps:
+            deleted:            model/model.joblib
+            modified:           src/evaluate.py
+    changed outs:
+            deleted:            metrics/accuracy.json
+[main 4aa331b] Define pipeline
+ 3 files changed, 27 insertions(+)
+ create mode 100644 data/prepared/.gitignore
+ create mode 100644 dvc.yaml
+ create mode 100644 model/.gitignore</code></pre>
+</section>
+<section id="visualize-pipeline-in-a-dag" class="level3">
+<h3 class="anchored" data-anchor-id="visualize-pipeline-in-a-dag">Visualize pipeline in a <a href="https://en.wikipedia.org/wiki/Directed_acyclic_graph">DAG</a></h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb67"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> dag</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>+--------------------+         +------------------+
+| data/raw/train.dvc |         | data/raw/val.dvc |
++--------------------+         +------------------+
+                  ***           ***
+                     **       **
+                       **   **
+                    +---------+
+                    | prepare |
+                    +---------+
+                          *
+                          *
+                          *
+                      +-------+
+                      | train |
+                      +-------+
+                          *
+                          *
+                          *
+                    +----------+
+                    | evaluate |
+                    +----------+</code></pre>
+</section>
+<section id="run-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="run-pipeline">Run pipeline</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb69"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> repro</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>'data/raw/train.dvc' didn't change, skipping
+'data/raw/val.dvc' didn't change, skipping
+Running stage 'prepare':
+&gt; python src/prepare.py
+Generating lock file 'dvc.lock'
+Updating lock file 'dvc.lock'
+
+Running stage 'train':
+&gt; python src/train.py
+Updating lock file 'dvc.lock'
+
+Running stage 'evaluate':
+&gt; python src/evaluate.py
+Updating lock file 'dvc.lock'
+Use `dvc push` to send your updates to remote storage.</code></pre>
+</section>
+<section id="dvc-repro-breakdown" class="level3">
+<h3 class="anchored" data-anchor-id="dvc-repro-breakdown">dvc repro breakdown</h3>
+<ul>
+<li><p><code>dvc repro</code> runs the <code>dvc.yaml</code> file in a Makefile fashion.</p></li>
+<li><p>First, it looks at the dependencies: the data didn’t change.</p></li>
+<li><p>Then it ran the commands to produce the outputs (since it is our first run, we had no outputs).</p></li>
+<li><p>When the 1<sup>st</sup> stage is run, a <code>dvc.lock</code> is created with information on that part of the run.</p></li>
+<li><p>When the 2<sup>nd</sup> and 3<sup>rd</sup> stages are run, <code>dvc.lock</code> is updated.</p>
+<p>At the end of the run <code>dvc.lock</code> contains all the info about the run we just did (version of the data used, etc.).</p></li>
+<li><p>A new directory called <code>runs</code> is created in <code>.dvc/cache</code> with cached data for this run.</p></li>
+</ul>
+</section>
+<section id="results-of-the-run" class="level3">
+<h3 class="anchored" data-anchor-id="results-of-the-run">Results of the run</h3>
+<ul>
+<li><p>The prepared data was created in <code>data/prepared</code> (with a <code>.gitignore</code> to exclude it from Git—you don’t want to track results in Git, but the scripts that can reproduce them).</p></li>
+<li><p>A model was saved in <code>model</code> (with another <code>.gitignore</code> file).</p></li>
+<li><p>The accuracy of this run was created in <code>metrics</code>.</p></li>
+</ul>
+</section>
+<section id="clean-working-tree-1" class="level3">
+<h3 class="anchored" data-anchor-id="clean-working-tree-1">Clean working tree</h3>
+<p>Now, we definitely want to create a commit with the <code>dvc.lock</code>.</p>
+<p>We could add the metrics resulting from this run in the same commit:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb71"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add metrics</span>
+<span id="cb71-2"><a href="#cb71-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"First pipeline run and results"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Our working tree is now clean and our data/pipeline up to date:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb72"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>On branch alternative
+nothing to commit, working tree clean</code></pre>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb74"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> status</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>Data and pipelines are up to date.</code></pre>
+</section>
+<section id="modify-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="modify-pipeline">Modify pipeline</h3>
+<p>From now on, if we edit one of the scripts, or one of the dependencies, <code>dvc status</code> will tell us what changed and <code>dvc repro</code> will only rerun the parts of the pipeline to update the result, pretty much as a Makefile would.</p>
+</section>
+<section id="going-further-next-time" class="level3">
+<h3 class="anchored" data-anchor-id="going-further-next-time">Going further … next time</h3>
+<p>DVC is a sophisticated tool with many additional features:</p>
+<ul>
+<li>Creation of data registries</li>
+<li><a href="https://github.com/iterative/dvclive">DVCLive</a> (Python library to log experiment metrics)</li>
+<li>Visualize the performance logs as <a href="https://dvc.org/doc/user-guide/experiment-management/visualizing-plots">plots</a></li>
+<li>Continuous integration with <a href="https://github.com/iterative/cml">CML</a> (Continuous Machine Learning)</li>
+</ul>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/mint\.westdri\.ca\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+            // target, if specified
+            link.setAttribute("target", "_blank");
+            if (link.getAttribute("rel") === null) {
+              link.setAttribute("rel", "noopener");
+            }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../tools/wb_dvc.html" class="pagination-link" aria-label="Data version control with DVC">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Data version control with DVC</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../tools/wb_tools1.html" class="pagination-link" aria-label="Fun tools for the command line">
+        <span class="nav-page-text">Fun tools for the command line</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="../about.html">
+<p>About</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="../talks/index.html">
+<p>Talks</p>
+</a>
+  </li>  
+</ul>
+    </div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    </div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/WestDRI" target="_blank">
+      <i class="bi bi-github" role="img" aria-label="GitHub organization">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://docs.alliancecan.ca/wiki/Technical_documentation" target="_blank">
+      <i class="bi bi-wikipedia" role="img" aria-label="Alliance wikipedia">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://www.youtube.com/channel/UCfgds4Qf7VFOv4ORRvFFmhw" target="_blank">
+      <i class="bi bi-youtube" role="img" aria-label="YouTube channel">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://mint.westdri.ca/calendar">
+      <i class="bi bi-calendar-week" role="img" aria-label="Training calendar">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://mint.westdri.ca/newsletter">
+      <i class="bi bi-envelope-fill" role="img" aria-label="Newsletter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://mint.westdri.ca/contact">
+      <i class="bi bi-mailbox2" role="img" aria-label="Contact us">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>
