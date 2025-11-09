@@ -154,20 +154,19 @@ Install MLflow:
 uv add mlflow
 ```
 
-# Tracking models
+# 
 
-## Overview {.center}
+## definitions {.center}
 
-Track models at checkpoints
+<!-- **Run**: \ -->
+<!-- Single execution of a model training event -->
 
-Compare with different datasets
+**Parent run**: \
+One optimization task \
+Contains multiple child runs
 
-Visualize with tracking UI
-
-## Definitions {.center}
-
-**Run**: \
-Single execution of a model training event
+**Child run**: \
+Individual execution of a model training event
 
 **Model signature**: \
 Description of a model's input and output data structure, data types, and features names
@@ -426,6 +425,16 @@ experiments
 child runs
 tags
 
+# Tracking models
+
+## Overview {.center}
+
+Track models at checkpoints
+
+Compare with different datasets
+
+Visualize with tracking UI
+
 # Tracking datasets
 
 # Hyperparameter tuning
@@ -472,3 +481,240 @@ Example:
 <!--    eval -\-> tr3[Final training] -->
 <!--    tr3 -\-> deploy[Deployment] -->
 <!-- ``` -->
+
+# Quick demos
+
+[from [MLflow](https://mlflow.org/) website]{.figure-caption}
+
+## Setup {.center}
+
+```{.python}
+import mlflow
+import optuna
+import sklearn
+
+mlflow.set_tracking_uri("sqlite:///xxx.db")
+mlflow.set_experiment("Cal housing")
+```
+
+## Prepare data {.center}
+
+```{.python}
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import fetch_california_housing
+
+X, y = fetch_california_housing(return_X_y=True)
+X_train, X_val, y_train, y_val = train_test_split(X, y, random_state=0)
+```
+
+## Define objective function {.center}
+
+```{.python}
+def objective(trial):
+    # Setting nested=True will create a child run under the parent run.
+    with mlflow.start_run(nested=True, run_name=f"trial_{trial.number}") as child_run:
+        rf_max_depth = trial.suggest_int("rf_max_depth", 2, 32)
+        rf_n_estimators = trial.suggest_int("rf_n_estimators", 50, 300, step=10)
+        rf_max_features = trial.suggest_float("rf_max_features", 0.2, 1.0)
+        params = {
+            "max_depth": rf_max_depth,
+            "n_estimators": rf_n_estimators,
+            "max_features": rf_max_features,
+        }
+        # Log current trial's parameters
+        mlflow.log_params(params)
+
+        regressor_obj = sklearn.ensemble.RandomForestRegressor(**params)
+        regressor_obj.fit(X_train, y_train)
+
+        y_pred = regressor_obj.predict(X_val)
+        error = sklearn.metrics.mean_squared_error(y_val, y_pred)
+        # Log current trial's error metric
+        mlflow.log_metrics({"error": error})
+
+        # Log the model file
+        mlflow.sklearn.log_model(regressor_obj, name="model")
+        # Make it easy to retrieve the best-performing child run later
+        trial.set_user_attr("run_id", child_run.info.run_id)
+        return error
+```
+
+## Define optimization task {.center}
+
+```{.python}
+# Create a parent run that contains all child runs for different trials
+with mlflow.start_run(run_name="task") as run:
+    # Log the experiment settings
+    n_trials = 30
+    mlflow.log_param("n_trials", n_trials)
+
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=n_trials)
+
+    # Log the best trial and its run ID
+    mlflow.log_params(study.best_trial.params)
+    mlflow.log_metrics({"best_error": study.best_value})
+    if best_run_id := study.best_trial.user_attrs.get("run_id"):
+        mlflow.log_param("best_child_run_id", best_run_id)
+```
+
+## Launch the UI {.center}
+
+*In a Bash/zsh (not in Python!) at root of project*
+
+```{.bash}
+mlflow server
+```
+
+Open <http://localhost:5000/> in your browser
+
+```{.python}
+import mlflow
+
+mlflow.set_tracking_uri("sqlite:///xxx.db")
+mlflow.set_experiment("Deep Learning Experiment")
+
+mlflow.config.enable_system_metrics_logging()
+mlflow.config.set_system_metrics_sampling_interval(1)
+```
+
+```{.python}
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+# Define device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Load and prepare data
+transform = transforms.Compose(
+    [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+)
+train_dataset = datasets.FashionMNIST(
+    "data", train=True, download=True, transform=transform
+)
+test_dataset = datasets.FashionMNIST("data", train=False, transform=transform)
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=1000)
+```
+
+```{.python}
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flatten = nn.Flatten()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(28 * 28, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 10),
+        )
+
+    def forward(self, x):
+        x = self.flatten(x)
+        logits = self.linear_relu_stack(x)
+        return logits
+
+model = NeuralNetwork().to(device)
+```
+
+```{.python}
+# Training parameters
+params = {
+    "epochs": 5,
+    "learning_rate": 1e-3,
+    "batch_size": 64,
+    "optimizer": "SGD",
+    "model_type": "MLP",
+    "hidden_units": [512, 512],
+}
+
+# Define optimizer and loss function
+loss_fn = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=params["learning_rate"])
+```
+
+```{.python}
+with mlflow.start_run() as run:
+    # Log training parameters
+    mlflow.log_params(params)
+
+    for epoch in range(params["epochs"]):
+        model.train()
+        train_loss = correct, total = 0, 0, 0
+
+        for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = data.to(device), target.to(device)
+
+            # Forward pass
+            optimizer.zero_grad()
+            output = model(data)
+            loss = loss_fn(output, target)
+
+            # Backward pass
+            loss.backward()
+            optimizer.step()
+
+            # Calculate metrics
+            train_loss += loss.item()
+            _, predicted = output.max(1)
+            total += target.size(0)
+            correct += predicted.eq(target).sum().item()
+
+            # Log batch metrics (every 100 batches)
+            if batch_idx % 100 == 0:
+                batch_loss = train_loss / (batch_idx + 1)
+                batch_acc = 100.0 * correct / total
+                mlflow.log_metrics(
+                    {"batch_loss": batch_loss, "batch_accuracy": batch_acc},
+                    step=epoch * len(train_loader) + batch_idx,
+                )
+
+        # Calculate epoch metrics
+        epoch_loss = train_loss / len(train_loader)
+        epoch_acc = 100.0 * correct / total
+
+        # Validation
+        model.eval()
+        val_loss, val_correct, val_total = 0, 0, 0
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                loss = loss_fn(output, target)
+
+                val_loss += loss.item()
+                _, predicted = output.max(1)
+                val_total += target.size(0)
+                val_correct += predicted.eq(target).sum().item()
+
+        # Calculate and log epoch validation metrics
+        val_loss = val_loss / len(test_loader)
+        val_acc = 100.0 * val_correct / val_total
+
+        # Log epoch metrics
+        mlflow.log_metrics(
+            {
+                "train_loss": epoch_loss,
+                "train_accuracy": epoch_acc,
+                "val_loss": val_loss,
+                "val_accuracy": val_acc,
+            },
+            step=epoch,
+        )
+        # Log checkpoint at the end of each epoch
+        mlflow.pytorch.log_model(model, name=f"checkpoint_{epoch}")
+
+        print(
+            f"Epoch {epoch+1}/{params['epochs']}, "
+            f"Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%, "
+            f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%"
+        )
+
+    # Log the final trained model
+    model_info = mlflow.pytorch.log_model(model, name="final_model")
+```
+
