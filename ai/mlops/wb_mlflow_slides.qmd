@@ -143,12 +143,6 @@ e.g. Microsoft Fabric, FLAML
 
 :::
 
-## Limitations {.center}
-
-<br>[MLflow projects](https://mlflow.org/docs/latest/ml/projects/#environment) do not (yet) support [uv](https://docs.astral.sh/uv/)
-
-Some functionality missing for deployment and production for large companies (but irrelevant for research and no FOSS option exists)
-
 # Tracking with MLflow
 
 ## Install MLflow {.center}
@@ -167,6 +161,12 @@ Install MLflow:
 uv add mlflow
 ```
 
+:::{.emph}
+
+<br>`uv` is an amazing Python projects/versions/virtual envs manager and I recommend using it on your machine. **However, it is currently not supported on the Alliance clusters where you need to keep using `pip` or risk issues with undetected modules**
+
+:::
+
 ## Definitions in MLflow context {.center}
 
 **Parent run**: \
@@ -181,10 +181,10 @@ Description of a model's input and output data structure, data types, and featur
 
 ## MLflow tracking workflow {.center}
 
-- You create an experiment
-- You log tracking data
-- You launch an MLflow server
-- You open the user interface in a browser to visualize the logged data
+- Create an experiment
+- Launch an MLflow server
+- Open the user interface in a browser to visualize the logged data
+- Log tracking data
 
 ## MLflow tracking setup {.center}
 
@@ -197,7 +197,7 @@ In the next slides, I am breaking down the workflow for the various configuratio
 
 :::{.notenoit}
 
-^1^Usage without databases will be deprecated at some point
+^1^Usage without databases will be deprecated at some point and is not recommended
 
 :::
 
@@ -261,7 +261,7 @@ This method will be deprecated, so prefer the use of a database
 ```{.python}
 import mlflow
 
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_tracking_uri("sqlite:///<database-name>.db")
 mlflow.set_experiment("<experiment-name>")
 ```
 
@@ -315,23 +315,6 @@ mlflow.set_experiment("<experiment-name>")
 :::
 
 ::::
-
-## {.center}
-
-### Log tracking data
-
-Define and run the experiment you want to track
-
-:::{.notenoit}
-
-Examples:
-
-Train a model, \
-Tune a model, \
-Run a model with different datasets, \
-...
-
-:::
 
 ## {.center}
 
@@ -392,7 +375,7 @@ mlflow server --port 8080
 
 ```{.bash}
 mlflow server \
-	   --backend-store-uri sqlite:///mlflow.db
+	   --backend-store-uri sqlite:///<database-name>.db
 ```
 <br>
 
@@ -404,7 +387,7 @@ With another port:
 
 ```{.bash}
 mlflow server \
-	   --backend-store-uri sqlite:///mlflow.db \
+	   --backend-store-uri sqlite:///<database-name>.db \
 	   --port 8080
 ```
 
@@ -468,9 +451,26 @@ For a local server on port `5000` (the default), open <http://localhost:5000>
 
 :::
 
+## {.center}
+
+### Log tracking data
+
+Define and run the experiment you want to track
+
+:::{.notenoit}
+
+Examples:
+
+Train a model, \
+Tune hyperparameters, \
+Run a model with different datasets, \
+...
+
+:::
+
 # Use case 1: model tracking
 
-## Goals {.center}
+## Benefits of using MLflow {.center}
 
 - Monitor model metrics (e.g. loss, accuracy)
 - Monitor system metrics (e.g. GPU, memory)
@@ -478,13 +478,48 @@ For a local server on port `5000` (the default), open <http://localhost:5000>
 - Record hyperparameters and optimizer settings
 - Snapshot library versions for reproducibility
 
+## Workflow {.center}
+
+- Create an experiment
+- Launch an MLflow server
+- Open the user interface in a browser to visualize the logged data
+- Log tracking data:
+  - Prepare data
+  - Define model
+  - Define training parameters and optimizer
+  - Train
+
 ## Demo {.center}
 
-:::{.right}
+:::{.figure-caption}
 
-*From [MLflow website](https://mlflow.org/docs/latest/ml/getting-started/deep-learning/)*
+modified from [MLflow website](https://mlflow.org/docs/latest/ml/getting-started/deep-learning/)
 
 :::
+
+We need several packages for this demo. I create a bare `uv` project:
+
+```{.bash}
+uv init --bare
+```
+
+and install the packages in its virtual environment:
+
+```{.bash}
+uv add mlflow psutil torch torchvision
+```
+
+I also install [ptpython](https://github.com/prompt-toolkit/ptpython) because I like to use it instead of the default Python shell, but this is not necessary to run the demo (which is why I am adding it in the dev group):
+
+```{.bash}
+uv add --dev ptpython
+```
+
+I can now launch `ptpython` (or `python`) to run the code:
+
+```{.bash}
+uv run ptpython
+```
 
 ## {.center}
 
@@ -493,12 +528,39 @@ For a local server on port `5000` (the default), open <http://localhost:5000>
 ```{.python}
 import mlflow
 
-mlflow.set_tracking_uri("sqlite:///model_tracking_demo.db")
-mlflow.set_experiment("Model tracking demo")
+mlflow.set_tracking_uri("sqlite:///demo.db")
+mlflow.set_experiment("model_tracking_demo")
 
 mlflow.config.enable_system_metrics_logging()
 mlflow.config.set_system_metrics_sampling_interval(1)
 ```
+
+:::{.note}
+
+You can see that the database file `model_tracking_demo.db` gets created
+
+:::
+
+## {.center}
+
+### Launch MLflow server
+
+*In Bash (not Python):*
+
+```{.bash}
+uv run mlflow server \
+       --backend-store-uri sqlite:///model_tracking_demo.db
+```
+
+## {.center}
+
+### Access the UI
+
+Open <http://localhost:5000> in a browser to view logs in the UI
+
+You can see our [model_tracking_demo]{.codelike} experiment
+
+Click on it to see the interface where the runs will be logged as we train our model
 
 ## {.center}
 
@@ -566,7 +628,7 @@ import torch.optim as optim
 
 # Training parameters
 params = {
-    "epochs": 5,
+    "epochs": 4,
     "learning_rate": 1e-3,
     "batch_size": 64,
     "optimizer": "SGD",
@@ -584,7 +646,7 @@ optimizer = optim.SGD(model.parameters(), lr=params["learning_rate"])
 #### Train
 
 ```{.python}
-with mlflow.start_run() as run:
+with mlflow.start_run(run_name="run_1") as run:
     # Log training parameters
     mlflow.log_params(params)
 
@@ -666,20 +728,109 @@ with mlflow.start_run() as run:
 
 ## {.center}
 
-### Launch MLflow server
+### Visualize metrics during training
 
-*In Bash (not Python):*
+Go to the UI in the browser
 
-```{.bash}
-mlflow server \
-       --backend-store-uri sqlite:///model_tracking_demo.db
-```
+If you haven't done so yet, click on the experiment we called [model_tracking_demo]{.codelike}
+
+Then click on the run we called [run_1]{.codelike} (if you don't name the run, it gets an automatically generated name, different for each run)
+
+Finally go to the [Model metrics]{.codelike} tab to see the metrics logged in real time
+
+The [System metrics]{.codelike} tab allows you to monitor your resource usage
+
+<br>
+Alternatively, you can click on the experiment and click on ![](img/mlflow_chartview.png){width="50px"} ([Chart view]{.codelike} button)
+
+This is a great method if you want to compare multiple runs
 
 ## {.center}
 
-### Access the UI
+### Create a new run
 
-Open <http://localhost:5000> in a browser to view logs in the UI
+We can create new runs by training the model again:
+
+```{.python}
+with mlflow.start_run(run_name="run_2") as run:
+    # Log training parameters
+    mlflow.log_params(params)
+
+    for epoch in range(params["epochs"]):
+        model.train()
+        train_loss, correct, total = 0, 0, 0
+
+        for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = data.to(device), target.to(device)
+
+            # Forward pass
+            optimizer.zero_grad()
+            output = model(data)
+            loss = loss_fn(output, target)
+
+            # Backward pass
+            loss.backward()
+            optimizer.step()
+
+            # Calculate metrics
+            train_loss += loss.item()
+            _, predicted = output.max(1)
+            total += target.size(0)
+            correct += predicted.eq(target).sum().item()
+
+            # Log batch metrics (every 100 batches)
+            if batch_idx % 100 == 0:
+                batch_loss = train_loss / (batch_idx + 1)
+                batch_acc = 100.0 * correct / total
+                mlflow.log_metrics(
+                    {"batch_loss": batch_loss, "batch_accuracy": batch_acc},
+                    step=epoch * len(train_loader) + batch_idx,
+                )
+
+        # Calculate epoch metrics
+        epoch_loss = train_loss / len(train_loader)
+        epoch_acc = 100.0 * correct / total
+
+        # Validation
+        model.eval()
+        val_loss, val_correct, val_total = 0, 0, 0
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                loss = loss_fn(output, target)
+
+                val_loss += loss.item()
+                _, predicted = output.max(1)
+                val_total += target.size(0)
+                val_correct += predicted.eq(target).sum().item()
+
+        # Calculate and log epoch validation metrics
+        val_loss = val_loss / len(test_loader)
+        val_acc = 100.0 * val_correct / val_total
+
+        # Log epoch metrics
+        mlflow.log_metrics(
+            {
+                "train_loss": epoch_loss,
+                "train_accuracy": epoch_acc,
+                "val_loss": val_loss,
+                "val_accuracy": val_acc,
+            },
+            step=epoch,
+        )
+        # Log checkpoint at the end of each epoch
+        mlflow.pytorch.log_model(model, name=f"checkpoint_{epoch}")
+
+        print(
+            f"Epoch {epoch+1}/{params['epochs']}, "
+            f"Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%, "
+            f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%"
+        )
+
+    # Log the final trained model
+    model_info = mlflow.pytorch.log_model(model, name="final_model")
+```
 
 # Use case 2: datasets tracking
 
@@ -709,13 +860,27 @@ Example:
 
 ## Workflow {.center}
 
-- Define an objective function
-- Define a search space
-- Minimize the objective over the space
+- Create an experiment
+- Launch an MLflow server
+- Open the user interface in a browser to visualize the logged data
+- Log tracking data:
+  - Prepare data
+  - Define an objective function
+  - Run an optimization task
 
 ## Tuning demo {.center}
 
-*From [MLflow website](https://mlflow.org/)
+:::{.figure-caption}
+
+modified from [MLflow website](https://mlflow.org/docs/latest/ml/getting-started/hyperparameter-tuning/)
+
+:::
+
+For this demo, we will use [optuna](https://github.com/optuna/optuna) as the hyperparameter optimization framework, so we need to install it (in Bash, not Python):
+
+```{.bash}
+uv add optuna
+```
 
 ## {.center}
 
@@ -724,9 +889,28 @@ Example:
 ```{.python}
 import mlflow
 
-mlflow.set_tracking_uri("sqlite:///tuning_demo.db")
-mlflow.set_experiment("Tuning demo")
+mlflow.set_tracking_uri("sqlite:///demo.db")
+mlflow.set_experiment("tuning_demo")
 ```
+
+## {.center}
+
+### Launch MLflow server
+
+*In Bash/zsh (not in Python!) at root of project*
+
+```{.bash}
+mlflow server \
+       --backend-store-uri sqlite:///demo.db
+```
+
+## {.center}
+
+### Access the UI
+
+Open <http://localhost:5000> in a browser
+
+Select the experiment "tuning_demo"
 
 ## {.center}
 
@@ -748,7 +932,7 @@ X_train, X_val, y_train, y_val = train_test_split(X, y, random_state=0)
 
 ## {.center}
 
-#### Define objective function
+#### Define an objective function
 
 ```{.python}
 def objective(trial):
@@ -782,13 +966,13 @@ def objective(trial):
 
 ## {.center}
 
-#### Define optimization task
+#### Run an optimization task
 
 ```{.python}
 import optuna
 
 # Create a parent run that contains all child runs for different trials
-with mlflow.start_run(run_name="task") as run:
+with mlflow.start_run(run_name="optimization") as run:
     # Log the experiment settings
     n_trials = 30
     mlflow.log_param("n_trials", n_trials)
@@ -802,28 +986,6 @@ with mlflow.start_run(run_name="task") as run:
     if best_run_id := study.best_trial.user_attrs.get("run_id"):
         mlflow.log_param("best_child_run_id", best_run_id)
 ```
-
-## {.center}
-
-### Launch MLflow server
-
-*In Bash/zsh (not in Python!) at root of project*
-
-```{.bash}
-mlflow server \
-       --backend-store-uri sqlite:///tuning_demo.db
-```
-
-## {.center}
-
-### Access the UI
-
-Open <http://localhost:5000> in a browser
-
-Select the experiment "Model tracking demo"
-
-You can see graphs of model metrics (loss and accuracy) \
-as well as system metrics (CPU/GPU/disk/memory usage)
 
 # Model registry
 
