@@ -273,7 +273,7 @@ Here we use SQLite which works well for a local database
 
 :::
 
-Logs get stored in an `mlflow.db` file
+Logs get stored in a `<database-name>.db` file
 
 :::
 
@@ -489,7 +489,7 @@ Run a model with different datasets, \
   - Define training parameters and optimizer
   - Train
 
-## Demo {.center}
+## Model demo {.center}
 
 :::{.figure-caption}
 
@@ -528,7 +528,7 @@ uv run ptpython
 ```{.python}
 import mlflow
 
-mlflow.set_tracking_uri("sqlite:///demo.db")
+mlflow.set_tracking_uri("sqlite:///demos.db")
 mlflow.set_experiment("model_tracking_demo")
 
 mlflow.config.enable_system_metrics_logging()
@@ -537,7 +537,7 @@ mlflow.config.set_system_metrics_sampling_interval(1)
 
 :::{.note}
 
-You can see that the database file `model_tracking_demo.db` gets created
+You can see that the database file `demos.db` gets created
 
 :::
 
@@ -549,7 +549,7 @@ You can see that the database file `model_tracking_demo.db` gets created
 
 ```{.bash}
 uv run mlflow server \
-       --backend-store-uri sqlite:///model_tracking_demo.db
+       --backend-store-uri sqlite:///demos.db
 ```
 
 ## {.center}
@@ -889,9 +889,15 @@ uv add optuna
 ```{.python}
 import mlflow
 
-mlflow.set_tracking_uri("sqlite:///demo.db")
+mlflow.set_tracking_uri("sqlite:///demos.db")
 mlflow.set_experiment("tuning_demo")
 ```
+
+:::{.note}
+
+We are using the same database, but you could of course create a new one
+
+:::
 
 ## {.center}
 
@@ -901,8 +907,14 @@ mlflow.set_experiment("tuning_demo")
 
 ```{.bash}
 mlflow server \
-       --backend-store-uri sqlite:///demo.db
+       --backend-store-uri sqlite:///demos.db
 ```
+
+:::{.note}
+
+If you are using the same database as in the previous demo and you kept the server running, you don't have to do anything
+
+:::
 
 ## {.center}
 
@@ -910,7 +922,7 @@ mlflow server \
 
 Open <http://localhost:5000> in a browser
 
-Select the experiment "tuning_demo"
+Select the experiment [tuning_demo]{.codelike}
 
 ## {.center}
 
@@ -974,7 +986,7 @@ import optuna
 # Create a parent run that contains all child runs for different trials
 with mlflow.start_run(run_name="optimization") as run:
     # Log the experiment settings
-    n_trials = 30
+    n_trials = 5
     mlflow.log_param("n_trials", n_trials)
 
     study = optuna.create_study(direction="minimize")
@@ -987,7 +999,71 @@ with mlflow.start_run(run_name="optimization") as run:
         mlflow.log_param("best_child_run_id", best_run_id)
 ```
 
+## {.center}
+
+### Visualize trials errors during run
+
+Go to the UI in the browser
+
+If you haven't done so yet, click on the experiment we called [tuning_demo]{.codelike}
+
+Then click on the [+]{.codelike} sign next to our [optimization]{.codelike} experiment to expand it
+
+Finally click on ![](img/mlflow_chartview.png){width="50px"} ([Chart view]{.codelike} button) to compare the trials
+
 # Model registry
 
 
 ## Model registry demo {.center}
+
+
+
+# MLflow on the clusters
+
+## Launch MLflow server {.center}
+
+- Launch the MLflow server in the background (with a trailing `&`) as part of your job
+- Use the [local workflow](#/section-4) with the additional argument `--host 0.0.0.0`
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+#!/bin/bash
+#SBATCH ...
+#SBATCH ...
+
+mlflow server \
+       --backend-store-uri sqlite:///<database-name>.db \
+	   --host 0.0.0.0 &
+
+python <script>.py
+```
+
+## Access the UI {.center}
+
+Once the job is running, you need to create an SSH tunnelling connection between the compute node running the server and your computer
+
+First, you need to find the hostname of the compute node running the server. This is the value under `NODELIST` for your job when you run:
+
+```{.bash}
+$ sq
+```
+
+Then, **from your computer**:
+
+```{.bash}
+[local]$ ssh -N -f -L localhost:5000:<node>:5000 \
+	   <user>@<cluster>.alliancecan.ca
+```
+
+:::{.note}
+
+Replace `<node>` by the compute node you identified, `<user>` by your user name, and `<cluster>` by the name of the Alliance cluster (e.g. `fir`)
+
+:::
+
+Open a browser (on your computer) and go to <http://localhost:5000> to access the UI
