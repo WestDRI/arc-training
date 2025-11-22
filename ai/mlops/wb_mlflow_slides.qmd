@@ -179,6 +179,9 @@ Individual execution of a model training event
 **Model signature**: \
 Description of a model's input and output data structure, data types, and features names
 
+**Model Uniform Resource Identifier (URI), `model_uri`**: \
+Unique sequence of characters that identifies a model artifacts (the model and its associated data)
+
 ## MLflow tracking workflow {.center}
 
 - Create an experiment
@@ -439,6 +442,33 @@ Here we use PostgreSQL which works well to manage a database in a collaborative 
 
 ## {.center}
 
+### Launch MLflow server
+
+#### Alliance clusters
+
+- Launch the MLflow server in the background (with a trailing `&`) as part of your job
+- Use the [local workflow](#section-4) with the additional argument `--host 0.0.0.0`
+
+:::{.example}
+
+Example job:
+
+:::
+
+```{.bash}
+#!/bin/bash
+#SBATCH ...
+#SBATCH ...
+
+mlflow server \
+       --backend-store-uri sqlite:///<database-name>.db \
+	   --host 0.0.0.0 &
+
+python <script>.py
+```
+
+## {.center}
+
 ### Access the UI
 
 Open `http://<host>:<port>` in a browser to view logs in the UI
@@ -450,6 +480,31 @@ Example:
 For a local server on port `5000` (the default), open <http://localhost:5000>
 
 :::
+
+## {.center}
+
+### Access the UI
+
+#### Alliance clusters
+
+Once the job is running, you need to create a connection between the compute node running the server and your computer
+
+First, you need to find the hostname of the compute node running the server. This is the value under `NODELIST` for your job when you run `sq`
+
+Then, ***from your computer***, run the SSH tunnelling command:
+
+```{.bash}
+ssh -N -f -L localhost:5000:<node>:5000 \
+	   <user>@<cluster>.alliancecan.ca
+```
+
+:::{.note}
+
+Replace `<node>` by the compute node you identified, `<user>` by your user name, and `<cluster>` by the name of the Alliance cluster (e.g. `fir`)
+
+:::
+
+Finally, open a browser (on your computer) and go to <http://localhost:5000>
 
 ## {.center}
 
@@ -714,7 +769,7 @@ with mlflow.start_run(run_name="run_1") as run:
             step=epoch,
         )
         # Log checkpoint at the end of each epoch
-        mlflow.pytorch.log_model(model, name=f"checkpoint_{epoch}")
+        mlflow.pytorch.log_model(model, name=f"fashionmnist_1_checkpoint_{epoch}")
 
         print(
             f"Epoch {epoch+1}/{params['epochs']}, "
@@ -723,7 +778,7 @@ with mlflow.start_run(run_name="run_1") as run:
         )
 
     # Log the final trained model
-    model_info = mlflow.pytorch.log_model(model, name="final_model")
+    model_info = mlflow.pytorch.log_model(model, name="fashionmnist_1_trained")
 ```
 
 ## {.center}
@@ -820,7 +875,7 @@ with mlflow.start_run(run_name="run_2") as run:
             step=epoch,
         )
         # Log checkpoint at the end of each epoch
-        mlflow.pytorch.log_model(model, name=f"checkpoint_{epoch}")
+        mlflow.pytorch.log_model(model, name=f"fashionmnist_2_checkpoint_{epoch}")
 
         print(
             f"Epoch {epoch+1}/{params['epochs']}, "
@@ -829,12 +884,12 @@ with mlflow.start_run(run_name="run_2") as run:
         )
 
     # Log the final trained model
-    model_info = mlflow.pytorch.log_model(model, name="final_model")
+    model_info = mlflow.pytorch.log_model(model, name="fashionmnist_2_trained")
 ```
 
-# Use case 2: datasets tracking
+<!-- # Use case 2: datasets tracking -->
 
-# Use case 3: tuning
+# Use case 2: tuning
 
 ## Goal of hyperparameter tuning {.center}
 
@@ -970,7 +1025,7 @@ def objective(trial):
         mlflow.log_metrics({"error": error})
 
         # Log the model file
-        mlflow.sklearn.log_model(regressor_obj, name="model")
+        mlflow.sklearn.log_model(regressor_obj, name="calhousing_1")
         # Make it easy to retrieve the best-performing child run later
         trial.set_user_attr("run_id", child_run.info.run_id)
         return error
@@ -984,7 +1039,7 @@ def objective(trial):
 import optuna
 
 # Create a parent run that contains all child runs for different trials
-with mlflow.start_run(run_name="optimization") as run:
+with mlflow.start_run(run_name="calhousing_1_optimization_1") as run:
     # Log the experiment settings
     n_trials = 5
     mlflow.log_param("n_trials", n_trials)
@@ -1013,57 +1068,208 @@ Finally click on ![](img/mlflow_chartview.png){width="50px"} ([Chart view]{.code
 
 # Model registry
 
+## Benefits {.center}
+
+- Tracks development pipelines of models
+- Tracks model versions
+- Central place for all models (local or remote for collaborations)
+- Aliases, tags, annotations, metadata associated with models
+
+## Register models in the UI {.center}
+
+::::{.columns}
+
+:::{.column width="64%"}
+
+### Version 1
+
+- Click on the experiment name containing the model
+- Click on [Models]{.codelike} in the left menus
+- Click on the model to register
+- Click on the [Register model]{.codelike} button in top right corner
+- In drop-down menu click [Create New Model]{.codelike}
+- Enter name of model
+- Click [Register]{.codelike}
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="34%"}
+
+### Versions 2+
+
+- Same
+- Same
+- Same
+- Same
+- In drop-down menu select model for which you want to create a new version
+- Click [Register]{.codelike}
+
+:::
+
+::::
+
+## Register models programmatically {.center}
+
+### From model ID
+
+In the UI:
+
+- Click on the experiment name containing the model
+- Click on [Models]{.codelike} in the left menus
+- Click on the model to register
+
+Then run:
+
+```{.python}
+mlflow.register_model("models:/<model-id>", "<name-of-registered-model>")
+```
+
+:::{.notenoit}
+
+- `<model-id>` = the letters and digits after [Model ID]{.codelike}
+- `<name-of-registered-model>` = the name you give to your registered model
+
+:::
+
+## Register models programmatically {.center}
+
+### From run ID
+
+In the UI:
+
+- Same
+
+Then run:
+
+```{.python}
+mlflow.register_model(
+    "runs:/<source-run-id>/<model-name>",
+    "<name-of-registered-model>"
+)
+```
+
+:::{.notenoit}
+
+- `<source-run-id>` = the digits in top right corner after [Source run ID]{.codelike}
+- `<model-name>` = the name of the model in top left corner (the model you just clicked on)
+- `<name-of-registered-model>` = the name you give to your registered model
+
+:::
+
+## Load registered model {.center}
+
+You can then load any of your registered models with:
+
+```{.python}
+mlflow.<flavour>.load_model(
+    "models:/<your_registered_model_name>/<model_version>"
+)
+```
+
+:::{.notenoit}
+
+`<flavour>` = any ML/DL [flavour](https://mlflow.org/docs/latest/ml/traditional-ml/tutorials/creating-custom-pyfunc/part1-named-flavors/) such as `pytorch`, `sklearn`, \
+or any other named flavour (predefined code for supported ML/DL frameworks), \
+or a custom PyFunc for unsupported frameworks
+
+:::
 
 ## Model registry demo {.center}
 
+In the previous demos, we logged a number of models:
 
+- the checkpoints of both our FashionMNIST runs
+- the final models of those two runs
+- the trials (child runs) of the California housing tuning experiment
 
-# MLflow on the clusters
+Let's register some of these models
 
-## Launch MLflow server {.center}
+## {.center}
 
-- Launch the MLflow server in the background (with a trailing `&`) as part of your job
-- Use the [local workflow](#/section-4) with the additional argument `--host 0.0.0.0`
+### Register models in the UI
 
-:::{.example}
+::::{.columns}
 
-Example:
+:::{.column width="49%"}
 
-:::
+FashionMNIST:
 
-```{.bash}
-#!/bin/bash
-#SBATCH ...
-#SBATCH ...
-
-mlflow server \
-       --backend-store-uri sqlite:///<database-name>.db \
-	   --host 0.0.0.0 &
-
-python <script>.py
-```
-
-## Access the UI {.center}
-
-Once the job is running, you need to create an SSH tunnelling connection between the compute node running the server and your computer
-
-First, you need to find the hostname of the compute node running the server. This is the value under `NODELIST` for your job when you run:
-
-```{.bash}
-$ sq
-```
-
-Then, **from your computer**:
-
-```{.bash}
-[local]$ ssh -N -f -L localhost:5000:<node>:5000 \
-	   <user>@<cluster>.alliancecan.ca
-```
-
-:::{.note}
-
-Replace `<node>` by the compute node you identified, `<user>` by your user name, and `<cluster>` by the name of the Alliance cluster (e.g. `fir`)
+- Click on [model_tracking_demo]{.codelike}
+- Click on [Models]{.codelike} in the left menus
+- Click on [fashionmnist_1_trained]{.codelike}
+- Click on the [Register model]{.codelike} button in top right corner
+- In drop-down menu click [Create New Model]{.codelike}
+- Enter: "fashionmnist_1"
+- Click [Register]{.codelike}
 
 :::
 
-Open a browser (on your computer) and go to <http://localhost:5000> to access the UI
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+California housing:
+
+- Click on [tuning_demo]{.codelike}
+- Click on [Models]{.codelike} in the left menus
+- Click on the [calhousing_1]{.codelike} line corresponding to our best trial run
+- Click on the [Register model]{.codelike} button in top right corner
+- In drop-down menu click [Create New Model]{.codelike}
+- Enter: "calhousing_1_best"
+- Click [Register]{.codelike}
+
+:::
+
+::::
+
+## {.center}
+
+### Register models in Python
+
+In the UI:
+
+- Click on [model_tracking_demo]{.codelike}
+- Click on [Models]{.codelike} in the left menus
+- Click on [fashionmnist_2_trained]{.codelike}
+
+Then run:
+
+```{.python}
+mlflow.register_model(
+    "models:/m-a7a4cd35cc4c4fe4b2e3d839b1307b5d",
+    "fashionmnist_2"
+)
+```
+
+## {.center}
+
+### Register models in Python
+
+In the UI:
+
+- Click on [model_tracking_demo]{.codelike}
+- Click on [Models]{.codelike} in the left menus
+- Click on [fashionmnist_2_trained]{.codelike}
+
+Or, alternatively, run:
+
+```{.python}
+mlflow.register_model(
+    "runs:/1a2844d0125e40cfac528ae44c4ae76a/fashionmnist_2_trained",
+    "fashionmnist_2"
+)
+```
+
+## {.center}
+
+### Load registered models
+
+```{.python}
+fashionmnist_1 = mlflow.pytorch.load_model("models:/fashionmnist_1/1")
+
+calhousing_1_best = mlflow.sklearn.load_model("models:/calhousing_1_best/1")
+```
