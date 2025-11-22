@@ -143,6 +143,15 @@ e.g. Microsoft Fabric, FLAML
 
 :::
 
+## Limitations {.center}
+
+- Messy documentation (code typos, circular, confusing, many "Getting started" sections, ...)
+- `uv` not fully integrated (not supported in MLflow projects)
+- [Polars](https://github.com/pola-rs/polars) poorly integrated
+- UI can be inconsistent
+- Database and servers are not very resilient to by bad workflows, deletion and recreation of files, etc.
+- Nested runs don't get logged as children runs if workflow is not followed carefully
+
 # Tracking with MLflow
 
 ## Install MLflow {.center}
@@ -621,7 +630,7 @@ Click on it to see the interface where the runs will be logged as we train our m
 
 ### Log tracking data
 
-In this demo, we log epoch metrics, checkpoints, final model from a standard model training with PyTorch
+In this demo, we log a checkpoint and its metrics after each epoch, as well as the final model for the training of a basic PyTorch classification neural network on the classic [Fashion-MNIST dataset](https://en.wikipedia.org/wiki/Fashion-MNIST)
 
 ## {.center}
 
@@ -769,7 +778,10 @@ with mlflow.start_run(run_name="run_1") as run:
             step=epoch,
         )
         # Log checkpoint at the end of each epoch
-        mlflow.pytorch.log_model(model, name=f"fashionmnist_1_checkpoint_{epoch}")
+        mlflow.pytorch.log_model(
+            model,
+            name=f"fashionmnist_1_checkpoint_{epoch}"
+        )
 
         print(
             f"Epoch {epoch+1}/{params['epochs']}, "
@@ -778,7 +790,10 @@ with mlflow.start_run(run_name="run_1") as run:
         )
 
     # Log the final trained model
-    model_info = mlflow.pytorch.log_model(model, name="fashionmnist_1_trained")
+    model_info = mlflow.pytorch.log_model(
+        model,
+        name="fashionmnist_1_trained"
+    )
 ```
 
 ## {.center}
@@ -875,7 +890,10 @@ with mlflow.start_run(run_name="run_2") as run:
             step=epoch,
         )
         # Log checkpoint at the end of each epoch
-        mlflow.pytorch.log_model(model, name=f"fashionmnist_2_checkpoint_{epoch}")
+        mlflow.pytorch.log_model(
+            model,
+            name=f"fashionmnist_2_checkpoint_{epoch}"
+        )
 
         print(
             f"Epoch {epoch+1}/{params['epochs']}, "
@@ -884,10 +902,11 @@ with mlflow.start_run(run_name="run_2") as run:
         )
 
     # Log the final trained model
-    model_info = mlflow.pytorch.log_model(model, name="fashionmnist_2_trained")
+    model_info = mlflow.pytorch.log_model(
+        model,
+        name="fashionmnist_2_trained"
+    )
 ```
-
-<!-- # Use case 2: datasets tracking -->
 
 # Use case 2: tuning
 
@@ -983,6 +1002,8 @@ Select the experiment [tuning_demo]{.codelike}
 
 ### Log tracking data
 
+In this demo, we train a [random forest](https://en.wikipedia.org/wiki/Random_forest) regressor model on the classic [scikit-learn California housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.fetch_california_housing.html) and tune its hyperparameters (random forest max depth, number of estimators, and max features) by minimizing the mean squared error between the predicted and validation values using the hyperparameter optimization package [optuna](https://github.com/optuna/optuna)
+
 ## {.center}
 
 #### Prepare data
@@ -1004,9 +1025,17 @@ X_train, X_val, y_train, y_val = train_test_split(X, y, random_state=0)
 ```{.python}
 def objective(trial):
     # Setting nested=True will create a child run under the parent run.
-    with mlflow.start_run(nested=True, run_name=f"trial_{trial.number}") as child_run:
+    with mlflow.start_run(
+            nested=True,
+            run_name=f"trial_{trial.number}"
+    ) as child_run:
         rf_max_depth = trial.suggest_int("rf_max_depth", 2, 32)
-        rf_n_estimators = trial.suggest_int("rf_n_estimators", 50, 300, step=10)
+        rf_n_estimators = trial.suggest_int(
+            "rf_n_estimators",
+            50,
+            300,
+            step=10
+        )
         rf_max_features = trial.suggest_float("rf_max_features", 0.2, 1.0)
         params = {
             "max_depth": rf_max_depth,
@@ -1066,7 +1095,191 @@ Then click on the [+]{.codelike} sign next to our [optimization]{.codelike} expe
 
 Finally click on ![](img/mlflow_chartview.png){width="50px"} ([Chart view]{.codelike} button) to compare the trials
 
-# Model registry
+# Models signatures
+
+You might have noticed that we got the following warning at each model we logged:
+
+```default
+WARNING mlflow.models.model:
+Model logged without a signature and input example.
+Please set `input_example` parameter when logging the model
+to auto infer the model signature.
+```
+
+Let's dive into this
+
+## Benefits of models signatures {.center}
+
+Model signatures describe the schema of inputs and outputs
+
+They help in model understanding and define how the model should be used
+
+## Input examples {.center}
+
+Input examples illustrate the data type and format that should be used with models and ensures validation that the models work properly
+
+MLflow can infer a model signature for a model from an input example
+
+The input example also provides a test for the model during logging
+
+It thus a good practice to add an input example whenever a model is logged
+
+## Example {.center}
+
+Let's go back to the objective function we defined in the last demo as an example
+
+and let's add the first the first element of the `X` ndarray an input example
+
+## {.center}
+
+#### Define an objective function
+
+```{.python}
+def objective(trial):
+    # Setting nested=True will create a child run under the parent run.
+    with mlflow.start_run(
+            nested=True,
+            run_name=f"trial_{trial.number}"
+    ) as child_run:
+        rf_max_depth = trial.suggest_int("rf_max_depth", 2, 32)
+        rf_n_estimators = trial.suggest_int(
+            "rf_n_estimators",
+            50,
+            300,
+            step=10
+        )
+        rf_max_features = trial.suggest_float("rf_max_features", 0.2, 1.0)
+        params = {
+            "max_depth": rf_max_depth,
+            "n_estimators": rf_n_estimators,
+            "max_features": rf_max_features,
+        }
+        # Log current trial's parameters
+        mlflow.log_params(params)
+
+        regressor_obj = sklearn.ensemble.RandomForestRegressor(**params)
+        regressor_obj.fit(X_train, y_train)
+
+        y_pred = regressor_obj.predict(X_val)
+        error = sklearn.metrics.mean_squared_error(y_val, y_pred)
+        # Log current trial's error metric
+        mlflow.log_metrics({"error": error})
+
+        # Log the model file
+        mlflow.sklearn.log_model(regressor_obj, name="calhousing_1")
+        # Make it easy to retrieve the best-performing child run later
+        trial.set_user_attr("run_id", child_run.info.run_id)
+        return error
+```
+
+## {.center}
+
+#### Define an objective function
+
+```{.python code-line-numbers="15"}
+            "max_features": rf_max_features,
+        }
+        # Log current trial's parameters
+        mlflow.log_params(params)
+
+        regressor_obj = sklearn.ensemble.RandomForestRegressor(**params)
+        regressor_obj.fit(X_train, y_train)
+
+        y_pred = regressor_obj.predict(X_val)
+        error = sklearn.metrics.mean_squared_error(y_val, y_pred)
+        # Log current trial's error metric
+        mlflow.log_metrics({"error": error})
+
+        # Log the model file
+        mlflow.sklearn.log_model(regressor_obj, name="calhousing_1")
+        # Make it easy to retrieve the best-performing child run later
+        trial.set_user_attr("run_id", child_run.info.run_id)
+        return error
+```
+
+## {.center}
+
+#### Define an objective function
+
+```{.python code-line-numbers="15-19"}
+            "max_features": rf_max_features,
+        }
+        # Log current trial's parameters
+        mlflow.log_params(params)
+
+        regressor_obj = sklearn.ensemble.RandomForestRegressor(**params)
+        regressor_obj.fit(X_train, y_train)
+
+        y_pred = regressor_obj.predict(X_val)
+        error = sklearn.metrics.mean_squared_error(y_val, y_pred)
+        # Log current trial's error metric
+        mlflow.log_metrics({"error": error})
+
+        # Log the model file
+        mlflow.sklearn.log_model(
+            regressor_obj,
+            name="calhousing_1",
+            input_example=X[0]
+        )
+        # Make it easy to retrieve the best-performing child run later
+        trial.set_user_attr("run_id", child_run.info.run_id)
+        return error
+```
+
+# Use case 3: datasets tracking
+
+## Benefits {.center}
+
+- Keep data and models together for reproducibility
+- Keep data versions for traceability
+- Record metadata and data sources
+- Share data for collaborations (when using remote servers)
+
+## Supported data types {.center}
+
+- `PandasDataset`: Pandas DataFrames
+- `SparkDataset`: Apache Spark DataFrames
+- `NumpyDataset`: NumPy arrays
+- `PolarsDataset`: Polars DataFrames
+- `HuggingFaceDataset`: Hugging Face datasets
+- `TensorFlowDataset`: TensorFlow datasets
+- `MetaDataset`: metadata-only datasets (no actual data storage)
+
+Non supported data types (e.g. `torchvision` datasets) need to be converted to supported types or logged via custom functions
+
+## Example {.center}
+
+```{.python}
+import polars as pl
+
+train_data = pl.DataFrame(
+    {
+        "X": X_train,
+        "y": y_train
+    }
+)
+
+val_data = pl.DataFrame(
+    {
+        "X": X_val,
+        "y": y_val
+    }
+)
+
+train_dataset = mlflow.data.from_polars(
+    train_data, name="calhousing_train"
+)
+
+val_dataset = mlflow.data.from_polars(
+    val_data, name="calhousing_val"
+)
+
+with mlflow.start_run():
+    mlflow.log_input(train_dataset, context="training")
+    mlflow.log_input(val_dataset, context="validation")
+```
+
+# Use case 4: model registry
 
 ## Benefits {.center}
 
@@ -1075,13 +1288,21 @@ Finally click on ![](img/mlflow_chartview.png){width="50px"} ([Chart view]{.code
 - Central place for all models (local or remote for collaborations)
 - Aliases, tags, annotations, metadata associated with models
 
-## Register models in the UI {.center}
+## Register models {.center}
+
+Whenever you care about a model, you should add it to the model registry
+
+You can do so when you log it by adding a value to the `registered_model_name` argument of the `log_model` function, but often, you will do so afterwards, once you have looked at the logs and decided that they look good
+
+## {.center}
+
+### Register models in the UI
 
 ::::{.columns}
 
 :::{.column width="64%"}
 
-### Version 1
+#### Version 1
 
 - Click on the experiment name containing the model
 - Click on [Models]{.codelike} in the left menus
@@ -1098,12 +1319,12 @@ Finally click on ![](img/mlflow_chartview.png){width="50px"} ([Chart view]{.code
 
 :::{.column width="34%"}
 
-### Versions 2+
+#### Versions 2+
 
-- Same
-- Same
-- Same
-- Same
+-
+-
+-
+-
 - In drop-down menu select model for which you want to create a new version
 - Click [Register]{.codelike}
 
@@ -1111,11 +1332,11 @@ Finally click on ![](img/mlflow_chartview.png){width="50px"} ([Chart view]{.code
 
 ::::
 
-## Register models programmatically {.center}
+## {.center}
 
-### From model ID
+### Register models programmatically
 
-In the UI:
+From model ID:
 
 - Click on the experiment name containing the model
 - Click on [Models]{.codelike} in the left menus
@@ -1134,13 +1355,13 @@ mlflow.register_model("models:/<model-id>", "<name-of-registered-model>")
 
 :::
 
-## Register models programmatically {.center}
+## {.center}
 
-### From run ID
+### Register models programmatically
 
-In the UI:
+From run ID:
 
-- Same
+Navigate to and click on the model to register
 
 Then run:
 
@@ -1267,6 +1488,8 @@ mlflow.register_model(
 ## {.center}
 
 ### Load registered models
+
+You can load back any registered model by its name and version number:
 
 ```{.python}
 fashionmnist_1 = mlflow.pytorch.load_model("models:/fashionmnist_1/1")
