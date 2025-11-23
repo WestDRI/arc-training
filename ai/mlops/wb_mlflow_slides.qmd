@@ -176,6 +176,25 @@ uv add mlflow
 
 :::
 
+## Install MLflow {.center}
+
+While installing MLflow with `uv` works without issues, MLflow models artifacts contain a conda.yaml file which expects `pip`
+
+To prevent getting the annoying warning:
+
+```default
+WARNING mlflow.utils.environment: Failed to resolve installed pip version.
+``pip`` will be added to conda.yaml environment spec
+without a version specifier.
+```
+
+each time you log a model, you can install `pip` even if you never use it \
+(Or you can just ignore the warnings):
+
+```{.bash}
+uv add pip
+```
+
 ## Definitions in MLflow context {.center}
 
 **Parent run**: \
@@ -1134,7 +1153,7 @@ and let's add the first the first element of the `X` ndarray an input example
 
 #### Define an objective function
 
-```{.python}
+```{.python code-line-numbers="32"}
 def objective(trial):
     # Setting nested=True will create a child run under the parent run.
     with mlflow.start_run(
@@ -1176,32 +1195,24 @@ def objective(trial):
 
 #### Define an objective function
 
-```{.python code-line-numbers="15"}
-            "max_features": rf_max_features,
-        }
-        # Log current trial's parameters
-        mlflow.log_params(params)
-
-        regressor_obj = sklearn.ensemble.RandomForestRegressor(**params)
-        regressor_obj.fit(X_train, y_train)
-
-        y_pred = regressor_obj.predict(X_val)
-        error = sklearn.metrics.mean_squared_error(y_val, y_pred)
-        # Log current trial's error metric
-        mlflow.log_metrics({"error": error})
-
-        # Log the model file
-        mlflow.sklearn.log_model(regressor_obj, name="calhousing_1")
-        # Make it easy to retrieve the best-performing child run later
-        trial.set_user_attr("run_id", child_run.info.run_id)
-        return error
-```
-
-## {.center}
-
-#### Define an objective function
-
-```{.python code-line-numbers="15-19"}
+```{.python code-line-numbers="32-36"}
+def objective(trial):
+    # Setting nested=True will create a child run under the parent run.
+    with mlflow.start_run(
+            nested=True,
+            run_name=f"trial_{trial.number}"
+    ) as child_run:
+        rf_max_depth = trial.suggest_int("rf_max_depth", 2, 32)
+        rf_n_estimators = trial.suggest_int(
+            "rf_n_estimators",
+            50,
+            300,
+            step=10
+        )
+        rf_max_features = trial.suggest_float("rf_max_features", 0.2, 1.0)
+        params = {
+            "max_depth": rf_max_depth,
+            "n_estimators": rf_n_estimators,
             "max_features": rf_max_features,
         }
         # Log current trial's parameters
@@ -1219,11 +1230,82 @@ def objective(trial):
         mlflow.sklearn.log_model(
             regressor_obj,
             name="calhousing_1",
-            input_example=X[0]
+            input_example=X[[0]]
         )
         # Make it easy to retrieve the best-performing child run later
         trial.set_user_attr("run_id", child_run.info.run_id)
         return error
+```
+
+## {.center}
+
+#### Define an objective function
+
+```{.python code-line-numbers="35"}
+def objective(trial):
+    # Setting nested=True will create a child run under the parent run.
+    with mlflow.start_run(
+            nested=True,
+            run_name=f"trial_{trial.number}"
+    ) as child_run:
+        rf_max_depth = trial.suggest_int("rf_max_depth", 2, 32)
+        rf_n_estimators = trial.suggest_int(
+            "rf_n_estimators",
+            50,
+            300,
+            step=10
+        )
+        rf_max_features = trial.suggest_float("rf_max_features", 0.2, 1.0)
+        params = {
+            "max_depth": rf_max_depth,
+            "n_estimators": rf_n_estimators,
+            "max_features": rf_max_features,
+        }
+        # Log current trial's parameters
+        mlflow.log_params(params)
+
+        regressor_obj = sklearn.ensemble.RandomForestRegressor(**params)
+        regressor_obj.fit(X_train, y_train)
+
+        y_pred = regressor_obj.predict(X_val)
+        error = sklearn.metrics.mean_squared_error(y_val, y_pred)
+        # Log current trial's error metric
+        mlflow.log_metrics({"error": error})
+
+        # Log the model file
+        mlflow.sklearn.log_model(
+            regressor_obj,
+            name="calhousing_1",
+            input_example=X[[0]]
+        )
+        # Make it easy to retrieve the best-performing child run later
+        trial.set_user_attr("run_id", child_run.info.run_id)
+        return error
+```
+
+## {.center}
+
+#### Run an optimization task
+
+If we re-run our optimization task now, we don't get any warnings about missing signatures anymore
+
+```{.python}
+import optuna
+
+# Create a parent run that contains all child runs for different trials
+with mlflow.start_run(run_name="calhousing_1_optimization_1") as run:
+    # Log the experiment settings
+    n_trials = 5
+    mlflow.log_param("n_trials", n_trials)
+
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=n_trials)
+
+    # Log the best trial and its run ID
+    mlflow.log_params(study.best_trial.params)
+    mlflow.log_metrics({"best_error": study.best_value})
+    if best_run_id := study.best_trial.user_attrs.get("run_id"):
+        mlflow.log_param("best_child_run_id", best_run_id)
 ```
 
 # Use case 3: datasets tracking
