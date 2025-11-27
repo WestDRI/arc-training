@@ -1,25 +1,86 @@
 ---
-title: Training at scale
-author: Marie-Hélène Burle
+title: Fine-tuning the model
+aliases:
+  - /ai/jx/fl_training
+  - /ai/jxai/fl_finetune
+bibliography: fl.bib
+csl: diabetologia.csl
+author:
+  - Marie-Hélène Burle
+  - Code adapted from JAX's [Implement ViT from scratch](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html)
 ---
 
 :::{.def}
 
-Using a JupyterHub to prototype code might be fine, but when you want to access more resources, it is much more resource-efficient to submit sbatch jobs to Slurm.
-
-This section covers the workflow.
+In this section, we fine-tune our model with our sample (5 classes) of the [Food-101 dataset](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) [@bossard14].
 
 :::
 
-## Write a Python script
+## Context
 
-The first step is to put all your code in a Python script that you can evaluate during the job.
+```{dot}
+//| echo: false
+//| fig-width: 700px
 
-Let's call it `main.py`:
+digraph {
+
+bgcolor="transparent"
+node [fontname="Inconsolata, sans-serif", color=gray55, fontsize="18pt"]
+edge [color=gray55]
+
+load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
+proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
+nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
+pretr [label="Pre-trained model", shape=plaintext, group=g1, fontcolor=gray55]
+opt [label="Hyperparameters", shape=plaintext, group=g1, fontcolor=gray55]
+train [label="Train", shape=plaintext, group=g1]
+cp [label="Checkpoint", shape=plaintext, group=g1, fontcolor=gray55]
+
+pt [label=torchdata, fontcolor=gray55, color=gray55]
+tfds [label=tfds, group=g2, fontcolor=gray55, color=gray55]
+dt [label=datasets, fontcolor=gray55, color=gray55]
+
+gr [label=grain, fontcolor=gray55, color=gray55]
+tv [label=torchvision, fontcolor=gray55, color=gray55]
+
+tr [label=transformers, fontcolor=gray55, color=gray55]
+
+fl1 [label=flax, group=g2, fontcolor=gray55, color=gray55]
+fl2 [label=flax, group=g2, fontcolor="#00695C", color="#00695C"]
+
+oa [label=optax, group=g2, fontcolor=gray55, color=gray55]
+
+jx [label="JAX", fontcolor="#9D22B2", color="#9D22B2"]
+
+ob [label=orbax, group=g2, fontcolor=gray55, color=gray55]
+
+{rank=same; gr load tv tr}
+gr -> load -> tv -> tr [style=invis]
+
+{rank=same; fl1 proc pretr}
+fl1 -> proc -> pretr [style=invis]
+
+{rank=same; jx fl2 opt}
+fl1 -> proc -> pretr [style=invis]
+
+{pt tfds dt} -> load [color=gray55]
+{gr tv} -> proc [color=gray55]
+fl1 -> nn [color=gray55]
+pretr -> nn [dir=none]
+tr -> pretr [color=gray55]
+oa -> opt [color=gray55]
+jx -> fl2 [color="#9D22B2"]
+fl2 -> train [color="#00695C"]
+ob -> cp [color=gray55]
+
+load -> proc -> nn -> opt -> train -> cp [dir=none]
+
+}
+```
 
 :::{.callout-note collapse="true"}
 
-## main.py
+## Minimal necessary code from previous sections
 
 ```{.python}
 from datasets import load_dataset
@@ -31,8 +92,6 @@ import jax.numpy as jnp
 from flax import nnx
 from transformers import FlaxViTForImageClassification
 import optax
-import matplotlib.pyplot as plt
-from time import time
 
 train_size = 5 * 750
 val_size = 5 * 250
@@ -439,9 +498,38 @@ eval_metrics_history = {
     "val_loss": [],
     "val_accuracy": [],
 }
+```
+
+:::
+
+## Load packages
+
+```{.python}
+# to have a progress bar during training
+import tqdm
+
+# to visualize evolution of loss and sample data
+import matplotlib.pyplot as plt
+```
+
+## Training and evaluation functions
+
+```{.python}
+bar_format = "{desc}[{n_fmt}/{total_fmt}]{postfix} [{elapsed}<{remaining}]"
 
 def train_one_epoch(epoch):
     model.train()
+    with tqdm.tqdm(
+        desc=f"[train] epoch: {epoch}/{num_epochs}, ",
+        total=total_steps,
+        bar_format=bar_format,
+        leave=True,
+    ) as pbar:
+        for batch in train_loader:
+            loss = train_step(model, optimizer, batch)
+            train_metrics_history["train_loss"].append(loss.item())
+            pbar.set_postfix({"loss": loss.item()})
+            pbar.update(1)
 
 def evaluate_model(epoch):
     model.eval()
@@ -456,243 +544,99 @@ def evaluate_model(epoch):
     print(f"[val] epoch: {epoch + 1}/{num_epochs}")
     print(f"- total loss: {eval_metrics_history['val_loss'][-1]:0.4f}")
     print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
+```
 
-start = time()
+## Train the model
+
+```{.python}
+%%time
 
 for epoch in range(num_epochs):
     train_one_epoch(epoch)
     evaluate_model(epoch)
+```
 
-end = time()
+## OOM issues
 
-print(f"Training took {round((end - start) / 60, 1)} minutes")
+As you can see, I ran out of memory when running this code on my machine.
 
+[Out of memory (OOM)](https://en.wikipedia.org/wiki/Out_of_memory) problems are common when trying to train a model with JAX on GPUs. See for instance [this question on Stack Overflow](https://stackoverflow.com/q/74143812/9210961) and [this issue in the JAX repo](https://github.com/jax-ml/jax/issues/788).
+
+According to [the JAX documentation on GPU memory allocation](https://docs.jax.dev/en/latest/gpu_memory_allocation.html), you can try the following:
+
+```{.python}
+import os
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+os.environ['XLA_PYTHON_CLIENT_ALLOCATOR'] = 'platform'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.5'
+```
+
+or, if you use IPython (or Jupyter which runs IPython), you can use the equivalent syntax using the [IPython built-in magic command to set environment variables %env](https://ipython.readthedocs.io/en/stable/interactive/magics.html#magic-env):
+
+```{.python}
+%env XLA_PYTHON_CLIENT_PREALLOCATE=false
+%env XLA_PYTHON_CLIENT_ALLOCATOR=platform
+%env XLA_PYTHON_CLIENT_MEM_FRACTION=0.5
+```
+
+None of these solutions worked for me neither on my machine nor on Cedar and I am starting to suspect that there is a problem with this particular version of `jaxlib`.
+
+Without GPUs (so on our training cluster), training will be much longer, but you won't run into this problem.
+
+## Metrics graphs
+
+If we hadn't run out of memory, we could graph our metrics.
+
+Evolution of the loss during training:
+
+```{.python}
 plt.plot(train_metrics_history["train_loss"], label="Loss value during the training")
 plt.legend()
-plt.savefig('loss.png')
+```
 
+Loss and accuracy on the validation set:
+
+```{.python}
 fig, axs = plt.subplots(1, 2, figsize=(10, 10))
 axs[0].set_title("Loss value on validation set")
 axs[0].plot(eval_metrics_history["val_loss"])
 axs[1].set_title("Accuracy on validation set")
 axs[1].plot(eval_metrics_history["val_accuracy"])
-plt.savefig('validation.png')
-
 ```
 
-:::
+## Check sample data
 
-:::{.note}
-
-We have to make a few changes to our code:
-
-- Strip your code of anything unnecessary that you might have used during prototyping.
-
-- It doesn't make sense to use [tqdm](https://github.com/tqdm/tqdm) anymore, so remove the corresponding code.
-
-- We can't display the graphs anymore, so we save them to files with `plt.savefig()`
-
-- When we aren't using IPython (directly or via Jupyter), we don't have access to the built-in magic commands such as `%%time` to time the execution of a cell. Instead, we use the following snippet:
+And we could look at the model predictions for 5 items:
 
 ```{.python}
-start = time()
+test_indices = [1, 250, 500, 750, 1000]
 
-<Code to time>
+test_images = jnp.array([val_dataset[i]["image"] for i in test_indices])
+expected_labels = [val_dataset[i]["label"] for i in test_indices]
 
-end = time()
-
-print(f"Training took {round((end - start) / 60, 1)} minutes")
+model.eval()
+preds = model(test_images)
 ```
-
-In this case, since it is the training that we want to time:
 
 ```{.python}
-start = time()
+num_samples = len(test_indices)
+names_map = train_dataset.features["label"].names
 
-for epoch in range(num_epochs):
-    train_one_epoch(epoch)
-    evaluate_model(epoch)
+probas = nnx.softmax(preds, axis=1)
+pred_labels = probas.argmax(axis=1)
 
-end = time()
 
-print(f"Training took {round((end - start) / 60, 1)} minutes")
+fig, axs = plt.subplots(1, num_samples, figsize=(20, 10))
+for i in range(num_samples):
+    img, expected_label = test_images[i], expected_labels[i]
+
+    pred_label = pred_labels[i].item()
+    proba = probas[i, pred_label].item()
+    if img.dtype in (np.float32, ):
+        img = ((img - img.min()) / (img.max() - img.min()) * 255.0).astype(np.uint8)
+
+    expected_label_str = names_map[inv_labels_mapping[expected_label]]
+    pred_label_str = names_map[inv_labels_mapping[pred_label]]
+    axs[i].set_title(f"Expected: {expected_label_str} vs \nPredicted: {pred_label_str}, P={proba:.2f}")
+    axs[i].imshow(img)
 ```
-
-:::
-
-## Write a Slurm script
-
-Then you need to write a Bash script for the Slurm scheduler.
-
-Our training cluster is made of 50 nodes of the `c4-30gb` flavour (each node contains 4 CPU and 30G, meaning 7500M per CPU).
-
-If we want to train on a single CPU using the maximum amount of memory for that CPU, this is what our script looks like (let's call it `train.sh`):
-
-```{.bash filename="train.sh"}
-#!/bin/bash
-#SBATCH --time=20
-#SBATCH --mem-per-cpu=7500M
-
-module load python/3.12.4 arrow/19.0.1
-source /project/60055/env/bin/activate
-
-python main.py
-```
-
-When I tested this earlier, training took 36.8 minutes.
-
-<!-- https://flax.readthedocs.io/en/latest/guides/flax_gspmd.html -->
-<!-- JAX and all the packages we are using are automatically capable of making use of multiple CPUs when they are available, so we could instead use of a full node (4 CPU): -->
-
-<!-- ```{.bash filename="train_1node.sh"} -->
-<!-- #!/bin/bash -->
-<!-- #SBATCH --time=20 -->
-<!-- #SBATCH --mem-per-cpu=7500M -->
-<!-- #SBATCH --ntasks-per-node=4 -->
-<!-- #SBATCH --nodes=1 -->
-
-<!-- module load python/3.12.4 arrow/19.0.1 -->
-<!-- source /project/60055/env/bin/activate -->
-
-<!-- python main.py -->
-<!-- ``` -->
-
-<!-- When I tested this earlier, training took 10.5 minutes, thus giving us a speedup of 36.8 / 10.5 = 3.5. Not bad at all since the ideal speedup would be 4 (4 CPUs). -->
-
-<!-- Or we could use multiple nodes (here 2 nodes): -->
-
-<!-- ```{.bash filename="train_2nodes.sh"} -->
-<!-- #!/bin/bash -->
-<!-- #SBATCH --time=20 -->
-<!-- #SBATCH --mem-per-cpu=7500M -->
-<!-- #SBATCH --ntasks-per-node=4 -->
-<!-- #SBATCH --nodes=2 -->
-
-<!-- module load python/3.12.4 arrow/19.0.1 -->
-<!-- source /project/60055/env/bin/activate -->
-
-<!-- python main.py -->
-<!-- ``` -->
-
-:::{.info}
-
-Our training cluster doesn't require an account and it doesn't have GPUs. It also doesn't have huge amounts of memory. Moreover our code only contains 5 classes of foods to make training much faster. Finally, our Python virtual environment is in `/project` so that we can all access it while you normally would store it in your home.
-
-If you were to train our model on an Alliance cluster at scale, the script would thus look something like this:
-
-```{.bash filename="train.sh"}
-#!/bin/bash
-#SBATCH --account=def-<name>
-#SBATCH --time=5:0:0
-#SBATCH --mem=50G
-#SBATCH --gpus-per-node=1
-
-module load python/3.12.4 arrow/19.0.1
-source ~/env/bin/activate
-
-python main.py
-```
-
-:::{.note}
-
-Replace `<name>` by your Alliance account name.
-
-This assumes that you have a Python virtual environment in `~/env` with all necessary packages installed.
-
-Also note that if you are using the Alliance supercomputer Cedar, [there is a policy for this cluster](https://docs.alliancecan.ca/wiki/Cedar) blocking you from running jobs in the `/home` filesystem, so you will have to copy your files to `/scratch` or your `/project` and run the job from there.
-
-:::
-
-Notice the following differences:
-
-- we provide an account name,
-- we ask for a lot more time (training at scale)—this could even be days or weeks,
-- we ask for a lot more memory,
-- we ask for a GPU—sometimes you will need several GPUs (remember that the same JAX code can run on any device),
-- we source a virtual environment which is in our home.
-
-:::
-
-## Run the script
-
-```{.bash}
-sbatch train.sh
-```
-
-## Monitor the job
-
-To see whether your job is still running and to get the job ID, you can use the Alliance alias:
-
-```{.bash}
-sq
-```
-
-:::{.note}
-
-- PD &emsp;&emsp;&emsp;&nbsp;&nbsp;➔ the job is pending
-- R &emsp;&emsp;&emsp;&emsp;&nbsp;➔ the job is running
-- No output &nbsp;➔ the job is done
-
-:::
-
-While your job is running, you can monitor it by opening a new terminal and, from the login node, running:
-
-```{.bash}
-srun --jobid=<jobID> --pty bash
-```
-
-:::{.note}
-
-Replace `<jobID>` by the job ID you got by running `sq`.
-
-:::
-
-Then launch `htop`:
-
-```{.bash}
-alias htop='htop -u $USER -s PERCENT_CPU'
-htop                     # monitor all your processes
-htop --filter "python"   # filter processes by name
-```
-
-Check average memory usage with:
-
-```{.bash}
-sstat -j <jobID> --format=AveRSS
-```
-
-Or maximum memory usage with:
-
-```{.bash}
-sstat -j <jobID> --format=MaxRSS
-```
-
-## Get the results
-
-The results will be in a file created by Slurm and called, by default, `slurm-<jobID>.out` (you can change the name of this file by adding an option in your Slurm script).
-
-You can look at them with:
-
-```{.bash}
-bat slurm-<jobID>.out
-```
-
-## Retrieve files
-
-We created two images (`loss.png` and `validation.png`). To retrieve them, you can use `scp` *from your computer*:
-
-```{.bash}
-scp username@hostname:path/file path
-```
-
-For instance:
-
-```{.bash}
-scp userxx@hostname:loss.png ~/
-```
-
-:::{.note}
-
-Replace `hostname` by the hostname for this cluster and `~/` by the path where you want to download your file.
-
-:::

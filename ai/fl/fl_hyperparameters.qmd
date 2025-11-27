@@ -1,7 +1,7 @@
 ---
-title: Loading pre-trained weights
-bibliography: fl.bib
-csl: diabetologia.csl
+title: Hyperparameters
+aliases:
+  - /ai/jxai/fl_hyperparameters
 author:
   - Marie-Hélène Burle
   - Code adapted from JAX's [Implement ViT from scratch](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html)
@@ -9,7 +9,7 @@ author:
 
 :::{.def}
 
-In this section, we transfer weights from a pre-trained model into our ViT model.
+In this section, we set the hyperparameters that will be used during training: the optimizer, the loss function, the number of epochs, the momentum, the initial learning rate and a learning rate schedule, the training and evaluation steps, and the metrics to evaluate training.
 
 :::
 
@@ -28,8 +28,8 @@ edge [color=gray55]
 load [label="Load data", shape=plaintext, group=g1, fontcolor=gray55]
 proc [label="Process data", shape=plaintext, group=g1, fontcolor=gray55]
 nn [label="Define architecture", shape=plaintext, group=g1, fontcolor=gray55]
-pretr [label="Pre-trained model", shape=plaintext, group=g1]
-opt [label="Hyperparameters", shape=plaintext, group=g1, fontcolor=gray55]
+pretr [label="Pre-trained model", shape=plaintext, group=g1, fontcolor=gray55]
+opt [label="Hyperparameters", shape=plaintext, group=g1]
 train [label="Train", shape=plaintext, group=g1, fontcolor=gray55]
 cp [label="Checkpoint", shape=plaintext, group=g1, fontcolor=gray55]
 
@@ -40,12 +40,12 @@ dt [label=datasets, fontcolor=gray55, color=gray55]
 gr [label=grain, fontcolor=gray55, color=gray55]
 tv [label=torchvision, fontcolor=gray55, color=gray55]
 
-tr [label=transformers, fontcolor="#669900", color="#669900"]
+tr [label=transformers, fontcolor=gray55, color=gray55]
 
 fl1 [label=flax, group=g2, fontcolor=gray55, color=gray55]
 fl2 [label=flax, group=g2, fontcolor=gray55, color=gray55]
 
-oa [label=optax, group=g2, fontcolor=gray55, color=gray55]
+oa [label=optax, group=g2, fontcolor="#21A89B", color="#21A89B"]
 
 jx [label="JAX", fontcolor=gray55, color=gray55]
 
@@ -64,8 +64,8 @@ fl1 -> proc -> pretr [style=invis]
 {gr tv} -> proc [color=gray55]
 fl1 -> nn [color=gray55]
 pretr -> nn [dir=none]
-tr -> pretr [color="#669900"]
-oa -> opt [color=gray55]
+tr -> pretr [color=gray55]
+oa -> opt [color="#21A89B"]
 jx -> fl2 -> train [color=gray55]
 ob -> cp [color=gray55]
 
@@ -78,10 +78,116 @@ load -> proc -> nn -> opt -> train -> cp [dir=none]
 
 ## Minimal necessary code from previous sections
 
-```{python}
+```{.python}
+from datasets import load_dataset
+import numpy as np
+from torchvision.transforms import v2 as T
+import grain.python as grain
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from transformers import FlaxViTForImageClassification
+
+train_size = 5 * 750
+val_size = 5 * 250
+
+train_dataset = load_dataset("food101",
+                             split=f"train[:{train_size}]")
+
+val_dataset = load_dataset("food101",
+                           split=f"validation[:{val_size}]")
+
+labels_mapping = {}
+index = 0
+for i in range(0, len(val_dataset), 250):
+    label = val_dataset[i]["label"]
+    if label not in labels_mapping:
+        labels_mapping[label] = index
+        index += 1
+
+inv_labels_mapping = {v: k for k, v in labels_mapping.items()}
+
+img_size = 224
+
+def to_np_array(pil_image):
+  return np.asarray(pil_image.convert("RGB"))
+
+def normalize(image):
+    mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    image = image.astype(np.float32) / 255.0
+    return (image - mean) / std
+
+tv_train_transforms = T.Compose([
+    T.RandomResizedCrop((img_size, img_size), scale=(0.7, 1.0)),
+    T.RandomHorizontalFlip(),
+    T.ColorJitter(0.2, 0.2, 0.2),
+    T.Lambda(to_np_array),
+    T.Lambda(normalize),
+])
+
+tv_test_transforms = T.Compose([
+    T.Resize((img_size, img_size)),
+    T.Lambda(to_np_array),
+    T.Lambda(normalize),
+])
+
+def get_transform(fn):
+    def wrapper(batch):
+        batch["image"] = [
+            fn(pil_image) for pil_image in batch["image"]
+        ]
+        batch["label"] = [
+            labels_mapping[label] for label in batch["label"]
+        ]
+        return batch
+    return wrapper
+
+train_transforms = get_transform(tv_train_transforms)
+val_transforms = get_transform(tv_test_transforms)
+
+train_dataset = train_dataset.with_transform(train_transforms)
+val_dataset = val_dataset.with_transform(val_transforms)
+
+seed = 12
+train_batch_size = 32
+val_batch_size = 2 * train_batch_size
+
+train_sampler = grain.IndexSampler(
+    len(train_dataset),
+    shuffle=True,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1,
+)
+
+val_sampler = grain.IndexSampler(
+    len(val_dataset),
+    shuffle=False,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1,
+)
+
+train_loader = grain.DataLoader(
+    data_source=train_dataset,
+    sampler=train_sampler,
+    worker_count=4,
+    worker_buffer_size=2,
+    operations=[
+        grain.Batch(train_batch_size, drop_remainder=True),
+    ]
+)
+
+val_loader = grain.DataLoader(
+    data_source=val_dataset,
+    sampler=val_sampler,
+    worker_count=4,
+    worker_buffer_size=2,
+    operations=[
+        grain.Batch(val_batch_size),
+    ]
+)
 
 class VisionTransformer(nnx.Module):
     def __init__(
@@ -196,42 +302,9 @@ class TransformerEncoder(nnx.Module):
         return x
 
 model = VisionTransformer(num_classes=1000)
-```
 
-:::
-
-## Load packages
-
-Packages and modules necessary for this section:
-
-```{python}
-# Hugging Face ViT Model transformer with image classification head
-from transformers import FlaxViTForImageClassification
-
-# Packages to test our model after weight transfer
-import matplotlib.pyplot as plt
-from transformers import ViTImageProcessor
-from PIL import Image
-import requests
-```
-
-[FlaxViTForImageClassification](https://huggingface.co/docs/transformers/v4.51.3/en/model_doc/vit#transformers.FlaxViTForImageClassification) instantiates a pretrained Flax model with an image classification head from a pre-trained ViT model configuration.
-
-## Load pre-trained weights
-
-We want to load the weights from [Google's ViT model pre-trained on ImageNet-21k at resolution 224x224 and fine-tuned on ImageNet 2012 at resolution 224x224](https://github.com/google-research/vision_transformer) introduced by Dosovitskiy et al. [-@dosovitskiy2021imageworth16x16words] in our model.
-
-For this, we use the `from_pretrained` method of `FlaxViTForImageClassification` and get the weights from Google's model stored as [google/vit-base-patch16-224](https://huggingface.co/google/vit-base-patch16-224) on the Hugging Face model Hub.
-
-```{python}
 tf_model = FlaxViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
-```
 
-## Copy weights to our model
-
-`tf_model` is a transformer ViT model with the pre-trained weights. We want to copy those weights to our ViT Flax model called `model`:
-
-```{python}
 def vit_inplace_copy_weights(*, src_model, dst_model):
     assert isinstance(src_model, FlaxViTForImageClassification)
     assert isinstance(dst_model, VisionTransformer)
@@ -357,54 +430,116 @@ def vit_inplace_copy_weights(*, src_model, dst_model):
     nnx.update(dst_model, nnx.State.from_flat_path(flax_model_params_fstate))
 
 vit_inplace_copy_weights(src_model=tf_model, dst_model=model)
-```
 
-## Test our model
-
-Our model should now be able to classify objects if they belong to the 1000 classes of ImageNet-1K.
-
-Let's test it by passing [the URL of the image of a Song Sparrow (Melospiza melodia)](https://www.allaboutbirds.org/guide/assets/photo/308771371-480px.jpg):
-
-```{python}
-url = "https://www.allaboutbirds.org/guide/assets/photo/308771371-480px.jpg"
-image = Image.open(requests.get(url, stream=True).raw)
-
-processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
-
-inputs = processor(images=image, return_tensors="np")
-outputs = tf_model(**inputs)
-logits = outputs.logits
-
-model.eval()
-x = jnp.transpose(inputs["pixel_values"], axes=(0, 2, 3, 1))
-output = model(x)
-
-# Model predicts one of the 1000 ImageNet classes.
-ref_class_idx = logits.argmax(-1).item()
-pred_class_idx = output.argmax(-1).item()
-assert jnp.abs(logits[0, :] - output[0, :]).max() < 0.1
-
-fig, axs = plt.subplots(1, 2, figsize=(12, 8))
-axs[0].set_title(
-    f"Reference model:\n{tf_model.config.id2label[ref_class_idx]}\nP={nnx.softmax(logits, axis=-1)[0, ref_class_idx]:.3f}"
-)
-axs[0].imshow(image)
-axs[1].set_title(
-    f"Our model:\n{tf_model.config.id2label[pred_class_idx]}\nP={nnx.softmax(output, axis=-1)[0, pred_class_idx]:.3f}"
-)
-axs[1].imshow(image)
-```
-
-The [Song Sparrow](https://en.wikipedia.org/wiki/Song_sparrow) is apparently not in the 1000 classes. But the good news is that our model with the transferred weights gave exactly the same result as the `google/vit-base-patch16-224` model and with the same probability. [Brambling](https://en.wikipedia.org/wiki/Brambling)—another songbird—is probably the class the closest to a Song Sparrow. So all looks good.
-
-## Reduce number of classes
-
-Our model now returns 1000 categories, but we want to fine-tune it on the [Food-101 dataset](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) [@bossard14] that we have reduced to only 5 classes. So we need to replace the model classifier with one returning 5 classes:
-
-```{python}
 model.classifier = nnx.Linear(model.classifier.in_features, 5, rngs=nnx.Rngs(0))
+```
 
-x = jnp.ones((4, 224, 224, 3))
-y = model(x)
-print("Predictions shape: ", y.shape)
+:::
+
+## Load packages
+
+Packages and modules necessary for this section:
+
+```{.python}
+# to set the learning rate and optimizer
+import optax
+
+# to plot the evolution of learning rate
+import matplotlib.pyplot as plt
+```
+
+## Optimizer and learning rate schedule
+
+```{.python}
+num_epochs = 3
+learning_rate = 0.001
+momentum = 0.8
+total_steps = len(train_dataset) // train_batch_size
+
+lr_schedule = optax.linear_schedule(learning_rate, 0.0, num_epochs * total_steps)
+
+iterate_subsample = np.linspace(0, num_epochs * total_steps, 100)
+plt.plot(
+    np.linspace(0, num_epochs, len(iterate_subsample)),
+    [lr_schedule(i) for i in iterate_subsample],
+    lw=3,
+)
+plt.title("Learning rate")
+plt.xlabel("Epochs")
+plt.ylabel("Learning rate")
+plt.grid()
+plt.xlim((0, num_epochs))
+plt.show()
+
+optimizer = nnx.Optimizer(model, optax.sgd(lr_schedule, momentum, nesterov=True))
+```
+
+## Loss function
+
+```{.python}
+def compute_losses_and_logits(model: nnx.Module, images: jax.Array, labels: jax.Array):
+    logits = model(images)
+
+    loss = optax.softmax_cross_entropy_with_integer_labels(
+        logits=logits, labels=labels
+    ).mean()
+    return loss, logits
+```
+
+## Train and evaluation steps
+
+This is the part that is computationally intensive and where we want to use JAX and its efficiency. In particularly, we want to JIT-compile the functions that will do the training and evaluation.
+
+JAX requires a strictly functional programming version of Python. This is what allows its internal representations (the Jaxprs) to perform [transformations](https://docs.jax.dev/en/latest/key-concepts.html#transformations) (`jax.jit`, `jax.vmap`, `jax.pmap`, and `jax.grad` and the convenience decorators `@jax.jit`, `@jax.vmap`, `@jax.pmap`, and `@jax.grad`).
+
+Flax does not respect this anymore with the new NNX API. The JAX transformations can thus not be applied directly in Flax (as they were in the Linen API) and require [adapted versions](https://flax.readthedocs.io/en/latest/guides/jax_and_nnx_transforms.html) that handle objects' states under the hood. The NNX versions of these transformations are called `nnx.jit`, `nnx.vmap`, `nnx.pmap`, and `nnx.grad` (and the convenience decorators `@nnx.jit`, `@nnx.vmap`, `@nnx.pmap`, and `@nnx.grad`).
+
+```{.python}
+@nnx.jit
+def train_step(
+    model: nnx.Module, optimizer: nnx.Optimizer, batch: dict[str, np.ndarray]
+):
+    # Convert np.ndarray to jax.Array on GPU
+    images = jnp.array(batch["image"])
+    labels = jnp.array(batch["label"], dtype=jnp.int32)
+
+    grad_fn = nnx.value_and_grad(compute_losses_and_logits, has_aux=True)
+    (loss, logits), grads = grad_fn(model, images, labels)
+
+    optimizer.update(grads)  # In-place updates.
+
+    return loss
+
+@nnx.jit
+def eval_step(
+    model: nnx.Module, batch: dict[str, np.ndarray], eval_metrics: nnx.MultiMetric
+):
+    # Convert np.ndarray to jax.Array on GPU
+    images = jnp.array(batch["image"])
+    labels = jnp.array(batch["label"], dtype=jnp.int32)
+    loss, logits = compute_losses_and_logits(model, images, labels)
+
+    eval_metrics.update(
+        loss=loss,
+        logits=logits,
+        labels=labels,
+    )
+```
+
+## Training metrics
+
+```{.python}
+eval_metrics = nnx.MultiMetric(
+    loss=nnx.metrics.Average('loss'),
+    accuracy=nnx.metrics.Accuracy(),
+)
+
+train_metrics_history = {
+    "train_loss": [],
+}
+
+eval_metrics_history = {
+    "val_loss": [],
+    "val_accuracy": [],
+}
 ```
