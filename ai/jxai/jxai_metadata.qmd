@@ -1,0 +1,277 @@
+---
+title: Compiling the metadata
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+In this section, we process some of the metadata associated with the NABirds dataset by creating a [Polars](https://github.com/pola-rs/polars) DataFrame collecting all the information we will need while processing the images and training our model.
+
+*[Polars](/python/hpc_polars) is a modern and ultra fast package that you should use instead of [pandas](https://github.com/pandas-dev/pandas) whenever you can if you care about performance.*
+
+:::
+
+## Fix photographers and classes files
+
+The metadata comes in various space-separated CSV files. Two of them are problematic because they are jagged: the number of elements per line is inconsistent.
+
+First of all, let's create new files without comma from these files. This should be easy to do in the Python function that we will use later, but for some reason that I could never figure out, I failed to implement it in Python. For this reason, I am cheating and doing it in Bash (or Zsh) using the utility [sed](https://en.wikipedia.org/wiki/Sed) that makes such transformations so easy.
+
+In Bash or Zsh:
+
+```{.bash}
+sed 's/,//g' <path-of-the-nabirds-dir>/photographers.txt >
+    <path-of-the-nabirds-dir>/photographers_nocommas.txt
+
+sed 's/,//g' <path-of-the-nabirds-dir>/classes.txt >
+    <path-of-the-nabirds-dir>/classes_nocommas.txt
+```
+
+:::{.note}
+
+`<path-of-the-nabirds-dir>` is the path in which you downloaded the `nabirds` dataset.
+
+:::
+
+Alternatively:
+
+```{.bash}
+cd <path-of-the-nabirds-dir>
+
+sed 's/,//g' photographers.txt > photographers_nocommas.txt
+sed 's/,//g' classes.txt > classes_nocommas.txt
+```
+
+We could finish fixing these files in Bash (which would be a lot easier and much less wordy!) but because this is a Python course, let's do the rest in Python.
+
+Let's create a function that will do the rest of the cleaning and write two new files that won't be problematic:
+
+```{.python}
+base_dir = "<path-of-the-nabirds-dir>"
+```
+
+:::{.note}
+
+To be replaced by proper path.
+
+:::
+
+```{.python}
+import os
+import csv
+
+def replace_spaces_except_first(input_filepath, output_filepath):
+    """
+    Replaces all spaces with underscores in a CSV file, except the first space
+    on each line.
+
+    Args:
+        input_filepath (str): the path of the input file.
+        output_filepath (str): the path of the output file.
+    """
+    with open(input_filepath, 'r') as infile, \
+         open(output_filepath, 'w') as outfile:
+        reader = csv.reader(infile)
+        writer = csv.writer(outfile)
+
+        for row in reader:
+            processed_row = []
+            for item in row:
+                # Remove quotes
+                item = item.replace('"', '')
+
+                # Find the first space
+                first_space_index = item.find(' ')
+
+                # Keep the part up to the first space
+                # and replace subsequent spaces with underscores
+                part_with_first_space = item[:first_space_index + 1]
+                part_after_first_space = item[first_space_index + 1:].replace(' ', '_')
+                processed_item = part_with_first_space + part_after_first_space
+                processed_row.append(processed_item)
+            writer.writerow(processed_row)
+```
+
+Then we can apply the function on our files:
+
+```{.python}
+replace_spaces_except_first(
+    os.path.join(base_dir, "photographers_nocommas.txt"),
+    os.path.join(base_dir, "photographers_fixed.txt")
+)
+
+replace_spaces_except_first(
+    os.path.join(base_dir, "classes_nocommas.txt"),
+    os.path.join(base_dir, "classes_fixed.txt")
+)
+```
+
+## Create variables for the file paths
+
+```{python}
+#| echo: false
+
+base_dir = "/home/marie/parvus/ptmp/jxbirds/nabirds"
+```
+
+```{python}
+import os
+
+img_dir = os.path.join(base_dir, "images")
+
+bb_file = os.path.join(base_dir, "bounding_boxes.txt")
+classes_translation_file = os.path.join(base_dir, "classes_fixed.txt")
+class_labels_file = os.path.join(base_dir, "image_class_labels.txt")
+img_file = os.path.join(base_dir, "images.txt")
+photographers_file = os.path.join(base_dir, "photographers_fixed.txt")
+sizes_file = os.path.join(base_dir, "sizes.txt")
+train_test_split_file = os.path.join(base_dir, "train_test_split.txt")
+```
+
+## Create a Polars Dataframe with the metadata
+
+```{python}
+import polars as pl
+```
+
+First, we create a series of DataFrames from each CSV file:
+
+```{python}
+bb = pl.read_csv(
+    bb_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "bb_x", "bb_y", "bb_width", "bb_height"]
+)
+
+classes = pl.read_csv(
+    class_labels_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "class"]
+)
+
+classes_translation = pl.read_csv(
+    classes_translation_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["class", "id"]
+)
+
+img_paths = pl.read_csv(
+    img_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "path"]
+)
+
+photographers = pl.read_csv(
+    photographers_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "photographer"]
+)
+
+sizes = pl.read_csv(
+    sizes_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "img_width", "img_height"]
+)
+
+train_test_split = pl.read_csv(
+    train_test_split_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "is_training_img"]
+)
+```
+
+Then we can combine the classes DataFrames so that the birds identifications becomes associated with the birds UUIDs:
+
+```{python}
+classes_metadata = (
+    classes.join(classes_translation, on="class")
+)
+```
+
+Finally, we combine all the DataFrames:
+
+```{python}
+metadata = (
+    bb.join(classes_metadata, on="UUID")
+    .join(img_paths, on="UUID")
+    .join(photographers, on="UUID")
+    .join(sizes, on="UUID")
+    .join(train_test_split, on="UUID")
+)
+```
+
+## Sanity checks on our DataFrame
+
+```{python}
+metadata.columns
+```
+
+```{python}
+metadata.row(0)
+```
+
+```{python}
+metadata.row(-1)
+```
+
+```{python}
+metadata.head()
+```
+
+```{python}
+metadata.tail()
+```
+
+```{python}
+import random
+
+random.seed(123)
+metadata.sample()
+```
+
+```{python}
+metadata.schema
+```
+
+```{python}
+metadata.shape
+```
+
+```{python}
+metadata.glimpse()
+```
+
+```{python}
+metadata.describe()
+```
+
+## Create training DataFrame
+
+Now we can get a subset of our metadata DataFrame with the training metadata data only:
+
+```{python}
+metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+```
+
+Quick sanity checks:
+
+```{python}
+metadata_train.shape
+```
+
+```{python}
+metadata_train.row(0)
+```
+
+```{python}
+metadata_train.columns
+```
+
+Our metadata is ready. We can now start looking at the images.

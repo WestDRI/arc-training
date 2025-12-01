@@ -1,0 +1,111 @@
+---
+title: Data loader
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+
+
+:::
+
+:::{.callout-note collapse="true"}
+
+## Minimal necessary code from previous sections
+
+```{.python}
+base_dir = "<path-of-the-nabirds-dir>"
+```
+
+:::{.note}
+
+To be replaced by proper path.
+
+:::
+
+```{.python}
+#| echo: false
+
+base_dir = "/home/marie/parvus/ptmp/jxbirds/nabirds"
+```
+
+```{python}
+import os
+import polars as pl
+
+img_dir = os.path.join(base_dir, "images")
+
+bb_file = os.path.join(base_dir, "bounding_boxes.txt")
+classes_translation_file = os.path.join(base_dir, "classes_fixed.txt")
+class_labels_file = os.path.join(base_dir, "image_class_labels.txt")
+img_file = os.path.join(base_dir, "images.txt")
+photographers_file = os.path.join(base_dir, "photographers_fixed.txt")
+sizes_file = os.path.join(base_dir, "sizes.txt")
+train_test_split_file = os.path.join(base_dir, "train_test_split.txt")
+
+bb = pl.read_csv(
+    bb_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "bb_x", "bb_y", "bb_width", "bb_height"]
+)
+
+classes = pl.read_csv(
+    class_labels_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "class"]
+)
+
+classes_translation = pl.read_csv(
+    classes_translation_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["class", "id"]
+)
+
+img_paths = pl.read_csv(
+    img_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "path"]
+)
+
+photographers = pl.read_csv(
+    photographers_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "photographer"]
+)
+
+sizes = pl.read_csv(
+    sizes_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "img_width", "img_height"]
+)
+
+train_test_split = pl.read_csv(
+    train_test_split_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "is_training_img"]
+)
+
+classes_metadata = (
+    classes.join(classes_translation, on="class")
+)
+
+metadata = (
+    bb.join(classes_metadata, on="UUID")
+    .join(img_paths, on="UUID")
+    .join(photographers, on="UUID")
+    .join(sizes, on="UUID")
+    .join(train_test_split, on="UUID")
+)
+
+metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+```
+
+:::
+
