@@ -1,0 +1,67 @@
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+with open("1_metadata.py") as file:
+    exec(file.read())
+
+class NABirdsDataset(Dataset):
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir, transform=None):
+        self.metadata = metadata_file
+        self.data_dir = data_dir
+        self.transform = transform
+    def __len__(self):
+        return len(self.metadata)
+    def __getitem__(self, idx):
+        img_path = os.path.join(
+            self.data_dir,
+            self.metadata.get_column('path')[idx]
+        )
+        img = iio.imread(img_path)
+        # img = Image.open(img_path)
+        img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
+        img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
+        img_bb_x = self.metadata.get_column('bb_x')[idx]
+        img_bb_y = self.metadata.get_column('bb_y')[idx]
+        img_bb_width = self.metadata.get_column('bb_width')[idx]
+        img_bb_height = self.metadata.get_column('bb_height')[idx]
+        sample = {
+            'image': img,
+            'id': img_id,
+            'photographer': img_photographer,
+            'bb' : (img_bb_x, img_bb_y, img_bb_width, img_bb_height)
+        }
+        if self.transform:
+            sample = self.transform(sample)
+        return sample
+
+nabirds_train = NABirdsDataset(
+    metadata_train,
+    os.path.join(base_dir, img_dir)
+    )
+
+fig = plt.figure()
+
+for i, sample in enumerate(nabirds_train):
+    print(i, sample['image'].shape)
+    ax = plt.subplot(1, 4, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f'Sample {i}, identification: {sample['id']}, picture by {sample['photographer']}'
+    )
+    ax.axis('off')
+    plt.imshow(sample['image'])
+    rect = patches.Rectangle(
+        (sample['bb'][0], sample['bb'][1]),
+        sample['bb'][2],
+        sample['bb'][3],
+        linewidth=2,
+        edgecolor='r',
+        facecolor='none'
+    )
+    ax.add_patch(rect)
+    if i == 3:
+        plt.show()
+        break
