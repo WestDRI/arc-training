@@ -1,5 +1,8 @@
 import torch
 from torchvision import utils
+import dm_pix as pix
+import jax.numpy as jnp
+from jax import random
 
 with open("2_dataset.py") as file:
     exec(file.read())
@@ -27,7 +30,42 @@ with open("2_dataset.py") as file:
 #         return sample
 
 
-class BBCrop(object):
+for i, sample in enumerate(nabirds_train):
+    print(sample['image'].shape)
+    if i == 0:
+        break
+
+class NormAndCast(object):
+    """Transform class to normalize and cast images to float32."""
+    def __call__(self, sample):
+        return jnp.array(sample['image'], dtype=jnp.float32) / 255.0
+
+class NormAndCast(object):
+    """Transform class to normalize and cast images to float32."""
+    def __call__(self, sample):
+        return {
+            'image': jnp.array(sample['image'], dtype=jnp.float32) / 255.0,
+            'id': img_id,
+            'photographer': img_photographer,
+            'bb' : (img_bb_x, img_bb_y, img_bb_width, img_bb_height)
+            # 'bbx' : img_bb_x,
+            # 'bby' : img_bb_y,
+            # 'bbwidth' : img_bb_width,
+            # 'bbxheight' : img_bb_height
+        }
+
+nabirds_norm_train = NABirdsDataset(
+    metadata_train,
+    os.path.join(base_dir, img_dir),
+    transform=NormAndCast()
+)
+
+for i, sample in enumerate(nabirds_norm_train):
+    print(sample['image'].shape)
+    if i == 0:
+        break
+
+class BbCrop(object):
     def __call__(self, sample):
         img = sample['image'],
         img_id = sample['id'],
@@ -36,19 +74,95 @@ class BBCrop(object):
         img_bb_y = sample['bb'][1],
         img_bb_width = sample['bb'][2],
         img_bb_height = sample['bb'][3],
-        img = img[img_bb_y:img_bb_y+img_bb_height, img_bb_x:img_bb_x+img_bb_width]
-        sample = {
+        img_cropped = img[img_bb_y:img_bb_y+img_bb_height, img_bb_x:img_bb_x+img_bb_width],
+        return {
+            'image': img_cropped,
+            'id': img_id,
+            'photographer': img_photographer
+        }
+
+nabirds_bb_cropped_train = NABirdsDataset(
+    metadata_train,
+    os.path.join(base_dir, img_dir),
+    transform=BbCrop()
+)
+
+for i, sample in enumerate(nabirds_bb_cropped_train):
+    print(sample['image'].shape)
+    if i == 0:
+        break
+
+# class Rescale(object):
+#     """Rescale the image in a sample to a given size.
+#     Args:
+#         output_size (tuple or int): Desired output size. If tuple, output is
+#             matched to output_size. If int, smaller of image edges is matched
+#             to output_size keeping aspect ratio the same.
+#     """
+#     def __init__(self, output_size):
+#         assert isinstance(output_size, (int, tuple))
+#         self.output_size = output_size
+#     def __call__(self, sample):
+#         img = sample['image'],
+#         img_id = sample['id'],
+#         img_photographer = sample['photographer'],
+#         img_bb_x = sample['bb'][0],
+#         img_bb_y = sample['bb'][1],
+#         img_bb_width = sample['bb'][2],
+#         img_bb_height = sample['bb'][3],
+#         h, w = img.shape[:2]
+#         if isinstance(self.output_size, int):
+#             if h > w:
+#                 new_h, new_w = self.output_size * h / w, self.output_size
+#             else:
+#                 new_h, new_w = self.output_size, self.output_size * w / h
+#         else:
+#             new_h, new_w = self.output_size
+#         new_h, new_w = int(new_h), int(new_w)
+#         img = transform.resize(image, (new_h, new_w))
+#         return {
+#             'image': img,
+#             'id': img_id,
+#             'photographer': img_photographer
+#         }
+
+class Rescale(object):
+    """Rescale the image in a sample to a given size.
+    Args:
+        output_size (tuple or int): Desired output size. If tuple, output is
+            matched to output_size. If int, smaller of image edges is matched
+            to output_size keeping aspect ratio the same.
+    """
+    def __init__(self, output_size):
+        assert isinstance(output_size, (int, tuple))
+        self.output_size = output_size
+    def __call__(self, sample):
+        img = sample['image'],
+        img_id = sample['id'],
+        img_photographer = sample['photographer'],
+        img_bb_x = sample['bb'][0],
+        img_bb_y = sample['bb'][1],
+        img_bb_width = sample['bb'][2],
+        img_bb_height = sample['bb'][3],
+        h, w = img.shape[:2]
+        if isinstance(self.output_size, int):
+            if h > w:
+                new_h, new_w = self.output_size * h / w, self.output_size
+            else:
+                new_h, new_w = self.output_size, self.output_size * w / h
+        else:
+            new_h, new_w = self.output_size
+        new_h, new_w = int(new_h), int(new_w)
+        img = transform.resize(image, (new_h, new_w))
+        return {
             'image': img,
             'id': img_id,
             'photographer': img_photographer
         }
-        return sample
-
 
 data_dir = os.path.join(base_dir, img_dir)
 img_path = os.path.join(data_dir, metadata.get_column("path")[0])
 img = iio.imread(img_path)
-# img = Image.open(img_path)
 img_id = metadata.get_column("id")[0].replace("_", " ")
 img_photographer = metadata.get_column("photographer")[0].replace("_", " ")
 img_bb_x = metadata.get_column("bb_x")[0]
@@ -62,37 +176,18 @@ sample = {
     "bb": (img_bb_x, img_bb_y, img_bb_width, img_bb_height),
 }
 
-img_cropped = img[img_bb_y:img_bb_y+img_bb_height, img_bb_x:img_bb_x+img_bb_width]
+key = random.PRNGKey(0)
 
+new_image = pix.random_crop(
+    key=key,
+    image=img,
+    crop_sizes=(128,128,3))
 
-
-
-
-
-nabirds_bb_cropped_train = NABirdsDataset(
-    metadata_train,
-    os.path.join(base_dir, img_dir),
-    transform=BBCrop()
-)
-
-
-# nabirds_bb_cropped_train = NABirdsDataset(
-#     metadata_train,
-#     os.path.join(base_dir, img_dir),
-#     transforms.functional.crop(
-#         sample["image"],
-#         sample["bb"][0],
-#         sample["bb"][1],
-#         sample["bb"][2],
-#         sample["bb"][3],
-#     ),
-# )
-
+# plt.imshow(new_image)
+# plt.show()
 
 dataloader = DataLoader(nabirds_bb_cropped_train, batch_size=4,
                         shuffle=False, num_workers=0)
-
-
 
 def show_batch(sample_batched):
     """Show a batch of samples."""
