@@ -1,5 +1,3 @@
-# import torch
-# from torchvision import utils
 import dm_pix as pix
 import jax.numpy as jnp
 from jax import random
@@ -20,7 +18,6 @@ for i, sample in enumerate(nabirds_train):
     if i == 0:
         break
 
-# Grain:
 class NormAndCast(grain.MapTransform):
     """Transform class to normalize and cast images to float32."""
     def map(self, sample):
@@ -59,20 +56,6 @@ for element in data_loader:
 
 for element in data_loader:
     print(element)
-
-# PyTorch:
-class NormAndCast(object):
-    """Transform class to normalize and cast images to float32."""
-    def __call__(self, sample):
-        return {
-            'image': jnp.array(sample['image'], dtype=jnp.float32) / 255.0,
-            'id': img_id,
-            'photographer': img_photographer,
-            'bbx' : img_bb_x,
-            'bby' : img_bb_y,
-            'bbwidth' : img_bb_width,
-            'bbxheight' : img_bb_height
-        }
 
 nabirds_norm_train = NABirdsDataset(
     metadata_train,
