@@ -1,5 +1,5 @@
-import torch
-from torchvision import utils
+# import torch
+# from torchvision import utils
 import dm_pix as pix
 import jax.numpy as jnp
 from jax import random
@@ -7,39 +7,60 @@ from jax import random
 with open("2_dataset.py") as file:
     exec(file.read())
 
-# class ToTensor(object):
-#     """Convert ndarrays in sample to Tensors."""
-#     def __call__(self, sample):
-#         img = sample['image'],
-#         img_id = sample['id'],
-#         img_photographer = sample['photographer'],
-#         img_bb_x = sample['bb'][0],
-#         img_bb_y = sample['bb'][1],
-#         img_bb_width = sample['bb'][2],
-#         img_bb_height = sample['bb'][3],
-#         # swap color axis because
-#         # numpy image: H x W x C
-#         # torch image: C x H x W
-#         img = img.transpose((2, 0, 1))
-#         sample = {
-#             'image': torch.from_numpy(img),
-#             'id': img_id,
-#             'photographer': img_photographer,
-#             'bb': (img_bb_x, img_bb_y, img_bb_width, img_bb_height),
-#         }
-#         return sample
+sampler = grain.SequentialSampler(
+    num_records=4,
+    shard_options=grain.NoSharding()
+)
 
+for record_metadata in sampler:
+    print(record_metadata)
 
 for i, sample in enumerate(nabirds_train):
     print(sample['image'].shape)
     if i == 0:
         break
 
-class NormAndCast(object):
+# Grain:
+class NormAndCast(grain.MapTransform):
     """Transform class to normalize and cast images to float32."""
-    def __call__(self, sample):
-        return jnp.array(sample['image'], dtype=jnp.float32) / 255.0
+    def map(self, sample):
+        return {
+            'image': jnp.array(sample['image'], dtype=jnp.float32) / 255.0,
+            'id': img_id,
+            'photographer': img_photographer,
+            'bbx' : img_bb_x,
+            'bby' : img_bb_y,
+            'bbwidth' : img_bb_width,
+            'bbxheight' : img_bb_height
+        }
 
+# Grain:
+class NormAndCast(grain.MapTransform):
+    """Transform class to normalize and cast images to float32."""
+    def map(self, element):
+        img = element['image']
+        img = jnp.array(img, dtype=jnp.float32) / 255.0
+        element['image'] = img
+        return element
+
+transformations = [NormAndCast()]
+
+data_loader = grain.DataLoader(
+    data_source=nabirds_train,
+    operations=transformations,
+    sampler=sampler,
+    worker_count=0
+)
+
+for element in data_loader:
+    fig = plt.figure
+    plt.imshow(element["image"])
+    plt.show()
+
+for element in data_loader:
+    print(element)
+
+# PyTorch:
 class NormAndCast(object):
     """Transform class to normalize and cast images to float32."""
     def __call__(self, sample):
@@ -47,11 +68,10 @@ class NormAndCast(object):
             'image': jnp.array(sample['image'], dtype=jnp.float32) / 255.0,
             'id': img_id,
             'photographer': img_photographer,
-            'bb' : (img_bb_x, img_bb_y, img_bb_width, img_bb_height)
-            # 'bbx' : img_bb_x,
-            # 'bby' : img_bb_y,
-            # 'bbwidth' : img_bb_width,
-            # 'bbxheight' : img_bb_height
+            'bbx' : img_bb_x,
+            'bby' : img_bb_y,
+            'bbwidth' : img_bb_width,
+            'bbxheight' : img_bb_height
         }
 
 nabirds_norm_train = NABirdsDataset(
