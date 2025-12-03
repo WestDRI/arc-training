@@ -192,13 +192,52 @@ class BbCrop(grain.MapTransform):
         return element
 ```
 
-Now we can combine them together (no need of a Compose class with Grain as with TorchVision):
+We also need to resize the images to the same size.
+
+what size to chose?
 
 ```{python}
-transformations = [NormAndCast(), BbCrop()]
+from skimage.transform import resize
+import numpy as np
+
+target = (224, 224)
+
+class PaddingResize(grain.MapTransform):
+    """Transform class to resize images to a given size with padding to avoid distortion."""
+    def map(self, element):
+        img = element['image']
+        h, w, _ = img.shape
+        target_h, target_w = target
+
+        # Calculate the scaling factor to fit the image inside the box
+        scale = min(target_h / h, target_w / w)
+
+        # Calculate the new dimensions of the image
+        new_h = int(h * scale)
+        new_w = int(w * scale)
+
+        # Resize the image to these new dimensions
+        img_resized = resize(img, (new_h, new_w), anti_aliasing=True)
+
+        # Create a black canvas (zeros) of the target size
+        out_img = np.zeros((target_h, target_w, img.shape[2]), dtype=img_resized.dtype)
+
+        # Place the resized image in the center of the canvas
+        y_offset = (target_h - new_h) // 2
+        x_offset = (target_w - new_w) // 2
+        out_img[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = img_resized
+
+        element['image'] = out_img
+        return element
 ```
 
-:::{.callout-note collapse="true"}
+We can combine Transforms together very easily with Grain (no need of a Compose class with Grain as with TorchVision):
+
+```{python}
+transformations = [NormAndCast(), BbCrop(), PaddingResize()]
+```
+
+:::{.callout-tip collapse="true"}
 
 ## Equivalent using PyTorch
 
@@ -214,7 +253,7 @@ class NormAndCastPyTorch(object):
 
 To combine multiple Transforms, you use [`torchvision.transforms.Compose`](https://docs.pytorch.org/vision/0.8/transforms.html#torchvision.transforms.Compose), one of the [TorchVision Transforms](https://docs.pytorch.org/vision/0.8/transforms.html) (or you can use the newer [transforms v2](https://docs.pytorch.org/vision/main/auto_examples/transforms/plot_transforms_getting_started.html)).
 
-In PyTorch, you would apply the Transforms at this point since the Dataset class has a `transform` argument in which to pass them:
+In PyTorch, you would apply the Transforms as you instantiate your Dataset class since the Dataset class has a `transform` argument in which to pass them:
 
 ```{.python}
 nabirds_norm_train_pytorch = NABirdsDataset(
@@ -222,13 +261,8 @@ nabirds_norm_train_pytorch = NABirdsDataset(
     os.path.join(base_dir, img_dir),
     transform=NormAndCastPyTorch()
 )
-
-for i, sample in enumerate(nabirds_norm_train_pytorch):
-    print(sample['image'].shape)
-    if i == 0:
-        break
 ```
 
-:::
+With Grain, you pass the combined Transforms as an argument of the DataLoader class, as we will see later.
 
-With Grain, you pass the combined Transforms as an argument of the DataLoader class.
+:::
