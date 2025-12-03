@@ -35,6 +35,8 @@ import polars as pl
 import imageio.v3 as iio
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from skimage.transform import resize
+import numpy as np
 import grain.python as grain
 import jax.numpy as jnp
 
@@ -130,7 +132,7 @@ class NABirdsDataset:
         img_bb_y = self.metadata.get_column('bb_y')[idx]
         img_bb_width = self.metadata.get_column('bb_width')[idx]
         img_bb_height = self.metadata.get_column('bb_height')[idx]
-        sample = {
+        element = {
             'image': img,
             'id': img_id,
             'photographer': img_photographer,
@@ -139,7 +141,7 @@ class NABirdsDataset:
             'bbwidth' : img_bb_width,
             'bbheight' : img_bb_height
         }
-        return sample
+        return element
 
 nabirds_train = NABirdsDataset(
     metadata_train,
@@ -164,7 +166,37 @@ class BbCrop(grain.MapTransform):
         element['image'] = img_cropped
         return element
 
-transformations = [NormAndCast(), BbCrop()]
+target = (224, 224)
+
+class PaddingResize(grain.MapTransform):
+    """Transform class to resize images to a given size with padding to avoid distortion."""
+    def map(self, element):
+        img = element['image']
+        h, w, _ = img.shape
+        target_h, target_w = target
+
+        # Calculate the scaling factor to fit the image inside the box
+        scale = min(target_h / h, target_w / w)
+
+        # Calculate the new dimensions of the image
+        new_h = int(h * scale)
+        new_w = int(w * scale)
+
+        # Resize the image to these new dimensions
+        img_resized = resize(img, (new_h, new_w), anti_aliasing=True)
+
+        # Create a black canvas (zeros) of the target size
+        out_img = np.zeros((target_h, target_w, img.shape[2]), dtype=img_resized.dtype)
+
+        # Place the resized image in the center of the canvas
+        y_offset = (target_h - new_h) // 2
+        x_offset = (target_w - new_w) // 2
+        out_img[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = img_resized
+
+        element['image'] = out_img
+        return element
+
+transformations = [NormAndCast(), BbCrop(), PaddingResize()]
 ```
 
 :::
@@ -174,9 +206,118 @@ transformations = [NormAndCast(), BbCrop()]
 We can access elements of our Dataclass (as we did before to display some images) with:
 
 ```{python}
-for i, sample in enumerate(nabirds_train):
-    print(sample['image'].shape)
+for i, element in enumerate(nabirds_train):
+    print(element['image'].shape)
     if i == 3:
+        break
+```
+
+## Grain DataLoaders
+
+
+- Source:
+- Transforms:
+- Sampler:
+
+## Sequential sampler
+
+```{python}
+nabirds_train_seqsampler = grain.SequentialSampler(
+    num_records=4,
+    shard_options=grain.NoSharding()
+)
+```
+
+```{python}
+for record_metadata in nabirds_train_seqsampler:
+    print(record_metadata)
+```
+
+## First DataLoader
+
+We now have our source, transformations, and sampler, so we can build our first DataLoader:
+
+```{python}
+nabirds_train_dl = grain.DataLoader(
+    data_source=nabirds_train,
+    operations=transformations,
+    sampler=nabirds_train_seqsampler,
+    worker_count=0
+)
+```
+
+
+```{python}
+fig = plt.figure(figsize=(8, 8))
+
+for i, element in enumerate(nabirds_train_dl):
+    ax = plt.subplot(2, 2, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        fontsize=9
+    )
+    ax.axis('off')
+    plt.imshow(element['image'])
+
+plt.show()
+```
+
+:::{.note}
+
+Notice that, unlike [last time we displayed some images](jxai_dataset.html#display-an-element), we aren't looping through our Dataset (`nabirds_train`) anymore, but through our DataLoader (`nabirds_train_dl`).
+
+Because we set the number of records to 4 in the sampler, we don't have to break the loop.
+
+:::
+
+## Index sampler
+
+```{python}
+nabirds_train_isampler = grain.IndexSampler(
+  num_records=200,
+  num_epochs=1,
+  # shard_options=grain.sharding.ShardOptions(shard_index=0, shard_count=1, drop_remainder=True),
+  shard_options=grain.ShardOptions(shard_index=0, shard_count=1, drop_remainder=True),
+  shuffle=True,
+  seed=0)
+```
+
+
+```{python}
+for record_metadata in nabirds_train_isampler:
+  print(record_metadata)
+  if i == 3:
+      break
+```
+
+
+
+```{python}
+nabirds_train_dl = grain.DataLoader(
+    data_source=nabirds_train,
+    operations=transformations,
+    sampler=nabirds_train_isampler,
+    worker_count=0
+)
+```
+
+
+
+```{python}
+fig = plt.figure(figsize=(8, 8))
+
+for i, element in enumerate(nabirds_train_dl):
+    ax = plt.subplot(2, 2, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        fontsize=9
+    )
+    ax.axis('off')
+    plt.imshow(element['image'])
+    if i == 3:
+        plt.show()
         break
 ```
 
