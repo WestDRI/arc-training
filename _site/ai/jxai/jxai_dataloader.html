@@ -192,6 +192,10 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
    
   <ul>
   <li><a href="#goal-of-a-data-loader" id="toc-goal-of-a-data-loader" class="nav-link active" data-scroll-target="#goal-of-a-data-loader">Goal of a data loader</a></li>
+  <li><a href="#grain-dataloaders" id="toc-grain-dataloaders" class="nav-link" data-scroll-target="#grain-dataloaders">Grain DataLoaders</a></li>
+  <li><a href="#sequential-sampler" id="toc-sequential-sampler" class="nav-link" data-scroll-target="#sequential-sampler">Sequential sampler</a></li>
+  <li><a href="#first-dataloader" id="toc-first-dataloader" class="nav-link" data-scroll-target="#first-dataloader">First DataLoader</a></li>
+  <li><a href="#index-sampler" id="toc-index-sampler" class="nav-link" data-scroll-target="#index-sampler">Index sampler</a></li>
   </ul>
 </nav>
     </div>
@@ -242,121 +246,308 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <div class="note">
 <p>To be replaced by proper path.</p>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>base_dir <span class="op">=</span> <span class="st">"nabirds"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div id="0e9cca98" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>img_dir <span class="op">=</span> os.path.join(base_dir, <span class="st">"images"</span>)</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>bb_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"bounding_boxes.txt"</span>)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>classes_translation_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"classes_fixed.txt"</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>class_labels_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"image_class_labels.txt"</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>img_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"images.txt"</span>)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>photographers_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"photographers_fixed.txt"</span>)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>sizes_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"sizes.txt"</span>)</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>train_test_split_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"train_test_split.txt"</span>)</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>bb <span class="op">=</span> pl.read_csv(</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    bb_file,</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"bb_x"</span>, <span class="st">"bb_y"</span>, <span class="st">"bb_width"</span>, <span class="st">"bb_height"</span>]</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>classes <span class="op">=</span> pl.read_csv(</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    class_labels_file,</span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"class"</span>]</span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>classes_translation <span class="op">=</span> pl.read_csv(</span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    classes_translation_file,</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"class"</span>, <span class="st">"id"</span>]</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>img_paths <span class="op">=</span> pl.read_csv(</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    img_file,</span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"path"</span>]</span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>photographers <span class="op">=</span> pl.read_csv(</span>
-<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    photographers_file,</span>
-<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
-<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"photographer"</span>]</span>
-<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>sizes <span class="op">=</span> pl.read_csv(</span>
-<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>    sizes_file,</span>
-<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
-<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"img_width"</span>, <span class="st">"img_height"</span>]</span>
-<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>train_test_split <span class="op">=</span> pl.read_csv(</span>
-<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>    train_test_split_file,</span>
-<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
-<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
-<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"is_training_img"</span>]</span>
-<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>classes_metadata <span class="op">=</span> (</span>
-<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>    classes.join(classes_translation, on<span class="op">=</span><span class="st">"class"</span>)</span>
-<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> (</span>
-<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>    bb.join(classes_metadata, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
-<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a>    .join(img_paths, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
-<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>    .join(photographers, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
-<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>    .join(sizes, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
-<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>    .join(train_test_split, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
-<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>metadata_train <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">"is_training_img"</span>) <span class="op">==</span> <span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-error">
-<div class="ansi-escaped-output">
-<pre><span class="ansi-bright-red-fg">---------------------------------------------------------------------------</span>
-<span class="ansi-bright-red-fg">NameError</span>                                 Traceback (most recent call last)
-<span class="ansi-bright-cyan-fg">Cell</span><span class="ansi-bright-cyan-fg"> </span><span class="ansi-green-fg">In[1]</span><span class="ansi-green-fg">, line 4</span>
-<span class="ansi-bright-green-fg">      1</span> <span style="color:rgb(255,95,135)">import</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">os</span>
-<span class="ansi-bright-green-fg">      2</span> <span style="color:rgb(255,95,135)">import</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">polars</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(95,215,255)">as</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">pl</span>
-<span class="ansi-bright-green-fg">----&gt; </span><span class="ansi-bright-green-fg">4</span> <span class="ansi-bright-white-fg">img_dir</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(255,95,135)">=</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">os</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">path</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">join</span><span class="ansi-bright-white-fg">(</span><span class="ansi-bright-white-fg ansi-yellow-bg">base_dir</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(215,215,135)">"</span><span style="color:rgb(215,215,135)">images</span><span style="color:rgb(215,215,135)">"</span><span class="ansi-bright-white-fg">)</span>
-<span class="ansi-bright-green-fg">      6</span> <span class="ansi-bright-white-fg">bb_file</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(255,95,135)">=</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">os</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">path</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">join</span><span class="ansi-bright-white-fg">(</span><span class="ansi-bright-white-fg">base_dir</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(215,215,135)">"</span><span style="color:rgb(215,215,135)">bounding_boxes.txt</span><span style="color:rgb(215,215,135)">"</span><span class="ansi-bright-white-fg">)</span>
-<span class="ansi-bright-green-fg">      7</span> <span class="ansi-bright-white-fg">classes_translation_file</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(255,95,135)">=</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">os</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">path</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">join</span><span class="ansi-bright-white-fg">(</span><span class="ansi-bright-white-fg">base_dir</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(215,215,135)">"</span><span style="color:rgb(215,215,135)">classes_fixed.txt</span><span style="color:rgb(215,215,135)">"</span><span class="ansi-bright-white-fg">)</span>
-
-<span class="ansi-bright-red-fg">NameError</span>: name 'base_dir' is not defined</pre>
-</div>
-</div>
+<div id="6dccc4c5" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> imageio.v3 <span class="im">as</span> iio</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> skimage.transform <span class="im">import</span> resize</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.patches <span class="im">as</span> patches</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> grain.python <span class="im">as</span> grain</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>img_dir <span class="op">=</span> os.path.join(base_dir, <span class="st">"images"</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>bb_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"bounding_boxes.txt"</span>)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>classes_translation_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"classes_fixed.txt"</span>)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>class_labels_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"image_class_labels.txt"</span>)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>img_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"images.txt"</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>photographers_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"photographers_fixed.txt"</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>sizes_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"sizes.txt"</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>train_test_split_file <span class="op">=</span> os.path.join(base_dir, <span class="st">"train_test_split.txt"</span>)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>bb <span class="op">=</span> pl.read_csv(</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    bb_file,</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"bb_x"</span>, <span class="st">"bb_y"</span>, <span class="st">"bb_width"</span>, <span class="st">"bb_height"</span>]</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>classes <span class="op">=</span> pl.read_csv(</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    class_labels_file,</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"class"</span>]</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>classes_translation <span class="op">=</span> pl.read_csv(</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    classes_translation_file,</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"class"</span>, <span class="st">"id"</span>]</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>img_paths <span class="op">=</span> pl.read_csv(</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    img_file,</span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"path"</span>]</span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>photographers <span class="op">=</span> pl.read_csv(</span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>    photographers_file,</span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"photographer"</span>]</span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>sizes <span class="op">=</span> pl.read_csv(</span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>    sizes_file,</span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"img_width"</span>, <span class="st">"img_height"</span>]</span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a>train_test_split <span class="op">=</span> pl.read_csv(</span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>    train_test_split_file,</span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a>    separator<span class="op">=</span><span class="st">" "</span>,</span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true" tabindex="-1"></a>    has_header<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a>    new_columns<span class="op">=</span>[<span class="st">"UUID"</span>, <span class="st">"is_training_img"</span>]</span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a>classes_metadata <span class="op">=</span> (</span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true" tabindex="-1"></a>    classes.join(classes_translation, on<span class="op">=</span><span class="st">"class"</span>)</span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> (</span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true" tabindex="-1"></a>    bb.join(classes_metadata, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
+<span id="cb2-76"><a href="#cb2-76" aria-hidden="true" tabindex="-1"></a>    .join(img_paths, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
+<span id="cb2-77"><a href="#cb2-77" aria-hidden="true" tabindex="-1"></a>    .join(photographers, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true" tabindex="-1"></a>    .join(sizes, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true" tabindex="-1"></a>    .join(train_test_split, on<span class="op">=</span><span class="st">"UUID"</span>)</span>
+<span id="cb2-80"><a href="#cb2-80" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-81"><a href="#cb2-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-82"><a href="#cb2-82" aria-hidden="true" tabindex="-1"></a>metadata_train <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">"is_training_img"</span>) <span class="op">==</span> <span class="dv">1</span>)</span>
+<span id="cb2-83"><a href="#cb2-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-84"><a href="#cb2-84" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NABirdsDataset:</span>
+<span id="cb2-85"><a href="#cb2-85" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""NABirds dataset class."""</span></span>
+<span id="cb2-86"><a href="#cb2-86" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, metadata_file, data_dir):</span>
+<span id="cb2-87"><a href="#cb2-87" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.metadata <span class="op">=</span> metadata_file</span>
+<span id="cb2-88"><a href="#cb2-88" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.data_dir <span class="op">=</span> data_dir</span>
+<span id="cb2-89"><a href="#cb2-89" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__len__</span>(<span class="va">self</span>):</span>
+<span id="cb2-90"><a href="#cb2-90" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">len</span>(<span class="va">self</span>.metadata)</span>
+<span id="cb2-91"><a href="#cb2-91" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__getitem__</span>(<span class="va">self</span>, idx):</span>
+<span id="cb2-92"><a href="#cb2-92" aria-hidden="true" tabindex="-1"></a>        img_path <span class="op">=</span> os.path.join(</span>
+<span id="cb2-93"><a href="#cb2-93" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.data_dir,</span>
+<span id="cb2-94"><a href="#cb2-94" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.metadata.get_column(<span class="st">'path'</span>)[idx]</span>
+<span id="cb2-95"><a href="#cb2-95" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb2-96"><a href="#cb2-96" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> iio.imread(img_path)</span>
+<span id="cb2-97"><a href="#cb2-97" aria-hidden="true" tabindex="-1"></a>        img_id <span class="op">=</span> <span class="va">self</span>.metadata.get_column(<span class="st">'id'</span>)[idx].replace(<span class="st">'_'</span>, <span class="st">' '</span>)</span>
+<span id="cb2-98"><a href="#cb2-98" aria-hidden="true" tabindex="-1"></a>        img_photographer <span class="op">=</span> <span class="va">self</span>.metadata.get_column(<span class="st">'photographer'</span>)[idx].replace(<span class="st">'_'</span>, <span class="st">' '</span>)</span>
+<span id="cb2-99"><a href="#cb2-99" aria-hidden="true" tabindex="-1"></a>        img_bb_x <span class="op">=</span> <span class="va">self</span>.metadata.get_column(<span class="st">'bb_x'</span>)[idx]</span>
+<span id="cb2-100"><a href="#cb2-100" aria-hidden="true" tabindex="-1"></a>        img_bb_y <span class="op">=</span> <span class="va">self</span>.metadata.get_column(<span class="st">'bb_y'</span>)[idx]</span>
+<span id="cb2-101"><a href="#cb2-101" aria-hidden="true" tabindex="-1"></a>        img_bb_width <span class="op">=</span> <span class="va">self</span>.metadata.get_column(<span class="st">'bb_width'</span>)[idx]</span>
+<span id="cb2-102"><a href="#cb2-102" aria-hidden="true" tabindex="-1"></a>        img_bb_height <span class="op">=</span> <span class="va">self</span>.metadata.get_column(<span class="st">'bb_height'</span>)[idx]</span>
+<span id="cb2-103"><a href="#cb2-103" aria-hidden="true" tabindex="-1"></a>        element <span class="op">=</span> {</span>
+<span id="cb2-104"><a href="#cb2-104" aria-hidden="true" tabindex="-1"></a>            <span class="st">'image'</span>: img,</span>
+<span id="cb2-105"><a href="#cb2-105" aria-hidden="true" tabindex="-1"></a>            <span class="st">'id'</span>: img_id,</span>
+<span id="cb2-106"><a href="#cb2-106" aria-hidden="true" tabindex="-1"></a>            <span class="st">'photographer'</span>: img_photographer,</span>
+<span id="cb2-107"><a href="#cb2-107" aria-hidden="true" tabindex="-1"></a>            <span class="st">'bbx'</span> : img_bb_x,</span>
+<span id="cb2-108"><a href="#cb2-108" aria-hidden="true" tabindex="-1"></a>            <span class="st">'bby'</span> : img_bb_y,</span>
+<span id="cb2-109"><a href="#cb2-109" aria-hidden="true" tabindex="-1"></a>            <span class="st">'bbwidth'</span> : img_bb_width,</span>
+<span id="cb2-110"><a href="#cb2-110" aria-hidden="true" tabindex="-1"></a>            <span class="st">'bbheight'</span> : img_bb_height</span>
+<span id="cb2-111"><a href="#cb2-111" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb2-112"><a href="#cb2-112" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> element</span>
+<span id="cb2-113"><a href="#cb2-113" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-114"><a href="#cb2-114" aria-hidden="true" tabindex="-1"></a>nabirds_train <span class="op">=</span> NABirdsDataset(</span>
+<span id="cb2-115"><a href="#cb2-115" aria-hidden="true" tabindex="-1"></a>    metadata_train,</span>
+<span id="cb2-116"><a href="#cb2-116" aria-hidden="true" tabindex="-1"></a>    img_dir</span>
+<span id="cb2-117"><a href="#cb2-117" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-118"><a href="#cb2-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-119"><a href="#cb2-119" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NormAndCast(grain.MapTransform):</span>
+<span id="cb2-120"><a href="#cb2-120" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Transform class to normalize and cast images to float32."""</span></span>
+<span id="cb2-121"><a href="#cb2-121" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">map</span>(<span class="va">self</span>, element):</span>
+<span id="cb2-122"><a href="#cb2-122" aria-hidden="true" tabindex="-1"></a>        element[<span class="st">'image'</span>] <span class="op">=</span> jnp.array(element[<span class="st">'image'</span>], dtype<span class="op">=</span>jnp.float32) <span class="op">/</span> <span class="fl">255.0</span></span>
+<span id="cb2-123"><a href="#cb2-123" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> element</span>
+<span id="cb2-124"><a href="#cb2-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-125"><a href="#cb2-125" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BbCrop(grain.MapTransform):</span>
+<span id="cb2-126"><a href="#cb2-126" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Transform class to crop images to their bounding boxes."""</span></span>
+<span id="cb2-127"><a href="#cb2-127" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">map</span>(<span class="va">self</span>, element):</span>
+<span id="cb2-128"><a href="#cb2-128" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> element[<span class="st">'image'</span>]</span>
+<span id="cb2-129"><a href="#cb2-129" aria-hidden="true" tabindex="-1"></a>        bbx <span class="op">=</span> element[<span class="st">'bbx'</span>]</span>
+<span id="cb2-130"><a href="#cb2-130" aria-hidden="true" tabindex="-1"></a>        bby <span class="op">=</span> element[<span class="st">'bby'</span>]</span>
+<span id="cb2-131"><a href="#cb2-131" aria-hidden="true" tabindex="-1"></a>        bbwidth <span class="op">=</span> element[<span class="st">'bbwidth'</span>]</span>
+<span id="cb2-132"><a href="#cb2-132" aria-hidden="true" tabindex="-1"></a>        bbheight <span class="op">=</span> element[<span class="st">'bbheight'</span>]</span>
+<span id="cb2-133"><a href="#cb2-133" aria-hidden="true" tabindex="-1"></a>        img_cropped <span class="op">=</span> img[bby:bby<span class="op">+</span>bbheight, bbx:bbx<span class="op">+</span>bbwidth]</span>
+<span id="cb2-134"><a href="#cb2-134" aria-hidden="true" tabindex="-1"></a>        element[<span class="st">'image'</span>] <span class="op">=</span> img_cropped</span>
+<span id="cb2-135"><a href="#cb2-135" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> element</span>
+<span id="cb2-136"><a href="#cb2-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-137"><a href="#cb2-137" aria-hidden="true" tabindex="-1"></a>target <span class="op">=</span> (<span class="dv">224</span>, <span class="dv">224</span>)</span>
+<span id="cb2-138"><a href="#cb2-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-139"><a href="#cb2-139" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PaddingResize(grain.MapTransform):</span>
+<span id="cb2-140"><a href="#cb2-140" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Transform class to resize images to a given size with padding to avoid distortion."""</span></span>
+<span id="cb2-141"><a href="#cb2-141" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">map</span>(<span class="va">self</span>, element):</span>
+<span id="cb2-142"><a href="#cb2-142" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> element[<span class="st">'image'</span>]</span>
+<span id="cb2-143"><a href="#cb2-143" aria-hidden="true" tabindex="-1"></a>        h, w, _ <span class="op">=</span> img.shape</span>
+<span id="cb2-144"><a href="#cb2-144" aria-hidden="true" tabindex="-1"></a>        target_h, target_w <span class="op">=</span> target</span>
+<span id="cb2-145"><a href="#cb2-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-146"><a href="#cb2-146" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Calculate the scaling factor to fit the image inside the box</span></span>
+<span id="cb2-147"><a href="#cb2-147" aria-hidden="true" tabindex="-1"></a>        scale <span class="op">=</span> <span class="bu">min</span>(target_h <span class="op">/</span> h, target_w <span class="op">/</span> w)</span>
+<span id="cb2-148"><a href="#cb2-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-149"><a href="#cb2-149" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Calculate the new dimensions of the image</span></span>
+<span id="cb2-150"><a href="#cb2-150" aria-hidden="true" tabindex="-1"></a>        new_h <span class="op">=</span> <span class="bu">int</span>(h <span class="op">*</span> scale)</span>
+<span id="cb2-151"><a href="#cb2-151" aria-hidden="true" tabindex="-1"></a>        new_w <span class="op">=</span> <span class="bu">int</span>(w <span class="op">*</span> scale)</span>
+<span id="cb2-152"><a href="#cb2-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-153"><a href="#cb2-153" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Resize the image to these new dimensions</span></span>
+<span id="cb2-154"><a href="#cb2-154" aria-hidden="true" tabindex="-1"></a>        img_resized <span class="op">=</span> resize(img, (new_h, new_w), anti_aliasing<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-155"><a href="#cb2-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-156"><a href="#cb2-156" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Create a black canvas (zeros) of the target size</span></span>
+<span id="cb2-157"><a href="#cb2-157" aria-hidden="true" tabindex="-1"></a>        out_img <span class="op">=</span> np.zeros((target_h, target_w, img.shape[<span class="dv">2</span>]), dtype<span class="op">=</span>img_resized.dtype)</span>
+<span id="cb2-158"><a href="#cb2-158" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-159"><a href="#cb2-159" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Place the resized image in the center of the canvas</span></span>
+<span id="cb2-160"><a href="#cb2-160" aria-hidden="true" tabindex="-1"></a>        y_offset <span class="op">=</span> (target_h <span class="op">-</span> new_h) <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb2-161"><a href="#cb2-161" aria-hidden="true" tabindex="-1"></a>        x_offset <span class="op">=</span> (target_w <span class="op">-</span> new_w) <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb2-162"><a href="#cb2-162" aria-hidden="true" tabindex="-1"></a>        out_img[y_offset:y_offset<span class="op">+</span>new_h, x_offset:x_offset<span class="op">+</span>new_w] <span class="op">=</span> img_resized</span>
+<span id="cb2-163"><a href="#cb2-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-164"><a href="#cb2-164" aria-hidden="true" tabindex="-1"></a>        element[<span class="st">'image'</span>] <span class="op">=</span> out_img</span>
+<span id="cb2-165"><a href="#cb2-165" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> element</span>
+<span id="cb2-166"><a href="#cb2-166" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-167"><a href="#cb2-167" aria-hidden="true" tabindex="-1"></a>transformations <span class="op">=</span> [NormAndCast(), BbCrop(), PaddingResize()]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
 </div>
 <section id="goal-of-a-data-loader" class="level2">
 <h2 class="anchored" data-anchor-id="goal-of-a-data-loader">Goal of a data loader</h2>
-<p>We could print with:</p>
-<div id="dabd6448" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, sample <span class="kw">in</span> <span class="bu">enumerate</span>(nabirds_train):</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(sample[<span class="st">'image'</span>].shape)</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> i <span class="op">==</span> <span class="dv">3</span>:</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-error">
-<div class="ansi-escaped-output">
-<pre><span class="ansi-bright-red-fg">---------------------------------------------------------------------------</span>
-<span class="ansi-bright-red-fg">NameError</span>                                 Traceback (most recent call last)
-<span class="ansi-bright-cyan-fg">Cell</span><span class="ansi-bright-cyan-fg"> </span><span class="ansi-green-fg">In[2]</span><span class="ansi-green-fg">, line 1</span>
-<span class="ansi-bright-green-fg">----&gt; </span><span class="ansi-bright-green-fg">1</span> <span style="color:rgb(95,215,255)">for</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">i</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">sample</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(255,95,135)">in</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">enumerate</span><span class="ansi-bright-white-fg">(</span><span class="ansi-bright-white-fg ansi-yellow-bg">nabirds_train</span><span class="ansi-bright-white-fg">)</span><span class="ansi-bright-white-fg">:</span>
-<span class="ansi-bright-green-fg">      2</span> <span class="ansi-bright-white-fg">    </span><span class="ansi-bright-white-fg">print</span><span class="ansi-bright-white-fg">(</span><span class="ansi-bright-white-fg">sample</span><span class="ansi-bright-white-fg">[</span><span style="color:rgb(215,215,135)">'</span><span style="color:rgb(215,215,135)">image</span><span style="color:rgb(215,215,135)">'</span><span class="ansi-bright-white-fg">]</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">shape</span><span class="ansi-bright-white-fg">)</span>
-<span class="ansi-bright-green-fg">      3</span> <span class="ansi-bright-white-fg">    </span><span style="color:rgb(95,215,255)">if</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">i</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(255,95,135)">==</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(175,135,255)">3</span><span class="ansi-bright-white-fg">:</span>
-
-<span class="ansi-bright-red-fg">NameError</span>: name 'nabirds_train' is not defined</pre>
+<p>We can access elements of our Dataclass (as we did before to display some images) with:</p>
+<div id="6c813649" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, element <span class="kw">in</span> <span class="bu">enumerate</span>(nabirds_train):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(element[<span class="st">'image'</span>].shape)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> i <span class="op">==</span> <span class="dv">3</span>:</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>(680, 1024, 3)
+(819, 1024, 3)
+(768, 1024, 3)
+(817, 1024, 3)</code></pre>
+</div>
+</div>
+</section>
+<section id="grain-dataloaders" class="level2">
+<h2 class="anchored" data-anchor-id="grain-dataloaders">Grain DataLoaders</h2>
+<ul>
+<li>Source:</li>
+<li>Transforms:</li>
+<li>Sampler:</li>
+</ul>
+</section>
+<section id="sequential-sampler" class="level2">
+<h2 class="anchored" data-anchor-id="sequential-sampler">Sequential sampler</h2>
+<div id="96e5005f" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_seqsampler <span class="op">=</span> grain.SequentialSampler(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    num_records<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    shard_options<span class="op">=</span>grain.NoSharding()</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="15a72592" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> record_metadata <span class="kw">in</span> nabirds_train_seqsampler:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(record_metadata)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>RecordMetadata(index=0, record_key=0, rng=None)
+RecordMetadata(index=1, record_key=1, rng=None)
+RecordMetadata(index=2, record_key=2, rng=None)
+RecordMetadata(index=3, record_key=3, rng=None)</code></pre>
+</div>
+</div>
+</section>
+<section id="first-dataloader" class="level2">
+<h2 class="anchored" data-anchor-id="first-dataloader">First DataLoader</h2>
+<p>We now have our source, transformations, and sampler, so we can build our first DataLoader:</p>
+<div id="66182cf8" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_dl <span class="op">=</span> grain.DataLoader(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    data_source<span class="op">=</span>nabirds_train,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    operations<span class="op">=</span>transformations,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">=</span>nabirds_train_seqsampler,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    worker_count<span class="op">=</span><span class="dv">0</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="54abc8d3" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">8</span>))</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, element <span class="kw">in</span> <span class="bu">enumerate</span>(nabirds_train_dl):</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    ax <span class="op">=</span> plt.subplot(<span class="dv">2</span>, <span class="dv">2</span>, i <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    ax.set_title(</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f'Element </span><span class="sc">{</span>i<span class="sc">}</span><span class="ch">\n</span><span class="ss">Identification: </span><span class="sc">{</span>element[<span class="st">'id'</span>]<span class="sc">}</span><span class="ch">\n</span><span class="ss">Picture by </span><span class="sc">{</span>element[<span class="st">'photographer'</span>]<span class="sc">}</span><span class="ss">'</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        fontsize<span class="op">=</span><span class="dv">9</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    ax.axis(<span class="st">'off'</span>)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    plt.imshow(element[<span class="st">'image'</span>])</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="jxai_dataloader_files/figure-html/cell-8-output-1.png" width="745" height="733" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<div class="note">
+<p>Notice that, unlike <a href="jxai_dataset.html#display-an-element">last time we displayed some images</a>, we aren’t looping through our Dataset (<code>nabirds_train</code>) anymore, but through our DataLoader (<code>nabirds_train_dl</code>).</p>
+<p>Because we set the number of records to 4 in the sampler, we don’t have to break the loop.</p>
+</div>
+</section>
+<section id="index-sampler" class="level2">
+<h2 class="anchored" data-anchor-id="index-sampler">Index sampler</h2>
+<div id="c808a777" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_isampler <span class="op">=</span> grain.IndexSampler(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  num_records<span class="op">=</span><span class="dv">200</span>,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  num_epochs<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="co"># shard_options=grain.sharding.ShardOptions(shard_index=0, shard_count=1, drop_remainder=True),</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  shard_options<span class="op">=</span>grain.ShardOptions(shard_index<span class="op">=</span><span class="dv">0</span>, shard_count<span class="op">=</span><span class="dv">1</span>, drop_remainder<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  shuffle<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  seed<span class="op">=</span><span class="dv">0</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="f28c0803" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> record_metadata <span class="kw">in</span> nabirds_train_isampler:</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="bu">print</span>(record_metadata)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> i <span class="op">==</span> <span class="dv">3</span>:</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>      plt.show()</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>      <span class="cf">break</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>RecordMetadata(index=0, record_key=134, rng=Generator(Philox))</code></pre>
+</div>
+</div>
+<div id="54b35fec" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_dl <span class="op">=</span> grain.DataLoader(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    data_source<span class="op">=</span>nabirds_train,</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    operations<span class="op">=</span>transformations,</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">=</span>nabirds_train_isampler,</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    worker_count<span class="op">=</span><span class="dv">0</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="63a65370" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">8</span>))</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, element <span class="kw">in</span> <span class="bu">enumerate</span>(nabirds_train_dl):</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    ax <span class="op">=</span> plt.subplot(<span class="dv">2</span>, <span class="dv">2</span>, i <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    ax.set_title(</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f'Element </span><span class="sc">{</span>i<span class="sc">}</span><span class="ch">\n</span><span class="ss">Identification: </span><span class="sc">{</span>element[<span class="st">'id'</span>]<span class="sc">}</span><span class="ch">\n</span><span class="ss">Picture by </span><span class="sc">{</span>element[<span class="st">'photographer'</span>]<span class="sc">}</span><span class="ss">'</span>,</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>        fontsize<span class="op">=</span><span class="dv">9</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    ax.axis(<span class="st">'off'</span>)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    plt.imshow(element[<span class="st">'image'</span>])</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> i <span class="op">==</span> <span class="dv">3</span>:</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>        plt.show()</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="jxai_dataloader_files/figure-html/cell-12-output-1.png" width="705" height="733" class="figure-img"></p>
+</figure>
 </div>
 </div>
 </div>
