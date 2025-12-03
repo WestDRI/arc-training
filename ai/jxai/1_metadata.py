@@ -1,6 +1,5 @@
 import os
 import polars as pl
-import imageio.v3 as iio
 
 base_dir = '/home/marie/parvus/ptmp/jxbirds/nabirds'
 img_dir = os.path.join(base_dir, 'images')
