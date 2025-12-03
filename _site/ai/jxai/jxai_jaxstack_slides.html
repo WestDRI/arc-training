@@ -1,0 +1,2785 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<link href="../..//img/favicon_sfu.png" rel="icon" type="image/png">
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-html/tabby.min.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-b77653847701e5eb56f9b458832239e6.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.8.26">
+
+  <meta name="author" content="and how to use it for deep learning">
+  <title>Research Computing – The JAX stack</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/reset.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/reveal.css">
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+      vertical-align: middle;
+    }
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+      }
+    pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+    div.sourceCode
+      { color: #b2b2b2; background-color: #000000; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span { color: #b2b2b2; } /* Normal */
+    code span.al { color: #ff0000; background-color: #3f0000; font-weight: bold; } /* Alert */
+    code span.an { color: #ff00ff; } /* Annotation */
+    code span.at { color: #ffffaf; } /* Attribute */
+    code span.bn { color: #ff8b8b; } /* BaseN */
+    code span.bu { color: #87ffaf; font-weight: bold; } /* BuiltIn */
+    code span.cf { color: #ffff54; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #ff5454; } /* Char */
+    code span.cn { color: #af7f00; font-weight: bold; } /* Constant */
+    code span.co { color: #54ffff; } /* Comment */
+    code span.cv { color: #0095ff; } /* CommentVar */
+    code span.do { color: #e0ffff; } /* Documentation */
+    code span.dt { color: #ffff54; } /* DataType */
+    code span.dv { color: #ff8b8b; } /* DecVal */
+    code span.er { color: #ff5500; text-decoration: underline; } /* Error */
+    code span.ex { color: #0095ff; font-weight: bold; } /* Extension */
+    code span.fl { color: #ff8b8b; } /* Float */
+    code span.fu { color: #cd00cd; } /* Function */
+    code span.im { color: #ff54ff; } /* Import */
+    code span.in { color: #ffaa00; } /* Information */
+    code span.kw { color: #5fd7ff; font-weight: bold; } /* Keyword */
+    code span.op { color: #b2b2b2; } /* Operator */
+    code span.ot { color: #54ff54; } /* Other */
+    code span.pp { color: #87ffaf; } /* Preprocessor */
+    code span.re { color: #0095ff; background-color: #22226d; } /* RegionMarker */
+    code span.sc { color: #0095ff; } /* SpecialChar */
+    code span.ss { color: #ff5500; } /* SpecialString */
+    code span.st { color: #ff54ff; } /* String */
+    code span.va { color: #06989a; } /* Variable */
+    code span.vs { color: #ff54ff; } /* VerbatimString */
+    code span.wa { color: #ff0000; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bfc04bf41f94da917414150dda449ce8.css">
+  <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-7E8D6VP6FH"></script>
+
+  <script type="text/javascript">
+
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
+  </script>
+  <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
+  <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
+  <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
+  <link href="../../site_libs/revealjs/plugin/reveal-pointer/pointer.css" rel="stylesheet">
+  <link href="../../site_libs/revealjs/plugin/quarto-support/footer.css" rel="stylesheet">
+  <style type="text/css">
+    .reveal div.sourceCode {
+      margin: 0;
+      overflow: auto;
+    }
+    .reveal div.hanging-indent {
+      margin-left: 1em;
+      text-indent: -1em;
+    }
+    .reveal .slide:not(.center) {
+      height: 100%;
+    }
+    .reveal .slide.scrollable {
+      overflow-y: auto;
+    }
+    .reveal .footnotes {
+      height: 100%;
+      overflow-y: auto;
+    }
+    .reveal .slide .absolute {
+      position: absolute;
+      display: block;
+    }
+    .reveal .footnotes ol {
+      counter-reset: ol;
+      list-style-type: none; 
+      margin-left: 0;
+    }
+    .reveal .footnotes ol li:before {
+      counter-increment: ol;
+      content: counter(ol) ". "; 
+    }
+    .reveal .footnotes ol li > p:first-child {
+      display: inline-block;
+    }
+    .reveal .slide ul,
+    .reveal .slide ol {
+      margin-bottom: 0.5em;
+    }
+    .reveal .slide ul li,
+    .reveal .slide ol li {
+      margin-top: 0.4em;
+      margin-bottom: 0.2em;
+    }
+    .reveal .slide ul[role="tablist"] li {
+      margin-bottom: 0;
+    }
+    .reveal .slide ul li > *:first-child,
+    .reveal .slide ol li > *:first-child {
+      margin-block-start: 0;
+    }
+    .reveal .slide ul li > *:last-child,
+    .reveal .slide ol li > *:last-child {
+      margin-block-end: 0;
+    }
+    .reveal .slide .columns:nth-child(3) {
+      margin-block-start: 0.8em;
+    }
+    .reveal blockquote {
+      box-shadow: none;
+    }
+    .reveal .tippy-content>* {
+      margin-top: 0.2em;
+      margin-bottom: 0.7em;
+    }
+    .reveal .tippy-content>*:last-child {
+      margin-bottom: 0.2em;
+    }
+    .reveal .slide > img.stretch.quarto-figure-center,
+    .reveal .slide > img.r-stretch.quarto-figure-center {
+      display: block;
+      margin-left: auto;
+      margin-right: auto; 
+    }
+    .reveal .slide > img.stretch.quarto-figure-left,
+    .reveal .slide > img.r-stretch.quarto-figure-left  {
+      display: block;
+      margin-left: 0;
+      margin-right: auto; 
+    }
+    .reveal .slide > img.stretch.quarto-figure-right,
+    .reveal .slide > img.r-stretch.quarto-figure-right  {
+      display: block;
+      margin-left: auto;
+      margin-right: 0; 
+    }
+  </style>
+</head>
+<body class="quarto-light">
+  <div class="reveal">
+    <div class="slides">
+
+<section id="title-slide" class="center">
+  <h1 class="title">The JAX stack</h1>
+  <img src="img/logo_jaxstack.png" width="50%" style="margin-top: 40px; margin-bottom: 40px; border-radius: " alt="noshadow">
+  <p class="author">and how to use it for deep learning</p>
+</section>
+<section id="what-is-jax" class="slide level2 center">
+<h2>What is JAX?</h2>
+<div class="fragment">
+<p>Library for Python developed by Google</p>
+</div>
+<div class="fragment">
+<p>Key data structure: Array</p>
+</div>
+<div class="fragment">
+<p>Composition, transformation, and differentiation of numerical programs</p>
+</div>
+<div class="fragment">
+<p>Compilation for CPUs, GPUs, and TPUs</p>
+</div>
+<div class="fragment">
+<p>NumPy-like and lower-level APIs</p>
+</div>
+<div class="fragment">
+<p>Requires strict functional programming</p>
+</div>
+</section>
+<section>
+<section id="why-jax" class="title-slide slide level1 center">
+<h1>Why JAX?</h1>
+
+</section>
+<section id="fast" class="slide level2 center">
+<h2>Fast</h2>
+<ul>
+<li><p><strong>Default data type suited for deep learning</strong></p>
+<p>Like <a href="https://pytorch.org/">PyTorch</a>, uses float32 as default. This level of precision is suitable for deep learning and increases efficiency (by contrast, <a href="https://numpy.org/">NumPy</a> defaults to float64)</p></li>
+<li><p><strong><a href="https://en.wikipedia.org/wiki/Just-in-time_compilation">JIT compilation</a></strong></p></li>
+<li><p>The same code can run on <a href="https://en.wikipedia.org/wiki/Central_processing_unit">CPUs</a> or on <strong>accelerators</strong> (<a href="https://en.wikipedia.org/wiki/Graphics_processing_unit">GPUs</a> and <a href="https://en.wikipedia.org/wiki/Tensor_Processing_Unit">TPUs</a>)</p></li>
+<li><p><strong><a href="https://github.com/openxla/xla">XLA (Accelerated Linear Algebra)</a> optimization</strong></p></li>
+<li><p><strong>Asynchronous dispatch</strong></p></li>
+<li><p><strong>Vectorization, data parallelism, and sharding</strong></p>
+<p>All levels of shared and distributed memory parallelism are supported</p></li>
+</ul>
+</section>
+<section id="great-ad" class="slide level2 center">
+<h2>Great AD</h2>
+<div class="cell" data-fig-height="450px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="450" viewbox="0.00 0.00 566.44 356.77" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 352.77)">
+<!-- 01 -->
+<g id="node1" class="node">
+<title>01</title>
+<polygon fill="none" stroke="transparent" points="116.6,-348.77 -0.2,-348.77 -0.2,-312.77 116.6,-312.77 116.6,-348.77"></polygon>
+<polyline fill="none" stroke="#8c8c8c" points="-0.2,-312.77 116.6,-312.77 "></polyline>
+<text text-anchor="middle" x="58.2" y="-326.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#8c8c8c">Autodiff method</text>
+</g>
+<!-- 1 -->
+<g id="node2" class="node">
+<title>1</title>
+<text text-anchor="middle" x="58.2" y="-259.27" font-family="Inconsolata, sans-serif" font-size="15.00">Static graph</text>
+<text text-anchor="middle" x="58.2" y="-241.27" font-family="Inconsolata, sans-serif" font-size="15.00">and XLA</text>
+</g>
+<!-- 01&#45;&gt;1 -->
+<!-- 02 -->
+<g id="node6" class="node">
+<title>02</title>
+<polygon fill="none" stroke="transparent" points="240.85,-348.77 155.55,-348.77 155.55,-312.77 240.85,-312.77 240.85,-348.77"></polygon>
+<polyline fill="none" stroke="#8c8c8c" points="155.55,-312.77 240.85,-312.77 "></polyline>
+<text text-anchor="middle" x="198.2" y="-326.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#8c8c8c">Framework</text>
+</g>
+<!-- 01&#45;&gt;02 -->
+<!-- 2 -->
+<g id="node3" class="node">
+<title>2</title>
+<text text-anchor="middle" x="58.2" y="-173.88" font-family="Inconsolata, sans-serif" font-size="15.00">Dynamic graph</text>
+</g>
+<!-- 1&#45;&gt;2 -->
+<g id="edge17" class="edge">
+<title>1-&gt;2</title>
+<path fill="none" stroke="#8c8c8c" d="M58.2,-232.65C58.2,-224.68 58.2,-215.49 58.2,-207.01"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="61.7,-206.79 58.2,-196.79 54.7,-206.79 61.7,-206.79"></polygon>
+</g>
+<!-- a -->
+<g id="node7" class="node">
+<title>a</title>
+<ellipse fill="none" stroke="#8b4500" cx="198.2" cy="-254.77" rx="62.65" ry="18.27"></ellipse>
+<text text-anchor="middle" x="198.2" y="-250.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#8b4500">TensorFlow</text>
+</g>
+<!-- 1&#45;&gt;a -->
+<!-- 4 -->
+<g id="node4" class="node">
+<title>4</title>
+<text text-anchor="middle" x="58.2" y="-106.5" font-family="Inconsolata, sans-serif" font-size="15.00">Dynamic graph</text>
+<text text-anchor="middle" x="58.2" y="-88.5" font-family="Inconsolata, sans-serif" font-size="15.00">and XLA</text>
+</g>
+<!-- 2&#45;&gt;4 -->
+<g id="edge18" class="edge">
+<title>2-&gt;4</title>
+<path fill="none" stroke="#8c8c8c" d="M58.2,-160.13C58.2,-152.42 58.2,-143.08 58.2,-134.21"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="61.7,-134.14 58.2,-124.14 54.7,-134.14 61.7,-134.14"></polygon>
+</g>
+<!-- b -->
+<g id="node8" class="node">
+<title>b</title>
+<ellipse fill="none" stroke="chocolate" cx="198.2" cy="-178.38" rx="47.68" ry="18.27"></ellipse>
+<text text-anchor="middle" x="198.2" y="-173.88" font-family="Inconsolata, sans-serif" font-size="15.00" fill="chocolate">PyTorch</text>
+</g>
+<!-- 2&#45;&gt;b -->
+<!-- 5 -->
+<g id="node5" class="node">
+<title>5</title>
+<text text-anchor="middle" x="58.2" y="-26.5" font-family="Inconsolata, sans-serif" font-size="15.00">Pseudo-dynamic</text>
+<text text-anchor="middle" x="58.2" y="-8.5" font-family="Inconsolata, sans-serif" font-size="15.00">and XLA</text>
+</g>
+<!-- 4&#45;&gt;5 -->
+<g id="edge19" class="edge">
+<title>4-&gt;5</title>
+<path fill="none" stroke="#8c8c8c" d="M58.2,-79.69C58.2,-71.8 58.2,-62.68 58.2,-54.1"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="61.7,-54.02 58.2,-44.02 54.7,-54.02 61.7,-54.02"></polygon>
+</g>
+<!-- d -->
+<g id="node9" class="node">
+<title>d</title>
+<ellipse fill="none" stroke="#8b4500" cx="198.2" cy="-102" rx="67.76" ry="18.27"></ellipse>
+<text text-anchor="middle" x="198.2" y="-97.5" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#8b4500">TensorFlow2</text>
+</g>
+<!-- 4&#45;&gt;d -->
+<!-- e -->
+<g id="node10" class="node">
+<title>e</title>
+<ellipse fill="none" stroke="#009acd" cx="198.2" cy="-22" rx="30.52" ry="18.27"></ellipse>
+<text text-anchor="middle" x="198.2" y="-17.5" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#009acd">JAX</text>
+</g>
+<!-- 5&#45;&gt;e -->
+<!-- 02&#45;&gt;a -->
+<!-- 03 -->
+<g id="node11" class="node">
+<title>03</title>
+<polygon fill="none" stroke="transparent" points="369.67,-348.77 288.73,-348.77 288.73,-312.77 369.67,-312.77 369.67,-348.77"></polygon>
+<polyline fill="none" stroke="#8c8c8c" points="288.73,-312.77 369.67,-312.77 "></polyline>
+<text text-anchor="middle" x="329.2" y="-326.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#8c8c8c">Advantage</text>
+</g>
+<!-- 02&#45;&gt;03 -->
+<!-- a&#45;&gt;b -->
+<!-- 7 -->
+<g id="node12" class="node">
+<title>7</title>
+<text text-anchor="middle" x="329.2" y="-259.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="darkolivegreen">Mostly</text>
+<text text-anchor="middle" x="329.2" y="-241.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="darkolivegreen">optimized AD</text>
+</g>
+<!-- a&#45;&gt;7 -->
+<!-- b&#45;&gt;d -->
+<!-- 8 -->
+<g id="node13" class="node">
+<title>8</title>
+<text text-anchor="middle" x="329.2" y="-173.88" font-family="Inconsolata, sans-serif" font-size="15.00" fill="darkolivegreen">Convenient</text>
+</g>
+<!-- b&#45;&gt;8 -->
+<!-- d&#45;&gt;e -->
+<!-- 9 -->
+<g id="node14" class="node">
+<title>9</title>
+<text text-anchor="middle" x="329.2" y="-97.5" font-family="Inconsolata, sans-serif" font-size="15.00" fill="darkolivegreen">Convenient</text>
+</g>
+<!-- d&#45;&gt;9 -->
+<!-- 10 -->
+<g id="node15" class="node">
+<title>10</title>
+<text text-anchor="middle" x="329.2" y="-26.5" font-family="Inconsolata, sans-serif" font-size="15.00" fill="darkolivegreen">Convenient and</text>
+<text text-anchor="middle" x="329.2" y="-8.5" font-family="Inconsolata, sans-serif" font-size="15.00" fill="darkolivegreen">mostly optimized AD</text>
+</g>
+<!-- e&#45;&gt;10 -->
+<!-- 03&#45;&gt;7 -->
+<!-- 04 -->
+<g id="node16" class="node">
+<title>04</title>
+<polygon fill="none" stroke="transparent" points="522.84,-348.77 425.56,-348.77 425.56,-312.77 522.84,-312.77 522.84,-348.77"></polygon>
+<polyline fill="none" stroke="#8c8c8c" points="425.56,-312.77 522.84,-312.77 "></polyline>
+<text text-anchor="middle" x="474.2" y="-326.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#8c8c8c">Disadvantage</text>
+</g>
+<!-- 03&#45;&gt;04 -->
+<!-- 7&#45;&gt;8 -->
+<!-- A -->
+<g id="node17" class="node">
+<title>A</title>
+<text text-anchor="middle" x="474.2" y="-250.27" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#b23aee">Manual writing of IR</text>
+</g>
+<!-- 7&#45;&gt;A -->
+<!-- 8&#45;&gt;9 -->
+<!-- B -->
+<g id="node18" class="node">
+<title>B</title>
+<text text-anchor="middle" x="474.2" y="-173.88" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#b23aee">Limited AD optimization</text>
+</g>
+<!-- 8&#45;&gt;B -->
+<!-- 9&#45;&gt;10 -->
+<!-- D -->
+<g id="node19" class="node">
+<title>D</title>
+<text text-anchor="middle" x="474.2" y="-97.5" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#b23aee">Disappointing speed</text>
+</g>
+<!-- 9&#45;&gt;D -->
+<!-- E -->
+<g id="node20" class="node">
+<title>E</title>
+<text text-anchor="middle" x="474.2" y="-17.5" font-family="Inconsolata, sans-serif" font-size="15.00" fill="#b23aee">Pure functions</text>
+</g>
+<!-- 10&#45;&gt;E -->
+<!-- 04&#45;&gt;A -->
+<!-- A&#45;&gt;B -->
+<!-- B&#45;&gt;D -->
+<!-- D&#45;&gt;E -->
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p><span class="small">  Summarized from <a href="https://www.stochasticlifestyle.com/engineering-trade-offs-in-automatic-differentiation-from-tensorflow-and-pytorch-to-jax-and-julia/">a blog post</a> by <a href="https://chrisrackauckas.com/">Chris Rackauckas</a></span></p>
+</section>
+<section id="close-to-the-math" class="slide level2 center">
+<h2>Close to the math</h2>
+<p>Considering the function <code>f</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a aria-hidden="true" tabindex="-1"></a>f <span class="op">=</span> <span class="kw">lambda</span> x: x<span class="op">**</span><span class="dv">3</span> <span class="op">+</span> <span class="dv">2</span><span class="op">*</span>x<span class="op">**</span><span class="dv">2</span> <span class="op">-</span> <span class="dv">3</span><span class="op">*</span>x <span class="op">+</span> <span class="dv">8</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>We can create a new function <code>dfdx</code> that computes the gradient of <code>f</code> w.r.t. <code>x</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a aria-hidden="true" tabindex="-1"></a><span class="im">from</span> jax <span class="im">import</span> grad</span>
+<span id="cb2-2"><a aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a aria-hidden="true" tabindex="-1"></a>dfdx <span class="op">=</span> grad(f)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>dfdx</code> returns the derivatives:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(dfdx(<span class="fl">1.</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>4.0</code></pre>
+</section>
+<section id="forward-and-reverse-modes" class="slide level2 center">
+<h2>Forward and reverse modes</h2>
+<ul>
+<li>reverse-mode vector-Jacobian products: <code>jax.vjp</code></li>
+<li>forward-mode Jacobian-vector products: <code>jax.jvp</code></li>
+</ul>
+</section>
+<section id="higher-order-differentiation" class="slide level2 center">
+<h2>Higher-order differentiation</h2>
+<p>With a single variable, the <code>grad</code> function calls can be nested:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a aria-hidden="true" tabindex="-1"></a>d2fdx <span class="op">=</span> grad(dfdx)   <span class="co"># function to compute 2nd order derivatives</span></span>
+<span id="cb5-2"><a aria-hidden="true" tabindex="-1"></a>d3fdx <span class="op">=</span> grad(d2fdx)  <span class="co"># function to compute 3rd order derivatives</span></span>
+<span id="cb5-3"><a aria-hidden="true" tabindex="-1"></a>...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With several variables, you have to use the functions:</p>
+<ul>
+<li><code>jax.jacfwd</code> for forward-mode,</li>
+<li><code>jax.jacrev</code> for reverse-mode.</li>
+</ul>
+</section>
+<section id="how-does-it-work" class="slide level2 center">
+<h2>How does it work?</h2>
+<div class="cell" data-fig-height="600px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="600" viewbox="0.00 0.00 377.05 661.93" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 657.93)">
+<!-- tracer -->
+<g id="node1" class="node">
+<title>tracer</title>
+<polygon fill="none" stroke="darkviolet" points="144.81,-559.1 85.75,-559.1 85.75,-523.1 144.81,-523.1 144.81,-559.1"></polygon>
+<text text-anchor="middle" x="115.28" y="-536.9" font-family="Inconsolata, sans-serif" font-size="14.00" fill="darkviolet">Tracing</text>
+</g>
+<!-- jaxpr -->
+<g id="node9" class="node">
+<title>jaxpr</title>
+<ellipse fill="none" stroke="#4d4d4d" cx="115.28" cy="-422.04" rx="84.95" ry="65.11"></ellipse>
+<text text-anchor="middle" x="115.28" y="-451.44" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">Jaxprs</text>
+<text text-anchor="middle" x="115.28" y="-434.64" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">(JAX expressions)</text>
+<text text-anchor="middle" x="115.28" y="-417.84" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">intermediate</text>
+<text text-anchor="middle" x="115.28" y="-401.04" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">representation</text>
+<text text-anchor="middle" x="115.28" y="-384.24" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">(IR)</text>
+</g>
+<!-- tracer&#45;&gt;jaxpr -->
+<g id="edge2" class="edge">
+<title>tracer-&gt;jaxpr</title>
+<path fill="none" stroke="black" d="M115.28,-523.08C115.28,-515.88 115.28,-506.95 115.28,-497.42"></path>
+<polygon fill="black" stroke="black" points="118.78,-497.31 115.28,-487.31 111.78,-497.31 118.78,-497.31"></polygon>
+</g>
+<!-- jit -->
+<g id="node2" class="node">
+<title>jit</title>
+<polygon fill="none" stroke="chocolate" points="166.86,-320.99 63.7,-320.99 63.7,-284.99 166.86,-284.99 166.86,-320.99"></polygon>
+<text text-anchor="middle" x="115.28" y="-298.79" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">Transformation</text>
+</g>
+<!-- hlo -->
+<g id="node10" class="node">
+<title>hlo</title>
+<ellipse fill="none" stroke="#1a1a1a" cx="115.28" cy="-207.7" rx="80.13" ry="41.09"></ellipse>
+<text text-anchor="middle" x="115.28" y="-220.3" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">High-level</text>
+<text text-anchor="middle" x="115.28" y="-203.5" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">optimized (HLO)</text>
+<text text-anchor="middle" x="115.28" y="-186.7" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">program</text>
+</g>
+<!-- jit&#45;&gt;hlo -->
+<g id="edge4" class="edge">
+<title>jit-&gt;hlo</title>
+<path fill="none" stroke="black" d="M115.28,-284.88C115.28,-277.54 115.28,-268.54 115.28,-259.33"></path>
+<polygon fill="black" stroke="black" points="118.78,-259.33 115.28,-249.33 111.78,-259.33 118.78,-259.33"></polygon>
+</g>
+<!-- xla -->
+<g id="node3" class="node">
+<title>xla</title>
+<polygon fill="none" stroke="#cd1076" points="169.4,-130.6 61.16,-130.6 61.16,-71.8 169.4,-71.8 169.4,-130.6"></polygon>
+<text text-anchor="middle" x="115.28" y="-113.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076">Accelerated</text>
+<text text-anchor="middle" x="115.28" y="-97" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076"> Linear Algebra </text>
+<text text-anchor="middle" x="115.28" y="-80.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076">(XLA)</text>
+</g>
+<!-- CPU -->
+<g id="node5" class="node">
+<title>CPU</title>
+<polygon fill="none" stroke="#528b8b" points="64.34,-10.54 64.34,-25.46 45.56,-36 19,-36 0.22,-25.46 0.22,-10.54 19,0 45.56,0 64.34,-10.54"></polygon>
+<text text-anchor="middle" x="32.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">CPU</text>
+</g>
+<!-- xla&#45;&gt;CPU -->
+<g id="edge6" class="edge">
+<title>xla-&gt;CPU</title>
+<path fill="none" stroke="black" d="M86.25,-71.8C76.22,-61.98 65.11,-51.12 55.6,-41.81"></path>
+<polygon fill="black" stroke="black" points="57.95,-39.22 48.36,-34.73 53.06,-44.22 57.95,-39.22"></polygon>
+</g>
+<!-- GPU -->
+<g id="node6" class="node">
+<title>GPU</title>
+<polygon fill="none" stroke="#528b8b" points="147.99,-10.54 147.99,-25.46 128.83,-36 101.73,-36 82.57,-25.46 82.57,-10.54 101.73,0 128.83,0 147.99,-10.54"></polygon>
+<text text-anchor="middle" x="115.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">GPU</text>
+</g>
+<!-- xla&#45;&gt;GPU -->
+<g id="edge7" class="edge">
+<title>xla-&gt;GPU</title>
+<path fill="none" stroke="black" d="M115.28,-71.8C115.28,-63.53 115.28,-54.52 115.28,-46.32"></path>
+<polygon fill="black" stroke="black" points="118.78,-46.14 115.28,-36.14 111.78,-46.14 118.78,-46.14"></polygon>
+</g>
+<!-- TPU -->
+<g id="node7" class="node">
+<title>TPU</title>
+<polygon fill="none" stroke="#528b8b" points="230.17,-10.54 230.17,-25.46 211.49,-36 185.07,-36 166.39,-25.46 166.39,-10.54 185.07,0 211.49,0 230.17,-10.54"></polygon>
+<text text-anchor="middle" x="198.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">TPU</text>
+</g>
+<!-- xla&#45;&gt;TPU -->
+<g id="edge8" class="edge">
+<title>xla-&gt;TPU</title>
+<path fill="none" stroke="black" d="M144.31,-71.8C154.34,-61.98 165.45,-51.12 174.96,-41.81"></path>
+<polygon fill="black" stroke="black" points="177.5,-44.22 182.2,-34.73 172.61,-39.22 177.5,-44.22"></polygon>
+</g>
+<!-- transform -->
+<g id="node4" class="node">
+<title>transform</title>
+<polygon fill="none" stroke="chocolate" points="368.81,-440.04 253.75,-440.04 253.75,-404.04 368.81,-404.04 368.81,-440.04"></polygon>
+<text text-anchor="middle" x="311.28" y="-417.84" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate"> Transformations </text>
+</g>
+<!-- py -->
+<g id="node8" class="node">
+<title>py</title>
+<ellipse fill="none" stroke="#7f7f7f" cx="115.28" cy="-624.51" rx="59.98" ry="29.33"></ellipse>
+<text text-anchor="middle" x="115.28" y="-628.71" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#7f7f7f">Pure Python</text>
+<text text-anchor="middle" x="115.28" y="-611.91" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#7f7f7f">functions</text>
+</g>
+<!-- py&#45;&gt;tracer -->
+<g id="edge1" class="edge">
+<title>py-&gt;tracer</title>
+<path fill="none" stroke="black" d="M115.28,-595.04C115.28,-583.12 115.28,-569.65 115.28,-559.28"></path>
+</g>
+<!-- jaxpr&#45;&gt;jit -->
+<g id="edge3" class="edge">
+<title>jaxpr-&gt;jit</title>
+<path fill="none" stroke="black" d="M115.28,-356.7C115.28,-343.52 115.28,-330.74 115.28,-321.07"></path>
+</g>
+<!-- jaxpr&#45;&gt;transform -->
+<g id="edge9" class="edge">
+<title>jaxpr-&gt;transform</title>
+<path fill="none" stroke="black" d="M210.26,-422.04C221.33,-422.04 232.39,-422.04 243.45,-422.04"></path>
+<polygon fill="black" stroke="black" points="210.26,-418.54 200.26,-422.04 210.26,-425.54 210.26,-418.54"></polygon>
+<polygon fill="black" stroke="black" points="243.6,-425.54 253.6,-422.04 243.6,-418.54 243.6,-425.54"></polygon>
+</g>
+<!-- hlo&#45;&gt;xla -->
+<g id="edge5" class="edge">
+<title>hlo-&gt;xla</title>
+<path fill="none" stroke="black" d="M115.28,-166.29C115.28,-154.35 115.28,-141.53 115.28,-130.52"></path>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="how-does-it-work-1" class="slide level2 center">
+<h2>How does it work?</h2>
+<div class="cell" data-fig-height="600px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="600" viewbox="0.00 0.00 378.62 684.33" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 680.33)">
+<!-- tracer -->
+<g id="node1" class="node">
+<title>tracer</title>
+<polygon fill="none" stroke="darkviolet" points="144.81,-581.5 85.75,-581.5 85.75,-545.5 144.81,-545.5 144.81,-581.5"></polygon>
+<text text-anchor="middle" x="115.28" y="-559.3" font-family="Inconsolata, sans-serif" font-size="14.00" fill="darkviolet">Tracing</text>
+</g>
+<!-- jaxpr -->
+<g id="node9" class="node">
+<title>jaxpr</title>
+<ellipse fill="none" stroke="#4d4d4d" cx="115.28" cy="-444.44" rx="84.95" ry="65.11"></ellipse>
+<text text-anchor="middle" x="115.28" y="-473.84" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">Jaxprs</text>
+<text text-anchor="middle" x="115.28" y="-457.04" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">(JAX expressions)</text>
+<text text-anchor="middle" x="115.28" y="-440.24" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">intermediate</text>
+<text text-anchor="middle" x="115.28" y="-423.44" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">representation</text>
+<text text-anchor="middle" x="115.28" y="-406.64" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">(IR)</text>
+</g>
+<!-- tracer&#45;&gt;jaxpr -->
+<g id="edge2" class="edge">
+<title>tracer-&gt;jaxpr</title>
+<path fill="none" stroke="black" d="M115.28,-545.48C115.28,-538.28 115.28,-529.35 115.28,-519.82"></path>
+<polygon fill="black" stroke="black" points="118.78,-519.71 115.28,-509.71 111.78,-519.71 118.78,-519.71"></polygon>
+</g>
+<!-- jit -->
+<g id="node2" class="node">
+<title>jit</title>
+<polygon fill="none" stroke="chocolate" points="160.16,-343.59 70.4,-343.59 70.4,-284.79 160.16,-284.79 160.16,-343.59"></polygon>
+<text text-anchor="middle" x="115.28" y="-326.79" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate"> Just-in-time </text>
+<text text-anchor="middle" x="115.28" y="-309.99" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">(JIT)</text>
+<text text-anchor="middle" x="115.28" y="-293.19" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">compilation</text>
+</g>
+<!-- hlo -->
+<g id="node10" class="node">
+<title>hlo</title>
+<ellipse fill="none" stroke="#1a1a1a" cx="115.28" cy="-207.7" rx="80.13" ry="41.09"></ellipse>
+<text text-anchor="middle" x="115.28" y="-220.3" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">High-level</text>
+<text text-anchor="middle" x="115.28" y="-203.5" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">optimized (HLO)</text>
+<text text-anchor="middle" x="115.28" y="-186.7" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">program</text>
+</g>
+<!-- jit&#45;&gt;hlo -->
+<g id="edge4" class="edge">
+<title>jit-&gt;hlo</title>
+<path fill="none" stroke="black" d="M115.28,-284.91C115.28,-277.01 115.28,-268.16 115.28,-259.38"></path>
+<polygon fill="black" stroke="black" points="118.78,-259.16 115.28,-249.16 111.78,-259.16 118.78,-259.16"></polygon>
+</g>
+<!-- xla -->
+<g id="node3" class="node">
+<title>xla</title>
+<polygon fill="none" stroke="#cd1076" points="169.4,-130.6 61.16,-130.6 61.16,-71.8 169.4,-71.8 169.4,-130.6"></polygon>
+<text text-anchor="middle" x="115.28" y="-113.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076">Accelerated</text>
+<text text-anchor="middle" x="115.28" y="-97" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076"> Linear Algebra </text>
+<text text-anchor="middle" x="115.28" y="-80.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076">(XLA)</text>
+</g>
+<!-- CPU -->
+<g id="node5" class="node">
+<title>CPU</title>
+<polygon fill="none" stroke="#528b8b" points="64.34,-10.54 64.34,-25.46 45.56,-36 19,-36 0.22,-25.46 0.22,-10.54 19,0 45.56,0 64.34,-10.54"></polygon>
+<text text-anchor="middle" x="32.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">CPU</text>
+</g>
+<!-- xla&#45;&gt;CPU -->
+<g id="edge6" class="edge">
+<title>xla-&gt;CPU</title>
+<path fill="none" stroke="black" d="M86.25,-71.8C76.22,-61.98 65.11,-51.12 55.6,-41.81"></path>
+<polygon fill="black" stroke="black" points="57.95,-39.22 48.36,-34.73 53.06,-44.22 57.95,-39.22"></polygon>
+</g>
+<!-- GPU -->
+<g id="node6" class="node">
+<title>GPU</title>
+<polygon fill="none" stroke="#528b8b" points="147.99,-10.54 147.99,-25.46 128.83,-36 101.73,-36 82.57,-25.46 82.57,-10.54 101.73,0 128.83,0 147.99,-10.54"></polygon>
+<text text-anchor="middle" x="115.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">GPU</text>
+</g>
+<!-- xla&#45;&gt;GPU -->
+<g id="edge7" class="edge">
+<title>xla-&gt;GPU</title>
+<path fill="none" stroke="black" d="M115.28,-71.8C115.28,-63.53 115.28,-54.52 115.28,-46.32"></path>
+<polygon fill="black" stroke="black" points="118.78,-46.14 115.28,-36.14 111.78,-46.14 118.78,-46.14"></polygon>
+</g>
+<!-- TPU -->
+<g id="node7" class="node">
+<title>TPU</title>
+<polygon fill="none" stroke="#528b8b" points="230.17,-10.54 230.17,-25.46 211.49,-36 185.07,-36 166.39,-25.46 166.39,-10.54 185.07,0 211.49,0 230.17,-10.54"></polygon>
+<text text-anchor="middle" x="198.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">TPU</text>
+</g>
+<!-- xla&#45;&gt;TPU -->
+<g id="edge8" class="edge">
+<title>xla-&gt;TPU</title>
+<path fill="none" stroke="black" d="M144.31,-71.8C154.34,-61.98 165.45,-51.12 174.96,-41.81"></path>
+<polygon fill="black" stroke="black" points="177.5,-44.22 182.2,-34.73 172.61,-39.22 177.5,-44.22"></polygon>
+</g>
+<!-- transform -->
+<g id="node4" class="node">
+<title>transform</title>
+<polygon fill="none" stroke="chocolate" points="370.47,-473.85 254.09,-473.85 254.09,-415.04 370.47,-415.04 370.47,-473.85"></polygon>
+<text text-anchor="middle" x="312.28" y="-457.04" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">Vectorization</text>
+<text text-anchor="middle" x="312.28" y="-440.24" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">Parallelization</text>
+<text text-anchor="middle" x="312.28" y="-423.44" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate"> &nbsp;&nbsp;Differentiation &nbsp;</text>
+</g>
+<!-- py -->
+<g id="node8" class="node">
+<title>py</title>
+<ellipse fill="none" stroke="#7f7f7f" cx="115.28" cy="-646.91" rx="59.98" ry="29.33"></ellipse>
+<text text-anchor="middle" x="115.28" y="-651.11" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#7f7f7f">Pure Python</text>
+<text text-anchor="middle" x="115.28" y="-634.31" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#7f7f7f">functions</text>
+</g>
+<!-- py&#45;&gt;tracer -->
+<g id="edge1" class="edge">
+<title>py-&gt;tracer</title>
+<path fill="none" stroke="black" d="M115.28,-617.44C115.28,-605.52 115.28,-592.05 115.28,-581.68"></path>
+</g>
+<!-- jaxpr&#45;&gt;jit -->
+<g id="edge3" class="edge">
+<title>jaxpr-&gt;jit</title>
+<path fill="none" stroke="black" d="M115.28,-379.32C115.28,-366.79 115.28,-354.27 115.28,-343.65"></path>
+</g>
+<!-- jaxpr&#45;&gt;transform -->
+<g id="edge9" class="edge">
+<title>jaxpr-&gt;transform</title>
+<path fill="none" stroke="black" d="M210.32,-444.44C221.38,-444.44 232.45,-444.44 243.51,-444.44"></path>
+<polygon fill="black" stroke="black" points="210.31,-440.94 200.31,-444.44 210.31,-447.94 210.31,-440.94"></polygon>
+<polygon fill="black" stroke="black" points="243.67,-447.94 253.67,-444.44 243.67,-440.94 243.67,-447.94"></polygon>
+</g>
+<!-- hlo&#45;&gt;xla -->
+<g id="edge5" class="edge">
+<title>hlo-&gt;xla</title>
+<path fill="none" stroke="black" d="M115.28,-166.29C115.28,-154.35 115.28,-141.53 115.28,-130.52"></path>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="how-does-it-work-2" class="slide level2 center">
+<h2>How does it work?</h2>
+<div class="cell" data-fig-height="600px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="600" viewbox="0.00 0.00 329.13 661.93" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 657.93)">
+<!-- tracer -->
+<g id="node1" class="node">
+<title>tracer</title>
+<polygon fill="none" stroke="darkviolet" points="144.81,-559.1 85.75,-559.1 85.75,-523.1 144.81,-523.1 144.81,-559.1"></polygon>
+<text text-anchor="middle" x="115.28" y="-536.9" font-family="Inconsolata, sans-serif" font-size="14.00" fill="darkviolet">Tracing</text>
+</g>
+<!-- jaxpr -->
+<g id="node9" class="node">
+<title>jaxpr</title>
+<ellipse fill="none" stroke="#4d4d4d" cx="115.28" cy="-422.04" rx="84.95" ry="65.11"></ellipse>
+<text text-anchor="middle" x="115.28" y="-451.44" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">Jaxprs</text>
+<text text-anchor="middle" x="115.28" y="-434.64" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">(JAX expressions)</text>
+<text text-anchor="middle" x="115.28" y="-417.84" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">intermediate</text>
+<text text-anchor="middle" x="115.28" y="-401.04" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">representation</text>
+<text text-anchor="middle" x="115.28" y="-384.24" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#4d4d4d">(IR)</text>
+</g>
+<!-- tracer&#45;&gt;jaxpr -->
+<g id="edge2" class="edge">
+<title>tracer-&gt;jaxpr</title>
+<path fill="none" stroke="black" d="M115.28,-523.08C115.28,-515.88 115.28,-506.95 115.28,-497.42"></path>
+<polygon fill="black" stroke="black" points="118.78,-497.31 115.28,-487.31 111.78,-497.31 118.78,-497.31"></polygon>
+</g>
+<!-- jit -->
+<g id="node2" class="node">
+<title>jit</title>
+<polygon fill="none" stroke="chocolate" points="142.28,-320.99 88.28,-320.99 88.28,-284.99 142.28,-284.99 142.28,-320.99"></polygon>
+<text text-anchor="middle" x="115.28" y="-298.79" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">jax.jit</text>
+</g>
+<!-- hlo -->
+<g id="node10" class="node">
+<title>hlo</title>
+<ellipse fill="none" stroke="#1a1a1a" cx="115.28" cy="-207.7" rx="80.13" ry="41.09"></ellipse>
+<text text-anchor="middle" x="115.28" y="-220.3" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">High-level</text>
+<text text-anchor="middle" x="115.28" y="-203.5" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">optimized (HLO)</text>
+<text text-anchor="middle" x="115.28" y="-186.7" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#1a1a1a">program</text>
+</g>
+<!-- jit&#45;&gt;hlo -->
+<g id="edge4" class="edge">
+<title>jit-&gt;hlo</title>
+<path fill="none" stroke="black" d="M115.28,-284.88C115.28,-277.54 115.28,-268.54 115.28,-259.33"></path>
+<polygon fill="black" stroke="black" points="118.78,-259.33 115.28,-249.33 111.78,-259.33 118.78,-259.33"></polygon>
+</g>
+<!-- xla -->
+<g id="node3" class="node">
+<title>xla</title>
+<polygon fill="none" stroke="#cd1076" points="169.4,-130.6 61.16,-130.6 61.16,-71.8 169.4,-71.8 169.4,-130.6"></polygon>
+<text text-anchor="middle" x="115.28" y="-113.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076">Accelerated</text>
+<text text-anchor="middle" x="115.28" y="-97" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076"> Linear Algebra </text>
+<text text-anchor="middle" x="115.28" y="-80.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#cd1076">(XLA)</text>
+</g>
+<!-- CPU -->
+<g id="node5" class="node">
+<title>CPU</title>
+<polygon fill="none" stroke="#528b8b" points="64.34,-10.54 64.34,-25.46 45.56,-36 19,-36 0.22,-25.46 0.22,-10.54 19,0 45.56,0 64.34,-10.54"></polygon>
+<text text-anchor="middle" x="32.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">CPU</text>
+</g>
+<!-- xla&#45;&gt;CPU -->
+<g id="edge6" class="edge">
+<title>xla-&gt;CPU</title>
+<path fill="none" stroke="black" d="M86.25,-71.8C76.22,-61.98 65.11,-51.12 55.6,-41.81"></path>
+<polygon fill="black" stroke="black" points="57.95,-39.22 48.36,-34.73 53.06,-44.22 57.95,-39.22"></polygon>
+</g>
+<!-- GPU -->
+<g id="node6" class="node">
+<title>GPU</title>
+<polygon fill="none" stroke="#528b8b" points="147.99,-10.54 147.99,-25.46 128.83,-36 101.73,-36 82.57,-25.46 82.57,-10.54 101.73,0 128.83,0 147.99,-10.54"></polygon>
+<text text-anchor="middle" x="115.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">GPU</text>
+</g>
+<!-- xla&#45;&gt;GPU -->
+<g id="edge7" class="edge">
+<title>xla-&gt;GPU</title>
+<path fill="none" stroke="black" d="M115.28,-71.8C115.28,-63.53 115.28,-54.52 115.28,-46.32"></path>
+<polygon fill="black" stroke="black" points="118.78,-46.14 115.28,-36.14 111.78,-46.14 118.78,-46.14"></polygon>
+</g>
+<!-- TPU -->
+<g id="node7" class="node">
+<title>TPU</title>
+<polygon fill="none" stroke="#528b8b" points="230.17,-10.54 230.17,-25.46 211.49,-36 185.07,-36 166.39,-25.46 166.39,-10.54 185.07,0 211.49,0 230.17,-10.54"></polygon>
+<text text-anchor="middle" x="198.28" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#528b8b">TPU</text>
+</g>
+<!-- xla&#45;&gt;TPU -->
+<g id="edge8" class="edge">
+<title>xla-&gt;TPU</title>
+<path fill="none" stroke="black" d="M144.31,-71.8C154.34,-61.98 165.45,-51.12 174.96,-41.81"></path>
+<polygon fill="black" stroke="black" points="177.5,-44.22 182.2,-34.73 172.61,-39.22 177.5,-44.22"></polygon>
+</g>
+<!-- transform -->
+<g id="node4" class="node">
+<title>transform</title>
+<polygon fill="none" stroke="chocolate" points="320.99,-451.45 253.57,-451.45 253.57,-392.64 320.99,-392.64 320.99,-451.45"></polygon>
+<text text-anchor="middle" x="287.28" y="-434.64" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">jax.vmap</text>
+<text text-anchor="middle" x="287.28" y="-417.84" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">jax.pmap</text>
+<text text-anchor="middle" x="287.28" y="-401.04" font-family="Inconsolata, sans-serif" font-size="14.00" fill="chocolate">jax.grad</text>
+</g>
+<!-- py -->
+<g id="node8" class="node">
+<title>py</title>
+<ellipse fill="none" stroke="#7f7f7f" cx="115.28" cy="-624.51" rx="59.98" ry="29.33"></ellipse>
+<text text-anchor="middle" x="115.28" y="-628.71" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#7f7f7f">Pure Python</text>
+<text text-anchor="middle" x="115.28" y="-611.91" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#7f7f7f">functions</text>
+</g>
+<!-- py&#45;&gt;tracer -->
+<g id="edge1" class="edge">
+<title>py-&gt;tracer</title>
+<path fill="none" stroke="black" d="M115.28,-595.04C115.28,-583.12 115.28,-569.65 115.28,-559.28"></path>
+</g>
+<!-- jaxpr&#45;&gt;jit -->
+<g id="edge3" class="edge">
+<title>jaxpr-&gt;jit</title>
+<path fill="none" stroke="black" d="M115.28,-356.7C115.28,-343.52 115.28,-330.74 115.28,-321.07"></path>
+</g>
+<!-- jaxpr&#45;&gt;transform -->
+<g id="edge9" class="edge">
+<title>jaxpr-&gt;transform</title>
+<path fill="none" stroke="black" d="M210.63,-422.04C221.4,-422.04 232.18,-422.04 242.96,-422.04"></path>
+<polygon fill="black" stroke="black" points="210.27,-418.54 200.27,-422.04 210.27,-425.54 210.27,-418.54"></polygon>
+<polygon fill="black" stroke="black" points="243.29,-425.54 253.29,-422.04 243.29,-418.54 243.29,-425.54"></polygon>
+</g>
+<!-- hlo&#45;&gt;xla -->
+<g id="edge5" class="edge">
+<title>hlo-&gt;xla</title>
+<path fill="none" stroke="black" d="M115.28,-166.29C115.28,-154.35 115.28,-141.53 115.28,-130.52"></path>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="not-a-deep-learning-library" class="slide level2 center">
+<h2>Not a deep learning library</h2>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="480" viewbox="0.00 0.00 413.84 199.20" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 195.2)">
+<!-- jx -->
+<g id="node1" class="node">
+<title>jx</title>
+<ellipse fill="none" stroke="#9d22b2" cx="203.45" cy="-95.6" rx="28.99" ry="18"></ellipse>
+<text text-anchor="middle" x="203.45" y="-91.4" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#9d22b2">JAX</text>
+</g>
+<!-- dl -->
+<g id="node2" class="node">
+<title>dl</title>
+<text text-anchor="middle" x="47.45" y="-16.6" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Deep learning</text>
+</g>
+<!-- jx&#45;&gt;dl -->
+<g id="edge4" class="edge">
+<title>jx-&gt;dl</title>
+<path fill="none" stroke="#5e98f6" d="M181.1,-84.17C158.22,-73.49 122.01,-56.59 93.04,-43.07"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="94.46,-39.87 83.92,-38.82 91.5,-46.22 94.46,-39.87"></polygon>
+</g>
+<!-- op -->
+<g id="node4" class="node">
+<title>op</title>
+<text text-anchor="middle" x="152.45" y="-16.6" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Optimizers</text>
+</g>
+<!-- jx&#45;&gt;op -->
+<g id="edge5" class="edge">
+<title>jx-&gt;op</title>
+<path fill="none" stroke="#5e98f6" d="M192.39,-78.8C185.93,-69.59 177.64,-57.75 170.28,-47.25"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="172.99,-45.02 164.39,-38.84 167.26,-49.03 172.99,-45.02"></polygon>
+</g>
+<!-- pp -->
+<g id="node6" class="node">
+<title>pp</title>
+<text text-anchor="middle" x="255.45" y="-25" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Probabilistic</text>
+<text text-anchor="middle" x="255.45" y="-8.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">programming</text>
+</g>
+<!-- jx&#45;&gt;pp -->
+<g id="edge6" class="edge">
+<title>jx-&gt;pp</title>
+<path fill="none" stroke="#5e98f6" d="M214.74,-78.8C220.79,-70.33 228.43,-59.63 235.45,-49.8"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="238.44,-51.63 241.41,-41.46 232.75,-47.57 238.44,-51.63"></polygon>
+</g>
+<!-- pm -->
+<g id="node7" class="node">
+<title>pm</title>
+<text text-anchor="middle" x="362.45" y="-25" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Probabilistic</text>
+<text text-anchor="middle" x="362.45" y="-8.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">modeling</text>
+</g>
+<!-- jx&#45;&gt;pm -->
+<g id="edge7" class="edge">
+<title>jx-&gt;pm</title>
+<path fill="none" stroke="#5e98f6" d="M225.9,-84.32C247.66,-74.36 281.49,-58.87 310.03,-45.8"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="311.84,-48.82 319.48,-41.48 308.93,-42.46 311.84,-48.82"></polygon>
+</g>
+<!-- ll -->
+<g id="node3" class="node">
+<title>ll</title>
+<text text-anchor="middle" x="129.45" y="-166.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">LLMs</text>
+</g>
+<!-- ll&#45;&gt;jx -->
+<g id="edge1" class="edge">
+<title>ll-&gt;jx</title>
+<path fill="none" stroke="#5e98f6" d="M154.17,-145.09C165.56,-133.88 178.69,-120.96 188.54,-111.27"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="151.66,-142.64 146.99,-152.15 156.57,-147.63 151.66,-142.64"></polygon>
+</g>
+<!-- so -->
+<g id="node5" class="node">
+<title>so</title>
+<text text-anchor="middle" x="203.45" y="-166.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Solvers</text>
+</g>
+<!-- so&#45;&gt;jx -->
+<g id="edge2" class="edge">
+<title>so-&gt;jx</title>
+<path fill="none" stroke="#5e98f6" d="M203.45,-141.96C203.45,-132.48 203.45,-122.14 203.45,-113.73"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="199.95,-142.15 203.45,-152.15 206.95,-142.15 199.95,-142.15"></polygon>
+</g>
+<!-- ph -->
+<g id="node8" class="node">
+<title>ph</title>
+<text text-anchor="middle" x="290.45" y="-174.6" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Physics</text>
+<text text-anchor="middle" x="290.45" y="-157.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">simulations</text>
+</g>
+<!-- ph&#45;&gt;jx -->
+<g id="edge3" class="edge">
+<title>ph-&gt;jx</title>
+<path fill="none" stroke="#5e98f6" d="M258.76,-142.88C245.64,-131.9 230.97,-119.62 220.04,-110.48"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="256.77,-145.77 266.68,-149.51 261.26,-140.41 256.77,-145.77"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="a-python-sublanguage-ideal-for-deep-learning" class="slide level2 center">
+<h2>A Python sublanguage ideal for deep learning</h2>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="480" viewbox="0.00 0.00 413.84 199.20" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 195.2)">
+<!-- jx -->
+<g id="node1" class="node">
+<title>jx</title>
+<ellipse fill="none" stroke="#9d22b2" cx="203.45" cy="-95.6" rx="28.99" ry="18"></ellipse>
+<text text-anchor="middle" x="203.45" y="-91.4" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#9d22b2">JAX</text>
+</g>
+<!-- dl -->
+<g id="node2" class="node">
+<title>dl</title>
+<text text-anchor="middle" x="47.45" y="-16.6" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Deep learning</text>
+</g>
+<!-- jx&#45;&gt;dl -->
+<g id="edge6" class="edge">
+<title>jx-&gt;dl</title>
+<path fill="none" stroke="#5e98f6" d="M181.1,-84.17C158.22,-73.49 122.01,-56.59 93.04,-43.07"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="94.46,-39.87 83.92,-38.82 91.5,-46.22 94.46,-39.87"></polygon>
+</g>
+<!-- op -->
+<g id="node4" class="node">
+<title>op</title>
+<text text-anchor="middle" x="152.45" y="-16.6" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Optimizers</text>
+</g>
+<!-- jx&#45;&gt;op -->
+<g id="edge7" class="edge">
+<title>jx-&gt;op</title>
+<path fill="none" stroke="#5e98f6" d="M192.39,-78.8C185.93,-69.59 177.64,-57.75 170.28,-47.25"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="172.99,-45.02 164.39,-38.84 167.26,-49.03 172.99,-45.02"></polygon>
+</g>
+<!-- pp -->
+<g id="node6" class="node">
+<title>pp</title>
+<text text-anchor="middle" x="255.45" y="-25" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">Probabilistic</text>
+<text text-anchor="middle" x="255.45" y="-8.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">programming</text>
+</g>
+<!-- jx&#45;&gt;pp -->
+<g id="edge4" class="edge">
+<title>jx-&gt;pp</title>
+<path fill="none" stroke="#8c8c8c" d="M214.74,-78.8C220.79,-70.33 228.43,-59.63 235.45,-49.8"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="238.44,-51.63 241.41,-41.46 232.75,-47.57 238.44,-51.63"></polygon>
+</g>
+<!-- pm -->
+<g id="node7" class="node">
+<title>pm</title>
+<text text-anchor="middle" x="362.45" y="-25" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">Probabilistic</text>
+<text text-anchor="middle" x="362.45" y="-8.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">modeling</text>
+</g>
+<!-- jx&#45;&gt;pm -->
+<g id="edge5" class="edge">
+<title>jx-&gt;pm</title>
+<path fill="none" stroke="#8c8c8c" d="M225.9,-84.32C247.66,-74.36 281.49,-58.87 310.03,-45.8"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="311.84,-48.82 319.48,-41.48 308.93,-42.46 311.84,-48.82"></polygon>
+</g>
+<!-- ll -->
+<g id="node3" class="node">
+<title>ll</title>
+<text text-anchor="middle" x="129.45" y="-166.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">LLMs</text>
+</g>
+<!-- ll&#45;&gt;jx -->
+<g id="edge1" class="edge">
+<title>ll-&gt;jx</title>
+<path fill="none" stroke="#8c8c8c" d="M154.17,-145.09C165.56,-133.88 178.69,-120.96 188.54,-111.27"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="151.66,-142.64 146.99,-152.15 156.57,-147.63 151.66,-142.64"></polygon>
+</g>
+<!-- so -->
+<g id="node5" class="node">
+<title>so</title>
+<text text-anchor="middle" x="203.45" y="-166.2" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">Solvers</text>
+</g>
+<!-- so&#45;&gt;jx -->
+<g id="edge2" class="edge">
+<title>so-&gt;jx</title>
+<path fill="none" stroke="#8c8c8c" d="M203.45,-141.96C203.45,-132.48 203.45,-122.14 203.45,-113.73"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="199.95,-142.15 203.45,-152.15 206.95,-142.15 199.95,-142.15"></polygon>
+</g>
+<!-- ph -->
+<g id="node8" class="node">
+<title>ph</title>
+<text text-anchor="middle" x="290.45" y="-174.6" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">Physics</text>
+<text text-anchor="middle" x="290.45" y="-157.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">simulations</text>
+</g>
+<!-- ph&#45;&gt;jx -->
+<g id="edge3" class="edge">
+<title>ph-&gt;jx</title>
+<path fill="none" stroke="#8c8c8c" d="M258.76,-142.88C245.64,-131.9 230.97,-119.62 220.04,-110.48"></path>
+<polygon fill="#8c8c8c" stroke="#8c8c8c" points="256.77,-145.77 266.68,-149.51 261.26,-140.41 256.77,-145.77"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section></section>
+<section>
+<section id="jax-for-deep-learning" class="title-slide slide level1 center">
+<h1>JAX for deep learning</h1>
+
+</section>
+<section id="deep-learning-libraries" class="slide level2 center">
+<h2>Deep learning libraries</h2>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="480" viewbox="0.00 0.00 446.43 188.00" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)">
+<!-- jx -->
+<g id="node1" class="node">
+<title>jx</title>
+<ellipse fill="none" stroke="#9d22b2" cx="208.2" cy="-162" rx="28.99" ry="18"></ellipse>
+<text text-anchor="middle" x="208.2" y="-157.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#9d22b2">JAX</text>
+</g>
+<!-- dl -->
+<g id="node2" class="node">
+<title>dl</title>
+<text text-anchor="middle" x="156.2" y="-85.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Deep learning</text>
+</g>
+<!-- jx&#45;&gt;dl -->
+<g id="edge1" class="edge">
+<title>jx-&gt;dl</title>
+<path fill="none" stroke="#5e98f6" d="M196.66,-145.46C190.37,-136.99 182.42,-126.29 175.23,-116.61"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="177.95,-114.4 169.18,-108.46 172.33,-118.58 177.95,-114.4"></polygon>
+</g>
+<!-- op -->
+<g id="node3" class="node">
+<title>op</title>
+<text text-anchor="middle" x="299.2" y="-85.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Optimizers</text>
+</g>
+<!-- jx&#45;&gt;op -->
+<g id="edge2" class="edge">
+<title>jx-&gt;op</title>
+<path fill="none" stroke="#5e98f6" d="M225.75,-147.5C237.93,-138.14 254.46,-125.42 268.76,-114.42"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="271.08,-117.05 276.87,-108.18 266.81,-111.5 271.08,-117.05"></polygon>
+</g>
+<!-- fl -->
+<g id="node4" class="node">
+<title>fl</title>
+<ellipse fill="none" stroke="#5e98f6" cx="28.2" cy="-18" rx="28.41" ry="18"></ellipse>
+<text text-anchor="middle" x="28.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Flax</text>
+</g>
+<!-- dl&#45;&gt;fl -->
+<g id="edge3" class="edge">
+<title>dl-&gt;fl</title>
+<path fill="none" stroke="#5e98f6" d="M124.89,-71.88C101.36,-59 69.76,-41.72 49.19,-30.48"></path>
+</g>
+<!-- eq -->
+<g id="node5" class="node">
+<title>eq</title>
+<ellipse fill="none" stroke="#5e98f6" cx="118.2" cy="-18" rx="43.52" ry="18"></ellipse>
+<text text-anchor="middle" x="118.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Equinox</text>
+</g>
+<!-- dl&#45;&gt;eq -->
+<g id="edge4" class="edge">
+<title>dl-&gt;eq</title>
+<path fill="none" stroke="#5e98f6" d="M146.81,-71.7C140.83,-60.68 133.13,-46.5 127.23,-35.62"></path>
+</g>
+<!-- ke -->
+<g id="node6" class="node">
+<title>ke</title>
+<ellipse fill="none" stroke="#5e98f6" cx="213.2" cy="-18" rx="33.61" ry="18"></ellipse>
+<text text-anchor="middle" x="213.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Keras</text>
+</g>
+<!-- dl&#45;&gt;ke -->
+<g id="edge5" class="edge">
+<title>dl-&gt;ke</title>
+<path fill="none" stroke="#5e98f6" d="M170.29,-71.7C179.53,-60.36 191.49,-45.66 200.44,-34.67"></path>
+</g>
+<!-- oa -->
+<g id="node7" class="node">
+<title>oa</title>
+<ellipse fill="none" stroke="#5e98f6" cx="299.2" cy="-18" rx="34.77" ry="18"></ellipse>
+<text text-anchor="middle" x="299.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Optax</text>
+</g>
+<!-- op&#45;&gt;oa -->
+<g id="edge6" class="edge">
+<title>op-&gt;oa</title>
+<path fill="none" stroke="#5e98f6" d="M299.2,-71.7C299.2,-60.85 299.2,-46.92 299.2,-36.1"></path>
+</g>
+<!-- oi -->
+<g id="node8" class="node">
+<title>oi</title>
+<ellipse fill="none" stroke="#5e98f6" cx="395.2" cy="-18" rx="43.46" ry="18"></ellipse>
+<text text-anchor="middle" x="395.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Optimix</text>
+</g>
+<!-- op&#45;&gt;oi -->
+<g id="edge7" class="edge">
+<title>op-&gt;oi</title>
+<path fill="none" stroke="#5e98f6" d="M322.94,-71.7C338.82,-60.12 359.5,-45.03 374.67,-33.97"></path>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="this-course" class="slide level2 center">
+<h2>This course</h2>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="960" height="480" viewbox="0.00 0.00 446.43 188.00" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 184)">
+<!-- jx -->
+<g id="node1" class="node">
+<title>jx</title>
+<ellipse fill="none" stroke="#9d22b2" cx="208.2" cy="-162" rx="28.99" ry="18"></ellipse>
+<text text-anchor="middle" x="208.2" y="-157.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#9d22b2">JAX</text>
+</g>
+<!-- dl -->
+<g id="node2" class="node">
+<title>dl</title>
+<text text-anchor="middle" x="156.2" y="-85.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Deep learning</text>
+</g>
+<!-- jx&#45;&gt;dl -->
+<g id="edge1" class="edge">
+<title>jx-&gt;dl</title>
+<path fill="none" stroke="#5e98f6" d="M196.66,-145.46C190.37,-136.99 182.42,-126.29 175.23,-116.61"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="177.95,-114.4 169.18,-108.46 172.33,-118.58 177.95,-114.4"></polygon>
+</g>
+<!-- op -->
+<g id="node3" class="node">
+<title>op</title>
+<text text-anchor="middle" x="299.2" y="-85.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Optimizers</text>
+</g>
+<!-- jx&#45;&gt;op -->
+<g id="edge2" class="edge">
+<title>jx-&gt;op</title>
+<path fill="none" stroke="#5e98f6" d="M225.75,-147.5C237.93,-138.14 254.46,-125.42 268.76,-114.42"></path>
+<polygon fill="#5e98f6" stroke="#5e98f6" points="271.08,-117.05 276.87,-108.18 266.81,-111.5 271.08,-117.05"></polygon>
+</g>
+<!-- fl -->
+<g id="node4" class="node">
+<title>fl</title>
+<ellipse fill="none" stroke="#5e98f6" cx="28.2" cy="-18" rx="28.41" ry="18"></ellipse>
+<text text-anchor="middle" x="28.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Flax</text>
+</g>
+<!-- dl&#45;&gt;fl -->
+<g id="edge3" class="edge">
+<title>dl-&gt;fl</title>
+<path fill="none" stroke="#5e98f6" d="M124.89,-71.88C101.36,-59 69.76,-41.72 49.19,-30.48"></path>
+</g>
+<!-- eq -->
+<g id="node5" class="node">
+<title>eq</title>
+<ellipse fill="none" stroke="#8c8c8c" cx="118.2" cy="-18" rx="43.52" ry="18"></ellipse>
+<text text-anchor="middle" x="118.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">Equinox</text>
+</g>
+<!-- dl&#45;&gt;eq -->
+<g id="edge4" class="edge">
+<title>dl-&gt;eq</title>
+<path fill="none" stroke="#8c8c8c" d="M146.81,-71.7C140.83,-60.68 133.13,-46.5 127.23,-35.62"></path>
+</g>
+<!-- ke -->
+<g id="node6" class="node">
+<title>ke</title>
+<ellipse fill="none" stroke="#8c8c8c" cx="213.2" cy="-18" rx="33.61" ry="18"></ellipse>
+<text text-anchor="middle" x="213.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">Keras</text>
+</g>
+<!-- dl&#45;&gt;ke -->
+<g id="edge5" class="edge">
+<title>dl-&gt;ke</title>
+<path fill="none" stroke="#8c8c8c" d="M170.29,-71.7C179.53,-60.36 191.49,-45.66 200.44,-34.67"></path>
+</g>
+<!-- oa -->
+<g id="node7" class="node">
+<title>oa</title>
+<ellipse fill="none" stroke="#5e98f6" cx="299.2" cy="-18" rx="34.77" ry="18"></ellipse>
+<text text-anchor="middle" x="299.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#5e98f6">Optax</text>
+</g>
+<!-- op&#45;&gt;oa -->
+<g id="edge6" class="edge">
+<title>op-&gt;oa</title>
+<path fill="none" stroke="#5e98f6" d="M299.2,-71.7C299.2,-60.85 299.2,-46.92 299.2,-36.1"></path>
+</g>
+<!-- oi -->
+<g id="node8" class="node">
+<title>oi</title>
+<ellipse fill="none" stroke="#8c8c8c" cx="395.2" cy="-18" rx="43.46" ry="18"></ellipse>
+<text text-anchor="middle" x="395.2" y="-13.8" font-family="Inconsolata, sans-serif" font-size="14.00" fill="#8c8c8c">Optimix</text>
+</g>
+<!-- op&#45;&gt;oi -->
+<g id="edge7" class="edge">
+<title>op-&gt;oi</title>
+<path fill="none" stroke="#8c8c8c" d="M322.94,-71.7C338.82,-60.12 359.5,-45.03 374.67,-33.97"></path>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section></section>
+<section>
+<section id="modular-approach" class="title-slide slide level1 center">
+<h1>Modular approach</h1>
+
+</section>
+<section id="data-loaders" class="slide level2 center">
+<h2>Data loaders</h2>
+<div class="cell" data-fig-width="500px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="500" height="480" viewbox="0.00 0.00 325.27 121.86" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 117.86)">
+<!-- load -->
+<g id="node1" class="node">
+<title>load</title>
+<text text-anchor="middle" x="165.66" y="-12.6" font-family="Inconsolata, sans-serif" font-size="18.00">Load data</text>
+</g>
+<!-- pt -->
+<g id="node2" class="node">
+<title>pt</title>
+<ellipse fill="none" stroke="#8b4500" cx="58.66" cy="-92.93" rx="58.83" ry="20.86"></ellipse>
+<text text-anchor="middle" x="58.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">torchdata</text>
+</g>
+<!-- pt&#45;&gt;load -->
+<g id="edge1" class="edge">
+<title>pt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M84.84,-74.09C99.01,-64.43 116.68,-52.39 131.88,-42.03"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="134.2,-44.68 140.5,-36.15 130.26,-38.89 134.2,-44.68"></polygon>
+</g>
+<!-- tfds -->
+<g id="node3" class="node">
+<title>tfds</title>
+<ellipse fill="none" stroke="#8b4500" cx="165.66" cy="-92.93" rx="30.31" ry="20.86"></ellipse>
+<text text-anchor="middle" x="165.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">tfds</text>
+</g>
+<!-- tfds&#45;&gt;load -->
+<g id="edge2" class="edge">
+<title>tfds-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M165.66,-71.62C165.66,-63.79 165.66,-54.73 165.66,-46.35"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="169.16,-46.24 165.66,-36.24 162.16,-46.24 169.16,-46.24"></polygon>
+</g>
+<!-- dt -->
+<g id="node4" class="node">
+<title>dt</title>
+<ellipse fill="none" stroke="#8b4500" cx="265.66" cy="-92.93" rx="51.71" ry="20.86"></ellipse>
+<text text-anchor="middle" x="265.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">datasets</text>
+</g>
+<!-- dt&#45;&gt;load -->
+<g id="edge3" class="edge">
+<title>dt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M241.46,-74.28C228.22,-64.62 211.66,-52.54 197.39,-42.14"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="199.45,-39.3 189.3,-36.24 195.32,-44.96 199.45,-39.3"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="data-transformations" class="slide level2 center">
+<h2>Data transformations</h2>
+<div class="cell" data-fig-width="500px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="500" height="480" viewbox="0.00 0.00 372.25 199.72" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 195.72)">
+<!-- load -->
+<g id="node1" class="node">
+<title>load</title>
+<text text-anchor="middle" x="165.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Load data</text>
+</g>
+<!-- proc -->
+<g id="node2" class="node">
+<title>proc</title>
+<text text-anchor="middle" x="165.66" y="-12.6" font-family="Inconsolata, sans-serif" font-size="18.00">Process data</text>
+</g>
+<!-- load&#45;&gt;proc -->
+<g id="edge8" class="edge">
+<title>load-&gt;proc</title>
+<path fill="none" stroke="#8c8c8c" d="M165.66,-74.65C165.66,-63.02 165.66,-47.76 165.66,-36.16"></path>
+</g>
+<!-- tv -->
+<g id="node7" class="node">
+<title>tv</title>
+<ellipse fill="none" stroke="#cd3700" cx="295.66" cy="-92.93" rx="68.67" ry="20.86"></ellipse>
+<text text-anchor="middle" x="295.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">torchvision</text>
+</g>
+<!-- load&#45;&gt;tv -->
+<!-- pt -->
+<g id="node3" class="node">
+<title>pt</title>
+<ellipse fill="none" stroke="#8b4500" cx="58.66" cy="-170.79" rx="58.83" ry="20.86"></ellipse>
+<text text-anchor="middle" x="58.66" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">torchdata</text>
+</g>
+<!-- pt&#45;&gt;load -->
+<g id="edge3" class="edge">
+<title>pt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M84.02,-151.81C98.73,-141.39 117.4,-128.15 133.17,-116.97"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="135.46,-119.64 141.59,-111 131.41,-113.93 135.46,-119.64"></polygon>
+</g>
+<!-- tfds -->
+<g id="node4" class="node">
+<title>tfds</title>
+<ellipse fill="none" stroke="#8b4500" cx="165.66" cy="-170.79" rx="30.31" ry="20.86"></ellipse>
+<text text-anchor="middle" x="165.66" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">tfds</text>
+</g>
+<!-- tfds&#45;&gt;load -->
+<g id="edge4" class="edge">
+<title>tfds-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M165.66,-149.86C165.66,-141.18 165.66,-130.87 165.66,-121.48"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="169.16,-121.41 165.66,-111.41 162.16,-121.41 169.16,-121.41"></polygon>
+</g>
+<!-- dt -->
+<g id="node5" class="node">
+<title>dt</title>
+<ellipse fill="none" stroke="#8b4500" cx="265.66" cy="-170.79" rx="51.71" ry="20.86"></ellipse>
+<text text-anchor="middle" x="265.66" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">datasets</text>
+</g>
+<!-- dt&#45;&gt;load -->
+<g id="edge5" class="edge">
+<title>dt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M242.22,-152.01C228.61,-141.68 211.3,-128.55 196.59,-117.39"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="198.36,-114.34 188.27,-111.08 194.13,-119.92 198.36,-114.34"></polygon>
+</g>
+<!-- gr -->
+<g id="node6" class="node">
+<title>gr</title>
+<ellipse fill="none" stroke="#cd3700" cx="66.66" cy="-92.93" rx="37.43" ry="20.86"></ellipse>
+<text text-anchor="middle" x="66.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">grain</text>
+</g>
+<!-- gr&#45;&gt;load -->
+<!-- gr&#45;&gt;proc -->
+<g id="edge6" class="edge">
+<title>gr-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M88.64,-75.74C101.97,-65.92 119.21,-53.22 134,-42.33"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="136.4,-44.91 142.38,-36.16 132.25,-39.27 136.4,-44.91"></polygon>
+</g>
+<!-- tv&#45;&gt;proc -->
+<g id="edge7" class="edge">
+<title>tv-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M264.19,-74.28C246.5,-64.35 224.24,-51.86 205.36,-41.27"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="206.83,-38.08 196.4,-36.24 203.4,-44.19 206.83,-38.08"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="core-deep-learning-library" class="slide level2 center">
+<h2>Core deep learning library</h2>
+<div class="cell" data-fig-width="500px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="500" height="480" viewbox="0.00 0.00 372.25 277.58" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 273.58)">
+<!-- load -->
+<g id="node1" class="node">
+<title>load</title>
+<text text-anchor="middle" x="165.66" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Load data</text>
+</g>
+<!-- proc -->
+<g id="node2" class="node">
+<title>proc</title>
+<text text-anchor="middle" x="165.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Process data</text>
+</g>
+<!-- load&#45;&gt;proc -->
+<g id="edge9" class="edge">
+<title>load-&gt;proc</title>
+<path fill="none" stroke="#8c8c8c" d="M165.66,-152.58C165.66,-140.16 165.66,-123.48 165.66,-111.08"></path>
+</g>
+<!-- tv -->
+<g id="node8" class="node">
+<title>tv</title>
+<ellipse fill="none" stroke="#cd3700" cx="295.66" cy="-170.79" rx="68.67" ry="20.86"></ellipse>
+<text text-anchor="middle" x="295.66" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">torchvision</text>
+</g>
+<!-- load&#45;&gt;tv -->
+<!-- nn -->
+<g id="node3" class="node">
+<title>nn</title>
+<text text-anchor="middle" x="165.66" y="-12.6" font-family="Inconsolata, sans-serif" font-size="18.00">Define architecture</text>
+</g>
+<!-- proc&#45;&gt;nn -->
+<g id="edge10" class="edge">
+<title>proc-&gt;nn</title>
+<path fill="none" stroke="#8c8c8c" d="M165.66,-74.65C165.66,-63.02 165.66,-47.76 165.66,-36.16"></path>
+</g>
+<!-- pt -->
+<g id="node4" class="node">
+<title>pt</title>
+<ellipse fill="none" stroke="#8b4500" cx="58.66" cy="-248.65" rx="58.83" ry="20.86"></ellipse>
+<text text-anchor="middle" x="58.66" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">torchdata</text>
+</g>
+<!-- pt&#45;&gt;load -->
+<g id="edge3" class="edge">
+<title>pt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M84.02,-229.67C98.73,-219.25 117.4,-206.01 133.17,-194.83"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="135.46,-197.5 141.59,-188.86 131.41,-191.79 135.46,-197.5"></polygon>
+</g>
+<!-- tfds -->
+<g id="node5" class="node">
+<title>tfds</title>
+<ellipse fill="none" stroke="#8b4500" cx="165.66" cy="-248.65" rx="30.31" ry="20.86"></ellipse>
+<text text-anchor="middle" x="165.66" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">tfds</text>
+</g>
+<!-- tfds&#45;&gt;load -->
+<g id="edge4" class="edge">
+<title>tfds-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M165.66,-227.72C165.66,-219.04 165.66,-208.73 165.66,-199.34"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="169.16,-199.27 165.66,-189.27 162.16,-199.27 169.16,-199.27"></polygon>
+</g>
+<!-- dt -->
+<g id="node6" class="node">
+<title>dt</title>
+<ellipse fill="none" stroke="#8b4500" cx="265.66" cy="-248.65" rx="51.71" ry="20.86"></ellipse>
+<text text-anchor="middle" x="265.66" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">datasets</text>
+</g>
+<!-- dt&#45;&gt;load -->
+<g id="edge5" class="edge">
+<title>dt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M242.22,-229.87C228.61,-219.54 211.3,-206.41 196.59,-195.25"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="198.36,-192.2 188.27,-188.94 194.13,-197.78 198.36,-192.2"></polygon>
+</g>
+<!-- gr -->
+<g id="node7" class="node">
+<title>gr</title>
+<ellipse fill="none" stroke="#cd3700" cx="66.66" cy="-170.79" rx="37.43" ry="20.86"></ellipse>
+<text text-anchor="middle" x="66.66" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">grain</text>
+</g>
+<!-- gr&#45;&gt;load -->
+<!-- gr&#45;&gt;proc -->
+<g id="edge6" class="edge">
+<title>gr-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M88.15,-153.33C101.87,-142.81 119.88,-129.02 135.08,-117.37"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="137.39,-120.01 143.19,-111.15 133.13,-114.45 137.39,-120.01"></polygon>
+</g>
+<!-- tv&#45;&gt;proc -->
+<g id="edge7" class="edge">
+<title>tv-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M265.19,-152.01C246.83,-141.3 223.31,-127.57 203.74,-116.15"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="205.46,-113.1 195.06,-111.08 201.93,-119.15 205.46,-113.1"></polygon>
+</g>
+<!-- fl -->
+<g id="node9" class="node">
+<title>fl</title>
+<ellipse fill="none" stroke="#00695c" cx="63.66" cy="-92.93" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="63.66" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl&#45;&gt;nn -->
+<g id="edge8" class="edge">
+<title>fl-&gt;nn</title>
+<path fill="none" stroke="#00695c" d="M84.31,-77.17C98.35,-67.13 117.23,-53.63 133.27,-42.16"></path>
+<polygon fill="#00695c" stroke="#00695c" points="135.74,-44.7 141.83,-36.04 131.66,-39.01 135.74,-44.7"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="optimizer-and-loss-functions" class="slide level2 center">
+<h2>Optimizer and loss functions</h2>
+<div class="cell" data-fig-width="500px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="500" height="480" viewbox="0.00 0.00 381.17 355.44" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 351.44)">
+<!-- load -->
+<g id="node1" class="node">
+<title>load</title>
+<text text-anchor="middle" x="174.59" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Load data</text>
+</g>
+<!-- proc -->
+<g id="node2" class="node">
+<title>proc</title>
+<text text-anchor="middle" x="174.59" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Process data</text>
+</g>
+<!-- load&#45;&gt;proc -->
+<g id="edge10" class="edge">
+<title>load-&gt;proc</title>
+<path fill="none" stroke="#8c8c8c" d="M174.59,-230.44C174.59,-218.02 174.59,-201.34 174.59,-188.94"></path>
+</g>
+<!-- tv -->
+<g id="node9" class="node">
+<title>tv</title>
+<ellipse fill="none" stroke="#cd3700" cx="304.59" cy="-248.65" rx="68.67" ry="20.86"></ellipse>
+<text text-anchor="middle" x="304.59" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">torchvision</text>
+</g>
+<!-- load&#45;&gt;tv -->
+<!-- nn -->
+<g id="node3" class="node">
+<title>nn</title>
+<text text-anchor="middle" x="174.59" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Define architecture</text>
+</g>
+<!-- proc&#45;&gt;nn -->
+<g id="edge11" class="edge">
+<title>proc-&gt;nn</title>
+<path fill="none" stroke="#8c8c8c" d="M174.59,-152.58C174.59,-140.16 174.59,-123.48 174.59,-111.08"></path>
+</g>
+<!-- opt -->
+<g id="node4" class="node">
+<title>opt</title>
+<text text-anchor="middle" x="174.59" y="-12.6" font-family="Inconsolata, sans-serif" font-size="18.00">Hyperparameters</text>
+</g>
+<!-- nn&#45;&gt;opt -->
+<g id="edge12" class="edge">
+<title>nn-&gt;opt</title>
+<path fill="none" stroke="#8c8c8c" d="M174.59,-74.65C174.59,-63.02 174.59,-47.76 174.59,-36.16"></path>
+</g>
+<!-- pt -->
+<g id="node5" class="node">
+<title>pt</title>
+<ellipse fill="none" stroke="#8b4500" cx="67.59" cy="-326.51" rx="58.83" ry="20.86"></ellipse>
+<text text-anchor="middle" x="67.59" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">torchdata</text>
+</g>
+<!-- pt&#45;&gt;load -->
+<g id="edge3" class="edge">
+<title>pt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M92.95,-307.53C107.65,-297.11 126.32,-283.87 142.1,-272.69"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="144.38,-275.36 150.52,-266.72 140.34,-269.65 144.38,-275.36"></polygon>
+</g>
+<!-- tfds -->
+<g id="node6" class="node">
+<title>tfds</title>
+<ellipse fill="none" stroke="#8b4500" cx="174.59" cy="-326.51" rx="30.31" ry="20.86"></ellipse>
+<text text-anchor="middle" x="174.59" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">tfds</text>
+</g>
+<!-- tfds&#45;&gt;load -->
+<g id="edge4" class="edge">
+<title>tfds-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M174.59,-305.58C174.59,-296.91 174.59,-286.59 174.59,-277.2"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="178.09,-277.13 174.59,-267.13 171.09,-277.13 178.09,-277.13"></polygon>
+</g>
+<!-- dt -->
+<g id="node7" class="node">
+<title>dt</title>
+<ellipse fill="none" stroke="#8b4500" cx="274.59" cy="-326.51" rx="51.71" ry="20.86"></ellipse>
+<text text-anchor="middle" x="274.59" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">datasets</text>
+</g>
+<!-- dt&#45;&gt;load -->
+<g id="edge5" class="edge">
+<title>dt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M251.15,-307.73C237.54,-297.4 220.23,-284.27 205.52,-273.11"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="207.28,-270.06 197.2,-266.8 203.05,-275.64 207.28,-270.06"></polygon>
+</g>
+<!-- gr -->
+<g id="node8" class="node">
+<title>gr</title>
+<ellipse fill="none" stroke="#cd3700" cx="75.59" cy="-248.65" rx="37.43" ry="20.86"></ellipse>
+<text text-anchor="middle" x="75.59" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">grain</text>
+</g>
+<!-- gr&#45;&gt;load -->
+<!-- gr&#45;&gt;proc -->
+<g id="edge6" class="edge">
+<title>gr-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M97.07,-231.19C110.8,-220.68 128.8,-206.88 144.01,-195.23"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="146.31,-197.87 152.12,-189.01 142.05,-192.31 146.31,-197.87"></polygon>
+</g>
+<!-- tv&#45;&gt;proc -->
+<g id="edge7" class="edge">
+<title>tv-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M274.11,-229.87C255.76,-219.16 232.23,-205.43 212.67,-194.01"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="214.39,-190.96 203.98,-188.94 210.86,-197.01 214.39,-190.96"></polygon>
+</g>
+<!-- fl -->
+<g id="node10" class="node">
+<title>fl</title>
+<ellipse fill="none" stroke="#00695c" cx="72.59" cy="-170.79" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="72.59" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl&#45;&gt;nn -->
+<g id="edge8" class="edge">
+<title>fl-&gt;nn</title>
+<path fill="none" stroke="#00695c" d="M92.74,-154.8C107.18,-144.07 126.9,-129.4 143.36,-117.15"></path>
+<polygon fill="#00695c" stroke="#00695c" points="145.7,-119.78 151.63,-111.01 141.52,-114.16 145.7,-119.78"></polygon>
+</g>
+<!-- oa -->
+<g id="node11" class="node">
+<title>oa</title>
+<ellipse fill="none" stroke="#21a89b" cx="39.59" cy="-92.93" rx="39.68" ry="20.86"></ellipse>
+<text text-anchor="middle" x="39.59" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#21a89b">optax</text>
+</g>
+<!-- oa&#45;&gt;opt -->
+<g id="edge9" class="edge">
+<title>oa-&gt;opt</title>
+<path fill="none" stroke="#21a89b" d="M66.59,-77.35C85.84,-66.94 112.08,-52.77 133.87,-41"></path>
+<polygon fill="#21a89b" stroke="#21a89b" points="135.77,-43.95 142.9,-36.12 132.44,-37.79 135.77,-43.95"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="train" class="slide level2 center">
+<h2>Train</h2>
+<div class="cell" data-fig-width="700px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="700" height="480" viewbox="0.00 0.00 428.58 433.30" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 429.3)">
+<!-- load -->
+<g id="node1" class="node">
+<title>load</title>
+<text text-anchor="middle" x="222" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Load data</text>
+</g>
+<!-- proc -->
+<g id="node2" class="node">
+<title>proc</title>
+<text text-anchor="middle" x="222" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Process data</text>
+</g>
+<!-- load&#45;&gt;proc -->
+<g id="edge14" class="edge">
+<title>load-&gt;proc</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-308.3C222,-295.88 222,-279.2 222,-266.8"></path>
+</g>
+<!-- tv -->
+<g id="node10" class="node">
+<title>tv</title>
+<ellipse fill="none" stroke="#cd3700" cx="352" cy="-326.51" rx="68.67" ry="20.86"></ellipse>
+<text text-anchor="middle" x="352" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">torchvision</text>
+</g>
+<!-- load&#45;&gt;tv -->
+<!-- nn -->
+<g id="node3" class="node">
+<title>nn</title>
+<text text-anchor="middle" x="222" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Define architecture</text>
+</g>
+<!-- proc&#45;&gt;nn -->
+<g id="edge15" class="edge">
+<title>proc-&gt;nn</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-230.44C222,-218.02 222,-201.34 222,-188.94"></path>
+</g>
+<!-- opt -->
+<g id="node4" class="node">
+<title>opt</title>
+<text text-anchor="middle" x="222" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Hyperparameters</text>
+</g>
+<!-- nn&#45;&gt;opt -->
+<g id="edge16" class="edge">
+<title>nn-&gt;opt</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-152.58C222,-140.16 222,-123.48 222,-111.08"></path>
+</g>
+<!-- train -->
+<g id="node5" class="node">
+<title>train</title>
+<text text-anchor="middle" x="222" y="-12.6" font-family="Inconsolata, sans-serif" font-size="18.00">Train</text>
+</g>
+<!-- opt&#45;&gt;train -->
+<g id="edge17" class="edge">
+<title>opt-&gt;train</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-74.65C222,-63.02 222,-47.76 222,-36.16"></path>
+</g>
+<!-- pt -->
+<g id="node6" class="node">
+<title>pt</title>
+<ellipse fill="none" stroke="#8b4500" cx="115" cy="-404.37" rx="58.83" ry="20.86"></ellipse>
+<text text-anchor="middle" x="115" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">torchdata</text>
+</g>
+<!-- pt&#45;&gt;load -->
+<g id="edge5" class="edge">
+<title>pt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M140.36,-385.4C155.06,-374.97 173.73,-361.73 189.51,-350.55"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="191.79,-353.22 197.93,-344.58 187.74,-347.51 191.79,-353.22"></polygon>
+</g>
+<!-- tfds -->
+<g id="node7" class="node">
+<title>tfds</title>
+<ellipse fill="none" stroke="#8b4500" cx="222" cy="-404.37" rx="30.31" ry="20.86"></ellipse>
+<text text-anchor="middle" x="222" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">tfds</text>
+</g>
+<!-- tfds&#45;&gt;load -->
+<g id="edge6" class="edge">
+<title>tfds-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M222,-383.44C222,-374.77 222,-364.46 222,-355.06"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="225.5,-354.99 222,-344.99 218.5,-354.99 225.5,-354.99"></polygon>
+</g>
+<!-- dt -->
+<g id="node8" class="node">
+<title>dt</title>
+<ellipse fill="none" stroke="#8b4500" cx="322" cy="-404.37" rx="51.71" ry="20.86"></ellipse>
+<text text-anchor="middle" x="322" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">datasets</text>
+</g>
+<!-- dt&#45;&gt;load -->
+<g id="edge7" class="edge">
+<title>dt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M298.55,-385.59C284.95,-375.26 267.64,-362.14 252.93,-350.97"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="254.69,-347.92 244.61,-344.67 250.46,-353.5 254.69,-347.92"></polygon>
+</g>
+<!-- gr -->
+<g id="node9" class="node">
+<title>gr</title>
+<ellipse fill="none" stroke="#cd3700" cx="123" cy="-326.51" rx="37.43" ry="20.86"></ellipse>
+<text text-anchor="middle" x="123" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">grain</text>
+</g>
+<!-- gr&#45;&gt;load -->
+<!-- gr&#45;&gt;proc -->
+<g id="edge8" class="edge">
+<title>gr-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M144.48,-309.05C158.2,-298.54 176.21,-284.74 191.42,-273.09"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="193.72,-275.73 199.53,-266.87 189.46,-270.17 193.72,-275.73"></polygon>
+</g>
+<!-- tv&#45;&gt;proc -->
+<g id="edge9" class="edge">
+<title>tv-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M321.52,-307.73C303.17,-297.02 279.64,-283.29 260.07,-271.87"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="261.79,-268.82 251.39,-266.8 258.27,-274.87 261.79,-268.82"></polygon>
+</g>
+<!-- fl1 -->
+<g id="node11" class="node">
+<title>fl1</title>
+<ellipse fill="none" stroke="#00695c" cx="120" cy="-248.65" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="120" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl1&#45;&gt;nn -->
+<g id="edge10" class="edge">
+<title>fl1-&gt;nn</title>
+<path fill="none" stroke="#00695c" d="M140.15,-232.66C154.59,-221.93 174.31,-207.26 190.77,-195.02"></path>
+<polygon fill="#00695c" stroke="#00695c" points="193.11,-197.64 199.04,-188.87 188.93,-192.03 193.11,-197.64"></polygon>
+</g>
+<!-- fl2 -->
+<g id="node12" class="node">
+<title>fl2</title>
+<ellipse fill="none" stroke="#00695c" cx="103" cy="-92.93" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="103" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl2&#45;&gt;opt -->
+<!-- fl2&#45;&gt;train -->
+<g id="edge13" class="edge">
+<title>fl2-&gt;train</title>
+<path fill="none" stroke="#00695c" d="M125.38,-78.21C142.31,-67.84 165.92,-53.37 185.56,-41.33"></path>
+<polygon fill="#00695c" stroke="#00695c" points="187.57,-44.2 194.27,-35.99 183.92,-38.24 187.57,-44.2"></polygon>
+</g>
+<!-- oa -->
+<g id="node13" class="node">
+<title>oa</title>
+<ellipse fill="none" stroke="#21a89b" cx="87" cy="-170.79" rx="39.68" ry="20.86"></ellipse>
+<text text-anchor="middle" x="87" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#21a89b">optax</text>
+</g>
+<!-- oa&#45;&gt;opt -->
+<g id="edge11" class="edge">
+<title>oa-&gt;opt</title>
+<path fill="none" stroke="#21a89b" d="M113.35,-154.98C133.04,-143.92 160.29,-128.61 182.57,-116.08"></path>
+<polygon fill="#21a89b" stroke="#21a89b" points="184.47,-119.04 191.47,-111.09 181.04,-112.93 184.47,-119.04"></polygon>
+</g>
+<!-- jx -->
+<g id="node14" class="node">
+<title>jx</title>
+<ellipse fill="none" stroke="#9d22b2" cx="27" cy="-92.93" rx="27" ry="20.86"></ellipse>
+<text text-anchor="middle" x="27" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#9d22b2">jax</text>
+</g>
+<!-- jx&#45;&gt;fl2 -->
+<!-- jx&#45;&gt;fl2 -->
+<g id="edge12" class="edge">
+<title>jx-&gt;fl2</title>
+<path fill="none" stroke="#9d22b2" d="M48.67,-105.73C55.42,-108.13 62.17,-109.04 68.92,-108.46"></path>
+<polygon fill="#9d22b2" stroke="#9d22b2" points="69.65,-111.88 78.81,-106.56 68.33,-105.01 69.65,-111.88"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="checkpointing" class="slide level2 center">
+<h2>Checkpointing</h2>
+<div class="cell" data-fig-width="700px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="700" height="480" viewbox="0.00 0.00 428.58 511.16" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 507.16)">
+<!-- load -->
+<g id="node1" class="node">
+<title>load</title>
+<text text-anchor="middle" x="222" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Load data</text>
+</g>
+<!-- proc -->
+<g id="node2" class="node">
+<title>proc</title>
+<text text-anchor="middle" x="222" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Process data</text>
+</g>
+<!-- load&#45;&gt;proc -->
+<g id="edge14" class="edge">
+<title>load-&gt;proc</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-386.16C222,-373.74 222,-357.06 222,-344.66"></path>
+</g>
+<!-- tv -->
+<g id="node11" class="node">
+<title>tv</title>
+<ellipse fill="none" stroke="#cd3700" cx="352" cy="-404.37" rx="68.67" ry="20.86"></ellipse>
+<text text-anchor="middle" x="352" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">torchvision</text>
+</g>
+<!-- load&#45;&gt;tv -->
+<!-- nn -->
+<g id="node3" class="node">
+<title>nn</title>
+<text text-anchor="middle" x="222" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Define architecture</text>
+</g>
+<!-- proc&#45;&gt;nn -->
+<g id="edge15" class="edge">
+<title>proc-&gt;nn</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-308.3C222,-295.88 222,-279.2 222,-266.8"></path>
+</g>
+<!-- opt -->
+<g id="node4" class="node">
+<title>opt</title>
+<text text-anchor="middle" x="222" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Hyperparameters</text>
+</g>
+<!-- nn&#45;&gt;opt -->
+<g id="edge16" class="edge">
+<title>nn-&gt;opt</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-230.44C222,-218.02 222,-201.34 222,-188.94"></path>
+</g>
+<!-- train -->
+<g id="node5" class="node">
+<title>train</title>
+<text text-anchor="middle" x="222" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Train</text>
+</g>
+<!-- opt&#45;&gt;train -->
+<g id="edge17" class="edge">
+<title>opt-&gt;train</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-152.58C222,-140.16 222,-123.48 222,-111.08"></path>
+</g>
+<!-- cp -->
+<g id="node6" class="node">
+<title>cp</title>
+<text text-anchor="middle" x="222" y="-12.6" font-family="Inconsolata, sans-serif" font-size="18.00">Checkpoint</text>
+</g>
+<!-- train&#45;&gt;cp -->
+<g id="edge18" class="edge">
+<title>train-&gt;cp</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-74.65C222,-63.02 222,-47.76 222,-36.16"></path>
+</g>
+<!-- pt -->
+<g id="node7" class="node">
+<title>pt</title>
+<ellipse fill="none" stroke="#8b4500" cx="115" cy="-482.23" rx="58.83" ry="20.86"></ellipse>
+<text text-anchor="middle" x="115" y="-476.83" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">torchdata</text>
+</g>
+<!-- pt&#45;&gt;load -->
+<g id="edge5" class="edge">
+<title>pt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M140.36,-463.26C155.06,-452.83 173.73,-439.59 189.51,-428.41"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="191.79,-431.08 197.93,-422.44 187.74,-425.37 191.79,-431.08"></polygon>
+</g>
+<!-- tfds -->
+<g id="node8" class="node">
+<title>tfds</title>
+<ellipse fill="none" stroke="#8b4500" cx="222" cy="-482.23" rx="30.31" ry="20.86"></ellipse>
+<text text-anchor="middle" x="222" y="-476.83" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">tfds</text>
+</g>
+<!-- tfds&#45;&gt;load -->
+<g id="edge6" class="edge">
+<title>tfds-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M222,-461.3C222,-452.63 222,-442.32 222,-432.92"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="225.5,-432.85 222,-422.85 218.5,-432.85 225.5,-432.85"></polygon>
+</g>
+<!-- dt -->
+<g id="node9" class="node">
+<title>dt</title>
+<ellipse fill="none" stroke="#8b4500" cx="322" cy="-482.23" rx="51.71" ry="20.86"></ellipse>
+<text text-anchor="middle" x="322" y="-476.83" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">datasets</text>
+</g>
+<!-- dt&#45;&gt;load -->
+<g id="edge7" class="edge">
+<title>dt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M298.55,-463.45C284.95,-453.12 267.64,-440 252.93,-428.83"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="254.69,-425.78 244.61,-422.53 250.46,-431.36 254.69,-425.78"></polygon>
+</g>
+<!-- gr -->
+<g id="node10" class="node">
+<title>gr</title>
+<ellipse fill="none" stroke="#cd3700" cx="123" cy="-404.37" rx="37.43" ry="20.86"></ellipse>
+<text text-anchor="middle" x="123" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">grain</text>
+</g>
+<!-- gr&#45;&gt;load -->
+<!-- gr&#45;&gt;proc -->
+<g id="edge8" class="edge">
+<title>gr-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M144.48,-386.91C158.2,-376.4 176.21,-362.6 191.42,-350.95"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="193.72,-353.59 199.53,-344.73 189.46,-348.04 193.72,-353.59"></polygon>
+</g>
+<!-- tv&#45;&gt;proc -->
+<g id="edge9" class="edge">
+<title>tv-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M321.52,-385.59C303.17,-374.88 279.64,-361.15 260.07,-349.73"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="261.79,-346.68 251.39,-344.67 258.27,-352.73 261.79,-346.68"></polygon>
+</g>
+<!-- fl1 -->
+<g id="node12" class="node">
+<title>fl1</title>
+<ellipse fill="none" stroke="#00695c" cx="120" cy="-326.51" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="120" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl1&#45;&gt;nn -->
+<g id="edge10" class="edge">
+<title>fl1-&gt;nn</title>
+<path fill="none" stroke="#00695c" d="M140.15,-310.52C154.59,-299.79 174.31,-285.12 190.77,-272.88"></path>
+<polygon fill="#00695c" stroke="#00695c" points="193.11,-275.5 199.04,-266.73 188.93,-269.89 193.11,-275.5"></polygon>
+</g>
+<!-- fl2 -->
+<g id="node13" class="node">
+<title>fl2</title>
+<ellipse fill="none" stroke="#00695c" cx="103" cy="-170.79" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="103" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl2&#45;&gt;opt -->
+<!-- oa -->
+<g id="node14" class="node">
+<title>oa</title>
+<ellipse fill="none" stroke="#21a89b" cx="87" cy="-248.65" rx="39.68" ry="20.86"></ellipse>
+<text text-anchor="middle" x="87" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#21a89b">optax</text>
+</g>
+<!-- oa&#45;&gt;opt -->
+<g id="edge11" class="edge">
+<title>oa-&gt;opt</title>
+<path fill="none" stroke="#21a89b" d="M113.35,-232.85C133.04,-221.78 160.29,-206.47 182.57,-193.95"></path>
+<polygon fill="#21a89b" stroke="#21a89b" points="184.47,-196.9 191.47,-188.95 181.04,-190.79 184.47,-196.9"></polygon>
+</g>
+<!-- jx -->
+<g id="node15" class="node">
+<title>jx</title>
+<ellipse fill="none" stroke="#9d22b2" cx="27" cy="-170.79" rx="27" ry="20.86"></ellipse>
+<text text-anchor="middle" x="27" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#9d22b2">jax</text>
+</g>
+<!-- jx&#45;&gt;fl2 -->
+<!-- jx&#45;&gt;fl2 -->
+<g id="edge12" class="edge">
+<title>jx-&gt;fl2</title>
+<path fill="none" stroke="#9d22b2" d="M48.67,-183.59C55.42,-185.99 62.17,-186.9 68.92,-186.32"></path>
+<polygon fill="#9d22b2" stroke="#9d22b2" points="69.65,-189.75 78.81,-184.42 68.33,-182.87 69.65,-189.75"></polygon>
+</g>
+<!-- ob -->
+<g id="node16" class="node">
+<title>ob</title>
+<ellipse fill="none" stroke="#336699" cx="136" cy="-92.93" rx="40.09" ry="20.86"></ellipse>
+<text text-anchor="middle" x="136" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#336699">orbax</text>
+</g>
+<!-- ob&#45;&gt;cp -->
+<g id="edge13" class="edge">
+<title>ob-&gt;cp</title>
+<path fill="none" stroke="#336699" d="M156.38,-74.65C167.63,-65.11 181.76,-53.13 194.02,-42.72"></path>
+<polygon fill="#336699" stroke="#336699" points="196.4,-45.3 201.77,-36.16 191.87,-39.96 196.4,-45.3"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="transfer-learning" class="slide level2 center">
+<h2>Transfer learning</h2>
+<div class="cell" data-fig-width="700px" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<svg width="700" height="480" viewbox="0.00 0.00 597.64 511.16" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none; display: block; margin: auto auto auto auto">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 507.16)">
+<!-- load -->
+<g id="node1" class="node">
+<title>load</title>
+<text text-anchor="middle" x="222" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Load data</text>
+</g>
+<!-- proc -->
+<g id="node2" class="node">
+<title>proc</title>
+<text text-anchor="middle" x="222" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Process data</text>
+</g>
+<!-- load&#45;&gt;proc -->
+<g id="edge20" class="edge">
+<title>load-&gt;proc</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-386.16C222,-373.74 222,-357.06 222,-344.66"></path>
+</g>
+<!-- tv -->
+<g id="node12" class="node">
+<title>tv</title>
+<ellipse fill="none" stroke="#cd3700" cx="352" cy="-404.37" rx="68.67" ry="20.86"></ellipse>
+<text text-anchor="middle" x="352" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">torchvision</text>
+</g>
+<!-- load&#45;&gt;tv -->
+<!-- nn -->
+<g id="node3" class="node">
+<title>nn</title>
+<text text-anchor="middle" x="222" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Define architecture</text>
+</g>
+<!-- proc&#45;&gt;nn -->
+<g id="edge21" class="edge">
+<title>proc-&gt;nn</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-308.3C222,-295.88 222,-279.2 222,-266.8"></path>
+</g>
+<!-- pretr -->
+<g id="node4" class="node">
+<title>pretr</title>
+<text text-anchor="middle" x="365" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00">Pre-trained model</text>
+</g>
+<!-- proc&#45;&gt;pretr -->
+<!-- opt -->
+<g id="node5" class="node">
+<title>opt</title>
+<text text-anchor="middle" x="222" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Hyperparameters</text>
+</g>
+<!-- nn&#45;&gt;opt -->
+<g id="edge22" class="edge">
+<title>nn-&gt;opt</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-230.44C222,-218.02 222,-201.34 222,-188.94"></path>
+</g>
+<!-- pretr&#45;&gt;nn -->
+<g id="edge14" class="edge">
+<title>pretr-&gt;nn</title>
+<path fill="none" stroke="#8c8c8c" d="M332.91,-308.49C309.52,-296.08 277.96,-279.34 254.48,-266.88"></path>
+</g>
+<!-- train -->
+<g id="node6" class="node">
+<title>train</title>
+<text text-anchor="middle" x="222" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Train</text>
+</g>
+<!-- opt&#45;&gt;train -->
+<g id="edge23" class="edge">
+<title>opt-&gt;train</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-152.58C222,-140.16 222,-123.48 222,-111.08"></path>
+</g>
+<!-- cp -->
+<g id="node7" class="node">
+<title>cp</title>
+<text text-anchor="middle" x="222" y="-12.6" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8c8c8c">Checkpoint</text>
+</g>
+<!-- train&#45;&gt;cp -->
+<g id="edge24" class="edge">
+<title>train-&gt;cp</title>
+<path fill="none" stroke="#8c8c8c" d="M222,-74.65C222,-63.02 222,-47.76 222,-36.16"></path>
+</g>
+<!-- pt -->
+<g id="node8" class="node">
+<title>pt</title>
+<ellipse fill="none" stroke="#8b4500" cx="115" cy="-482.23" rx="58.83" ry="20.86"></ellipse>
+<text text-anchor="middle" x="115" y="-476.83" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">torchdata</text>
+</g>
+<!-- pt&#45;&gt;load -->
+<g id="edge8" class="edge">
+<title>pt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M140.36,-463.26C155.06,-452.83 173.73,-439.59 189.51,-428.41"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="191.79,-431.08 197.93,-422.44 187.74,-425.37 191.79,-431.08"></polygon>
+</g>
+<!-- tfds -->
+<g id="node9" class="node">
+<title>tfds</title>
+<ellipse fill="none" stroke="#8b4500" cx="222" cy="-482.23" rx="30.31" ry="20.86"></ellipse>
+<text text-anchor="middle" x="222" y="-476.83" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">tfds</text>
+</g>
+<!-- tfds&#45;&gt;load -->
+<g id="edge9" class="edge">
+<title>tfds-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M222,-461.3C222,-452.63 222,-442.32 222,-432.92"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="225.5,-432.85 222,-422.85 218.5,-432.85 225.5,-432.85"></polygon>
+</g>
+<!-- dt -->
+<g id="node10" class="node">
+<title>dt</title>
+<ellipse fill="none" stroke="#8b4500" cx="322" cy="-482.23" rx="51.71" ry="20.86"></ellipse>
+<text text-anchor="middle" x="322" y="-476.83" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#8b4500">datasets</text>
+</g>
+<!-- dt&#45;&gt;load -->
+<g id="edge10" class="edge">
+<title>dt-&gt;load</title>
+<path fill="none" stroke="#8b4500" d="M298.55,-463.45C284.95,-453.12 267.64,-440 252.93,-428.83"></path>
+<polygon fill="#8b4500" stroke="#8b4500" points="254.69,-425.78 244.61,-422.53 250.46,-431.36 254.69,-425.78"></polygon>
+</g>
+<!-- gr -->
+<g id="node11" class="node">
+<title>gr</title>
+<ellipse fill="none" stroke="#cd3700" cx="123" cy="-404.37" rx="37.43" ry="20.86"></ellipse>
+<text text-anchor="middle" x="123" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#cd3700">grain</text>
+</g>
+<!-- gr&#45;&gt;load -->
+<!-- gr&#45;&gt;proc -->
+<g id="edge11" class="edge">
+<title>gr-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M144.48,-386.91C158.2,-376.4 176.21,-362.6 191.42,-350.95"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="193.72,-353.59 199.53,-344.73 189.46,-348.04 193.72,-353.59"></polygon>
+</g>
+<!-- tv&#45;&gt;proc -->
+<g id="edge12" class="edge">
+<title>tv-&gt;proc</title>
+<path fill="none" stroke="#cd3700" d="M321.52,-385.59C303.17,-374.88 279.64,-361.15 260.07,-349.73"></path>
+<polygon fill="#cd3700" stroke="#cd3700" points="261.79,-346.68 251.39,-344.67 258.27,-352.73 261.79,-346.68"></polygon>
+</g>
+<!-- tr -->
+<g id="node13" class="node">
+<title>tr</title>
+<ellipse fill="none" stroke="#669900" cx="514" cy="-404.37" rx="75.77" ry="20.86"></ellipse>
+<text text-anchor="middle" x="514" y="-398.97" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#669900">transformers</text>
+</g>
+<!-- tv&#45;&gt;tr -->
+<!-- tr&#45;&gt;pretr -->
+<g id="edge15" class="edge">
+<title>tr-&gt;pretr</title>
+<path fill="none" stroke="#669900" d="M479.07,-385.59C457.67,-374.69 430.14,-360.68 407.49,-349.15"></path>
+<polygon fill="#669900" stroke="#669900" points="408.93,-345.95 398.43,-344.54 405.76,-352.19 408.93,-345.95"></polygon>
+</g>
+<!-- fl1 -->
+<g id="node14" class="node">
+<title>fl1</title>
+<ellipse fill="none" stroke="#00695c" cx="120" cy="-326.51" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="120" y="-321.11" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl1&#45;&gt;proc -->
+<!-- fl1&#45;&gt;nn -->
+<g id="edge13" class="edge">
+<title>fl1-&gt;nn</title>
+<path fill="none" stroke="#00695c" d="M140.15,-310.52C154.59,-299.79 174.31,-285.12 190.77,-272.88"></path>
+<polygon fill="#00695c" stroke="#00695c" points="193.11,-275.5 199.04,-266.73 188.93,-269.89 193.11,-275.5"></polygon>
+</g>
+<!-- fl2 -->
+<g id="node15" class="node">
+<title>fl2</title>
+<ellipse fill="none" stroke="#00695c" cx="103" cy="-170.79" rx="31.2" ry="20.86"></ellipse>
+<text text-anchor="middle" x="103" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#00695c">flax</text>
+</g>
+<!-- fl2&#45;&gt;opt -->
+<!-- fl2&#45;&gt;train -->
+<g id="edge18" class="edge">
+<title>fl2-&gt;train</title>
+<path fill="none" stroke="#00695c" d="M124.83,-155.88C142.13,-144.85 166.65,-129.22 186.73,-116.42"></path>
+<polygon fill="#00695c" stroke="#00695c" points="188.76,-119.27 195.31,-110.94 185,-113.37 188.76,-119.27"></polygon>
+</g>
+<!-- oa -->
+<g id="node16" class="node">
+<title>oa</title>
+<ellipse fill="none" stroke="#21a89b" cx="87" cy="-248.65" rx="39.68" ry="20.86"></ellipse>
+<text text-anchor="middle" x="87" y="-243.25" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#21a89b">optax</text>
+</g>
+<!-- oa&#45;&gt;opt -->
+<g id="edge16" class="edge">
+<title>oa-&gt;opt</title>
+<path fill="none" stroke="#21a89b" d="M113.35,-232.85C133.04,-221.78 160.29,-206.47 182.57,-193.95"></path>
+<polygon fill="#21a89b" stroke="#21a89b" points="184.47,-196.9 191.47,-188.95 181.04,-190.79 184.47,-196.9"></polygon>
+</g>
+<!-- jx -->
+<g id="node17" class="node">
+<title>jx</title>
+<ellipse fill="none" stroke="#9d22b2" cx="27" cy="-170.79" rx="27" ry="20.86"></ellipse>
+<text text-anchor="middle" x="27" y="-165.39" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#9d22b2">jax</text>
+</g>
+<!-- jx&#45;&gt;fl2 -->
+<!-- jx&#45;&gt;fl2 -->
+<g id="edge17" class="edge">
+<title>jx-&gt;fl2</title>
+<path fill="none" stroke="#9d22b2" d="M48.67,-183.59C55.42,-185.99 62.17,-186.9 68.92,-186.32"></path>
+<polygon fill="#9d22b2" stroke="#9d22b2" points="69.65,-189.75 78.81,-184.42 68.33,-182.87 69.65,-189.75"></polygon>
+</g>
+<!-- ob -->
+<g id="node18" class="node">
+<title>ob</title>
+<ellipse fill="none" stroke="#336699" cx="136" cy="-92.93" rx="40.09" ry="20.86"></ellipse>
+<text text-anchor="middle" x="136" y="-87.53" font-family="Inconsolata, sans-serif" font-size="18.00" fill="#336699">orbax</text>
+</g>
+<!-- ob&#45;&gt;cp -->
+<g id="edge19" class="edge">
+<title>ob-&gt;cp</title>
+<path fill="none" stroke="#336699" d="M156.38,-74.65C167.63,-65.11 181.76,-53.13 194.02,-42.72"></path>
+<polygon fill="#336699" stroke="#336699" points="196.4,-45.3 201.77,-36.16 191.87,-39.96 196.4,-45.3"></polygon>
+</g>
+</g>
+</svg>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section></section>
+<section>
+<section id="installation" class="title-slide slide level1 center">
+<h1>Installation</h1>
+
+</section>
+<section id="installing-jax" class="slide level2 center">
+<h2>Installing JAX</h2>
+<table class="caption-top">
+<colgroup>
+<col style="width: 11%">
+<col style="width: 13%">
+<col style="width: 14%">
+<col style="width: 13%">
+<col style="width: 13%">
+<col style="width: 15%">
+<col style="width: 19%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Linux x86_64</th>
+<th>Linux aarch64</th>
+<th>Mac x86_64</th>
+<th>Mac aarch64</th>
+<th>Windows x86_64</th>
+<th>Windows WSL2 x86_64</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CPU</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td>NVIDIA GPU</td>
+<td>yes</td>
+<td>yes</td>
+<td>no</td>
+<td>n/a</td>
+<td>no</td>
+<td>experimental</td>
+</tr>
+<tr class="odd">
+<td>Google TPU</td>
+<td>yes</td>
+<td>n/a</td>
+<td>n/a</td>
+<td>n/a</td>
+<td>n/a</td>
+<td>n/a</td>
+</tr>
+<tr class="even">
+<td>AMD GPU</td>
+<td>yes</td>
+<td>no</td>
+<td>experimental</td>
+<td>n/a</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr class="odd">
+<td>Apple GPU</td>
+<td>n/a</td>
+<td>no</td>
+<td>n/a</td>
+<td>experimental</td>
+<td>n/a</td>
+<td>n/a</td>
+</tr>
+<tr class="even">
+<td>Intel GPU</td>
+<td>experimental</td>
+<td>n/a</td>
+<td>n/a</td>
+<td>n/a</td>
+<td>no</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p><span class="small">From <a href="https://docs.jax.dev/en/latest/installation.html#supported-platforms">JAX documentation</a></span></p>
+</section>
+<section id="installing-jax-1" class="slide level2 center">
+<h2>Installing JAX</h2>
+<p>If you install packages which depend on JAX (e.g.&nbsp;Flax), they will by default install the CPU version of JAX. If you want to run JAX on GPUs, make sure to first install <code>jax[cuda12]</code></p>
+<p>You can install the CPU version on your machine to prototype and use a GPU version on the clusters (we have wheels)</p>
+</section>
+<section id="installing-complementary-libraries" class="slide level2 center">
+<h2>Installing complementary libraries</h2>
+<p>The modular approach has the downside that several libraries are required and conflicts between dependencies can be a problem</p>
+<p>The meta-library <a href="https://github.com/jax-ml/jax-ai-stack">jax-ai-stack</a> makes this easier to manage (install <code>jax[cuda12]</code> first for GPU)</p>
+<p>Note that for now TensorFlow and packages which depend on it (e.g.&nbsp;TFDS, grain) are still stuck at Python 3.12, so you can’t use a newer Python version if you want to use some of them</p>
+<div class="def">
+<p>On your machine (<em>and your machine only</em>), a great tool to manage Python versions and packages is <a href="https://github.com/astral-sh/uv">uv</a> (see <a href="../../python/wb_uv.html">our webinar</a>). On the clusters, you have to use <code>module</code> to load the Python version you want and <code>pip</code> to install packages</p>
+</div>
+
+
+</section></section>
+    </div>
+  <div class="quarto-auto-generated-content" style="display: none;">
+<p><img src="../../img/favicon_sfudrac.png" class="slide-logo"></p>
+<div class="footer footer-default">
+<p><a href="../../ai/jxai/jxai_jaxstack.html"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="rgb(153, 153, 153)" class="bi bi-arrow-90deg-up" viewbox="0 0 16 16"><path fill-rule="evenodd" d="M4.854 1.146a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L4 2.707V12.5A2.5 2.5 0 0 0 6.5 15h8a.5.5 0 0 0 0-1h-8A1.5 1.5 0 0 1 5 12.5V2.707l3.146 3.147a.5.5 0 1 0 .708-.708l-4-4z"></path></svg>&nbsp;Back to the course</a></p>
+</div>
+</div></div>
+
+  <script>window.backupDefine = window.define; window.define = undefined;</script>
+  <script src="../../site_libs/revealjs/dist/reveal.js"></script>
+  <!-- reveal.js plugins -->
+  <script src="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.js"></script>
+  <script src="../../site_libs/revealjs/plugin/pdf-export/pdfexport.js"></script>
+  <script src="../../site_libs/revealjs/plugin/reveal-menu/menu.js"></script>
+  <script src="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.js"></script>
+  <script src="../../site_libs/revealjs/plugin/reveal-pointer/pointer.js"></script>
+  <script src="../../site_libs/revealjs/plugin/quarto-support/support.js"></script>
+  
+
+  <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
+  <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
+  <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
+  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
+
+  <script>
+
+      // Full list of configuration options available at:
+      // https://revealjs.com/config/
+      Reveal.initialize({
+'controlsAuto': true,
+'previewLinksAuto': false,
+'pdfSeparateFragments': false,
+'autoAnimateEasing': "ease",
+'autoAnimateDuration': 1,
+'autoAnimateUnmatched': true,
+'jumpToSlide': true,
+'menu': {"side":"left","useTextContentForMissingTitles":true,"markers":false,"loadIcons":false,"custom":[{"title":"Tools","icon":"<i class=\"fas fa-gear\"></i>","content":"<ul class=\"slide-menu-items\">\n<li class=\"slide-tool-item active\" data-item=\"0\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.fullscreen(event)\"><kbd>f</kbd> Fullscreen</a></li>\n<li class=\"slide-tool-item\" data-item=\"1\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.speakerMode(event)\"><kbd>s</kbd> Speaker View</a></li>\n<li class=\"slide-tool-item\" data-item=\"2\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.overview(event)\"><kbd>o</kbd> Slide Overview</a></li>\n<li class=\"slide-tool-item\" data-item=\"3\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.togglePdfExport(event)\"><kbd>e</kbd> PDF Export Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"4\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.toggleScrollView(event)\"><kbd>r</kbd> Scroll View Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"5\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.keyboardHelp(event)\"><kbd>?</kbd> Keyboard Help</a></li>\n</ul>"}],"openButton":true},
+'pointer': {"key":"q","color":"#b5111b","pointerSize":32,"alwaysVisible":false},
+'smaller': false,
+ 
+        // Display controls in the bottom right corner
+        controls: false,
+
+        // Help the user learn the controls by providing hints, for example by
+        // bouncing the down arrow when they first encounter a vertical slide
+        controlsTutorial: false,
+
+        // Determines where controls appear, "edges" or "bottom-right"
+        controlsLayout: 'edges',
+
+        // Visibility rule for backwards navigation arrows; "faded", "hidden"
+        // or "visible"
+        controlsBackArrows: 'faded',
+
+        // Display a presentation progress bar
+        progress: true,
+
+        // Display the page number of the current slide
+        slideNumber: false,
+
+        // 'all', 'print', or 'speaker'
+        showSlideNumber: 'all',
+
+        // Add the current slide number to the URL hash so that reloading the
+        // page/copying the URL will return you to the same slide
+        hash: true,
+
+        // Start with 1 for the hash rather than 0
+        hashOneBasedIndex: false,
+
+        // Flags if we should monitor the hash and change slides accordingly
+        respondToHashChanges: true,
+
+        // Push each slide change to the browser history
+        history: true,
+
+        // Enable keyboard shortcuts for navigation
+        keyboard: true,
+
+        // Enable the slide overview mode
+        overview: true,
+
+        // Disables the default reveal.js slide layout (scaling and centering)
+        // so that you can use custom CSS layout
+        disableLayout: false,
+
+        // Vertical centering of slides
+        center: false,
+
+        // Enables touch navigation on devices with touch input
+        touch: true,
+
+        // Loop the presentation
+        loop: false,
+
+        // Change the presentation direction to be RTL
+        rtl: false,
+
+        // see https://revealjs.com/vertical-slides/#navigation-mode
+        navigationMode: 'linear',
+
+        // Randomizes the order of slides each time the presentation loads
+        shuffle: false,
+
+        // Turns fragments on and off globally
+        fragments: true,
+
+        // Flags whether to include the current fragment in the URL,
+        // so that reloading brings you to the same fragment position
+        fragmentInURL: false,
+
+        // Flags if the presentation is running in an embedded mode,
+        // i.e. contained within a limited portion of the screen
+        embedded: false,
+
+        // Flags if we should show a help overlay when the questionmark
+        // key is pressed
+        help: true,
+
+        // Flags if it should be possible to pause the presentation (blackout)
+        pause: true,
+
+        // Flags if speaker notes should be visible to all viewers
+        showNotes: false,
+
+        // Global override for autoplaying embedded media (null/true/false)
+        autoPlayMedia: null,
+
+        // Global override for preloading lazy-loaded iframes (null/true/false)
+        preloadIframes: null,
+
+        // Number of milliseconds between automatically proceeding to the
+        // next slide, disabled when set to 0, this value can be overwritten
+        // by using a data-autoslide attribute on your slides
+        autoSlide: 0,
+
+        // Stop auto-sliding after user input
+        autoSlideStoppable: true,
+
+        // Use this method for navigation when auto-sliding
+        autoSlideMethod: null,
+
+        // Specify the average time in seconds that you think you will spend
+        // presenting each slide. This is used to show a pacing timer in the
+        // speaker view
+        defaultTiming: null,
+
+        // Enable slide navigation via mouse wheel
+        mouseWheel: false,
+
+        // The display mode that will be used to show slides
+        display: 'block',
+
+        // Hide cursor if inactive
+        hideInactiveCursor: true,
+
+        // Time before the cursor is hidden (in ms)
+        hideCursorTime: 5000,
+
+        // Opens links in an iframe preview overlay
+        previewLinks: false,
+
+        // Transition style (none/fade/slide/convex/concave/zoom)
+        transition: 'none',
+
+        // Transition speed (default/fast/slow)
+        transitionSpeed: 'default',
+
+        // Transition style for full page slide backgrounds
+        // (none/fade/slide/convex/concave/zoom)
+        backgroundTransition: 'none',
+
+        // Number of slides away from the current that are visible
+        viewDistance: 3,
+
+        // Number of slides away from the current that are visible on mobile
+        // devices. It is advisable to set this to a lower number than
+        // viewDistance in order to save resources.
+        mobileViewDistance: 2,
+
+        // The "normal" size of the presentation, aspect ratio will be preserved
+        // when the presentation is scaled to fit different resolutions. Can be
+        // specified using percentage units.
+        width: 1050,
+
+        height: 700,
+
+        // Factor of the display size that should remain empty around the content
+        margin: 0.1,
+
+        math: {
+          mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js',
+          config: 'TeX-AMS_HTML-full',
+          tex2jax: {
+            inlineMath: [['\\(','\\)']],
+            displayMath: [['\\[','\\]']],
+            balanceBraces: true,
+            processEscapes: false,
+            processRefs: true,
+            processEnvironments: true,
+            preview: 'TeX',
+            skipTags: ['script','noscript','style','textarea','pre','code'],
+            ignoreClass: 'tex2jax_ignore',
+            processClass: 'tex2jax_process'
+          },
+        },
+
+        // reveal.js plugins
+        plugins: [QuartoLineHighlight, PdfExport, RevealMenu, RevealPointer, QuartoSupport,
+
+          RevealMath,
+          RevealNotes,
+          RevealSearch,
+          RevealZoom
+        ]
+      });
+    </script>
+    <script id="quarto-html-after-body" type="application/javascript">
+      window.document.addEventListener("DOMContentLoaded", function (event) {
+        const tabsets =  window.document.querySelectorAll(".panel-tabset-tabby")
+        tabsets.forEach(function(tabset) {
+          const tabby = new Tabby('#' + tabset.id);
+        });
+        const isCodeAnnotation = (el) => {
+          for (const clz of el.classList) {
+            if (clz.startsWith('code-annotation-')) {                     
+              return true;
+            }
+          }
+          return false;
+        }
+        const onCopySuccess = function(e) {
+          // button target
+          const button = e.trigger;
+          // don't keep focus
+          button.blur();
+          // flash "checked"
+          button.classList.add('code-copy-button-checked');
+          var currentTitle = button.getAttribute("title");
+          button.setAttribute("title", "Copied!");
+          let tooltip;
+          if (window.bootstrap) {
+            button.setAttribute("data-bs-toggle", "tooltip");
+            button.setAttribute("data-bs-placement", "left");
+            button.setAttribute("data-bs-title", "Copied!");
+            tooltip = new bootstrap.Tooltip(button, 
+              { trigger: "manual", 
+                customClass: "code-copy-button-tooltip",
+                offset: [0, -8]});
+            tooltip.show();    
+          }
+          setTimeout(function() {
+            if (tooltip) {
+              tooltip.hide();
+              button.removeAttribute("data-bs-title");
+              button.removeAttribute("data-bs-toggle");
+              button.removeAttribute("data-bs-placement");
+            }
+            button.setAttribute("title", currentTitle);
+            button.classList.remove('code-copy-button-checked');
+          }, 1000);
+          // clear code selection
+          e.clearSelection();
+        }
+        const getTextToCopy = function(trigger) {
+          const outerScaffold = trigger.parentElement.cloneNode(true);
+          const codeEl = outerScaffold.querySelector('code');
+          for (const childEl of codeEl.children) {
+            if (isCodeAnnotation(childEl)) {
+              childEl.remove();
+            }
+          }
+          return codeEl.innerText;
+        }
+        const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+          text: getTextToCopy
+        });
+        clipboard.on('success', onCopySuccess);
+        if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+          const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+            text: getTextToCopy,
+            container: window.document.getElementById('quarto-embedded-source-code-modal')
+          });
+          clipboardModal.on('success', onCopySuccess);
+        }
+          var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+          var mailtoRegex = new RegExp(/^mailto:/);
+            var filterRegex = new RegExp("https:\/\/mint\.westdri\.ca\/");
+          var isInternal = (href) => {
+              return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+          }
+          // Inspect non-navigation links and adorn them if external
+         var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+          for (var i=0; i<links.length; i++) {
+            const link = links[i];
+            if (!isInternal(link.href)) {
+              // undo the damage that might have been done by quarto-nav.js in the case of
+              // links that we want to consider external
+              if (link.dataset.originalHref !== undefined) {
+                link.href = link.dataset.originalHref;
+              }
+                // target, if specified
+                link.setAttribute("target", "_blank");
+                if (link.getAttribute("rel") === null) {
+                  link.setAttribute("rel", "noopener");
+                }
+            }
+          }
+        function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+          const config = {
+            allowHTML: true,
+            maxWidth: 500,
+            delay: 100,
+            arrow: false,
+            appendTo: function(el) {
+                return el.closest('section.slide') || el.parentElement;
+            },
+            interactive: true,
+            interactiveBorder: 10,
+            theme: 'light-border',
+            placement: 'bottom-start',
+          };
+          if (contentFn) {
+            config.content = contentFn;
+          }
+          if (onTriggerFn) {
+            config.onTrigger = onTriggerFn;
+          }
+          if (onUntriggerFn) {
+            config.onUntrigger = onUntriggerFn;
+          }
+            config['offset'] = [0,0];
+            config['maxWidth'] = 700;
+          window.tippy(el, config); 
+        }
+        const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+        for (var i=0; i<noterefs.length; i++) {
+          const ref = noterefs[i];
+          tippyHover(ref, function() {
+            // use id or data attribute instead here
+            let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+            try { href = new URL(href).hash; } catch {}
+            const id = href.replace(/^#\/?/, "");
+            const note = window.document.getElementById(id);
+            if (note) {
+              return note.innerHTML;
+            } else {
+              return "";
+            }
+          });
+        }
+        const findCites = (el) => {
+          const parentEl = el.parentElement;
+          if (parentEl) {
+            const cites = parentEl.dataset.cites;
+            if (cites) {
+              return {
+                el,
+                cites: cites.split(' ')
+              };
+            } else {
+              return findCites(el.parentElement)
+            }
+          } else {
+            return undefined;
+          }
+        };
+        var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+        for (var i=0; i<bibliorefs.length; i++) {
+          const ref = bibliorefs[i];
+          const citeInfo = findCites(ref);
+          if (citeInfo) {
+            tippyHover(citeInfo.el, function() {
+              var popup = window.document.createElement('div');
+              citeInfo.cites.forEach(function(cite) {
+                var citeDiv = window.document.createElement('div');
+                citeDiv.classList.add('hanging-indent');
+                citeDiv.classList.add('csl-entry');
+                var biblioDiv = window.document.getElementById('ref-' + cite);
+                if (biblioDiv) {
+                  citeDiv.innerHTML = biblioDiv.innerHTML;
+                }
+                popup.appendChild(citeDiv);
+              });
+              return popup.innerHTML;
+            });
+          }
+        }
+      });
+      </script>
+    
+
+</body></html>
