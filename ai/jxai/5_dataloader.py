@@ -11,28 +11,29 @@ from jax import random
 with open("4_augmentation.py") as file:
     exec(file.read())
 
-sampler = grain.SequentialSampler(
+nabirds_train_seqsampler = grain.SequentialSampler(
     num_records=4,
     shard_options=grain.NoSharding()
 )
 
-for record_metadata in sampler:
+for record_metadata in nabirds_train_seqsampler:
     print(record_metadata)
 
-data_loader = grain.DataLoader(
+nabirds_train_dl = grain.DataLoader(
     data_source=nabirds_train,
     operations=transformations,
-    sampler=sampler,
+    sampler=nabirds_train_seqsampler,
     worker_count=0
 )
 
-fig = plt.figure()
+fig = plt.figure(figsize=(8, 8))
 
-for i, element in enumerate(data_loader):
+for i, element in enumerate(nabirds_train_dl):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
-        f'element {i}, identification: {element['id']}, picture by {element['photographer']}'
+        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        fontsize=9
     )
     ax.axis('off')
     plt.imshow(element['image'])
@@ -43,9 +44,9 @@ plt.show()
 # dataloader = DataLoader(nabirds_bb_cropped_train, batch_size=4,
 #                         shuffle=False, num_workers=0)
 
-def show_batch(sample_batched):
-    """Show a batch of samples."""
-    images_batch = sample_batched['image']
+def show_batch(elements_batched):
+    """Show a batch of elements."""
+    images_batch = elements_batched['image']
     batch_size = len(images_batch)
     im_size = images_batch.size(2)
     grid_border_size = 2

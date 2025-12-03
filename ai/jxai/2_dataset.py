@@ -27,7 +27,7 @@ class NABirdsDataset:
         img_bb_y = self.metadata.get_column('bb_y')[idx]
         img_bb_width = self.metadata.get_column('bb_width')[idx]
         img_bb_height = self.metadata.get_column('bb_height')[idx]
-        sample = {
+        element = {
             'image': img,
             'id': img_id,
             'photographer': img_photographer,
@@ -36,38 +36,39 @@ class NABirdsDataset:
             'bbwidth' : img_bb_width,
             'bbheight' : img_bb_height
         }
-        return sample
+        return element
 
 nabirds_train = NABirdsDataset(
     metadata_train,
     img_dir
 )
 
-# fig = plt.figure()
+fig = plt.figure(figsize=(8, 8))
 
-# for i, sample in enumerate(nabirds_train):
-#     ax = plt.subplot(1, 4, i + 1)
-#     plt.tight_layout()
-#     ax.set_title(
-#         f'Sample {i}, identification: {sample['id']}, picture by {sample['photographer']}'
-#     )
-#     ax.axis('off')
-#     plt.imshow(sample['image'])
-#     rect = patches.Rectangle(
-#         (sample['bbx'], sample['bby']),
-#         sample['bbwidth'],
-#         sample['bbheight'],
-#         linewidth=1,
-#         edgecolor='r',
-#         facecolor='none'
-#     )
-#     ax.add_patch(rect)
-#     if i == 3:
-#         plt.show()
-#         break
+for i, element in enumerate(nabirds_train):
+    ax = plt.subplot(2, 2, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        fontsize=9
+    )
+    ax.axis('off')
+    plt.imshow(element['image'])
+    rect = patches.Rectangle(
+        (element['bbx'], element['bby']),
+        element['bbwidth'],
+        element['bbheight'],
+        linewidth=1,
+        edgecolor='r',
+        facecolor='none'
+    )
+    ax.add_patch(rect)
+    if i == 3:
+        plt.show()
+        break
 
-for i, sample in enumerate(nabirds_train):
-    print(f'Image dimensions: {sample['image'].shape}, data type: {sample['image'].dtype}'
+for i, element in enumerate(nabirds_train):
+    print(f'Image dimensions: {element['image'].shape}, data type: {element['image'].dtype}'
     )
     if i == 3:
         break

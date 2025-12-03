@@ -12,7 +12,7 @@ from jax import random
 with open("3_preprocessing.py") as file:
     exec(file.read())
 
-key = random.PRNGKey(0)
+key = random.key(0)
 
 new_image = pix.random_crop(
     key=key,
