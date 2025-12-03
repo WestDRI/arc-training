@@ -23,7 +23,7 @@ To be replaced by actual path.
 
 :::
 
-```{.python}
+```{python}
 #| echo: false
 
 base_dir = "nabirds"
@@ -109,7 +109,9 @@ metadata_train = metadata.filter(pl.col("is_training_img") == 1)
 
 :::
 
-## Create class for our dataset
+## Create a class for our dataset
+
+Creating a Dataclass and a DataLoader with the JAX AI stack is done with [Grain](https://github.com/google/grain), but it can just as well be done using [PyTorch](https://github.com/pytorch/pytorch), [TensorFlow Datasets](https://github.com/tensorflow/datasets), [Hugging Face Datasets](https://github.com/huggingface/datasets), or any method you are used to. That's the advantage of the modular philosophy that the stack relies on.
 
 To read in the images, there are many options, including:
 
@@ -119,23 +121,47 @@ To read in the images, there are many options, including:
 
 Here, we are using `imageio.imread` from [imageio](https://github.com/imageio/imageio) which is an excellent option because it automatically creates a NumPy ndarrays, choosing a dtype based on the image, and it is faster than other options ([scikit-image](https://github.com/scikit-image/scikit-image) actually use it now instead of their own implementation).
 
+```{python}
+import grain.python as grain
+import imageio.v3 as iio
 
+class NABirdsDataset:
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir):
+        self.metadata = metadata_file
+        self.data_dir = data_dir
+    def __len__(self):
+        return len(self.metadata)
+    def __getitem__(self, idx):
+        img_path = os.path.join(
+            self.data_dir,
+            self.metadata.get_column('path')[idx]
+        )
+        img = iio.imread(img_path)
+        # img = Image.open(img_path)
+        img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
+        img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
+        img_bb_x = self.metadata.get_column('bb_x')[idx]
+        img_bb_y = self.metadata.get_column('bb_y')[idx]
+        img_bb_width = self.metadata.get_column('bb_width')[idx]
+        img_bb_height = self.metadata.get_column('bb_height')[idx]
+        sample = {
+            'image': img,
+            'id': img_id,
+            'photographer': img_photographer,
+            'bbx' : img_bb_x,
+            'bby' : img_bb_y,
+            'bbwidth' : img_bb_width,
+            'bbheight' : img_bb_height
+        }
+        return sample
+```
 
 :::{.callout-note collapse="true"}
 
 ## Equivalent using PyTorch
 
-The same thing can be achieved using [PyTorch](https://github.com/pytorch/pytorch), [TensorFlow Datasets](https://github.com/tensorflow/datasets), [Hugging Face Datasets](https://github.com/huggingface/datasets), or any method you are used to. Here, I am showing how this would be done with PyTorch.
-
 PyTorch provides [`torch.utils.data.Dataset`](https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.Dataset), an abstract class representing a dataset. You need to write a subclass of `torch.utils.data.Dataset` (let's call it `NABirdsDataset`) so that it inherits from `torch.utils.data.Dataset`, but with characteristics matching our own dataset.
-
-Load the packages:
-
-```{python}
-from torch.utils.data import Dataset, DataLoader
-import imageio.v3 as iio
-import matplotlib.pyplot as plt
-```
 
 A PyTorch custom Dataset class must implement three methods:
 
@@ -143,8 +169,10 @@ A PyTorch custom Dataset class must implement three methods:
 - `__len__`: returns the number of samples in the new dataset class, and
 - `__getitem__`: loads and returns a sample from the dataset at a given index `idx`:
 
-```{python}
-class NABirdsDataset(Dataset):
+```{.python}
+from torch.utils.data import Dataset
+
+class NABirdsDatasetPyTorch(Dataset):
     """NABirds dataset class."""
     def __init__(self, metadata_file, data_dir, transform=None):
         self.metadata = metadata_file
@@ -155,20 +183,24 @@ class NABirdsDataset(Dataset):
     def __getitem__(self, idx):
         img_path = os.path.join(
             self.data_dir,
-            self.metadata.get_column("path")[idx]
+            self.metadata.get_column('path')[idx]
         )
         img = iio.imread(img_path)
-        img_id = self.metadata.get_column("id")[idx].replace("_", " ")
-        img_photographer = self.metadata.get_column("photographer")[idx].replace("_", " ")
-        img_bb_x = self.metadata.get_column("bb_x")[idx]
-        img_bb_y = self.metadata.get_column("bb_y")[idx]
-        img_bb_width = self.metadata.get_column("bb_width")[idx]
-        img_bb_height = self.metadata.get_column("bb_height")[idx]
+        # img = Image.open(img_path)
+        img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
+        img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
+        img_bb_x = self.metadata.get_column('bb_x')[idx]
+        img_bb_y = self.metadata.get_column('bb_y')[idx]
+        img_bb_width = self.metadata.get_column('bb_width')[idx]
+        img_bb_height = self.metadata.get_column('bb_height')[idx]
         sample = {
-            "image": img,
-            "id": img_id,
-            "photographer": img_photographer,
-            "bb" : (img_bb_x, img_bb_y, img_bb_width, img_bb_height)
+            'image': img,
+            'id': img_id,
+            'photographer': img_photographer,
+            'bbx' : img_bb_x,
+            'bby' : img_bb_y,
+            'bbwidth' : img_bb_width,
+            'bbxheight' : img_bb_height
         }
         if self.transform:
             sample = self.transform(sample)
@@ -177,36 +209,41 @@ class NABirdsDataset(Dataset):
 
 :::
 
-## Instantiate our dataset class
+## Instantiate our Dataset class
+
+Now that we have a Dataset class, we can create an instance with the metadata DataFrame we created in the previous section:
 
 ```{python}
 nabirds_train = NABirdsDataset(
     metadata_train,
-    os.path.join(base_dir, img_dir)
-    )
+    img_dir
+)
 ```
 
-## Display a data sample
+## Display a sample
 
 Let's display the first 4 images and their bounding boxes:
 
 ```{python}
-fig = plt.figure()
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+fig = plt.figure(figsize=(8, 8))
 
 for i, sample in enumerate(nabirds_train):
-    print(i, sample['image'].shape)
-    ax = plt.subplot(1, 4, i + 1)
+    ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
-        f"Sample {i}, identification: {sample['id']}, picture by {sample['photographer']}"
+        f'Sample {i}\nIdentification: {sample['id']}\nPicture by {sample['photographer']}',
+        fontsize=9
     )
     ax.axis('off')
-    ax.imshow(sample['image'])
+    plt.imshow(sample['image'])
     rect = patches.Rectangle(
-        (sample['bb'][0], sample['bb'][1]),
-        sample['bb'][2],
-        sample['bb'][3],
-        linewidth=2,
+        (sample['bbx'], sample['bby']),
+        sample['bbwidth'],
+        sample['bbheight'],
+        linewidth=1,
         edgecolor='r',
         facecolor='none'
     )

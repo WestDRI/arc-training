@@ -9,6 +9,166 @@ author: Marie-Hélène Burle
 
 :::
 
+:::{.callout-note collapse="true"}
+
+## Minimal necessary code from previous sections
+
+```{.python}
+base_dir = "<path-of-the-nabirds-dir>"
+```
+
+:::{.note}
+
+To be replaced by proper path.
+
+:::
+
+```{python}
+#| echo: false
+
+base_dir = "nabirds"
+```
+
+```{python}
+import os
+import polars as pl
+import imageio.v3 as iio
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import grain.python as grain
+import jax.numpy as jnp
+
+img_dir = os.path.join(base_dir, "images")
+
+bb_file = os.path.join(base_dir, "bounding_boxes.txt")
+classes_translation_file = os.path.join(base_dir, "classes_fixed.txt")
+class_labels_file = os.path.join(base_dir, "image_class_labels.txt")
+img_file = os.path.join(base_dir, "images.txt")
+photographers_file = os.path.join(base_dir, "photographers_fixed.txt")
+sizes_file = os.path.join(base_dir, "sizes.txt")
+train_test_split_file = os.path.join(base_dir, "train_test_split.txt")
+
+bb = pl.read_csv(
+    bb_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "bb_x", "bb_y", "bb_width", "bb_height"]
+)
+
+classes = pl.read_csv(
+    class_labels_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "class"]
+)
+
+classes_translation = pl.read_csv(
+    classes_translation_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["class", "id"]
+)
+
+img_paths = pl.read_csv(
+    img_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "path"]
+)
+
+photographers = pl.read_csv(
+    photographers_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "photographer"]
+)
+
+sizes = pl.read_csv(
+    sizes_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "img_width", "img_height"]
+)
+
+train_test_split = pl.read_csv(
+    train_test_split_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "is_training_img"]
+)
+
+classes_metadata = (
+    classes.join(classes_translation, on="class")
+)
+
+metadata = (
+    bb.join(classes_metadata, on="UUID")
+    .join(img_paths, on="UUID")
+    .join(photographers, on="UUID")
+    .join(sizes, on="UUID")
+    .join(train_test_split, on="UUID")
+)
+
+metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+
+class NABirdsDataset:
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir):
+        self.metadata = metadata_file
+        self.data_dir = data_dir
+    def __len__(self):
+        return len(self.metadata)
+    def __getitem__(self, idx):
+        img_path = os.path.join(
+            self.data_dir,
+            self.metadata.get_column('path')[idx]
+        )
+        img = iio.imread(img_path)
+        img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
+        img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
+        img_bb_x = self.metadata.get_column('bb_x')[idx]
+        img_bb_y = self.metadata.get_column('bb_y')[idx]
+        img_bb_width = self.metadata.get_column('bb_width')[idx]
+        img_bb_height = self.metadata.get_column('bb_height')[idx]
+        sample = {
+            'image': img,
+            'id': img_id,
+            'photographer': img_photographer,
+            'bbx' : img_bb_x,
+            'bby' : img_bb_y,
+            'bbwidth' : img_bb_width,
+            'bbheight' : img_bb_height
+        }
+        return sample
+
+nabirds_train = NABirdsDataset(
+    metadata_train,
+    img_dir
+)
+
+class NormAndCast(grain.MapTransform):
+    """Transform class to normalize and cast images to float32."""
+    def map(self, element):
+        element['image'] = jnp.array(element['image'], dtype=jnp.float32) / 255.0
+        return element
+
+class BbCrop(grain.MapTransform):
+    """Transform class to crop images to their bounding boxes."""
+    def map(self, element):
+        img = element['image']
+        bbx = element['bbx']
+        bby = element['bby']
+        bbwidth = element['bbwidth']
+        bbheight = element['bbheight']
+        img_cropped = img[bby:bby+bbheight, bbx:bbx+bbwidth]
+        element['image'] = img_cropped
+        return element
+
+transformations = [NormAndCast(), BbCrop()]
+```
+
+:::
+
 ## What is data augmentation?
 
 

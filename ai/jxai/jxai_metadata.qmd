@@ -11,7 +11,7 @@ In this section, we process some of the metadata associated with the NABirds dat
 
 :::
 
-## Fix photographers and classes files
+## Fix problem files
 
 The metadata comes in various space-separated CSV files. Two of them are problematic because they are jagged: the number of elements per line is inconsistent.
 
@@ -106,19 +106,18 @@ replace_spaces_except_first(
 )
 ```
 
-## Create variables for the file paths
+## Create variables
 
 ```{python}
 #| echo: false
 
-base_dir = "/home/marie/parvus/ptmp/jxbirds/nabirds"
+base_dir = "nabirds"
 ```
 
 ```{python}
 import os
 
 img_dir = os.path.join(base_dir, "images")
-
 bb_file = os.path.join(base_dir, "bounding_boxes.txt")
 classes_translation_file = os.path.join(base_dir, "classes_fixed.txt")
 class_labels_file = os.path.join(base_dir, "image_class_labels.txt")
@@ -128,15 +127,13 @@ sizes_file = os.path.join(base_dir, "sizes.txt")
 train_test_split_file = os.path.join(base_dir, "train_test_split.txt")
 ```
 
-## Create a Polars Dataframe with the metadata
-
-```{python}
-import polars as pl
-```
+## Create a metadata Dataframe
 
 First, we create a series of DataFrames from each CSV file:
 
 ```{python}
+import polars as pl
+
 bb = pl.read_csv(
     bb_file,
     separator=" ",
@@ -207,52 +204,51 @@ metadata = (
 )
 ```
 
-## Sanity checks on our DataFrame
+## Sanity checks
+
+Let's see what our DataFrame looks like:
 
 ```{python}
-metadata.columns
+print(metadata)
+```
+
+And then let's explore a number of characteristics:
+
+```{python}
+print(metadata.columns)
+print(metadata.row(0))
+print(metadata.row(-1))
 ```
 
 ```{python}
-metadata.row(0)
+print(metadata.head())
 ```
 
 ```{python}
-metadata.row(-1)
-```
-
-```{python}
-metadata.head()
-```
-
-```{python}
-metadata.tail()
+print(metadata.tail())
 ```
 
 ```{python}
 import random
 
 random.seed(123)
-metadata.sample()
+print(metadata.sample())
 ```
 
 ```{python}
-metadata.schema
+print(metadata.schema)
+print(metadata.shape)
 ```
 
 ```{python}
-metadata.shape
+print(metadata.glimpse())
 ```
 
 ```{python}
-metadata.glimpse()
+print(metadata.describe())
 ```
 
-```{python}
-metadata.describe()
-```
-
-## Create training DataFrame
+## Create a training DataFrame
 
 Now we can get a subset of our metadata DataFrame with the training metadata data only:
 
@@ -263,15 +259,9 @@ metadata_train = metadata.filter(pl.col("is_training_img") == 1)
 Quick sanity checks:
 
 ```{python}
-metadata_train.shape
+print(metadata_train.shape)
+print(metadata_train.row(0))
+print(metadata_train.columns)
 ```
 
-```{python}
-metadata_train.row(0)
-```
-
-```{python}
-metadata_train.columns
-```
-
-Our metadata is ready. We can now start looking at the images.
+Our metadata is ready. We can now start working with the pictures.
