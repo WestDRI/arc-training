@@ -1,7 +1,9 @@
+import os
+import polars as pl
+
 import imageio.v3 as iio
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import grain.python as grain
 
 with open("1_metadata.py") as file:
     exec(file.read())
@@ -36,11 +38,10 @@ class NABirdsDataset:
         }
         return sample
 
-
 nabirds_train = NABirdsDataset(
     metadata_train,
-    os.path.join(base_dir, img_dir)
-    )
+    img_dir
+)
 
 # fig = plt.figure()
 
@@ -56,7 +57,7 @@ nabirds_train = NABirdsDataset(
 #         (sample['bbx'], sample['bby']),
 #         sample['bbwidth'],
 #         sample['bbheight'],
-#         linewidth=2,
+#         linewidth=1,
 #         edgecolor='r',
 #         facecolor='none'
 #     )
