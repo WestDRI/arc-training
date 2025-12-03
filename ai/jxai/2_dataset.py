@@ -1,46 +1,10 @@
-# from torch.utils.data import Dataset, DataLoader
-# import numpy as np
+import imageio.v3 as iio
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import grain.python as grain
 
 with open("1_metadata.py") as file:
     exec(file.read())
-
-# class NABirdsDataset(Dataset):
-#     """NABirds dataset class."""
-#     def __init__(self, metadata_file, data_dir, transform=None):
-#         self.metadata = metadata_file
-#         self.data_dir = data_dir
-#         self.transform = transform
-#     def __len__(self):
-#         return len(self.metadata)
-#     def __getitem__(self, idx):
-#         img_path = os.path.join(
-#             self.data_dir,
-#             self.metadata.get_column('path')[idx]
-#         )
-#         img = iio.imread(img_path)
-#         # img = Image.open(img_path)
-#         img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
-#         img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
-#         img_bb_x = self.metadata.get_column('bb_x')[idx]
-#         img_bb_y = self.metadata.get_column('bb_y')[idx]
-#         img_bb_width = self.metadata.get_column('bb_width')[idx]
-#         img_bb_height = self.metadata.get_column('bb_height')[idx]
-#         sample = {
-#             'image': img,
-#             'id': img_id,
-#             'photographer': img_photographer,
-#             'bbx' : img_bb_x,
-#             'bby' : img_bb_y,
-#             'bbwidth' : img_bb_width,
-#             'bbxheight' : img_bb_height
-#         }
-#         if self.transform:
-#             sample = self.transform(sample)
-#         return sample
-
 
 class NABirdsDataset:
     """NABirds dataset class."""
@@ -55,7 +19,6 @@ class NABirdsDataset:
             self.metadata.get_column('path')[idx]
         )
         img = iio.imread(img_path)
-        # img = Image.open(img_path)
         img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
         img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
         img_bb_x = self.metadata.get_column('bb_x')[idx]
