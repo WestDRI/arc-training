@@ -117,6 +117,18 @@ We should get rid of the parts of the images that are outside of the bounding bo
 
 Also, a neural network will need images of the same size and our images come in all sorts of sizes.
 
+## Reading in images
+
+To read in the images, there are many options, including:
+
+- [PIL.Image.open](https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.open) from [Pillow](https://github.com/python-pillow/Pillow),
+- `cv2.imread` from [OpenCV](https://github.com/opencv/opencv),
+- [skimage.io.imread](https://scikit-image.org/docs/stable/api/skimage.io.html#skimage.io.imread) from [scikit-image](https://github.com/scikit-image/scikit-image).
+
+Here, we are using `imageio.imread` from [imageio](https://github.com/imageio/imageio) which is an excellent option because it automatically creates a NumPy ndarrays, choosing a dtype based on the image, and it is faster than other options ([scikit-image](https://github.com/scikit-image/scikit-image) actually use it now instead of their own implementation).
+
+## Create a cleaning class
+
 ```{python}
 import imageio.v3 as iio
 from skimage.transform import resize
@@ -130,9 +142,6 @@ class CleaningDataset:
         self.target_dir = target_dir
         self.target_size = target_size
 
-        # Create target directory if it doesn't exist
-        os.makedirs(self.target_dir, exist_ok=True)
-
     def __len__(self):
         return len(self.metadata_file)
 
@@ -142,11 +151,11 @@ class CleaningDataset:
         # Build paths
         read_path = os.path.join(
             self.source_dir,
-            self.metadata.get_column('path')[idx]
+            self.metadata_file.get_column('path')[idx]
         )
         save_path = os.path.join(
             self.target_dir,
-            self.metadata.get_column('path')[idx]
+            self.metadata_file.get_column('path')[idx]
         )
 
         # Load image
@@ -156,15 +165,19 @@ class CleaningDataset:
             print(f"Error loading {filename}: {e}")
             return None, None
 
+        # If a file has an alpha channel, drop it
+        if img.shape[2] == 4:
+            img = img[:,:,:3]
+
         # Get metadata
-        id = self.metadata.get_column('id')[idx].replace('_', ' ')
-        photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
+        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
 
         # Get bounding box data
-        bbx = self.metadata.get_column('bb_x')[idx]
-        bby = self.metadata.get_column('bb_y')[idx]
-        bbw = self.metadata.get_column('bb_width')[idx]
-        bbh = self.metadata.get_column('bb_height')[idx]
+        bbx = self.metadata_file.get_column('bb_x')[idx]
+        bby = self.metadata_file.get_column('bb_y')[idx]
+        bbw = self.metadata_file.get_column('bb_width')[idx]
+        bbh = self.metadata_file.get_column('bb_height')[idx]
 
         # Crop image
         img_cropped = img[bby:bby+bbh, bbx:bbx+bbw]
@@ -197,22 +210,27 @@ class CleaningDataset:
         return final_img, save_path
 ```
 
-```{python}
+## Use multiprocessing to run the code
+
+```{.python}
 from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
 
 # Setup
 dataset = CleaningDataset(
-    metadata_file=
-    source_dir="./raw_images",
-    target_dir="./cleaned_images"
+    metadata_file=metadata_train,
+    source_dir=img_dir,
+    target_dir=os.path.join(base_dir, "cleaned_images")
 )
 
 def process_idx(i):
-    """Helper function for the parallel worker"""
+    """Helper function for the parallel worker."""
     img, path = dataset[i]
     if img is not None:
-        # Save using PIL for easy compression control
-        Image.fromarray(img).save(path, quality=95)
+        # Create target directory if it doesn't exist
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # Save cleaned image
+        iio.imwrite(path, img)
         return 1 # Success
     return 0 # Failure
 
@@ -222,10 +240,12 @@ if __name__ == "__main__":
     with ProcessPoolExecutor() as executor:
         # Map indices to the process function
         results = list(tqdm(
-            executor.map(process_idx, range(len(dataset))), 
+            executor.map(process_idx, range(len(dataset))),
             total=len(dataset),
             desc="Cleaning Images"
         ))
 
     print(f"Done! Processed {sum(results)} images.")
 ```
+
+![](img/multiprocessing_img_cleaning.png)
