@@ -1,0 +1,231 @@
+---
+title: Data preprocessing
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+
+
+:::
+
+:::{.callout-note collapse="true"}
+
+## Minimal necessary code from previous sections
+
+```{.python}
+base_dir = "<path-of-the-nabirds-dir>"
+```
+
+:::{.note}
+
+To be replaced by actual path.
+
+:::
+
+```{python}
+#| echo: false
+
+base_dir = "nabirds"
+```
+
+```{python}
+import os
+import polars as pl
+
+img_dir = os.path.join(base_dir, "images")
+
+bb_file = os.path.join(base_dir, "bounding_boxes.txt")
+classes_translation_file = os.path.join(base_dir, "classes_fixed.txt")
+class_labels_file = os.path.join(base_dir, "image_class_labels.txt")
+img_file = os.path.join(base_dir, "images.txt")
+photographers_file = os.path.join(base_dir, "photographers_fixed.txt")
+sizes_file = os.path.join(base_dir, "sizes.txt")
+train_test_split_file = os.path.join(base_dir, "train_test_split.txt")
+
+bb = pl.read_csv(
+    bb_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "bb_x", "bb_y", "bb_width", "bb_height"]
+)
+
+classes = pl.read_csv(
+    class_labels_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "class"]
+)
+
+classes_translation = pl.read_csv(
+    classes_translation_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["class", "id"]
+)
+
+img_paths = pl.read_csv(
+    img_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "path"]
+)
+
+photographers = pl.read_csv(
+    photographers_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "photographer"]
+)
+
+sizes = pl.read_csv(
+    sizes_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "img_width", "img_height"]
+)
+
+train_test_split = pl.read_csv(
+    train_test_split_file,
+    separator=" ",
+    has_header=False,
+    new_columns=["UUID", "is_training_img"]
+)
+
+classes_metadata = (
+    classes.join(classes_translation, on="class")
+)
+
+metadata = (
+    bb.join(classes_metadata, on="UUID")
+    .join(img_paths, on="UUID")
+    .join(photographers, on="UUID")
+    .join(sizes, on="UUID")
+    .join(train_test_split, on="UUID")
+)
+
+metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+```
+
+:::
+
+## Needed transformations
+
+Raw data seldom works without being transformed.
+
+We should get rid of the parts of the images that are outside of the bounding boxes containing the birds.
+
+Also, a neural network will need images of the same size and our images come in all sorts of sizes.
+
+```{python}
+import imageio.v3 as iio
+from skimage.transform import resize
+import numpy as np
+
+class CleaningDataset:
+    """Cleaning dataset class."""
+    def __init__(self, metadata_file, source_dir, target_dir, target_size=(224, 224)):
+        self.metadata_file = metadata_file
+        self.source_dir = source_dir
+        self.target_dir = target_dir
+        self.target_size = target_size
+
+        # Create target directory if it doesn't exist
+        os.makedirs(self.target_dir, exist_ok=True)
+
+    def __len__(self):
+        return len(self.metadata_file)
+
+    def __getitem__(self, idx):
+        """Returns (processed_img_array, save_path)"""
+
+        # Build paths
+        read_path = os.path.join(
+            self.source_dir,
+            self.metadata.get_column('path')[idx]
+        )
+        save_path = os.path.join(
+            self.target_dir,
+            self.metadata.get_column('path')[idx]
+        )
+
+        # Load image
+        try:
+            img = iio.imread(read_path)
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+            return None, None
+
+        # Get metadata
+        id = self.metadata.get_column('id')[idx].replace('_', ' ')
+        photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
+
+        # Get bounding box data
+        bbx = self.metadata.get_column('bb_x')[idx]
+        bby = self.metadata.get_column('bb_y')[idx]
+        bbw = self.metadata.get_column('bb_width')[idx]
+        bbh = self.metadata.get_column('bb_height')[idx]
+
+        # Crop image
+        img_cropped = img[bby:bby+bbh, bbx:bbx+bbw]
+
+        # Resize img to target size with padding to avoid distortion
+        h, w, _ = img_cropped.shape
+        target_h, target_w = self.target_size
+
+        # Calculate the scaling factor to fit the image inside the box
+        scale = min(target_h / h, target_w / w)
+
+        # Calculate the new dimensions of the image
+        new_h, new_w = int(h * scale), int(w * scale)
+
+        # Resize
+        img_resized = resize(img_cropped, (new_h, new_w), anti_aliasing=True)
+
+        # Create a black canvas (zeros) of the target size
+        out_img = np.zeros((target_h, target_w, img.shape[2]), dtype=img_resized.dtype)
+
+        # Place the resized image in the center of the canvas
+        y_offset = (target_h - new_h) // 2
+        x_offset = (target_w - new_w) // 2
+        out_img[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = img_resized
+
+        # Convert back to uint8 (0-255)
+        # skimage returns float (0-1), but we want to save space on disk
+        final_img = (out_img * 255).astype(np.uint8)
+
+        return final_img, save_path
+```
+
+```{python}
+from concurrent.futures import ProcessPoolExecutor
+
+# Setup
+dataset = CleaningDataset(
+    metadata_file=
+    source_dir="./raw_images",
+    target_dir="./cleaned_images"
+)
+
+def process_idx(i):
+    """Helper function for the parallel worker"""
+    img, path = dataset[i]
+    if img is not None:
+        # Save using PIL for easy compression control
+        Image.fromarray(img).save(path, quality=95)
+        return 1 # Success
+    return 0 # Failure
+
+# Run in Parallel
+if __name__ == "__main__":
+    # Use as many workers as you have CPU cores
+    with ProcessPoolExecutor() as executor:
+        # Map indices to the process function
+        results = list(tqdm(
+            executor.map(process_idx, range(len(dataset))), 
+            total=len(dataset),
+            desc="Cleaning Images"
+        ))
+
+    print(f"Done! Processed {sum(results)} images.")
+```
