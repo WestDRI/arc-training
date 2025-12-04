@@ -1,0 +1,433 @@
+---
+title: Data preprocessing
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+
+
+:::
+
+## Create a training DataFrame
+
+```{.python}
+base_dir = "<path-of-the-nabirds-dir>"
+```
+
+:::{.note}
+
+To be replaced by actual path.
+
+:::
+
+```{python}
+#| echo: false
+
+base_dir = "nabirds"
+```
+
+```{python}
+import polars as pl
+
+metadata = pl.read_parquet("metadata.parquet")
+```
+
+Now we can get a subset of our metadata DataFrame with the training metadata data only:
+
+```{python}
+metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+```
+
+Quick sanity checks:
+
+```{python}
+print(metadata_train.shape)
+print(metadata_train.row(0))
+print(metadata_train.columns)
+```
+
+## Reading in images
+
+To read in the images, there are many options, including:
+
+- [PIL.Image.open](https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.open) from [Pillow](https://github.com/python-pillow/Pillow),
+- `cv2.imread` from [OpenCV](https://github.com/opencv/opencv),
+- [skimage.io.imread](https://scikit-image.org/docs/stable/api/skimage.io.html#skimage.io.imread) from [scikit-image](https://github.com/scikit-image/scikit-image).
+
+Here, we are using `imageio.imread` from [imageio](https://github.com/imageio/imageio) which is an excellent option because it automatically creates a NumPy ndarrays, choosing a dtype based on the image, and it is faster than other options ([scikit-image](https://github.com/scikit-image/scikit-image) actually use it now instead of their own implementation).
+
+## Create an initial class for our dataset
+
+```{python}
+import os
+import imageio.v3 as iio
+
+class NABirdsDatasetInitial:
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir):
+        self.metadata = metadata_file
+        self.data_dir = data_dir
+    def __len__(self):
+        return len(self.metadata)
+    def __getitem__(self, idx):
+        img_path = os.path.join(
+            self.data_dir,
+            self.metadata.get_column('path')[idx]
+        )
+        img = iio.imread(img_path)
+        img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
+        img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
+        img_bb_x = self.metadata.get_column('bb_x')[idx]
+        img_bb_y = self.metadata.get_column('bb_y')[idx]
+        img_bb_width = self.metadata.get_column('bb_width')[idx]
+        img_bb_height = self.metadata.get_column('bb_height')[idx]
+        element = {
+            'image': img,
+            'id': img_id,
+            'photographer': img_photographer,
+            'bbx' : img_bb_x,
+            'bby' : img_bb_y,
+            'bbwidth' : img_bb_width,
+            'bbheight' : img_bb_height
+        }
+        return element
+```
+
+## Instantiate our class
+
+```{python}
+img_dir = os.path.join(base_dir, "images")
+
+nabirds_train_initial = NABirdsDatasetInitial(
+    metadata_train,
+    img_dir
+)
+```
+
+## Print an element
+
+```{python}
+next(iter(nabirds_train_initial))
+```
+
+:::{.note}
+
+Note the image values between 0 and 255.
+
+:::
+
+## Display a data sample
+
+Let's display the first 4 images and their bounding boxes:
+
+```{python}
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+fig = plt.figure(figsize=(8, 8))
+
+for i, element in enumerate(nabirds_train_initial):
+    ax = plt.subplot(2, 2, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        fontsize=9
+    )
+    ax.axis('off')
+    plt.imshow(element['image'])
+    rect = patches.Rectangle(
+        (element['bbx'], element['bby']),
+        element['bbwidth'],
+        element['bbheight'],
+        linewidth=1,
+        edgecolor='r',
+        facecolor='none'
+    )
+    ax.add_patch(rect)
+    if i == 3:
+        plt.show()
+        break
+```
+
+## Print info on a sample of data
+
+```{python}
+for i, element in enumerate(nabirds_train_initial):
+    print(f'Image dimensions: {element['image'].shape}, data type: {element['image'].dtype}'
+    )
+    if i == 3:
+        break
+```
+
+Notice how the images are all of different sizes. This is a problem. We are also not making use of the bounding boxes this dataset comes with, hence using parts of images we know do not contain any bird unnecessarily.
+
+We will address these problems in the next section.
+
+## Needed transformations
+
+Raw data seldom works without being transformed.
+
+We should get rid of the parts of the images that are outside of the bounding boxes containing the birds.
+
+Also, a neural network will need images of the same size and our images come in all sorts of sizes.
+
+What size to chose? xxx
+
+## Create a cleaning class
+
+
+[](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html#skimage.transform.resize)
+
+```{python}
+import imageio.v3 as iio
+from skimage.transform import resize
+import numpy as np
+
+class CleaningDataset:
+    """Cleaning dataset class."""
+    def __init__(self, metadata_file, source_dir, target_dir, target_size=(224, 224)):
+        self.metadata_file = metadata_file
+        self.source_dir = source_dir
+        self.target_dir = target_dir
+        self.target_size = target_size
+
+    def __len__(self):
+        return len(self.metadata_file)
+
+    def __getitem__(self, idx):
+        """Returns (processed_img_array, save_path)"""
+
+        # Build paths
+        read_path = os.path.join(
+            self.source_dir,
+            self.metadata_file.get_column('path')[idx]
+        )
+        save_path = os.path.join(
+            self.target_dir,
+            self.metadata_file.get_column('path')[idx]
+        )
+
+        # Load image
+        try:
+            img = iio.imread(read_path)
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+            return None, None
+
+        # If a file has an alpha channel, drop it
+        if img.shape[2] == 4: # <1>
+            img = img[:,:,:3]
+
+        # Get metadata
+        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+
+        # Get bounding box data
+        bbx = self.metadata_file.get_column('bb_x')[idx]
+        bby = self.metadata_file.get_column('bb_y')[idx]
+        bbw = self.metadata_file.get_column('bb_width')[idx]
+        bbh = self.metadata_file.get_column('bb_height')[idx]
+
+        # Crop image
+        img_cropped = img[bby:bby+bbh, bbx:bbx+bbw]
+
+        # Resize img to target size with padding to avoid distortion
+        h, w, _ = img_cropped.shape
+        target_h, target_w = self.target_size
+
+        # Calculate the scaling factor to fit the image inside the box
+        scale = min(target_h / h, target_w / w)
+
+        # Calculate the new dimensions of the image
+        new_h, new_w = int(h * scale), int(w * scale)
+
+        # Resize
+        img_resized = resize(img_cropped, (new_h, new_w), anti_aliasing=True)
+
+        # Create a black canvas (zeros) of the target size
+        out_img = np.zeros((target_h, target_w, img.shape[2]), dtype=img_resized.dtype)
+
+        # Place the resized image in the center of the canvas
+        y_offset = (target_h - new_h) // 2
+        x_offset = (target_w - new_w) // 2
+        out_img[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = img_resized
+
+        # Convert back to uint8 (0-255)
+        final_img = (out_img * 255).astype(np.uint8) # <2>
+
+        return final_img, save_path
+```
+
+1. xxx
+2. `skimage` returns elements with a `dtype(float64)` (values from 0 to 1), but we want to save space on disk.
+
+## Multiprocessing
+
+Built-in multiprocessing in Python can be done with either of the `ProcessPoolExecutor` class from the [`concurrent.futures` module](https://docs.python.org/3/library/concurrent.futures.html) or the `Pool` class from the [`multiprocessing` package](https://docs.python.org/3/library/multiprocessing.html).
+
+Let's use the first one:
+
+```{.python}
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm  # to display a progress bar
+```
+
+Let's instantiate our `CleaningDataset`:
+
+```{.python}
+cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
+
+dataset_to_clean = CleaningDataset(
+    metadata_file=metadata_train,
+    source_dir=img_dir,
+    target_dir=cleaned_img_dir
+)
+```
+
+```{.python}
+def process_idx(i):
+    """Helper function for the parallel worker."""
+    img, path = dataset_to_clean[i]
+    if img is not None:
+        # Create target directory if it doesn't exist
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # Save cleaned image
+        iio.imwrite(path, img)
+        return 1 # Success
+    return 0 # Failure
+
+# Run in Parallel
+if __name__ == "__main__":
+    # Use as many workers as you have CPU cores
+    with ProcessPoolExecutor() as executor:
+        # Map indices to the process function
+        results = list(tqdm(
+            executor.map(process_idx, range(len(dataset))),
+            total=len(dataset),
+            desc="Cleaning Images"
+        ))
+
+    print(f"Done. {sum(results)} images processed.")
+```
+
+```
+Done. 48562 images processed.
+```
+
+![](img/multiprocessing_img_cleaning.png){width="70%"}
+
+## Create a new class for our dataset
+
+```{python}
+class NABirdsDataset:
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir):
+        self.metadata_file = metadata_file
+        self.data_dir = data_dir
+    def __len__(self):
+        return len(self.metadata_file)
+    def __getitem__(self, idx):
+        path = os.path.join(
+            self.data_dir,
+            self.metadata_file.get_column('path')[idx]
+        )
+        img = iio.imread(path)
+        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        element = {
+            'image': img,
+            'id': id,
+            'photographer': photographer,
+        }
+        return element
+```
+
+:::{.callout-tip collapse="true"}
+
+## Equivalent using PyTorch
+
+PyTorch provides [`torch.utils.data.Dataset`](https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.Dataset), an abstract class representing a dataset. You need to write a subclass of `torch.utils.data.Dataset` (let's call it `NABirdsDataset`) so that it inherits from `torch.utils.data.Dataset`, but with characteristics matching our own dataset.
+
+A PyTorch custom Dataset class must implement three methods:
+
+- `__init__`: initializes a new instance (object) of the class,
+- `__len__`: returns the number of elements in the new dataset class, and
+- `__getitem__`: loads and returns an element from the dataset at a given index `idx`:
+
+```{.python}
+from torch.utils.data import Dataset
+
+class NABirdsDatasetPyTorch(Dataset):
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir, transform=None):
+        self.metadata_file = metadata_file
+        self.data_dir = data_dir
+        self.transform = transform
+    def __len__(self):
+        return len(self.metadata_file)
+    def __getitem__(self, idx):
+        path = os.path.join(
+            self.data_dir,
+            self.metadata_file.get_column('path')[idx]
+        )
+        img = iio.imread(path)
+        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        element = {
+            'image': img,
+            'id': img_id,
+            'photographer': img_photographer,
+        }
+        if self.transform:
+            element = self.transform(element)
+        return element
+```
+
+:::
+
+## Instantiate new class with new data
+
+```{python}
+nabirds_train = NABirdsDataset(
+    metadata_train,
+    cleaned_img_dir
+)
+```
+
+## Print info on first 4 elements
+
+```{python}
+for i, element in enumerate(nabirds_train):
+    print(f'Image new dimensions: {element['image'].shape}, data type: {element['image'].dtype}'
+    )
+    if i == 3:
+        break
+```
+
+:::{.note}
+
+Notice how images are all of the same size now.
+
+:::
+
+## Display first 4 elements
+
+Let's display the first 4 cleaned images to make sure they look like what we expect:
+
+```{python}
+fig = plt.figure(figsize=(8, 8))
+
+for i, element in enumerate(nabirds_train):
+    ax = plt.subplot(2, 2, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        fontsize=9
+    )
+    ax.axis('off')
+    plt.imshow(element['image'])
+    if i == 3:
+        plt.show()
+        break
+```
