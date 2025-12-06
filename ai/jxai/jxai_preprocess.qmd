@@ -9,7 +9,7 @@ author: Marie-Hélène Burle
 
 :::
 
-## Create a training DataFrame
+## Training DataFrame
 
 ```{.python}
 base_dir = "<path-of-the-nabirds-dir>"
@@ -33,7 +33,7 @@ import polars as pl
 metadata = pl.read_parquet("metadata.parquet")
 ```
 
-Now we can get a subset of our metadata DataFrame with the training metadata data only:
+Now we can get a subset of our metadata DataFrame with the training metadata only:
 
 ```{python}
 metadata_train = metadata.filter(pl.col("is_training_img") == 1)
@@ -47,7 +47,7 @@ print(metadata_train.row(0))
 print(metadata_train.columns)
 ```
 
-## Reading in images
+## Read in images
 
 To read in the images, there are many options, including:
 
@@ -55,9 +55,9 @@ To read in the images, there are many options, including:
 - `cv2.imread` from [OpenCV](https://github.com/opencv/opencv),
 - [skimage.io.imread](https://scikit-image.org/docs/stable/api/skimage.io.html#skimage.io.imread) from [scikit-image](https://github.com/scikit-image/scikit-image).
 
-Here, we are using `imageio.imread` from [imageio](https://github.com/imageio/imageio) which is an excellent option because it automatically creates a NumPy ndarrays, choosing a dtype based on the image, and it is faster than other options ([scikit-image](https://github.com/scikit-image/scikit-image) actually use it now instead of their own implementation).
+Here, we are using `imageio.imread` from [imageio](https://github.com/imageio/imageio) which is an excellent option because it automatically creates a NumPy ndarrays, choosing a dtype based on the image, and it is faster than other options ([scikit-image](https://github.com/scikit-image/scikit-image) actually uses it now instead of their own implementation).
 
-## Create an initial class for our dataset
+## Initial Dataset class
 
 ```{python}
 import os
@@ -117,7 +117,7 @@ Note the image values between 0 and 255.
 
 :::
 
-## Display a data sample
+## Display a sample of data
 
 Let's display the first 4 images and their bounding boxes:
 
@@ -174,7 +174,7 @@ Also, a neural network will need images of the same size and our images come in 
 
 What size to chose? xxx
 
-## Create a cleaning class
+## Cleaning Dataset class
 
 
 [](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html#skimage.transform.resize)
@@ -262,20 +262,20 @@ class CleaningDataset:
 1. xxx
 2. `skimage` returns elements with a `dtype(float64)` (values from 0 to 1), but we want to save space on disk.
 
-## Multiprocessing
+## Create the clean data in parallel
 
 Built-in multiprocessing in Python can be done with either of the `ProcessPoolExecutor` class from the [`concurrent.futures` module](https://docs.python.org/3/library/concurrent.futures.html) or the `Pool` class from the [`multiprocessing` package](https://docs.python.org/3/library/multiprocessing.html).
 
 Let's use the first one:
 
-```{.python}
+```{python}
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm  # to display a progress bar
 ```
 
 Let's instantiate our `CleaningDataset`:
 
-```{.python}
+```{python}
 cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
 
 dataset_to_clean = CleaningDataset(
@@ -285,7 +285,9 @@ dataset_to_clean = CleaningDataset(
 )
 ```
 
-```{.python}
+We can now create a helper function:
+
+```{python}
 def process_idx(i):
     """Helper function for the parallel worker."""
     img, path = dataset_to_clean[i]
@@ -296,28 +298,34 @@ def process_idx(i):
         iio.imwrite(path, img)
         return 1 # Success
     return 0 # Failure
+```
 
-# Run in Parallel
-if __name__ == "__main__":
-    # Use as many workers as you have CPU cores
-    with ProcessPoolExecutor() as executor:
-        # Map indices to the process function
-        results = list(tqdm(
-            executor.map(process_idx, range(len(dataset))),
-            total=len(dataset),
-            desc="Cleaning Images"
-        ))
+And run it in parallel:
 
-    print(f"Done. {sum(results)} images processed.")
+```{.python}
+# Use as many workers as you have CPU cores
+with ProcessPoolExecutor() as executor:
+    # Map indices to the process function
+    results = list(tqdm(
+        executor.map(process_idx, range(len(dataset_to_clean))),
+        total=len(dataset_to_clean),
+        desc="Cleaning Images"
+    ))
+
+print(f"Done. {sum(results)} images processed.")
 ```
 
 ```
-Done. 48562 images processed.
+Done. 23929 images processed.
 ```
+
+You can watch the parallel work live with an application such as [htop](https://github.com/htop-dev/htop/) (on your machine or the cluster) or [btop](https://github.com/aristocratos/btop) (on your machine).
+
+Here is a screenshot I took from `btop` on my machine while creating the cleaned images. You can see that my 16 cores are working in parallel:
 
 ![](img/multiprocessing_img_cleaning.png){width="70%"}
 
-## Create a new class for our dataset
+## New Dataset class
 
 ```{python}
 class NABirdsDataset:
@@ -386,7 +394,9 @@ class NABirdsDatasetPyTorch(Dataset):
 
 :::
 
-## Instantiate new class with new data
+## Instantiate
+
+Now we can instantiate the new class with the new data:
 
 ```{python}
 nabirds_train = NABirdsDataset(
@@ -395,7 +405,7 @@ nabirds_train = NABirdsDataset(
 )
 ```
 
-## Print info on first 4 elements
+## Print info on a sample
 
 ```{python}
 for i, element in enumerate(nabirds_train):
@@ -407,11 +417,11 @@ for i, element in enumerate(nabirds_train):
 
 :::{.note}
 
-Notice how images are all of the same size now.
+Notice how images are all of width and height `224` now.
 
 :::
 
-## Display first 4 elements
+## Display a sample
 
 Let's display the first 4 cleaned images to make sure they look like what we expect:
 
