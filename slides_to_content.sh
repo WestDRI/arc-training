@@ -4,11 +4,16 @@
 #     cp $file $newname
 # done
 
+# how to use:
+# 1. source the script:
+# source /home/marie/parvus/prog/mint/slides_to_content.sh
+# 2. run:
+# slides_to_content file-to-transform-slides.qmd
+
 slides_to_content() {
     newname=$(echo $1 | sed "s/slides/content/")
     cp $1 $newname
 
-    sed -i -z 's/ ## {.center}\n\n//g' $newname
     sed -i 's/ {.center}//g' $newname
     sed -i -z 's/. . .\n\n//g' $newname
 
