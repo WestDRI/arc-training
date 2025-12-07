@@ -106,26 +106,13 @@ In Grain, a DataLoader requires 3 components:
 - Transforms:
 - Sampler:
 
-## Sequential sampler
+## Data source
 
-[`grain.SequentialSampler`](https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.SequentialSampler.html)
-
-```{python}
-import grain.python as grain
-
-nabirds_train_seqsampler = grain.SequentialSampler(
-    num_records=4
-)
-```
-
-```{python}
-for record_metadata in nabirds_train_seqsampler:
-    print(record_metadata)
-```
+We already have that: it is our instance of Dataset class that we called `nabirds_train`.
 
 ## Transformations
 
-Something else we need to do is split the data into batches. Batches can be defined with `grain.Batch` as a DataLoader transformation.
+We need to split the data into batches. Batches can be defined with the  `grain.Batch` method as a DataLoader transformation.
 
 Let's use batches of 32 with `grain.Batch(batch_size=32)`.
 
@@ -135,7 +122,7 @@ Let's use batches of 32 with `grain.Batch(batch_size=32)`.
 
 The batch size is a crucial hyperparameter: it impacts your training speed, model stability, and final accuracy.
 
-### Safe default strategy
+### Default strategy
 
 If you are unsure where to start, **use a batch size of 32**.
 
@@ -145,12 +132,12 @@ If you are unsure where to start, **use a batch size of 32**.
 
 Always use powers of 2 (32, 64, 128, 256) because GPUs and CPUs are optimized for binary operations, and this aligns memory allocation efficiently.
 
-| Feature | **Small Batch Size** (e.g., 16, 32) | **Large Batch Size** (e.g., 256, 1024+) |
+|  | **Small batch size**  | **Large batch size**  |
 | :--- | :--- | :--- |
-| **Training Speed** | Slower: less efficient use of GPU parallelism | Faster: maximizes GPU throughput |
+| **Training speed** | Slower: less efficient use of GPU | Faster: maximizes GPU throughput |
 | **Generalization** | Better: the "noise" in the gradient helps the model escape sharp local minima | Worse: can lead to overfitting |
-| **Convergence** | Noisy training curve; loss fluctuates | Smoother training curve; stable descent |
-| **Memory Usage** | Low: good for limited VRAM | High: risk of OOM |
+| **Convergence** | Noisy training curve: loss fluctuates | Smoother training curve: stable descent |
+| **Memory usage** | Low: good for limited VRAM | High: risk of OOM |
 
 ### Tuning the batch size
 
@@ -186,18 +173,56 @@ A rule that works well until you get to very large batch sizes is to double the 
 
 :::
 
-## First DataLoader
+## Samplers
 
-We now have our source, sampler, and transformation, so we can build our first Grain DataLoader:
+### Sequential sampler
+
+Grain comes with a [basic sequential sampler](https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.SequentialSampler.html).
+
+```{python}
+import grain.python as grain
+
+nabirds_train_seqsampler = grain.SequentialSampler(
+    num_records=4
+)
+```
+
+```{python}
+for record_metadata in nabirds_train_seqsampler:
+    print(record_metadata)
+```
+
+### Index sampler
+
+Grain [index sampler](https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.IndexSampler.html) xxx
+
+
+```{python}
+nabirds_train_isampler = grain.IndexSampler(
+    num_records=200,
+    shuffle=True,
+    seed=0
+)
+```
+
+```{python}
+for i, record_metadata in enumerate(nabirds_train_isampler):
+  print(record_metadata)
+  if i == 3:
+      break
+```
+
+## DataLoaders
+
+We now have our source, samplers, and transformation, so we can build experiment with Grain DataLoaders.
+
+### With sequential sampler
 
 ```{python}
 nabirds_train_dl = grain.DataLoader(
     data_source=nabirds_train,
     sampler=nabirds_train_seqsampler,
-    worker_count=0,
-    operations=[
-        grain.Batch(batch_size=32)
-    ]
+    worker_count=0
 )
 ```
 
@@ -228,36 +253,13 @@ Because we set the number of records to 4 in the sampler, we don't have to break
 
 :::
 
-## Index sampler
-
-[`grain.IndexSampler`](https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.IndexSampler.html)
-
-
-```{python}
-nabirds_train_isampler = grain.IndexSampler(
-    num_records=200,
-    shuffle=True,
-    seed=0
-)
-```
-
-```{python}
-for i, record_metadata in enumerate(nabirds_train_isampler):
-  print(record_metadata)
-  if i == 3:
-      break
-```
-
-
+### With index sampler
 
 ```{python}
 nabirds_train_dl = grain.DataLoader(
     data_source=nabirds_train,
     sampler=nabirds_train_isampler,
-    worker_count=0,
-    operations=[
-        grain.Batch(batch_size=32)
-    ]
+    worker_count=0
 )
 ```
 
@@ -280,4 +282,25 @@ for i, element in enumerate(nabirds_train_dl):
         break
 ```
 
+### Adding batching
 
+```{python}
+nabirds_train_dl = grain.DataLoader(
+    data_source=nabirds_train,
+    sampler=nabirds_train_isampler,
+    worker_count=0,
+    operations=[
+        grain.Batch(batch_size=32)
+    ]
+)
+```
+
+```{python}
+for i, element in enumerate(nabirds_train_dl):
+    print(element['image'].shape)
+    if i == 0:
+        plt.show()
+        break
+```
+
+As you can see, the batch size got added as an extra dimension.
