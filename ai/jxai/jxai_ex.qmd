@@ -5,21 +5,231 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-
+This course is structured around one concrete deep learning example which we describe in this section.
 
 :::
 
+## The problem
 
+We want to train a model to perform a fine-grained vision classification task where distinguishing features between classes are subtle.
 
+## The data
 
-[NABirds dataset](https://dl.allaboutbirds.org/nabirds) from the [Cornell Lab of Ornithology](https://www.birds.cornell.edu/home/)
+We will use the [NABirds dataset](https://dl.allaboutbirds.org/nabirds) from the [Cornell Lab of Ornithology](https://www.birds.cornell.edu/home/).
 
-48,562 images of 404 bird species
-Many of these species are further subdivided into categories such as Male/Female, Adult/Juvenile, Breeding/Non-breeding, which leads to 555 total classes
+## Our strategy
 
+```{dot}
+//| echo: false
 
-[UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier)
+digraph JAX_Pipeline {
+    // General Graph Settings
+    bgcolor="transparent"
+    rankdir=TB; // Top to Bottom flow
+    fontname="Helvetica, Arial, sans-serif";
+    labelloc="t";
+    nodesep=0.6;
+    ranksep=0.6;
 
-The data is roughly evenly split between training and validation (23,929 training and 24,633 validation). The number of training images per class is quite variable, with 60 images for about a quarter of classes, and single digits for some of the rarer varieties (4 for the white winged dark-eyed junco and 5 for the female harlequin duck.)
+    // Default Node Settings
+    node [shape=box, style="filled,rounded", fontname="Helvetica, Arial, sans-serif", margin=0.2, penwidth=0];
+    
+    // Default Edge Settings
+    edge [fontname="Helvetica, Arial, sans-serif", color="#555555", arrowsize=0.8];
 
+    // --- CLUSTER 1: DATA PREPARATION (CPU) ---
+    subgraph cluster_cpu {
+        label = "Data preparation (on CPU)\nUse NumPy for arrays";
+        style = filled;
+        color = "#e8f0d9"; // Very light green background for cluster
+        fontcolor = "#4a5e28";
+        fontsize = 14;
 
+        // Setting node color for this cluster based on your cScale0
+        node [fillcolor="#8db14e", fontcolor="white"];
+
+        Metadata [label=<<B>Metadata cleaning</B><BR align="left"/>- Create cleaned copies<BR align="left"/>- Gather metadata in DataFrame>];
+        Transforms [label=<<B>Data deterministic transformations</B><BR align="left"/>(Use multiprocessing)<BR align="left"/>- Create cleaned copies of data>];
+        
+        // internal flow
+        Metadata -> Transforms;
+    }
+
+    // --- CLUSTER 2: MODEL TRAINING (GPU) ---
+    subgraph cluster_gpu {
+        label = "Model training (on GPU)\nUse JAX for arrays | JIT compile | Use vmap";
+        style = filled;
+        color = "#ccf3f3"; // Very light teal background for cluster
+        fontcolor = "#005555";
+        fontsize = 14;
+
+        // Setting node color for this cluster based on your cScale1
+        node [fillcolor="#008b8b", fontcolor="white"];
+
+        DataLoader [label=<<B>DataLoader</B><BR align="left"/>- Create sampler<BR align="left"/>(shuffling, sharding, epochs)<BR align="left"/>- Batching>];
+        
+        Augmentation [label=<<B>Data augmentation</B><BR align="left"/>- Define function<BR align="left"/>- JIT compile function>];
+        
+        TrainingLoop [label=<<B>Training loop</B><BR align="left"/>- Move data to GPU<BR align="left"/>- Convert NumPy to JAX<BR align="left"/>- Apply augmentations<BR align="left"/>- Train>];
+
+        // internal flow
+        DataLoader -> Augmentation -> TrainingLoop;
+    }
+
+    // --- CONNECTING THE CLUSTERS ---
+    Transforms -> DataLoader [lhead=cluster_gpu, minlen=2];
+}
+```
+
+```{mermaid}
+%%| echo: false
+
+---
+config:
+  theme: 'default'
+  themeVariables:
+    cScale0: '#8db14e'
+    cScale1: '#008b8b'
+---
+
+timeline
+        section Data preparation <br> (on CPU) <br> Use NumPy for arrays
+          Metadata cleaning : Create cleaned copies of metadata files if needed
+                            : Gather needed metadata in a DataFrame
+          Data deterministic transformations <br> Use multiprocessing : Create cleaned copies of data if needed
+        section Model training <br> (on GPU) <br> Use JAX for arrays <br> JIT compile <br> Use vmap
+          DataLoader : Create sampler (shuffling, sharding, number of epochs)
+                     : Batching
+          Data augmentation : Define augmentation function
+                            : JIT compile augmentation function
+          Training loop : Move data to GPU
+                        : Convert NumPy arrays to JAX arrays
+                        : Apply augmentations
+                        : Train
+```
+
+```{dot}
+//| echo: false
+
+strict graph {
+
+  bgcolor="transparent"
+  graph [fontname="Inconsolata, sans-serif"]
+  node [fontname="Inconsolata, sans-serif", color=cornflowerblue]
+  compound=true
+
+  subgraph cpu {
+	label="Data preparation <br> (on CPU) <br> Use NumPy for arrays"
+	color=cornflowerblue
+	fontcolor=darkolivegreen
+	fontsize=20
+	edge [style=invis]
+	node [fontsize=18]
+	{rank=same; e1071 kernlab rpart party caret gmodels randomForest ranger}
+	{rank=same; ipred gbm xgboost C50 cluster class mclust naivebayes glmnet}
+	e1071 -- ipred
+  }
+
+  subgraph gpu {
+	label="Model training <br> (on GPU) <br> Use JAX for arrays <br> JIT compile <br> Use vmap"
+	color=cornflowerblue
+	fontcolor=darkcyan
+	fontsize=20
+	labelloc=b
+	node [fontsize=18]
+	RSNNS h2o darch deepr RCNN4R rcppDL rnn neuralnet deepnet
+  }
+
+  ranger [URL=""]
+  randomForest [URL=""]
+  gmodels [URL="https://cran.r-project.org/web/packages/gmodels/index.html"]
+  caret [URL=""]
+  party [URL="https://cran.r-project.org/web/packages/party/index.html"]
+  rpart [URL=""]
+  kernlab [URL=""]
+  e1071 [URL=""]
+  glmnet [URL=""]
+  naivebayes [URL=""]
+  mclust [URL=""]
+  class [URL=""]
+  cluster [URL=""]
+  C50 [URL=""]
+  xgboost [URL=""]
+  gbm [URL=""]
+  ipred [URL=""]
+  deepnet [URL=""]
+  neuralnet [URL=""]
+  rnn [URL=""]
+  rcppDL [URL=""]
+  RCNN4R [URL=""]
+  deepr [URL=""]
+  darch [URL=""]
+  h2o [URL=""]
+  RSNNS [URL=""]
+
+  R [fontcolor=cornflowerblue, URL="https://www.r-project.org/"]
+
+  cluster -- R [ltail=cluster_ml, color=cornflowerblue]
+  R -- RCNN4R [lhead=cluster_dl, color=cornflowerblue]
+
+}
+```
+
+```{dot}
+//| echo: false
+
+strict digraph {
+
+bgcolor="transparent"
+graph [fontname="Inconsolata, sans-serif"]
+node [fontname="Inconsolata, sans-serif", fontsize=20]
+label="Automatic differentiation (AD)\n\n"
+fontsize=30
+labelloc=t
+
+1 [label="Static graph\nand XLA", shape=plaintext, group=g1]
+2 [label="Dynamic tape-based", shape=plaintext, group=g1]
+3 [label="Dynamic tape-based\nand JIT", shape=plaintext, group=g1]
+4 [label="Eager graph\nand XLA", shape=plaintext, group=g1]
+5 [label="Non-standard interpretation\nand XLA", shape=plaintext, group=g1]
+6 [label="Works at lower level", shape=plaintext, group=g1]
+7 [label="Works on LLVM itself", shape=plaintext, group=g1]
+
+a [label="TensorFlow", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
+b [label="PyTorch", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
+c [label="PyTorch", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
+d [label="TensorFlow2", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
+e [label="JAX", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
+f [label="Zygote", shape=plaintext, fontcolor=darkorchid2, color=darkorchid2, group=g2, shape=oval]
+g [label="Enzyme", shape=plaintext, fontcolor=darkorchid2, color=darkorchid2, group=g2, shape=oval]
+
+A [label="Inconvenient", shape=plaintext, fontcolor=gray55, group=g3]
+B [label="Hard to optimize", shape=plaintext, fontcolor=gray55, group=g3]
+C [label="Not currently developped", shape=plaintext, fontcolor=gray55, group=g3]
+D [label="Dynamism doesn't\nplay well with XLA", shape=plaintext, fontcolor=gray55, group=g3]
+E [label="Only sublanguage", shape=plaintext, fontcolor=gray55, group=g3]
+F [label="Harder implementation", shape=plaintext, fontcolor=gray55, group=g3]
+G [label="Very hard to implement", shape=plaintext, fontcolor=gray55, group=g3]
+
+{rank=same; 1 a A}
+{rank=same; 2 b B}
+{rank=same; 3 c C}
+{rank=same; 4 d D}
+{rank=same; 5 e E}
+{rank=same; 6 f F}
+{rank=same; 7 g G}
+
+1 -> a -> A [style=invis]
+2 -> b -> B [style=invis]
+3 -> c -> C [style=invis]
+4 -> d -> D [style=invis]
+5 -> e -> E [style=invis]
+6 -> f -> F [style=invis]
+7 -> g -> G [style=invis]
+
+1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+a -> b -> c -> d -> e -> f -> g [style=invis]
+A -> B -> C -> D -> E -> F -> G [style=invis]
+
+}
+```
