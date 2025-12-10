@@ -13,7 +13,9 @@ In this section, we process some of the metadata associated with the NABirds dat
 
 ## Metadata files
 
-In addition to images, the dataset comes with a number of text files. To understand the dataset, of course, the place start is by reading ... the README.
+In addition to images, the dataset comes with a number of text files. To understand the dataset, of course, the place to start is by reading ... the README.
+
+You can find it in full in this accordion box, with a summary below:
 
 :::{.callout-note collapse="true"}
 
@@ -142,6 +144,12 @@ images.txt | List of UUIDs and their corresponding file names
 photographers.txt | List of UUIDs and their corresponding photographers
 train_test_split.txt | List of UUIDs and 1 or 0 depending on whether the image is for training or validation respectively (the dataset comes with a suggested split)
 
+The README has one request:
+
+> Please be considerate and display the photographer's name when displaying their image.
+
+We will make sure to follow it.
+
 ## Clean problem files
 
 Two of the files are problematic because they are jagged: the number of elements per line is inconsistent.
@@ -149,7 +157,38 @@ Two of the files are problematic because they are jagged: the number of elements
 Let's create a cleaning function that writes cleaned up copies of the files:
 
 ```{python}
-def clean_file(input_filepath, output_filepath):
+def clean_classes_file(input_filepath, output_filepath):
+    """
+    Remove commas, remove parenthesis, and replace all spaces except the first space
+    on each line and the space between species name and subcategory info with underscores.
+
+    Args:
+        input_filepath (str): the path of the input file.
+        output_filepath (str): the path of the output file.
+    """
+    with open(input_filepath, 'r') as infile, \
+         open(output_filepath, 'w') as outfile:
+
+        for line in infile:
+            # Remove commas and ending parenthesis
+            cleaned_line = line.replace(',', '').replace(')', '')
+
+            # Strip newline characters
+            cleaned_line = cleaned_line.strip()
+
+            # Split line into two parts based on the first space
+            parts = cleaned_line.split(' ', 1)
+
+            # Replace spaces in the second part with underscores
+            part2_cleaned = parts[1].replace(' ', '_').replace('_(', ' ')
+
+            final_line = f'{parts[0]} {part2_cleaned}\n'
+
+            outfile.write(final_line)
+```
+
+```{python}
+def clean_photographer_file(input_filepath, output_filepath):
     """
     Remove commas, remove quotes, and replace all spaces except the first space
     on each line with underscores.
@@ -174,7 +213,7 @@ def clean_file(input_filepath, output_filepath):
             # Replace spaces in the second part with underscores
             part2_cleaned = parts[1].replace(' ', '_')
 
-            final_line = f"{parts[0]} {part2_cleaned}\n"
+            final_line = f'{parts[0]} {part2_cleaned}\n'
 
             outfile.write(final_line)
 ```
@@ -182,7 +221,7 @@ def clean_file(input_filepath, output_filepath):
 Then we can apply the function on our files:
 
 ```{.python}
-base_dir = "<path-of-the-nabirds-dir>"
+base_dir = '<path-of-the-nabirds-dir>'
 ```
 
 :::{.note}
@@ -194,20 +233,20 @@ To be replaced by proper path.
 ```{python}
 #| echo: false
 
-base_dir = "nabirds"
+base_dir = 'nabirds'
 ```
 
 ```{python}
 import os
 
-clean_file(
-    os.path.join(base_dir, "photographers.txt"),
-    os.path.join(base_dir, "photographers_cleaned.txt")
+clean_photographer_file(
+    os.path.join(base_dir, 'photographers.txt'),
+    os.path.join(base_dir, 'photographers_cleaned.txt')
 )
 
-clean_file(
-    os.path.join(base_dir, "classes.txt"),
-    os.path.join(base_dir, "classes_cleaned.txt")
+clean_classes_file(
+    os.path.join(base_dir, 'classes.txt'),
+    os.path.join(base_dir, 'classes_cleaned.txt')
 )
 ```
 
@@ -216,12 +255,12 @@ clean_file(
 For convenience, let's create variables with the path of the various files we need:
 
 ```{python}
-bb_file = os.path.join(base_dir, "bounding_boxes.txt")
-class_id_to_name_file = os.path.join(base_dir, "classes_cleaned.txt")
-class_id_file = os.path.join(base_dir, "image_class_labels.txt")
-path_file = os.path.join(base_dir, "images.txt")
-photographer_file = os.path.join(base_dir, "photographers_cleaned.txt")
-train_test_split_file = os.path.join(base_dir, "train_test_split.txt")
+bb_file = os.path.join(base_dir, 'bounding_boxes.txt')
+class_id_to_name_file = os.path.join(base_dir, 'classes_cleaned.txt')
+class_id_file = os.path.join(base_dir, 'image_class_labels.txt')
+path_file = os.path.join(base_dir, 'images.txt')
+photographer_file = os.path.join(base_dir, 'photographers_cleaned.txt')
+train_test_split_file = os.path.join(base_dir, 'train_test_split.txt')
 ```
 
 ## Create a metadata DataFrame
@@ -235,44 +274,56 @@ import polars as pl
 
 bb = pl.read_csv(
     bb_file,
-    separator=" ",
+    separator=' ',
     has_header=False,
-    new_columns=["UUID", "bb_x", "bb_y", "bb_width", "bb_height"]
+    new_columns=['UUID', 'bb_x', 'bb_y', 'bb_width', 'bb_height']
 )
 
 class_id = pl.read_csv(
     class_id_file,
-    separator=" ",
+    separator=' ',
     has_header=False,
-    new_columns=["UUID", "class_id"]
+    new_columns=['UUID', 'class_id']
 )
+```
 
+
+xxx
+
+```{.bash}
+rg "\(" /home/marie/parvus/prog/mint/ai/jxai/nabirds/classes.txt | fzf
+```
+
+```{python}
 class_id_to_name = pl.read_csv(
     class_id_to_name_file,
-    separator=" ",
+    separator=' ',
     has_header=False,
-    new_columns=["class_id", "class_name"]
+    infer_schema_length=296,
+    new_columns=['class_id', 'species', 'subcategory']
 )
+```
 
+```{python}
 path = pl.read_csv(
     path_file,
-    separator=" ",
+    separator=' ',
     has_header=False,
-    new_columns=["UUID", "path"]
+    new_columns=['UUID', 'path']
 )
 
 photographer = pl.read_csv(
     photographer_file,
-    separator=" ",
+    separator=' ',
     has_header=False,
-    new_columns=["UUID", "photographer"]
+    new_columns=['UUID', 'photographer']
 )
 
 train_test_split = pl.read_csv(
     train_test_split_file,
-    separator=" ",
+    separator=' ',
     has_header=False,
-    new_columns=["UUID", "is_training_img"]
+    new_columns=['UUID', 'is_training_img']
 )
 ```
 
@@ -286,7 +337,7 @@ Then we can combine the two DataFrames dealing with classes so that the birds id
 
 ```{python}
 classes_metadata = (
-    class_id.join(class_id_to_name, on="class_id")
+    class_id.join(class_id_to_name, on='class_id')
 )
 ```
 
@@ -294,10 +345,10 @@ Finally, we combine all the DataFrames:
 
 ```{python}
 metadata = (
-    bb.join(classes_metadata, on="UUID")
-    .join(path, on="UUID")
-    .join(photographer, on="UUID")
-    .join(train_test_split, on="UUID")
+    bb.join(classes_metadata, on='UUID')
+    .join(path, on='UUID')
+    .join(photographer, on='UUID')
+    .join(train_test_split, on='UUID')
 )
 ```
 
@@ -354,18 +405,60 @@ print(f'There are {len(metadata)} images in the dataset.')
 ```
 
 ```{python}
-training_set = metadata.filter(pl.col("is_training_img") == 1)
-print(f'There are {len(training_set)} images in the training set and {len(metadata) - len(training_set)} in the evaluation set.')
+metadata_train = metadata.filter(pl.col('is_training_img') == 1)
+print(f"""
+There are:
+- {len(metadata_train)} images in the training set,
+- {len(metadata) - len(metadata_train)} in the validation set.
+""")
 ```
 
 ```{python}
-class_id = metadata.group_by(pl.col("class_id")).len()
-print(f'There are {len(class_id)} different classes.')
+class_id = metadata.unique(pl.col('class_id'))
+species = metadata.unique(pl.col('species'))
+print(f'There are {len(class_id)} different classes and {len(species)} different species in the dataset.')
 ```
 
 ```{python}
-metadata.filter(pl.col("class_name"
+train_class_id_group_length = metadata_train.group_by(pl.col('class_id')).len()
+print(f"""
+The number of images per class in the training set varies from {train_class_id_group_length.min().select(pl.col('len')).item()} to {train_class_id_group_length.max().select(pl.col('len')).item()},
+with an average of {round(train_class_id_group_length.mean().select(pl.col('len')).item())} images per class.
+""")
 ```
+
+```{python}
+train_species_group_length = metadata_train.group_by(pl.col('species')).len()
+print(f"""
+The number of images per species in the training set varies from {train_species_group_length.min().select(pl.col('len')).item()} to {train_species_group_length.max().select(pl.col('len')).item()},
+with an average of {round(train_species_group_length.mean().select(pl.col('len')).item())} images per species.
+""")
+```
+
+```{python}
+subcategory = metadata.unique(pl.col("subcategory"))
+example_list = subcategory.get_column('subcategory').drop_nulls().head(10).to_list()
+example_list_cleaned = [x.replace('_', ' ') for x in example_list]
+print(f"""
+There are {len(subcategory)} species subcategories, such as:
+- {'\n- '.join(example_list_cleaned)}
+- etc.
+""")
+```
+
+## Summary metadata
+
+Let's summarize the info we gathered from the metadata:
+
+Category | Number
+--- | ---
+Images | 48_562
+Training images | 23_929
+Validation images | 24_633
+Classes (species with their subcategories) | 555
+Species | 405
+Average number of images per class in the training set | 43
+Average number of images per species in the training set | 59
 
 ## Save DataFrame to Parquet
 
@@ -374,7 +467,7 @@ To make it easier to retrieve information from the metadata later on, we can sav
 [Parquet](https://github.com/apache/parquet-format/) is an open-source, columnar, and extremely efficient binary file format for tabular data. Unlike in CSV or JSON files, the data is compressed, making it efficient for storage space. It is also excellent for query performance. Always prefer it over text-based formats.
 
 ```{python}
-metadata.write_parquet("metadata.parquet")
+metadata.write_parquet('metadata.parquet')
 ```
 
 Our metadata is ready. We can now start working with the pictures.
