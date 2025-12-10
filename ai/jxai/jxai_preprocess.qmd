@@ -9,10 +9,10 @@ author: Marie-Hélène Burle
 
 :::
 
-## Training DataFrame
+## Load the metadata DataFrame
 
 ```{.python}
-base_dir = "<path-of-the-nabirds-dir>"
+base_dir = '<path-of-the-nabirds-dir>'
 ```
 
 :::{.note}
@@ -24,19 +24,23 @@ To be replaced by actual path.
 ```{python}
 #| echo: false
 
-base_dir = "nabirds"
+base_dir = 'nabirds'
 ```
+
+Let's read our Parquet file back in:
 
 ```{python}
 import polars as pl
 
-metadata = pl.read_parquet("metadata.parquet")
+metadata = pl.read_parquet('metadata.parquet')
 ```
+
+## Training DataFrame
 
 Now we can get a subset of our metadata DataFrame with the training metadata only:
 
 ```{python}
-metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+metadata_train = metadata.filter(pl.col('is_training_img') == 1)
 ```
 
 Quick sanity checks:
@@ -66,30 +70,34 @@ import imageio.v3 as iio
 class NABirdsDatasetInitial:
     """NABirds dataset class."""
     def __init__(self, metadata_file, data_dir):
-        self.metadata = metadata_file
+        self.metadata_file = metadata_file
         self.data_dir = data_dir
     def __len__(self):
-        return len(self.metadata)
+        return len(self.metadata_file)
     def __getitem__(self, idx):
-        img_path = os.path.join(
+        path = os.path.join(
             self.data_dir,
-            self.metadata.get_column('path')[idx]
+            self.metadata_file.get_column('path')[idx]
         )
-        img = iio.imread(img_path)
-        img_id = self.metadata.get_column('id')[idx].replace('_', ' ')
-        img_photographer = self.metadata.get_column('photographer')[idx].replace('_', ' ')
-        img_bb_x = self.metadata.get_column('bb_x')[idx]
-        img_bb_y = self.metadata.get_column('bb_y')[idx]
-        img_bb_width = self.metadata.get_column('bb_width')[idx]
-        img_bb_height = self.metadata.get_column('bb_height')[idx]
+        img = iio.imread(path)
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        bbx = self.metadata_file.get_column('bb_x')[idx]
+        bby = self.metadata_file.get_column('bb_y')[idx]
+        bbw = self.metadata_file.get_column('bb_width')[idx]
+        bbh = self.metadata_file.get_column('bb_height')[idx]
         element = {
-            'image': img,
-            'id': img_id,
-            'photographer': img_photographer,
-            'bbx' : img_bb_x,
-            'bby' : img_bb_y,
-            'bbwidth' : img_bb_width,
-            'bbheight' : img_bb_height
+            'img': img,
+            'species': species,
+            'subcategory': subcategory,
+            'photographer': photographer,
+            'bbx' : bbx,
+            'bby' : bby,
+            'bbw' : bbw,
+            'bbh' : bbh
         }
         return element
 ```
@@ -97,7 +105,7 @@ class NABirdsDatasetInitial:
 ## Instantiate our class
 
 ```{python}
-img_dir = os.path.join(base_dir, "images")
+img_dir = os.path.join(base_dir, 'images')
 
 nabirds_train_initial = NABirdsDatasetInitial(
     metadata_train,
@@ -119,27 +127,32 @@ Note the image values between 0 and 255.
 
 ## Display a sample of data
 
-Let's display the first 4 images and their bounding boxes:
+Let's display the first 4 images and their bounding boxes (remember that we have to display the photographers names as a requirement of this dataset):
 
 ```{python}
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-fig = plt.figure(figsize=(8, 8))
+fig = plt.figure(figsize=(8, 9))
 
 for i, element in enumerate(nabirds_train_initial):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
-        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        f"""
+        Element {i}
+        Species: {element['species']}
+        Additional information: {element['subcategory']}
+        Picture by {element['photographer']}
+        """,
         fontsize=9
     )
     ax.axis('off')
-    plt.imshow(element['image'])
+    plt.imshow(element['img'])
     rect = patches.Rectangle(
         (element['bbx'], element['bby']),
-        element['bbwidth'],
-        element['bbheight'],
+        element['bbw'],
+        element['bbh'],
         linewidth=1,
         edgecolor='r',
         facecolor='none'
@@ -154,33 +167,27 @@ for i, element in enumerate(nabirds_train_initial):
 
 ```{python}
 for i, element in enumerate(nabirds_train_initial):
-    print(f'Image dimensions: {element['image'].shape}, data type: {element['image'].dtype}'
+    print(f'Image dimensions: {element['img'].shape}, data type: {element['img'].dtype}'
     )
     if i == 3:
         break
 ```
 
-Notice how the images are all of different sizes. This is a problem. We are also not making use of the bounding boxes this dataset comes with, hence using parts of images we know do not contain any bird unnecessarily.
+Notice how the images are all of different sizes. This is a problem because neural networks need images of the same size.
 
-We will address these problems in the next section.
+We are also not making use of the bounding boxes this dataset comes with. This means that we have a large number of pixels we know do not contain any bird part.
 
-## Needed transformations
+Lastly, our images are fairly large (often up to 1024 pixels in width or height). Classification models often come with a few variants for a handful of different image sizes, but the most standard size is 224 by 224 (good compromise between detail and speed).
 
-Raw data seldom works without being transformed.
-
-We should get rid of the parts of the images that are outside of the bounding boxes containing the birds.
-
-Also, a neural network will need images of the same size and our images come in all sorts of sizes.
-
-What size to chose? xxx
+Raw data seldom works without preliminary cleaning. Our very first step will be to address those issues.
 
 ## Cleaning Dataset class
 
+We could write a function to clean our images. Another, more elegant approach is to create a class.
 
-[](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html#skimage.transform.resize)
+To downsize the images to 224 by 224, we use [`skimage.transform.resize`](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html#skimage.transform.resize).
 
 ```{python}
-import imageio.v3 as iio
 from skimage.transform import resize
 import numpy as np
 
@@ -212,7 +219,7 @@ class CleaningDataset:
         try:
             img = iio.imread(read_path)
         except Exception as e:
-            print(f"Error loading {filename}: {e}")
+            print(f'Error loading {filename}: {e}')
             return None, None
 
         # If a file has an alpha channel, drop it
@@ -220,7 +227,8 @@ class CleaningDataset:
             img = img[:,:,:3]
 
         # Get metadata
-        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx].replace('_', ' ')
         photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
 
         # Get bounding box data
@@ -259,8 +267,23 @@ class CleaningDataset:
         return final_img, save_path
 ```
 
-1. xxx
+1. See note below for explanations as to why this step is necessary.
 2. `skimage` returns elements with a `dtype(float64)` (values from 0 to 1), but we want to save space on disk.
+
+:::{.note}
+
+Even serious, well curated datasets often contain inconsistent data. After playing with this dataset, I realized that at least one image has 4 channels (RGBA, i.e. RGB and the alpha channel).
+
+```{python}
+from PIL import Image
+
+img = os.path.join(img_dir, '0344/3b69ce35b9404f3eb321100c93dd2b43.jpg')
+
+with Image.open(img) as img:
+    print(f'Format: {img.format}')
+```
+
+:::
 
 ## Create the clean data in parallel
 
@@ -276,7 +299,7 @@ from tqdm import tqdm  # to display a progress bar
 Let's instantiate our `CleaningDataset`:
 
 ```{python}
-cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
+cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
 
 dataset_to_clean = CleaningDataset(
     metadata_file=metadata_train,
@@ -309,10 +332,10 @@ with ProcessPoolExecutor() as executor:
     results = list(tqdm(
         executor.map(process_idx, range(len(dataset_to_clean))),
         total=len(dataset_to_clean),
-        desc="Cleaning Images"
+        desc='Cleaning Images'
     ))
 
-print(f"Done. {sum(results)} images processed.")
+print(f'Done. {sum(results)} images processed.')
 ```
 
 ```
@@ -341,11 +364,15 @@ class NABirdsDataset:
             self.metadata_file.get_column('path')[idx]
         )
         img = iio.imread(path)
-        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace('_', ' ')
         photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
         element = {
-            'image': img,
-            'id': id,
+            'img': img,
+            'species': species,
+            'subcategory': subcategory,
             'photographer': photographer,
         }
         return element
@@ -380,12 +407,14 @@ class NABirdsDatasetPyTorch(Dataset):
             self.metadata_file.get_column('path')[idx]
         )
         img = iio.imread(path)
-        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx].replace('_', ' ')
         photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
         element = {
-            'image': img,
-            'id': img_id,
-            'photographer': img_photographer,
+            'img': img,
+            'species': species,
+            'subcategory': subcategory,
+            'photographer': photographer,
         }
         if self.transform:
             element = self.transform(element)
@@ -409,7 +438,7 @@ nabirds_train = NABirdsDataset(
 
 ```{python}
 for i, element in enumerate(nabirds_train):
-    print(f'Image new dimensions: {element['image'].shape}, data type: {element['image'].dtype}'
+    print(f'Image new dimensions: {element['img'].shape}, data type: {element['img'].dtype}'
     )
     if i == 3:
         break
@@ -426,17 +455,22 @@ Notice how images are all of width and height `224` now.
 Let's display the first 4 cleaned images to make sure they look like what we expect:
 
 ```{python}
-fig = plt.figure(figsize=(8, 8))
+fig = plt.figure(figsize=(8, 9))
 
 for i, element in enumerate(nabirds_train):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
-        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
+        f"""
+        Element {i}
+        Species: {element['species']}
+        Additional information: {element['subcategory']}
+        Picture by {element['photographer']}
+        """,
         fontsize=9
     )
     ax.axis('off')
-    plt.imshow(element['image'])
+    plt.imshow(element['img'])
     if i == 3:
         plt.show()
         break
