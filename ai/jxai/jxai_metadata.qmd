@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-In this section, we process some of the metadata associated with the NABirds dataset by creating a [Polars](https://github.com/pola-rs/polars) DataFrame collecting all the information we will need while processing the images and training our model.
+In this section, we process some of the metadata associated with the NABirds dataset by creating a [Polars](https://github.com/pola-rs/polars) DataFrame collecting all the information we will need while processing the images and training our model. This allows us to get some information about the dataset.
 
 *[Polars](/python/hpc_polars) is a modern and ultra fast package that you should use instead of [pandas](https://github.com/pandas-dev/pandas) whenever you can if you care about performance.*
 
@@ -135,47 +135,51 @@ We won't need all the information provided with this dataset for this course, bu
 
 Name | Content
 ---| -------
-bounding_boxes.txt | List of UUID and their corresponding bounding boxes (one bounding box per image around the bird)
-classes.txt | List of class number and corresponding class name
-image_class_labels.txt | List of UUID and their corresponding label
-images.txt | List of UUID and their corresponding file name
-photographers.txt | List of UUID and their corresponding photographer
-train_test_split.txt | List of UUID and 1 or 0 if the image is for training or testing respectively (the dataset comes with a suggested split between training and validation)
+bounding_boxes.txt | List of UUIDs and their corresponding bounding boxes (one bounding box per image, just around the bird)
+classes.txt | List of class ids and corresponding class names
+image_class_labels.txt | List of UUIDs and their corresponding class ids
+images.txt | List of UUIDs and their corresponding file names
+photographers.txt | List of UUIDs and their corresponding photographers
+train_test_split.txt | List of UUIDs and 1 or 0 depending on whether the image is for training or validation respectively (the dataset comes with a suggested split)
 
-## Fix problem files
+## Clean problem files
 
-The metadata comes in various space-separated CSV files. Two of them are problematic because they are jagged: the number of elements per line is inconsistent.
+Two of the files are problematic because they are jagged: the number of elements per line is inconsistent.
 
-First of all, let's create new files without comma from these files. This should be easy to do in the Python function that we will use later, but for some reason that I could never figure out, I failed to implement it in Python. For this reason, I am cheating and doing it in Bash (or Zsh) using the utility [sed](https://en.wikipedia.org/wiki/Sed) that makes such transformations so easy.
+Let's create a cleaning function that writes cleaned up copies of the files:
 
-In Bash or Zsh:
+```{python}
+def clean_file(input_filepath, output_filepath):
+    """
+    Remove commas, remove quotes, and replace all spaces except the first space
+    on each line with underscores.
 
-```{.bash}
-sed 's/,//g' <path-of-the-nabirds-dir>/photographers.txt >
-    <path-of-the-nabirds-dir>/photographers_nocommas.txt
+    Args:
+        input_filepath (str): the path of the input file.
+        output_filepath (str): the path of the output file.
+    """
+    with open(input_filepath, 'r') as infile, \
+         open(output_filepath, 'w') as outfile:
 
-sed 's/,//g' <path-of-the-nabirds-dir>/classes.txt >
-    <path-of-the-nabirds-dir>/classes_nocommas.txt
+        for line in infile:
+            # Remove quotes and commas
+            cleaned_line = line.replace('"', '').replace(',', '')
+
+            # Strip newline characters
+            cleaned_line = cleaned_line.strip()
+
+            # Split line into two parts based on the first space
+            parts = cleaned_line.split(' ', 1)
+
+            # Replace spaces in the second part with underscores
+            part2_cleaned = parts[1].replace(' ', '_')
+
+            final_line = f"{parts[0]} {part2_cleaned}\n"
+
+            outfile.write(final_line)
 ```
 
-:::{.note}
-
-`<path-of-the-nabirds-dir>` is the path in which you downloaded the `nabirds` dataset.
-
-:::
-
-Alternatively:
-
-```{.bash}
-cd <path-of-the-nabirds-dir>
-
-sed 's/,//g' photographers.txt > photographers_nocommas.txt
-sed 's/,//g' classes.txt > classes_nocommas.txt
-```
-
-We could finish fixing these files in Bash (which would be a lot easier and much less wordy!) but because this is a Python course, let's do the rest in Python.
-
-Let's create a function that will do the rest of the cleaning and write two new files that won't be problematic:
+Then we can apply the function on our files:
 
 ```{.python}
 base_dir = "<path-of-the-nabirds-dir>"
@@ -187,58 +191,6 @@ To be replaced by proper path.
 
 :::
 
-```{.python}
-import os
-import csv
-
-def replace_spaces_except_first(input_filepath, output_filepath):
-    """
-    Replaces all spaces with underscores in a CSV file, except the first space
-    on each line.
-
-    Args:
-        input_filepath (str): the path of the input file.
-        output_filepath (str): the path of the output file.
-    """
-    with open(input_filepath, 'r') as infile, \
-         open(output_filepath, 'w') as outfile:
-        reader = csv.reader(infile)
-        writer = csv.writer(outfile)
-
-        for row in reader:
-            processed_row = []
-            for item in row:
-                # Remove quotes
-                item = item.replace('"', '')
-
-                # Find the first space
-                first_space_index = item.find(' ')
-
-                # Keep the part up to the first space
-                # and replace subsequent spaces with underscores
-                part_with_first_space = item[:first_space_index + 1]
-                part_after_first_space = item[first_space_index + 1:].replace(' ', '_')
-                processed_item = part_with_first_space + part_after_first_space
-                processed_row.append(processed_item)
-            writer.writerow(processed_row)
-```
-
-Then we can apply the function on our files:
-
-```{.python}
-replace_spaces_except_first(
-    os.path.join(base_dir, "photographers_nocommas.txt"),
-    os.path.join(base_dir, "photographers_fixed.txt")
-)
-
-replace_spaces_except_first(
-    os.path.join(base_dir, "classes_nocommas.txt"),
-    os.path.join(base_dir, "classes_fixed.txt")
-)
-```
-
-## Create variables
-
 ```{python}
 #| echo: false
 
@@ -248,17 +200,35 @@ base_dir = "nabirds"
 ```{python}
 import os
 
+clean_file(
+    os.path.join(base_dir, "photographers.txt"),
+    os.path.join(base_dir, "photographers_cleaned.txt")
+)
+
+clean_file(
+    os.path.join(base_dir, "classes.txt"),
+    os.path.join(base_dir, "classes_cleaned.txt")
+)
+```
+
+## Create variables
+
+For convenience, let's create variables with the path of the various files we need:
+
+```{python}
 bb_file = os.path.join(base_dir, "bounding_boxes.txt")
-classes_translation_file = os.path.join(base_dir, "classes_fixed.txt")
-class_labels_file = os.path.join(base_dir, "image_class_labels.txt")
-img_file = os.path.join(base_dir, "images.txt")
-photographers_file = os.path.join(base_dir, "photographers_fixed.txt")
+class_id_to_name_file = os.path.join(base_dir, "classes_cleaned.txt")
+class_id_file = os.path.join(base_dir, "image_class_labels.txt")
+path_file = os.path.join(base_dir, "images.txt")
+photographer_file = os.path.join(base_dir, "photographers_cleaned.txt")
 train_test_split_file = os.path.join(base_dir, "train_test_split.txt")
 ```
 
-## Create a metadata Dataframe
+## Create a metadata DataFrame
 
-First, we create a series of DataFrames from each CSV file:
+Now it's time to put all the data together in one DataFrame.
+
+First, we create a series of DataFrames from each text file:
 
 ```{python}
 import polars as pl
@@ -270,29 +240,29 @@ bb = pl.read_csv(
     new_columns=["UUID", "bb_x", "bb_y", "bb_width", "bb_height"]
 )
 
-classes = pl.read_csv(
-    class_labels_file,
+class_id = pl.read_csv(
+    class_id_file,
     separator=" ",
     has_header=False,
-    new_columns=["UUID", "class"]
+    new_columns=["UUID", "class_id"]
 )
 
-classes_translation = pl.read_csv(
-    classes_translation_file,
+class_id_to_name = pl.read_csv(
+    class_id_to_name_file,
     separator=" ",
     has_header=False,
-    new_columns=["class", "id"]
+    new_columns=["class_id", "class_name"]
 )
 
-img_paths = pl.read_csv(
-    img_file,
+path = pl.read_csv(
+    path_file,
     separator=" ",
     has_header=False,
     new_columns=["UUID", "path"]
 )
 
-photographers = pl.read_csv(
-    photographers_file,
+photographer = pl.read_csv(
+    photographer_file,
     separator=" ",
     has_header=False,
     new_columns=["UUID", "photographer"]
@@ -306,11 +276,17 @@ train_test_split = pl.read_csv(
 )
 ```
 
-Then we can combine the classes DataFrames so that the birds identifications becomes associated with the birds UUIDs:
+:::{.note}
+
+We can use `polars.read_csv` even though we have text files because our files are space separated value files. So they function like CSV files with the exception that we have to set the value of the `separator` argument to ` `.
+
+:::
+
+Then we can combine the two DataFrames dealing with classes so that the birds identifications becomes directly associated with the birds UUIDs:
 
 ```{python}
 classes_metadata = (
-    classes.join(classes_translation, on="class")
+    class_id.join(class_id_to_name, on="class_id")
 )
 ```
 
@@ -319,8 +295,8 @@ Finally, we combine all the DataFrames:
 ```{python}
 metadata = (
     bb.join(classes_metadata, on="UUID")
-    .join(img_paths, on="UUID")
-    .join(photographers, on="UUID")
+    .join(path, on="UUID")
+    .join(photographer, on="UUID")
     .join(train_test_split, on="UUID")
 )
 ```
@@ -369,9 +345,33 @@ print(metadata.glimpse())
 print(metadata.describe())
 ```
 
+## Learn about the data
+
+Now that we have the metadata organized, let's get to know our data:
+
+```{python}
+print(f'There are {len(metadata)} images in the dataset.')
+```
+
+```{python}
+training_set = metadata.filter(pl.col("is_training_img") == 1)
+print(f'There are {len(training_set)} images in the training set and {len(metadata) - len(training_set)} in the evaluation set.')
+```
+
+```{python}
+class_id = metadata.group_by(pl.col("class_id")).len()
+print(f'There are {len(class_id)} different classes.')
+```
+
+```{python}
+metadata.filter(pl.col("class_name"
+```
+
 ## Save DataFrame to Parquet
 
-[Parquet](https://github.com/apache/parquet-format/)
+To make it easier to retrieve information from the metadata later on, we can save the DataFrame to file.
+
+[Parquet](https://github.com/apache/parquet-format/) is an open-source, columnar, and extremely efficient binary file format for tabular data. Unlike in CSV or JSON files, the data is compressed, making it efficient for storage space. It is also excellent for query performance. Always prefer it over text-based formats.
 
 ```{python}
 metadata.write_parquet("metadata.parquet")
