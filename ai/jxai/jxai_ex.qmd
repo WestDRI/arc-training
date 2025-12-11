@@ -1,6 +1,8 @@
 ---
 title: Our deep learning example
 author: Marie-Hélène Burle
+bibliography: jxai.bib
+csl: diabetologia.csl
 lightbox: true
 ---
 
@@ -16,29 +18,31 @@ We want to train a model to perform a fine-grained vision classification task in
 
 ## The data
 
-We will use the [NABirds dataset](https://dl.allaboutbirds.org/nabirds) from the [Cornell Lab of Ornithology](https://www.birds.cornell.edu/home/).
+We will use the [NABirds dataset](https://dl.allaboutbirds.org/nabirds) from the [Cornell Lab of Ornithology](https://www.birds.cornell.edu/home/) [-@van2015building].
 
 ## Our strategy
 
 Before embarking on a deep learning project, it is crucial to think about the overall strategy to follow for optimum performance.
 
-In particular, it is important to consider what should run on CPUs vs GPUs and what is part of the preliminary work and what constitutes the actual training.
+In particular, it is important to consider what should run on CPUs vs GPUs and what is part of the preliminary work (sometimes called "offline") and what constitutes the actual training ("online").
 
-Here is our plan [(click on the image to enlarge)]{.emph}:
+Here is our plan <font color="#008b8b">(click on the image to enlarge)</font>:
 
 ![](img/strategy.png)
 
-<br>It is split in 2 phases:
+<br>It is a hybrid approach, split in 2 phases:
 
 ### Phase 1: preparation (CPU)
 
-We will do the preliminary, deterministic data cleaning of the images on CPUs because:
+We will do the preliminary, deterministic cropping of images on CPUs because:
 
 - Doing it as a transformation during the training loop (so a Transform on our DataLoader) would make no sense—that work would be repeated at each epoch while we only need to do it once. We are much better off doing it once and writing the outputs to file.
 
+  Moreover, this would force the computer to load and decode large files to then throw away a large portions of them each time it sees these files (thousands of times during training). Saving to file at this step reduces the I/O load significantly and will make our training epochs run a lot faster.
+
 - Writing to file is actually a task done by CPUs, so sending the data to GPUs and back to save it to files is actually a very inefficient workflow.
 
-*For this first part, we don't use JAX. Instead, we use classic NumPy arrays. Trying to use JAX, JIT-compilation, of GPUs for this initial part would actually be a lot less efficient.*
+*For this first part, we don't use JAX. Instead, we use classic NumPy arrays. Trying to use JAX, JIT-compilation, or GPUs for this initial step would actually be very inefficient.*
 
 ### Phase 2: training (GPU)
 
