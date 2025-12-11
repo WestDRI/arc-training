@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-In this section, we look at the data (images) and create new cleaned images.
+In this section, we look at the images and create new ones that we save to disk as a preprocessing step.
 
 :::
 
@@ -35,22 +35,6 @@ import polars as pl
 metadata = pl.read_parquet('metadata.parquet')
 ```
 
-## Training DataFrame
-
-Now we can get a subset of our metadata DataFrame with the training metadata only:
-
-```{python}
-metadata_train = metadata.filter(pl.col('is_training_img') == 1)
-```
-
-Quick sanity checks:
-
-```{python}
-print(metadata_train.shape)
-print(metadata_train.row(0))
-print(metadata_train.columns)
-```
-
 ## Read in images
 
 To read in the images, there are many options, including:
@@ -61,13 +45,13 @@ To read in the images, there are many options, including:
 
 Here, we are using `imageio.imread` from [imageio](https://github.com/imageio/imageio) which is an excellent option because it automatically creates a NumPy ndarrays, choosing a dtype based on the image, and it is faster than other options ([scikit-image](https://github.com/scikit-image/scikit-image) actually uses it now instead of their own implementation).
 
-## Initial Dataset class
+## Dataset class
 
 ```{python}
 import os
 import imageio.v3 as iio
 
-class NABirdsDatasetInitial:
+class NABirdsDataset:
     """NABirds dataset class."""
     def __init__(self, metadata_file, data_dir):
         self.metadata_file = metadata_file
@@ -102,13 +86,68 @@ class NABirdsDatasetInitial:
         return element
 ```
 
-## Instantiate our class
+:::{.callout-tip collapse="true"}
+
+## Equivalent using PyTorch
+
+PyTorch provides [`torch.utils.data.Dataset`](https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.Dataset), an abstract class representing a dataset. You need to write a subclass of `torch.utils.data.Dataset` (let's call it `NABirdsDataset`) so that it inherits from `torch.utils.data.Dataset`, but with characteristics matching our own dataset.
+
+A PyTorch custom Dataset class must implement three methods:
+
+- `__init__`: initializes a new instance (object) of the class,
+- `__len__`: returns the number of elements in the new dataset class, and
+- `__getitem__`: loads and returns an element from the dataset at a given index `idx`:
+
+```{.python}
+from torch.utils.data import Dataset
+
+class NABirdsDatasetPyTorch(Dataset):
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir, transform=None):
+        self.metadata_file = metadata_file
+        self.data_dir = data_dir
+        self.transform = transform
+    def __len__(self):
+        return len(self.metadata_file)
+    def __getitem__(self, idx):
+        path = os.path.join(
+            self.data_dir,
+            self.metadata_file.get_column('path')[idx]
+        )
+        img = iio.imread(path)
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        bbx = self.metadata_file.get_column('bb_x')[idx]
+        bby = self.metadata_file.get_column('bb_y')[idx]
+        bbw = self.metadata_file.get_column('bb_width')[idx]
+        bbh = self.metadata_file.get_column('bb_height')[idx]
+        element = {
+            'img': img,
+            'species': species,
+            'subcategory': subcategory,
+            'photographer': photographer,
+            'bbx' : bbx,
+            'bby' : bby,
+            'bbw' : bbw,
+            'bbh' : bbh
+        }
+        if self.transform:
+            element = self.transform(element)
+        return element
+```
+
+:::
+
+## Instantiate initial class
 
 ```{python}
 img_dir = os.path.join(base_dir, 'images')
 
-nabirds_train_initial = NABirdsDatasetInitial(
-    metadata_train,
+nabirds_initial = NABirdsDataset(
+    metadata,
     img_dir
 )
 ```
@@ -116,7 +155,7 @@ nabirds_train_initial = NABirdsDatasetInitial(
 ## Print an element
 
 ```{python}
-next(iter(nabirds_train_initial))
+next(iter(nabirds_initial))
 ```
 
 :::{.note}
@@ -135,7 +174,7 @@ import matplotlib.patches as patches
 
 fig = plt.figure(figsize=(8, 9))
 
-for i, element in enumerate(nabirds_train_initial):
+for i, element in enumerate(nabirds_initial):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
@@ -167,7 +206,7 @@ for i, element in enumerate(nabirds_train_initial):
 ## Print info on a sample of data
 
 ```{python}
-for i, element in enumerate(nabirds_train_initial):
+for i, element in enumerate(nabirds_initial):
     print(f'Image dimensions: {element['img'].shape}, data type: {element['img'].dtype}'
     )
     if i == 3:
@@ -180,31 +219,25 @@ We are also not making use of the bounding boxes this dataset comes with. This m
 
 Lastly, our images are fairly large (often up to 1024 pixels in width or height). Classification models often come with a few variants for a handful of different image sizes, but the most standard size is 224 by 224 (good compromise between detail and speed).
 
-Raw data seldom works without preliminary cleaning. Our very first step will be to address those issues.
+In this section, we do the first step of addressing these problems: we crop the images to the bounding boxes, with a 20% margin, and save them to disk. The rest will be addressed during the data augmentation step (and resizing for the evaluation set).
 
 ## Cleaning Dataset class
 
-We could write a function to clean our images. Another, more elegant approach is to create a class.
-
-To downsize the images to 224 by 224, we use [`skimage.transform.resize`](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html#skimage.transform.resize).
+We could write a function to clean our images. Another, more elegant approach is to create a class:
 
 ```{python}
-from skimage.transform import resize
-import numpy as np
-
 class CleaningDataset:
     """Cleaning dataset class."""
-    def __init__(self, metadata_file, source_dir, target_dir, target_size=(224, 224)):
+    def __init__(self, metadata_file, source_dir, target_dir):
         self.metadata_file = metadata_file
         self.source_dir = source_dir
         self.target_dir = target_dir
-        self.target_size = target_size
 
     def __len__(self):
         return len(self.metadata_file)
 
     def __getitem__(self, idx):
-        """Returns (processed_img_array, save_path)"""
+        """Returns cropped image and save path."""
 
         # Build paths
         read_path = os.path.join(
@@ -229,7 +262,9 @@ class CleaningDataset:
 
         # Get metadata
         species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
-        subcategory = self.metadata_file.get_column('subcategory')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace('_', ' ')
         photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
 
         # Get bounding box data
@@ -238,42 +273,48 @@ class CleaningDataset:
         bbw = self.metadata_file.get_column('bb_width')[idx]
         bbh = self.metadata_file.get_column('bb_height')[idx]
 
-        # Crop image
-        img_cropped = img[bby:bby+bbh, bbx:bbx+bbw]
+        # Crop image with a 20% margin:
+        # 1. Get the image dimensions (to make sure we don't go out of bounds)
+        height, width = img.shape[:2]
 
-        # Resize img to target size with padding to avoid distortion
-        h, w, _ = img_cropped.shape
-        target_h, target_w = self.target_size
+        # 2. Calculate the margin size (20% of the box dimensions)
+        # We use int() because pixel coordinates must be integers
+        margin_w = int(bbw * 0.2)
+        margin_h = int(bbh * 0.2)
 
-        # Calculate the scaling factor to fit the image inside the box
-        scale = min(target_h / h, target_w / w)
+        # 3. Calculate the new coordinates with the margin
+        x1 = bbx - margin_w
+        y1 = bby - margin_h
+        x2 = bbx + bbw + margin_w
+        y2 = bby + bbh + margin_h
 
-        # Calculate the new dimensions of the image
-        new_h, new_w = int(h * scale), int(w * scale)
+        # 4. Set limits to coordinates to ensure they stay inside the image
+        # x1 and y1 cannot be less than 0
+        # x2 and y2 cannot be larger than the image width/height
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(width, x2)
+        y2 = min(height, y2)
 
-        # Resize
-        img_resized = resize(img_cropped, (new_h, new_w), anti_aliasing=True)
+        # 5. Crop
+        img_cropped = img[y1:y2, x1:x2]
 
-        # Create a black canvas (zeros) of the target size
-        out_img = np.zeros((target_h, target_w, img.shape[2]), dtype=img_resized.dtype)
-
-        # Place the resized image in the center of the canvas
-        y_offset = (target_h - new_h) // 2
-        x_offset = (target_w - new_w) // 2
-        out_img[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = img_resized
-
-        # Convert back to uint8 (0-255)
-        final_img = (out_img * 255).astype(np.uint8) # <2>
-
-        return final_img, save_path
+        return img_cropped, save_path
 ```
 
-1. See note below for explanations as to why this step is necessary.
-2. `skimage` returns elements with a `dtype(float64)` (values from 0 to 1), but we want to save space on disk.
+1. Reason for this step:
 
-:::{.note}
+:::{.notenoit}
 
-Even serious, well curated datasets often contain inconsistent data. After playing with this dataset, I realized that at least one image has 4 channels (RGBA, i.e. RGB and the alpha channel).
+Even serious, well curated datasets often contain inconsistent or erroneous data. After playing with this dataset, I realized that at least one image has 4 channels (RGBA, i.e. RGB and the alpha channel). This means that its NumPy array version has 4 instead of 3 dimensions...
+
+This didn't make any sense to me since all the images were JPEG (it is easy to verify that with command line utilities such as [fd](https://github.com/sharkdp/fd)) and JPEG images do not have an alpha channel.
+
+So I wrote a function that would return the path of the (first) image with an extra channel and I got `0344/3b69ce35b9404f3eb321100c93dd2b43.jpg`.
+
+It *appears* to be a JPEG image. However, when passing it to the [identify](https://imagemagick.org/script/identify.php) command from [ImageMagick](https://imagemagick.org/), I realized that it was in fact a PNG image *mislabelled as a JPEG*...
+
+Here is an equivalent way to show this in Python:
 
 ```{python}
 from PIL import Image
@@ -281,7 +322,7 @@ from PIL import Image
 img = os.path.join(img_dir, '0344/3b69ce35b9404f3eb321100c93dd2b43.jpg')
 
 with Image.open(img) as img:
-    print(f'Format: {img.format}')
+    print(f'The actual format of the image is {img.format}.')
 ```
 
 :::
@@ -303,7 +344,7 @@ Let's instantiate our `CleaningDataset`:
 cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
 
 dataset_to_clean = CleaningDataset(
-    metadata_file=metadata_train,
+    metadata_file=metadata,
     source_dir=img_dir,
     target_dir=cleaned_img_dir
 )
@@ -340,7 +381,7 @@ print(f'Done. {sum(results)} images processed.')
 ```
 
 ```
-Done. 23929 images processed.
+Done. 48562 images processed.
 ```
 
 You can watch the parallel work live with an application such as [htop](https://github.com/htop-dev/htop/) (on your machine or the cluster) or [btop](https://github.com/aristocratos/btop) (on your machine).
@@ -349,88 +390,13 @@ Here is a screenshot I took from `btop` on my machine while creating the cleaned
 
 ![](img/multiprocessing_img_cleaning.png){width="70%"}
 
-## New Dataset class
+## Instantiate treated class
+
+Now we can instantiate a new instance of our Dataset class with the cropped data:
 
 ```{python}
-class NABirdsDataset:
-    """NABirds dataset class."""
-    def __init__(self, metadata_file, data_dir):
-        self.metadata_file = metadata_file
-        self.data_dir = data_dir
-    def __len__(self):
-        return len(self.metadata_file)
-    def __getitem__(self, idx):
-        path = os.path.join(
-            self.data_dir,
-            self.metadata_file.get_column('path')[idx]
-        )
-        img = iio.imread(path)
-        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
-        subcategory = self.metadata_file.get_column('subcategory')[idx]
-        if subcategory is not None:
-            subcategory = subcategory.replace('_', ' ')
-        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
-        element = {
-            'img': img,
-            'species': species,
-            'subcategory': subcategory,
-            'photographer': photographer,
-        }
-        return element
-```
-
-:::{.callout-tip collapse="true"}
-
-## Equivalent using PyTorch
-
-PyTorch provides [`torch.utils.data.Dataset`](https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.Dataset), an abstract class representing a dataset. You need to write a subclass of `torch.utils.data.Dataset` (let's call it `NABirdsDataset`) so that it inherits from `torch.utils.data.Dataset`, but with characteristics matching our own dataset.
-
-A PyTorch custom Dataset class must implement three methods:
-
-- `__init__`: initializes a new instance (object) of the class,
-- `__len__`: returns the number of elements in the new dataset class, and
-- `__getitem__`: loads and returns an element from the dataset at a given index `idx`:
-
-```{.python}
-from torch.utils.data import Dataset
-
-class NABirdsDatasetPyTorch(Dataset):
-    """NABirds dataset class."""
-    def __init__(self, metadata_file, data_dir, transform=None):
-        self.metadata_file = metadata_file
-        self.data_dir = data_dir
-        self.transform = transform
-    def __len__(self):
-        return len(self.metadata_file)
-    def __getitem__(self, idx):
-        path = os.path.join(
-            self.data_dir,
-            self.metadata_file.get_column('path')[idx]
-        )
-        img = iio.imread(path)
-        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
-        subcategory = self.metadata_file.get_column('subcategory')[idx].replace('_', ' ')
-        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
-        element = {
-            'img': img,
-            'species': species,
-            'subcategory': subcategory,
-            'photographer': photographer,
-        }
-        if self.transform:
-            element = self.transform(element)
-        return element
-```
-
-:::
-
-## Instantiate
-
-Now we can instantiate the new class with the new data:
-
-```{python}
-nabirds_train = NABirdsDataset(
-    metadata_train,
+nabirds = NABirdsDataset(
+    metadata,
     cleaned_img_dir
 )
 ```
@@ -438,18 +404,12 @@ nabirds_train = NABirdsDataset(
 ## Print info on a sample
 
 ```{python}
-for i, element in enumerate(nabirds_train):
+for i, element in enumerate(nabirds):
     print(f'Image new dimensions: {element['img'].shape}, data type: {element['img'].dtype}'
     )
     if i == 3:
         break
 ```
-
-:::{.note}
-
-Notice how images are all of width and height `224` now.
-
-:::
 
 ## Display a sample
 
@@ -458,7 +418,7 @@ Let's display the first 4 cleaned images to make sure they look like what we exp
 ```{python}
 fig = plt.figure(figsize=(8, 9))
 
-for i, element in enumerate(nabirds_train):
+for i, element in enumerate(nabirds):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
