@@ -1,17 +1,18 @@
 ---
 title: Our deep learning example
 author: Marie-Hélène Burle
+lightbox: true
 ---
 
 :::{.def}
 
-This course is structured around one concrete deep learning example which we describe in this section.
+This course is structured around one concrete deep learning example which we introduce in this section.
 
 :::
 
 ## The problem
 
-We want to train a model to perform a fine-grained vision classification task where distinguishing features between classes are subtle.
+We want to train a model to perform a fine-grained vision classification task in which the distinguishing features between classes are subtle.
 
 ## The data
 
@@ -19,217 +20,55 @@ We will use the [NABirds dataset](https://dl.allaboutbirds.org/nabirds) from the
 
 ## Our strategy
 
-```{dot}
-//| echo: false
+Before embarking on a deep learning project, it is crucial to think about the overall strategy to follow for optimum performance.
 
-digraph JAX_Pipeline {
-    // General Graph Settings
-    bgcolor="transparent"
-    rankdir=TB; // Top to Bottom flow
-    fontname="Helvetica, Arial, sans-serif";
-    labelloc="t";
-    nodesep=0.6;
-    ranksep=0.6;
+In particular, it is important to consider what should run on CPUs vs GPUs and what is part of the preliminary work and what constitutes the actual training.
 
-    // Default Node Settings
-    node [shape=box, style="filled,rounded", fontname="Helvetica, Arial, sans-serif", margin=0.2, penwidth=0];
-    
-    // Default Edge Settings
-    edge [fontname="Helvetica, Arial, sans-serif", color="#555555", arrowsize=0.8];
+Here is our plan [(click on the image to enlarge)]{.emph}:
 
-    // --- CLUSTER 1: DATA PREPARATION (CPU) ---
-    subgraph cluster_cpu {
-        label = "Data preparation (on CPU)\nUse NumPy for arrays";
-        style = filled;
-        color = "#e8f0d9"; // Very light green background for cluster
-        fontcolor = "#4a5e28";
-        fontsize = 14;
+![](img/strategy.png)
 
-        // Setting node color for this cluster based on your cScale0
-        node [fillcolor="#8db14e", fontcolor="white"];
+<br>It is split in 2 phases:
 
-        Metadata [label=<<B>Metadata cleaning</B><BR align="left"/>- Create cleaned copies<BR align="left"/>- Gather metadata in DataFrame>];
-        Transforms [label=<<B>Data deterministic transformations</B><BR align="left"/>(Use multiprocessing)<BR align="left"/>- Create cleaned copies of data>];
-        
-        // internal flow
-        Metadata -> Transforms;
-    }
+### Phase 1: preparation (CPU)
 
-    // --- CLUSTER 2: MODEL TRAINING (GPU) ---
-    subgraph cluster_gpu {
-        label = "Model training (on GPU)\nUse JAX for arrays | JIT compile | Use vmap";
-        style = filled;
-        color = "#ccf3f3"; // Very light teal background for cluster
-        fontcolor = "#005555";
-        fontsize = 14;
+We will do the preliminary, deterministic data cleaning of the images on CPUs because:
 
-        // Setting node color for this cluster based on your cScale1
-        node [fillcolor="#008b8b", fontcolor="white"];
+- Doing it as a transformation during the training loop (so a Transform on our DataLoader) would make no sense—that work would be repeated at each epoch while we only need to do it once. We are much better off doing it once and writing the outputs to file.
 
-        DataLoader [label=<<B>DataLoader</B><BR align="left"/>- Create sampler<BR align="left"/>(shuffling, sharding, epochs)<BR align="left"/>- Batching>];
-        
-        Augmentation [label=<<B>Data augmentation</B><BR align="left"/>- Define function<BR align="left"/>- JIT compile function>];
-        
-        TrainingLoop [label=<<B>Training loop</B><BR align="left"/>- Move data to GPU<BR align="left"/>- Convert NumPy to JAX<BR align="left"/>- Apply augmentations<BR align="left"/>- Train>];
+- Writing to file is actually a task done by CPUs, so sending the data to GPUs and back to save it to files is actually a very inefficient workflow.
 
-        // internal flow
-        DataLoader -> Augmentation -> TrainingLoop;
-    }
+*For this first part, we don't use JAX. Instead, we use classic NumPy arrays. Trying to use JAX, JIT-compilation, of GPUs for this initial part would actually be a lot less efficient.*
 
-    // --- CONNECTING THE CLUSTERS ---
-    Transforms -> DataLoader [lhead=cluster_gpu, minlen=2];
-}
-```
+### Phase 2: training (GPU)
 
-```{mermaid}
-%%| echo: false
+After that, we move to the GPUs for the training loop (which includes data augmentation transformations—these are random and happening with some probability at each epoch, so they must be part of the loop. We aren't saving any of the transformed images to file at that point.)
 
----
-config:
-  theme: 'default'
-  themeVariables:
-    cScale0: '#8db14e'
-    cScale1: '#008b8b'
----
+*For that part, we use JAX and we JIT compile. This is where we use the heavy lifting of compilation, JAX, and GPUs.*
 
-timeline
-        section Data preparation <br> (on CPU) <br> Use NumPy for arrays
-          Metadata cleaning : Create cleaned copies of metadata files if needed
-                            : Gather needed metadata in a DataFrame
-          Data deterministic transformations <br> Use multiprocessing : Create cleaned copies of data if needed
-        section Model training <br> (on GPU) <br> Use JAX for arrays <br> JIT compile <br> Use vmap
-          DataLoader : Create sampler (shuffling, sharding, number of epochs)
-                     : Batching
-          Data augmentation : Define augmentation function
-                            : JIT compile augmentation function
-          Training loop : Move data to GPU
-                        : Convert NumPy arrays to JAX arrays
-                        : Apply augmentations
-                        : Train
-```
+<!-- ```{mermaid} -->
+<!-- %%| echo: false -->
 
-```{dot}
-//| echo: false
+<!-- --- -->
+<!-- config: -->
+<!--   theme: 'default' -->
+<!--   themeVariables: -->
+<!--     cScale0: '#8db14e' -->
+<!--     cScale1: '#008b8b' -->
+<!-- --- -->
 
-strict graph {
-
-  bgcolor="transparent"
-  graph [fontname="Inconsolata, sans-serif"]
-  node [fontname="Inconsolata, sans-serif", color=cornflowerblue]
-  compound=true
-
-  subgraph cpu {
-	label="Data preparation <br> (on CPU) <br> Use NumPy for arrays"
-	color=cornflowerblue
-	fontcolor=darkolivegreen
-	fontsize=20
-	edge [style=invis]
-	node [fontsize=18]
-	{rank=same; e1071 kernlab rpart party caret gmodels randomForest ranger}
-	{rank=same; ipred gbm xgboost C50 cluster class mclust naivebayes glmnet}
-	e1071 -- ipred
-  }
-
-  subgraph gpu {
-	label="Model training <br> (on GPU) <br> Use JAX for arrays <br> JIT compile <br> Use vmap"
-	color=cornflowerblue
-	fontcolor=darkcyan
-	fontsize=20
-	labelloc=b
-	node [fontsize=18]
-	RSNNS h2o darch deepr RCNN4R rcppDL rnn neuralnet deepnet
-  }
-
-  ranger [URL=""]
-  randomForest [URL=""]
-  gmodels [URL="https://cran.r-project.org/web/packages/gmodels/index.html"]
-  caret [URL=""]
-  party [URL="https://cran.r-project.org/web/packages/party/index.html"]
-  rpart [URL=""]
-  kernlab [URL=""]
-  e1071 [URL=""]
-  glmnet [URL=""]
-  naivebayes [URL=""]
-  mclust [URL=""]
-  class [URL=""]
-  cluster [URL=""]
-  C50 [URL=""]
-  xgboost [URL=""]
-  gbm [URL=""]
-  ipred [URL=""]
-  deepnet [URL=""]
-  neuralnet [URL=""]
-  rnn [URL=""]
-  rcppDL [URL=""]
-  RCNN4R [URL=""]
-  deepr [URL=""]
-  darch [URL=""]
-  h2o [URL=""]
-  RSNNS [URL=""]
-
-  R [fontcolor=cornflowerblue, URL="https://www.r-project.org/"]
-
-  cluster -- R [ltail=cluster_ml, color=cornflowerblue]
-  R -- RCNN4R [lhead=cluster_dl, color=cornflowerblue]
-
-}
-```
-
-```{dot}
-//| echo: false
-
-strict digraph {
-
-bgcolor="transparent"
-graph [fontname="Inconsolata, sans-serif"]
-node [fontname="Inconsolata, sans-serif", fontsize=20]
-label="Automatic differentiation (AD)\n\n"
-fontsize=30
-labelloc=t
-
-1 [label="Static graph\nand XLA", shape=plaintext, group=g1]
-2 [label="Dynamic tape-based", shape=plaintext, group=g1]
-3 [label="Dynamic tape-based\nand JIT", shape=plaintext, group=g1]
-4 [label="Eager graph\nand XLA", shape=plaintext, group=g1]
-5 [label="Non-standard interpretation\nand XLA", shape=plaintext, group=g1]
-6 [label="Works at lower level", shape=plaintext, group=g1]
-7 [label="Works on LLVM itself", shape=plaintext, group=g1]
-
-a [label="TensorFlow", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
-b [label="PyTorch", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
-c [label="PyTorch", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
-d [label="TensorFlow2", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
-e [label="JAX", shape=plaintext, fontcolor=darkgoldenrod, color=darkgoldenrod, group=g2, shape=oval]
-f [label="Zygote", shape=plaintext, fontcolor=darkorchid2, color=darkorchid2, group=g2, shape=oval]
-g [label="Enzyme", shape=plaintext, fontcolor=darkorchid2, color=darkorchid2, group=g2, shape=oval]
-
-A [label="Inconvenient", shape=plaintext, fontcolor=gray55, group=g3]
-B [label="Hard to optimize", shape=plaintext, fontcolor=gray55, group=g3]
-C [label="Not currently developped", shape=plaintext, fontcolor=gray55, group=g3]
-D [label="Dynamism doesn't\nplay well with XLA", shape=plaintext, fontcolor=gray55, group=g3]
-E [label="Only sublanguage", shape=plaintext, fontcolor=gray55, group=g3]
-F [label="Harder implementation", shape=plaintext, fontcolor=gray55, group=g3]
-G [label="Very hard to implement", shape=plaintext, fontcolor=gray55, group=g3]
-
-{rank=same; 1 a A}
-{rank=same; 2 b B}
-{rank=same; 3 c C}
-{rank=same; 4 d D}
-{rank=same; 5 e E}
-{rank=same; 6 f F}
-{rank=same; 7 g G}
-
-1 -> a -> A [style=invis]
-2 -> b -> B [style=invis]
-3 -> c -> C [style=invis]
-4 -> d -> D [style=invis]
-5 -> e -> E [style=invis]
-6 -> f -> F [style=invis]
-7 -> g -> G [style=invis]
-
-1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-a -> b -> c -> d -> e -> f -> g [style=invis]
-A -> B -> C -> D -> E -> F -> G [style=invis]
-
-}
-```
+<!-- timeline -->
+<!--         section Data preparation <br> (on CPU) <br> Use NumPy for arrays -->
+<!--           Metadata cleaning : Create cleaned copies of metadata files if needed -->
+<!--                             : Gather needed metadata in a DataFrame -->
+<!--           Data deterministic transformations <br> Use multiprocessing : Create cleaned copies of data if needed -->
+<!--         section Model training <br> (on GPU) <br> Use JAX for arrays <br> JIT compile <br> Use vmap -->
+<!--           DataLoader : Create sampler (shuffling, sharding, number of epochs) -->
+<!--                      : Batching -->
+<!--           Data augmentation : Define augmentation function -->
+<!--                             : JIT compile augmentation function -->
+<!--           Training loop : Move data to GPU -->
+<!--                         : Convert NumPy arrays to JAX arrays -->
+<!--                         : Apply augmentations -->
+<!--                         : Train -->
+<!-- ``` -->
