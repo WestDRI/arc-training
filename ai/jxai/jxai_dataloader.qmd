@@ -1,17 +1,23 @@
 ---
-title: Data loader
+title: DataLoaders
 author: Marie-Hélène Burle
+bibliography: jxai.bib
+csl: diabetologia.csl
 ---
 
 :::{.def}
 
+A critical part of deep learning is the loading of data to the model during the training loops.
 
+DataLoaders handle the choice of which sample to load and in what order; they optimize the process in parallel by managing workers; they set several hyperparameters such as batch size and number of epochs.
+
+In this section we explore DataLoaders with the [Grain](https://github.com/google/grain) library [-@grain2023github].
 
 :::
 
-:::{.callout-note collapse="true"}
+## Training set
 
-## Minimal necessary code from previous sections
+Let's use our Dataset class (simplified slightly because we don't need the bounding boxes anymore) and create one instance just with the training set:
 
 ```{.python}
 base_dir = "<path-of-the-nabirds-dir>"
@@ -50,11 +56,15 @@ class NABirdsDataset:
             self.metadata_file.get_column('path')[idx]
         )
         img = iio.imread(path)
-        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace('_', ' ')
         photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
         element = {
-            'image': img,
-            'id': id,
+            'img': img,
+            'species': species,
+            'subcategory': subcategory,
             'photographer': photographer,
         }
         return element
@@ -67,15 +77,13 @@ nabirds_train = NABirdsDataset(
 )
 ```
 
-:::
-
-## Goal of a DataLoader
+## Goal of DataLoaders
 
 We can access elements of our Dataset class (as we did in the previous section) with:
 
 ```{python}
 for i, element in enumerate(nabirds_train):
-    print(element['image'].shape)
+    print(element['img'].shape)
     if i == 3:
         break
 ```
@@ -86,25 +94,19 @@ And we can return the next object by creating an iterator from of iterable datas
 next(iter(nabirds_train))
 ```
 
-:::{.note}
-
-We get all those 0 because we padded images with black.
-
-:::
-
 But all this is extremely limited.
 
 DataLoaders feed data to the model during training. They handle batching, shuffling, sharding across machines, the number of epochs, etc.
 
 ## Grain DataLoaders
 
-Creating a DataLoader with the JAX AI stack is done [Grain](https://github.com/google/grain), but it can just as well be done using [PyTorch](https://github.com/pytorch/pytorch), [TensorFlow Datasets](https://github.com/tensorflow/datasets), [Hugging Face Datasets](https://github.com/huggingface/datasets), or any method you are used to. That's the advantage of the modular philosophy that the stack relies on. Grain has the advantage of being extremely efficient and not relying on a huge set of dependencies such as PyTorch or TensorFlow.
+The JAX AI stack includes the [Grain](https://github.com/google/grain) library [-@grain2023github] to create DataLoaders, but it can also be done using [PyTorch](https://github.com/pytorch/pytorch), [TensorFlow Datasets](https://github.com/tensorflow/datasets), [Hugging Face Datasets](https://github.com/huggingface/datasets), or any method you are used to. That's the advantage of the modular philosophy that the stack relies on. Grain is extremely efficient and does not rely on a huge set of dependencies as PyTorch and TensorFlow do.
 
 In Grain, a DataLoader requires 3 components:
 
-- A data source: 
-- Transforms:
-- Sampler:
+- A data source
+- Transforms
+- A sampler
 
 ## Data source
 
@@ -185,17 +187,14 @@ import grain.python as grain
 nabirds_train_seqsampler = grain.SequentialSampler(
     num_records=4
 )
-```
 
-```{python}
 for record_metadata in nabirds_train_seqsampler:
     print(record_metadata)
 ```
 
 ### Index sampler
 
-Grain [index sampler](https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.IndexSampler.html) xxx
-
+Grain [index sampler](https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.IndexSampler.html) is the one you should use as it allows for global shuffling of the dataset, setting the number of epochs, etc.
 
 ```{python}
 nabirds_train_isampler = grain.IndexSampler(
@@ -203,18 +202,16 @@ nabirds_train_isampler = grain.IndexSampler(
     shuffle=True,
     seed=0
 )
-```
 
-```{python}
 for i, record_metadata in enumerate(nabirds_train_isampler):
   print(record_metadata)
   if i == 3:
       break
 ```
 
-## DataLoaders
+## Building DataLoaders
 
-We now have our source, samplers, and transformation, so we can build experiment with Grain DataLoaders.
+We now have our source, samplers, and transformation (batching), so we can experiment with Grain DataLoaders.
 
 ### With sequential sampler
 
@@ -230,17 +227,23 @@ nabirds_train_dl = grain.DataLoader(
 ```{python}
 import matplotlib.pyplot as plt
 
-fig = plt.figure(figsize=(8, 8))
+fig = plt.figure(figsize=(8, 9))
 
 for i, element in enumerate(nabirds_train_dl):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
-        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
-        fontsize=9
+        f"""
+        Element {i}
+        Species: {element['species']}
+        Additional information: {element['subcategory']}
+        Picture by {element['photographer']}
+        """,
+        fontsize=9,
+        linespacing=1.5
     )
     ax.axis('off')
-    plt.imshow(element['image'])
+    plt.imshow(element['img'])
 
 plt.show()
 ```
@@ -263,20 +266,24 @@ nabirds_train_dl = grain.DataLoader(
 )
 ```
 
-
-
 ```{python}
-fig = plt.figure(figsize=(8, 8))
+fig = plt.figure(figsize=(8, 9))
 
 for i, element in enumerate(nabirds_train_dl):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
-        f'Element {i}\nIdentification: {element['id']}\nPicture by {element['photographer']}',
-        fontsize=9
+        f"""
+        Element {i}
+        Species: {element['species']}
+        Additional information: {element['subcategory']}
+        Picture by {element['photographer']}
+        """,
+        fontsize=9,
+        linespacing=1.5
     )
     ax.axis('off')
-    plt.imshow(element['image'])
+    plt.imshow(element['img'])
     if i == 3:
         plt.show()
         break
@@ -294,13 +301,3 @@ nabirds_train_dl = grain.DataLoader(
     ]
 )
 ```
-
-```{python}
-for i, element in enumerate(nabirds_train_dl):
-    print(element['image'].shape)
-    if i == 0:
-        plt.show()
-        break
-```
-
-As you can see, the batch size got added as an extra dimension.
