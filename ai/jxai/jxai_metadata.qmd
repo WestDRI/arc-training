@@ -142,6 +142,7 @@ classes.txt | List of class ids and corresponding class names
 image_class_labels.txt | List of UUIDs and their corresponding class ids
 images.txt | List of UUIDs and their corresponding file names
 photographers.txt | List of UUIDs and their corresponding photographers
+sizes.txt | List of UUIDs and their corresponding width and height
 train_test_split.txt | List of UUIDs and 1 or 0 depending on whether the image is for training or validation respectively (the dataset comes with a suggested split)
 
 The README has one request:
@@ -154,7 +155,9 @@ We will make sure to follow it.
 
 Two of the files are problematic because they are jagged: the number of elements per line is inconsistent.
 
-Let's create a cleaning function that writes cleaned up copies of the files:
+Let's create cleaning functions that write cleaned up copies of these files.
+
+To clean the `classes.txt` file:
 
 ```{python}
 def clean_classes_file(input_filepath, output_filepath):
@@ -186,6 +189,8 @@ def clean_classes_file(input_filepath, output_filepath):
 
             outfile.write(final_line)
 ```
+
+To clean the `photographers.txt` file:
 
 ```{python}
 def clean_photographer_file(input_filepath, output_filepath):
@@ -272,6 +277,7 @@ class_id_to_name_file = os.path.join(base_dir, 'classes_cleaned.txt')
 class_id_file = os.path.join(base_dir, 'image_class_labels.txt')
 path_file = os.path.join(base_dir, 'images.txt')
 photographer_file = os.path.join(base_dir, 'photographers_cleaned.txt')
+size_file = os.path.join(base_dir, 'sizes.txt')
 train_test_split_file = os.path.join(base_dir, 'train_test_split.txt')
 ```
 
@@ -342,6 +348,13 @@ photographer = pl.read_csv(
     new_columns=['UUID', 'photographer']
 )
 
+size = pl.read_csv(
+    size_file,
+    separator=' ',
+    has_header=False,
+    new_columns=['UUID', 'width', 'height']
+)
+
 train_test_split = pl.read_csv(
     train_test_split_file,
     separator=' ',
@@ -371,6 +384,7 @@ metadata = (
     bb.join(classes_metadata, on='UUID')
     .join(path, on='UUID')
     .join(photographer, on='UUID')
+    .join(size, on='UUID')
     .join(train_test_split, on='UUID')
 )
 ```
@@ -478,16 +492,16 @@ print(f"There are {len(class_id)} different classes and {len(species)} different
 ```{python}
 train_class_id_group_length = metadata_train.group_by(pl.col('class_id')).len()
 print(f"""
-The number of images per class in the training set varies from {train_class_id_group_length.min().select(pl.col('len')).item()} to {train_class_id_group_length.max().select(pl.col('len')).item()},
-with an average of {round(train_class_id_group_length.mean().select(pl.col('len')).item())} images per class.
+The number of images per class in the training set varies from {train_class_id_group_length.select(pl.min('len')).item()} to {train_class_id_group_length.select(pl.max('len')).item()},
+with an average of {round(train_class_id_group_length.select(pl.mean('len')).item())} images per class.
 """)
 ```
 
 ```{python}
 train_species_group_length = metadata_train.group_by(pl.col('species')).len()
 print(f"""
-The number of images per species in the training set varies from {train_species_group_length.min().select(pl.col('len')).item()} to {train_species_group_length.max().select(pl.col('len')).item()},
-with an average of {round(train_species_group_length.mean().select(pl.col('len')).item())} images per species.
+The number of images per species in the training set varies from {train_species_group_length.select(pl.min('len')).item()} to {train_species_group_length.select(pl.max('len')).item()},
+with an average of {round(train_species_group_length.select(pl.mean('len')).item())} images per species.
 """)
 ```
 
@@ -502,11 +516,18 @@ There are {len(subcategory)} species subcategories, such as:
 """)
 ```
 
+```{python}
+print(f"""
+The images widths vary from {metadata.select(pl.min('width')).item()} to {metadata.select(pl.max('width')).item()}, with a mean of {round(metadata.select(pl.mean('width')).item())}
+while the heights vary from {metadata.select(pl.min('height')).item()} to {metadata.select(pl.max('height')).item()} with a mean of {round(metadata.select(pl.mean('height')).item())}.
+""")
+```
+
 ## Summary metadata
 
 Let's summarize the info we gathered from the metadata:
 
-Category | Number
+Category | Value
 --- | ---
 Images | 48_562
 Training images | 23_929
@@ -515,6 +536,12 @@ Classes (species with their subcategories) | 555
 Species | 405
 Average number of images per class in the training set | 43
 Average number of images per species in the training set | 59
+Images min width (px) | 90
+Images max width (px) | 1024
+Images mean width (px) | 899
+Images min height (px) | 98
+Images max height (px) | 1024
+Images mean height (px) | 712
 
 ## Save DataFrame to Parquet
 
