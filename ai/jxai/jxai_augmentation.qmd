@@ -1,11 +1,13 @@
 ---
 title: Data augmentation
 author: Marie-Hélène Burle
+bibliography: jxai.bib
+csl: diabetologia.csl
 ---
 
 :::{.def}
 
-
+Key to deep learning is data augmentation. This section explains what it is and what techniques we should use in our example.
 
 :::
 
@@ -17,16 +19,20 @@ author: Marie-Hélène Burle
 base_dir = "<path-of-the-nabirds-dir>"
 ```
 
-:::{.note}
+:::{.notenoit}
 
-To be replaced by proper path.
+To be replaced by actual path: in our training cluster, the `base_dir` is at `/project/def-sponsor00/nabirds`:
+
+```{.python}
+base_dir = '/project/def-sponsor00/nabirds'
+```
 
 :::
 
 ```{python}
 #| echo: false
 
-base_dir = "nabirds"
+base_dir = 'nabirds'
 ```
 
 ```{python}
@@ -37,50 +43,36 @@ import grain.python as grain
 
 metadata = pl.read_parquet("metadata.parquet")
 metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
 
 class NABirdsDataset:
     """NABirds dataset class."""
+
     def __init__(self, metadata_file, data_dir):
         self.metadata_file = metadata_file
         self.data_dir = data_dir
+
     def __len__(self):
         return len(self.metadata_file)
+
     def __getitem__(self, idx):
-        path = os.path.join(
-            self.data_dir,
-            self.metadata_file.get_column('path')[idx]
-        )
+        path = os.path.join(self.data_dir, self.metadata_file.get_column("path")[idx])
         img = iio.imread(path)
-        id = self.metadata_file.get_column('id')[idx].replace('_', ' ')
-        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        species = self.metadata_file.get_column("species")[idx].replace("_", " ")
+        subcategory = self.metadata_file.get_column("subcategory")[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace("_", " ")
+        photographer = self.metadata_file.get_column("photographer")[idx].replace("_", " ")
         element = {
-            'image': img,
-            'id': id,
-            'photographer': photographer,
+            "img": img,
+            "species": species,
+            "subcategory": subcategory,
+            "photographer": photographer,
         }
+
         return element
 
-cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
-
-nabirds_train = NABirdsDataset(
-    metadata_train,
-    cleaned_img_dir
-)
-
-nabirds_train_sampler = grain.IndexSampler(
-    num_records=200,
-    shuffle=True,
-    seed=0
-)
-
-nabirds_train_dl = grain.DataLoader(
-    data_source=nabirds_train,
-    sampler=nabirds_train_sampler,
-    worker_count=0,
-    operations=[
-        grain.Batch(batch_size=32)
-    ]
-)
+nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
 ```
 
 :::
@@ -93,86 +85,64 @@ A number of labelled datasets exist, but they are only so big. Moreover, for spe
 
 Data augmentation is the artificial creation of new data by modifying the existing data in small ways. It is very powerful to avoid overfitting, particularly where datasets are small (if you were lucky enough to have a huge dataset, you wouldn't need to bother with data augmentation which would actually create an additional computationally costly step with extremely little benefit).
 
+Xu *et al.* performed a comprehensive survey of image augmentation techniques for deep learning in 2023 [-@Xu_2023], but the field is evolving very fast with new techniques coming out all the time.
 
+## Augmentation libraries
 
+Data augmentation being such a classic technique, many libraries offer sets of augmentation tools. Among the very popular, we can list:
 
+- [AlbumentationsX](https://github.com/albumentations-team/AlbumentationsX),
+- [TorchVision transforms](https://docs.pytorch.org/vision/0.8/transforms.html),
+- [skimage.transform](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html) from [scikit-image](https://github.com/scikit-image/scikit-image).
 
+There are others.
 
-cite (from bib tex file):
-- https://arxiv.org/abs/2205.01491
+Amarù *et al.* created a curated repository of libraries for data augmentation in computer vision [-@jimaging9100232].
 
+In this course, we will use [PIX](https://github.com/google-deepmind/dm_pix), a library built for JAX which provides low-level, JAX-native image processing primitives that can be directly jitted and vmapped.
 
-## Tools
+*We are shifting paradigm here and moving from the CPU to the GPU. This is where JAX comes in.*
 
-[PIX](https://github.com/google-deepmind/dm_pixk) provides low-level, JAX-native image processing primitives that can be directly jitted and vmapped.
+## Augmentation techniques
 
+There are many techniques:
 
-cite (from bib tex file):
-- paper on libraries
+- Geometric transformations (flips, rotations, scaling, crops...).
+- Color space transformations (brightness, contrast, gamma, hue, saturation, grayscale conversion, channel shuffling...).
+- Noise transformations (Gaussian noise, blurring...).
+- Occlusive transformations (erasing parts of the image).
+- Mixing images (various techniques mixing images and appropriately applying the same treatment to labels).
 
-
-
-[TorchVision transforms](https://docs.pytorch.org/vision/0.8/transforms.html)
-
-[skimage.transform](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html) from [scikit-image](https://github.com/scikit-image/scikit-image) (that we used previously to create a Transform that resizes our images with padding).
-
-:::{.emph}
-
-We are shifting paradigm here and moving from the CPU to the GPU. This is where JAX comes in.
-
-:::
-
-## Techniques
-
-- Geometric transformations (flips, rotations, scaling, crops...)
-- Color space transformations (brightness, contrast, gamma, hue, saturation, grayscale conversion, channel shuffling...)
-- Noise transformations (Gaussian noise, blurring...)
-- Occlusive transformations (erasing parts of the image)
-- Mixing images (various techniques mixing images and appropriately applying the same treatment to labels)
-
-
-
-[PIX](https://github.com/google-deepmind/dm_pix) [list of augmentations](https://dm-pix.readthedocs.io/en/latest/api.html#)
-
-[Pseudorandom numbers in JAX](https://docs.jax.dev/en/latest/random-numbers.html)
-
-## Choosing the techniques
+## Choosing techniques
 
 ### How many to use?
 
 The size of your dataset dictates how aggressively you should augment.
 
-| Dataset Size | Strategy | Recommended Count |
+| Dataset size | Strategy | Recommended count |
 | :--- | :--- | :--- |
-| **Tiny (<1k images)** | **Heavy Augmentation.** You should be worried about overfitting, so you need to create more artificial data | **4-6 techniques.** Use strong geometric shifts  |
-| **Medium (1k - 50k)** | **Standard Augmentation.** Balance variety with training speed | **3-4 techniques.** |
-| **Massive (>1M images)** | **Light Augmentation.** The data itself already provides diversity. Augmentation will only slow down training. | **1-2 techniques.**  |
+| **Tiny (<1k images)** | **Heavy augmentation.** You should be worried about overfitting, so you need to create more artificial data | **4-6 techniques** |
+| **Medium (1k - 100k)** | **Standard augmentation.** Balance variety with training speed | **3-4 techniques** |
+| **Large (>100K images)** | **Light augmentation.** | **1-2 techniques**  |
+| **Massive (>1M images)** | **No augmentation**. The data itself provides enough diversity. Augmentation will only slow down training. | **0 technique** |
+
+<br>Our dataset contains about 50K images (including the evaluation set). This puts us in the medium category and a standard approach with **3 or 4 techniques** should be reasonable.
 
 ### Which ones to use?
 
 The choice depends on the problem.
 
-In our case, we are dealing with fine-grained birds identification. Colours are critical for species differentiation, so we don't want to mess with that. So playing with hue or solarization would be a bad idea as it might invalidate the labels (making one species actually look like another). Vertical flips or 90° rotations would not be great either as they wouldn't produce realistic data...
+In our case, we are dealing with fine-grained birds identification. Colours are critical for species differentiation, so we don't want to mess with that. This means that playing with hue, solarization, color jitter, or gray scale could be a bad idea as it might invalidate the labels (making one species actually look like another). Transformations that do not preserve the aspect ratio (squashing, warping) could be bad too as they might change the shape of discriminant features.
 
-The most important techniques in this case are geometric augmentation ones such as random crops, horizontal flips, and slight rotations.
+Vertical flips or 90° rotations would not be very useful as they wouldn't produce realistic data ...
+
+There are a lot of more advanced techniques out there (CutMix, SnapMix, TransMix, Attention Drop), but let's start with easier ones. For geometric techniques, let's do **random crops**, **horizontal flips**, and slight **rotations**.
 
 We can also do some photometric augmentation as long as they don't invalidate the labels: brightness and contrast. If we want the model to be able to identify black and white pictures, we definitely need to remove the colour dependence by using a technique turning images to gray (with some probability and level of colour removal). If, on the other hand, we are only interested in having a model able to identify colour images, we want to stay away from this.
 
-:::{.notenoline}
+Let's consider for instance random **gamma adjustments**. They simulate different exposure levels and will improve the model's robustness and performance by making it less sensitive to variations in lighting conditions.
 
-Example for gamma:
-
-Let's consider for instance random gamma adjustments ➔ simulates different exposure levels ➔ improve the model's robustness and performance by making it less sensitive to variations in lighting conditions.
-
-Benefits: By training on images with diverse gamma values, your model learns to classify objects regardless of the specific lighting in which the photo was taken, leading to a more generalized and resilient model.
-
-:::
-
-### How to combine them?
-
-
-
-### Choosing their parameters
+### Choosing the parameters
 
 Picking the right bounds for each type of data augmentation involves balancing dataset diversity against image realism. If the range is too narrow, you don't get much benefit, if it's too wide, you might destroy critical features or create unrealistic images that confuse the model.
 
@@ -180,39 +150,25 @@ Picking the right bounds for each type of data augmentation involves balancing d
 
 Check the industry-standards (look at the literature, ask an LLM, etc.).
 
-:::{.notenoline}
+For random crops, we don't want to go too hard or we will crop out the distinguishing features of the birds.
 
-Example for gamma:
+For gamma, for most computer vision tasks (natural images, object detection, classification), the industry-standard starting point is 0.8 to 1.2.
 
-For most computer vision tasks (natural images, object detection, classification), the industry-standard starting point is 0.8 to 1.2.
-
-This range simulates subtle lighting variations—like a cloud passing over the sun or a slight difference in camera exposure—without washing out the image or making it too dark to see details.
-
-:::
+This range simulates subtle lighting variations—like a cloud passing over the sun or a slight difference in camera exposure—without washing out the image or making it too dark to see details. This should be good for us.
 
 #### Domain specific ranges
 
 You might want to adjust the values based on your specific data type.
 
-:::{.notenoline}
+For instance, you can increase the gamma range for OCR (document analysis) because scanned documents often have wildly varying contrast and because text usually remains legible even under extreme gamma.
 
-Example for gamma:
-
-You can increase the range for OCR (document analysis) because scanned documents often have wildly varying contrast and because text usually remains legible even under extreme gamma.
-
-:::
+None of this applies to our example.
 
 #### Visual sanity check
 
 Never set augmentation parameters blindly. Visualize some tests to ensure the data you are using to train is still reasonable (and to make sure that you aren't messing something up and getting totally absurd results!).
 
-#### Validation check
-
-adjust their probabilities or magnitudes based on validation performance.
-
-Train a small version of your model (or for fewer epochs) and check whether the validation loss improves with data augmentation compared to no augmentation.
-
-Load packages:
+Let's test various gamma values on the first 4 images in the training set:
 
 ```{python}
 import dm_pix as pix
@@ -222,9 +178,14 @@ import matplotlib.pyplot as plt
 import jax.numpy as jnp
 ```
 
+Let's write a helper function that applies PIX deterministic [adjust_gamma](https://dm-pix.readthedocs.io/en/latest/api.html#adjust-gamma) function to a JAX array image, then covert it to a PIL image that we can display:
+
 ```{python}
 def apply_gamma(img, gamma):
-    """xxx"""
+    """
+    Apply gamma transformation to a JAX array image
+    then turn it back into a PIL image for display.
+    """
     new_img = pix.adjust_gamma(
         image=img,
         gamma=gamma
@@ -236,10 +197,16 @@ def apply_gamma(img, gamma):
     return pil_img, gamma
 ```
 
-
+This next function will take a NumPy image from our Dataset class, turn it to a JAX array, apply our helper function `apply_gamma`, and display the result:
 
 ```{python}
 def show_tests(img, gamma_range):
+    """
+    Turn the image into a JAX array,
+    run our apply_gamma function on it
+    (apply gamma then turn back to PIL image),
+    plot the PIL image.
+    """
     jnp_img = jnp.array(img, dtype=jnp.float32) / 255.
     pics = []
     gammas = []
@@ -262,17 +229,38 @@ def show_tests(img, gamma_range):
 Now we can apply it to a few images to get an idea of the effect and ensure nothing weird is going on. This will help us catch a coding mistake that could ruin the whole training process:
 
 ```{python}
-show_tests(nabirds_train[0]['image'], np.linspace(0.1, 3, 12))
-show_tests(nabirds_train[1]['image'], np.linspace(0.1, 3, 12))
-show_tests(nabirds_train[2]['image'], np.linspace(0.1, 3, 12))
-show_tests(nabirds_train[3]['image'], np.linspace(0.1, 3, 12))
+show_tests(nabirds_train[0]['img'], np.linspace(0.1, 3, 12))
 ```
 
-Let's use [random gamma](https://dm-pix.readthedocs.io/en/latest/api.html#random-gamma) with the min and max values at 0.6 and 1.3 respectively.
+0.4 to 1.2 seem ok.
 
+```{python}
+show_tests(nabirds_train[1]['img'], np.linspace(0.1, 3, 12))
+```
 
-<!-- ```{python} -->
-<!-- from jax import random -->
+0.4 to 2.2 seem reasonable for this image.
 
+```{python}
+show_tests(nabirds_train[2]['img'], np.linspace(0.1, 3, 12))
+```
 
-<!-- ``` -->
+0.4 to 2.5 seem ok for this one.
+
+```{python}
+show_tests(nabirds_train[3]['img'], np.linspace(0.1, 3, 12))
+```
+
+0.4 to 1.4 seem reasonable here.
+
+For training, we will use [random gamma](https://dm-pix.readthedocs.io/en/latest/api.html#random-gamma) as one of our transformation (we don't want the deterministic function here since we want different transformations randomly applied at each epoch) with the min and max values set a bit more broadly than what is standard as our images seem to handle it OK. Let's go with a min and max of 0.4 and 1.2 respectively.
+
+#### Validation check
+
+You can adjust the probabilities and magnitudes of the various augmentation techniques you chose based on the validation performance you get during training.
+
+You can train a small version of your model (or for fewer epochs) and check how the validation loss improves with various variations of your augmentation strategy.
+
+I recently gave a [webinar on MLflow](/ai/mlops/wb_mlflow.qmd) which would be the perfect tool for this kind of comparison.
+
+## Applying our augmentation strategy
+
