@@ -42,19 +42,19 @@ import imageio.v3 as iio
 
 metadata = pl.read_parquet("metadata.parquet")
 metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
 
 class NABirdsDataset:
     """NABirds dataset class."""
     def __init__(self, metadata_file, data_dir):
         self.metadata_file = metadata_file
         self.data_dir = data_dir
+
     def __len__(self):
         return len(self.metadata_file)
+
     def __getitem__(self, idx):
-        path = os.path.join(
-            self.data_dir,
-            self.metadata_file.get_column('path')[idx]
-        )
+        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
         img = iio.imread(path)
         species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
         subcategory = self.metadata_file.get_column('subcategory')[idx]
@@ -67,14 +67,10 @@ class NABirdsDataset:
             'subcategory': subcategory,
             'photographer': photographer,
         }
+
         return element
 
-cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
-
-nabirds_train = NABirdsDataset(
-    metadata_train,
-    cleaned_img_dir
-)
+nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
 ```
 
 ## Goal of DataLoaders
@@ -287,7 +283,7 @@ for i, element in enumerate(nabirds_train_dl):
         break
 ```
 
-### Adding batching
+### Adding batch sizes
 
 ```{python}
 nabirds_train_dl = grain.DataLoader(
