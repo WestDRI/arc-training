@@ -15,37 +15,44 @@ In this section we explore DataLoaders with the [Grain](https://github.com/googl
 
 :::
 
-## Training set
+:::{.callout-note collapse="true"}
 
-Let's use our Dataset class (simplified slightly because we don't need the bounding boxes anymore) and create one instance just with the training set:
+## Minimal necessary code from previous sections
 
 ```{.python}
 base_dir = "<path-of-the-nabirds-dir>"
 ```
 
-:::{.note}
+:::{.notenoit}
 
-To be replaced by proper path.
+To be replaced by actual path: in our training cluster, the `base_dir` is at `/project/def-sponsor00/nabirds`:
+
+```{.python}
+base_dir = '/project/def-sponsor00/nabirds'
+```
 
 :::
 
 ```{python}
 #| echo: false
 
-base_dir = "nabirds"
+base_dir = 'nabirds'
 ```
 
 ```{python}
 import os
 import polars as pl
 import imageio.v3 as iio
+import grain.python as grain
 
 metadata = pl.read_parquet("metadata.parquet")
 metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+metadata_val = metadata.filter(pl.col("is_training_img") == 0)
 cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
 
 class NABirdsDataset:
     """NABirds dataset class."""
+
     def __init__(self, metadata_file, data_dir):
         self.metadata_file = metadata_file
         self.data_dir = data_dir
@@ -54,24 +61,27 @@ class NABirdsDataset:
         return len(self.metadata_file)
 
     def __getitem__(self, idx):
-        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
+        path = os.path.join(self.data_dir, self.metadata_file.get_column("path")[idx])
         img = iio.imread(path)
-        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
-        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        species = self.metadata_file.get_column("species")[idx].replace("_", " ")
+        subcategory = self.metadata_file.get_column("subcategory")[idx]
         if subcategory is not None:
-            subcategory = subcategory.replace('_', ' ')
-        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+            subcategory = subcategory.replace("_", " ")
+        photographer = self.metadata_file.get_column("photographer")[idx].replace("_", " ")
         element = {
-            'img': img,
-            'species': species,
-            'subcategory': subcategory,
-            'photographer': photographer,
+            "img": img,
+            "species": species,
+            "subcategory": subcategory,
+            "photographer": photographer,
         }
 
         return element
 
 nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
+nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
 ```
+
+:::
 
 ## Goal of DataLoaders
 
@@ -92,7 +102,7 @@ next(iter(nabirds_train))
 
 But all this is extremely limited.
 
-DataLoaders feed data to the model during training. They handle batching, shuffling, sharding across machines, the number of epochs, etc.
+DataLoaders feed data to the model during training. They handle batching, shuffling, sharding across machines, the number of epochs, etc. All things that would be very inconvenient to implement from scratch.
 
 ## Grain DataLoaders
 
@@ -106,7 +116,7 @@ In Grain, a DataLoader requires 3 components:
 
 ## Data source
 
-We already have that: it is our instance of Dataset class that we called `nabirds_train`.
+We already have that: our data sources are our instances of Dataset class `nabirds_train` and `nabirds_val` for training and validation respectively.
 
 ## Transformations
 
@@ -173,6 +183,8 @@ A rule that works well until you get to very large batch sizes is to double the 
 
 ## Samplers
 
+There are 2 types of Grain samplers: sequential and index samplers.
+
 ### Sequential sampler
 
 Grain comes with a [basic sequential sampler](https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.SequentialSampler.html).
@@ -205,9 +217,7 @@ for i, record_metadata in enumerate(nabirds_train_isampler):
       break
 ```
 
-## Building DataLoaders
-
-We now have our source, samplers, and transformation (batching), so we can experiment with Grain DataLoaders.
+## Let's experiment with DataLoaders
 
 ### With sequential sampler
 
@@ -285,6 +295,8 @@ for i, element in enumerate(nabirds_train_dl):
 
 ### Adding batch sizes
 
+You can add the batch size in the `operations` argument of `grain.DataLoader`:
+
 ```{python}
 nabirds_train_dl = grain.DataLoader(
     data_source=nabirds_train,
@@ -292,6 +304,60 @@ nabirds_train_dl = grain.DataLoader(
     worker_count=0,
     operations=[
         grain.Batch(batch_size=32)
+    ]
+)
+```
+
+## The DataLoaders we will use
+
+Now that we have played with various DataLoaders to understand how they work, here are the DataLoaders we will actually use to train the model:
+
+```{python}
+seed = 123
+train_batch_size = 32
+val_batch_size = 2 * train_batch_size
+
+# Train set sampler:
+train_sampler = grain.IndexSampler(
+    len(nabirds_train),
+    shuffle=True,                      # We shuffle the training set
+    seed=seed,
+    shard_options=grain.NoSharding(),  # No sharding for a single-device setup
+    num_epochs=1
+)
+
+# Train set DataLoader:
+train_loader = grain.DataLoader(
+    data_source=nabirds_train,
+    sampler=train_sampler,
+    worker_count=4,        # Number of child processes to parallelize the transformations
+    worker_buffer_size=2,  # Output batches to produce in advance per worker
+    operations=[
+        grain.Batch(train_batch_size, drop_remainder=True)
+    ]
+)
+```
+
+Now we can create the sampler and DataLoader for the validation set:
+
+```{python}
+# Validation set sampler:
+val_sampler = grain.IndexSampler(
+    len(nabirds_val),
+    shuffle=False,                    # We don't shuffle the validation set
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1
+)
+
+# Validation set DataLoader:
+val_loader = grain.DataLoader(
+    data_source=nabirds_val,
+    sampler=val_sampler,
+    worker_count=4,
+    worker_buffer_size=2,
+    operations=[
+        grain.Batch(val_batch_size)
     ]
 )
 ```
