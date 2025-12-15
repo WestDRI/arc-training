@@ -7,6 +7,8 @@ author: Marie-Hélène Burle
 
 In this section, we look at the images and create new ones that we save to disk as a preprocessing step.
 
+We also create a Dataset class and instantiate one instance for the training set and one for the evaluation set using the preprocessed images.
+
 :::
 
 ## Load the metadata DataFrame
@@ -49,7 +51,7 @@ To read in the images, there are many options, including:
 
 Here, we are using `imageio.imread` from [imageio](https://github.com/imageio/imageio) which is an excellent option because it automatically creates a NumPy ndarrays, choosing a dtype based on the image, and it is faster than other options ([scikit-image](https://github.com/scikit-image/scikit-image) actually uses it now instead of their own implementation).
 
-## Dataset class
+## Initial Dataset class
 
 ```{python}
 import os
@@ -405,34 +407,112 @@ Here is a screenshot I took from `btop` on my machine while creating the cleaned
 
 ![](img/multiprocessing_img_cleaning.png){width="70%"}
 
-## Instantiate treated class
+## Training set
 
-Now we can instantiate a new instance of our Dataset class with the cropped data:
+Now we can create a new, simplified Dataset class (we don't need the bounding boxes anymore):
 
 ```{python}
-nabirds = NABirdsDataset(
-    metadata,
-    cleaned_img_dir
-)
+class NABirdsDataset:
+    """NABirds dataset class."""
+    def __init__(self, metadata_file, data_dir):
+        self.metadata_file = metadata_file
+        self.data_dir = data_dir
+
+    def __len__(self):
+        return len(self.metadata_file)
+
+    def __getitem__(self, idx):
+        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
+        img = iio.imread(path)
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        element = {
+            'img': img,
+            'species': species,
+            'subcategory': subcategory,
+            'photographer': photographer,
+        }
+
+        return element
 ```
 
-## Print info on a sample
+and instantiate it with just the training set and using the cropped images:
 
 ```{python}
-for i, element in enumerate(nabirds):
+# Filter only training set from the metadata DataFrame:
+metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+
+# Create Dataset class instance:
+nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
+```
+
+## Validation set
+
+And for the validation set, we need to instantiate a Dataset class with our validation data on the cropped images:
+
+```{python}
+# Filter the validation metadata in our DataFrame:
+metadata_val = metadata.filter(pl.col("is_training_img") == 0)
+
+# Instantiate a Dataset class with the validation data:
+nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
+```
+
+## Print info on samples
+
+Let's print info on a sample of our training set:
+
+```{python}
+for i, element in enumerate(nabirds_train):
     print(f"Image new dimensions: {element['img'].shape}, data type: {element['img'].dtype}")
     if i == 3:
         break
 ```
 
-## Display a sample
+And on a sample of our evaluation set:
 
-Let's display the first 4 cleaned images to make sure they look like what we expect:
+```{python}
+for i, element in enumerate(nabirds_val):
+    print(f"Image new dimensions: {element['img'].shape}, data type: {element['img'].dtype}")
+    if i == 3:
+        break
+```
+
+## Display samples
+
+Let's display the first 4 cleaned images in our training set to make sure they look like what we expect:
 
 ```{python}
 fig = plt.figure(figsize=(8, 9))
 
-for i, element in enumerate(nabirds):
+for i, element in enumerate(nabirds_train):
+    ax = plt.subplot(2, 2, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f"""
+        Species: {element['species']}
+        Additional information: {element['subcategory']}
+        Picture by {element['photographer']}
+        """,
+        fontsize=9,
+        linespacing=1.5
+    )
+    ax.axis('off')
+    plt.imshow(element['img'])
+    if i == 3:
+        plt.show()
+        break
+```
+
+And let's do the same for the evaluation set:
+
+```{python}
+fig = plt.figure(figsize=(8, 9))
+
+for i, element in enumerate(nabirds_val):
     ax = plt.subplot(2, 2, i + 1)
     plt.tight_layout()
     ax.set_title(
