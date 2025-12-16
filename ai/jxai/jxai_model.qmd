@@ -43,6 +43,7 @@ import grain.python as grain
 
 metadata = pl.read_parquet("metadata.parquet")
 metadata_train = metadata.filter(pl.col("is_training_img") == 1)
+metadata_val = metadata.filter(pl.col("is_training_img") == 0)
 cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
 
 class NABirdsDataset:
@@ -73,6 +74,7 @@ class NABirdsDataset:
         return element
 
 nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
+nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
 ```
 
 :::
@@ -137,80 +139,379 @@ Library |
 
 [Flax](https://github.com/google/flax) is the neural network library in the JAX AI stack.
 
+[Hugging Face transformers](https://github.com/huggingface/transformers) package.
+
 ```{python}
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from flax.nnx import bridge
+import optax
 from transformers import FlaxViTForImageClassification
+```
 
-class NABirdsViT(nnx.Module):
-    def __init__(self, num_classes, *, rngs: nnx.Rngs):
-        # 1. Load the pre-trained Linen model structure & weights from Hugging Face
-        hf_model = FlaxViTForImageClassification.from_pretrained(
-            "google/vit-base-patch16-224",
-            num_labels=num_classes,
-            ignore_mismatched_sizes=True # Necessary to overwrite the 1000-class head
+```{python}
+class VisionTransformer(nnx.Module):
+    """ Implements the ViT model, inheriting from `flax.nnx.Module`.
+
+    Args:
+        num_classes (int): Number of classes in the classification. Defaults to 1000.
+        in_channels (int): Number of input channels in the image (such as 3 for RGB). Defaults to 3.
+        img_size (int): Input image size. Defaults to 224.
+        patch_size (int): Size of the patches extracted from the image. Defaults to 16.
+        num_layers (int): Number of transformer encoder layers. Defaults to 12.
+        num_heads (int): Number of attention heads in each transformer layer. Defaults to 12.
+        mlp_dim (int): Dimension of the hidden layers in the feed-forward/MLP block. Defaults to 3072.
+        hidden_size (int): Dimensionality of the embedding vectors. Defaults to 3072.
+        dropout_rate (int): Dropout rate (for regularization). Defaults to 0.1.
+        rngs (flax.nnx.Rngs): A set of named `flax.nnx.RngStream` objects that generate a stream of JAX pseudo-random number generator (PRNG) keys. Defaults to `flax.nnx.Rngs(0)`.
+
+    """
+    def __init__(
+        self,
+        num_classes: int = 1000,
+        in_channels: int = 3,
+        img_size: int = 224,
+        patch_size: int = 16,
+        num_layers: int = 12,
+        num_heads: int = 12,
+        mlp_dim: int = 3072,
+        hidden_size: int = 768,
+        dropout_rate: float = 0.1,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ):
+        # Calculate the number of patches generated from the image.
+        n_patches = (img_size // patch_size) ** 2
+        # Patch embeddings:
+        # - Extracts patches from the input image and maps them to embedding vectors
+        #   using `flax.nnx.Conv` (convolutional layer).
+        self.patch_embeddings = nnx.Conv(
+            in_channels,
+            hidden_size,
+            kernel_size=(patch_size, patch_size),
+            strides=(patch_size, patch_size),
+            padding="VALID",
+            use_bias=True,
+            rngs=rngs,
         )
 
-        # 2. Bridge the Linen module to NNX
-        # 'hf_model.module' is the underlying Linen module
-        # 'hf_model.params' contains the pre-trained weights
-        self.backbone = bridge.ToNNX(hf_model.module, rngs=rngs)
+        # Positional embeddings (add information about image patch positions):
+        # Set the truncated normal initializer (using `jax.nn.initializers.truncated_normal`).
+        initializer = jax.nn.initializers.truncated_normal(stddev=0.02)
+        # The learnable parameter for positional embeddings (using `flax.nnx.Param`).
+        self.position_embeddings = nnx.Param(
+            initializer(rngs.params(), (1, n_patches + 1, hidden_size), jnp.float32)
+        ) # Shape `(1, n_patches +1, hidden_size`)
+        # The dropout layer.
+        self.dropout = nnx.Dropout(dropout_rate, rngs=rngs)
 
-        # 3. Initialize and Load Weights
-        # ToNNX requires a lazy initialization to structure the variables
-        dummy_input = jnp.zeros((1, 3, 224, 224)) # ResNet expects NCHW by default in HF
-        self.backbone.lazy_init(dummy_input)
+        # CLS token (a special token prepended to the sequence of patch embeddings)
+        # using `flax.nnx.Param`.
+        self.cls_token = nnx.Param(jnp.zeros((1, 1, hidden_size)))
 
-        # Extract the empty NNX state
-        _, backbone_state = nnx.split(self.backbone)
+        # Transformer encoder (a sequence of encoder blocks for feature extraction).
+        # - Create multiple Transformer encoder blocks (with `nnx.Sequential`
+        # and `TransformerEncoder(nnx.Module)` which is defined later).
+        self.encoder = nnx.Sequential(*[
+            TransformerEncoder(hidden_size, mlp_dim, num_heads, dropout_rate, rngs=rngs)
+            for i in range(num_layers)
+        ])
+        # Layer normalization with `flax.nnx.LayerNorm`.
+        self.final_norm = nnx.LayerNorm(hidden_size, rngs=rngs)
 
-        # Copy weights from the loaded HF model into the NNX state
-        # We define a helper to recursively copy the dictionary structure
-        def copy_weights(target_state, source_dict):
-            for key, value in source_dict.items():
-                if isinstance(value, dict) or hasattr(value, 'items'):
-                    copy_weights(target_state[key], value)
-                else:
-                    # Assign the weight to the NNX Variable
-                    target_state[key].value = value
+        # Classification head (maps the transformer encoder to class probabilities).
+        self.classifier = nnx.Linear(hidden_size, num_classes, rngs=rngs)
 
-        # HF stores weights in .params and batch stats in .batch_stats (if applicable)
-        # We merge them to match the structure expected by the bridge
-        full_linen_vars = {**hf_model.params}
-        if hasattr(hf_model, 'batch_stats'):
-            full_linen_vars['batch_stats'] = hf_model.batch_stats
+    # The forward pass in the ViT model.
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # Image patch embeddings.
+        # Extract image patches and embed them.
+        patches = self.patch_embeddings(x)
+        # Get the batch size of image patches.
+        batch_size = patches.shape[0]
+        # Reshape the image patches.
+        patches = patches.reshape(batch_size, -1, patches.shape[-1])
 
-        copy_weights(backbone_state, full_linen_vars)
+        # Replicate the CLS token for each image with `jax.numpy.tile`
+        # by constructing an array by repeating `cls_token` along `[batch_size, 1, 1]` dimensions.
+        cls_token = jnp.tile(self.cls_token, [batch_size, 1, 1])
+        # Concatenate the CLS token and image patch embeddings.
+        x = jnp.concat([cls_token, patches], axis=1)
+        # Create embedded patches by adding positional embeddings to the concatenated CLS token and image patch embeddings.
+        embeddings = x + self.position_embeddings
+        # Apply the dropout layer to embedded patches.
+        embeddings = self.dropout(embeddings)
 
-        # Update the bridge with the loaded weights
-        nnx.update(self.backbone, backbone_state)
+        # Transformer encoder blocks.
+        # Process the embedded patches through the transformer encoder layers.
+        x = self.encoder(embeddings)
+        # Apply layer normalization
+        x = self.final_norm(x)
 
-    def __call__(self, x):
-        # HF ResNet expects NCHW format (channels first)
-        # If your data is NHWC (standard for JAX), transpose it:
-        # x = jnp.transpose(x, (0, 3, 1, 2))
+        # Extract the CLS token (first token), which represents the overall image embedding.
+        x = x[:, 0]
 
-        # Run the bridged model
-        logits = self.backbone(x).logits
-        return logits
+        # Predict class probabilities based on the CLS token embedding.
+        return self.classifier(x)
+
+
+class TransformerEncoder(nnx.Module):
+    """
+    A single transformer encoder block in the ViT model, inheriting from `flax.nnx.Module`.
+
+    Args:
+        hidden_size (int): Input/output embedding dimensionality.
+        mlp_dim (int): Dimension of the feed-forward/MLP block hidden layer.
+        num_heads (int): Number of attention heads.
+        dropout_rate (float): Dropout rate. Defaults to 0.0.
+        rngs (flax.nnx.Rngs): A set of named `flax.nnx.RngStream` objects that generate a stream of JAX pseudo-random number generator (PRNG) keys. Defaults to `flax.nnx.Rngs(0)`.
+    """
+    def __init__(
+        self,
+        hidden_size: int,
+        mlp_dim: int,
+        num_heads: int,
+        dropout_rate: float = 0.0,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ) -> None:
+        # First layer normalization using `flax.nnx.LayerNorm`
+        # before we apply Multi-Head Attentn.
+        self.norm1 = nnx.LayerNorm(hidden_size, rngs=rngs)
+        # The Multi-Head Attention layer (using `flax.nnx.MultiHeadAttention`).
+        self.attn = nnx.MultiHeadAttention(
+            num_heads=num_heads,
+            in_features=hidden_size,
+            dropout_rate=dropout_rate,
+            broadcast_dropout=False,
+            decode=False,
+            deterministic=False,
+            rngs=rngs,
+        )
+        # Second layer normalization using `flax.nnx.LayerNorm`.
+        self.norm2 = nnx.LayerNorm(hidden_size, rngs=rngs)
+
+        # The MLP for point-wise feedforward (using `flax.nnx.Sequential`, `flax.nnx.Linear, flax.nnx.Dropout`)
+        # with the GeLU activation function (`flax.nnx.gelu`).
+        self.mlp = nnx.Sequential(
+            nnx.Linear(hidden_size, mlp_dim, rngs=rngs),
+            nnx.gelu,
+            nnx.Dropout(dropout_rate, rngs=rngs),
+            nnx.Linear(mlp_dim, hidden_size, rngs=rngs),
+            nnx.Dropout(dropout_rate, rngs=rngs),
+        )
+
+    # The forward pass through the transformer encoder block.
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # The Multi-Head Attention layer with layer normalization.
+        x = x + self.attn(self.norm1(x))
+        # The feed-forward network with layer normalization.
+        x = x + self.mlp(self.norm2(x))
+        return x
+
+# Example usage for testing:
+x = jnp.ones((4, 224, 224, 3))
+model = VisionTransformer(num_classes=1000)
+y = model(x)
+print("Predictions shape: ", y.shape)
 ```
-
-Initialize the model:
 
 ```{python}
-rngs = nnx.Rngs(params=0, dropout=1)
-model = NABirdsViT(num_classes=405, rngs=rngs)
+tf_model = FlaxViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
 ```
-
-Test forward pass:
 
 ```{python}
-dummy_img = jax.random.normal(jax.random.key(0), (1, 3, 224, 224))
-logits = model(dummy_img)
-print(f"Output shape: {logits.shape}") # (1, 555)
+# Copies weights from a TF ViT model to a Flax ViT model, reshaping layers
+# to match the expected shapes in Flax.
+def vit_inplace_copy_weights(*, src_model, dst_model):
+    assert isinstance(src_model, FlaxViTForImageClassification)
+    assert isinstance(dst_model, VisionTransformer)
+
+    tf_model_params = src_model.params
+    tf_model_params_fstate = nnx.traversals.flatten_mapping(tf_model_params)
+
+    # Notice the use of `flax.nnx.state`.
+    flax_model_params = nnx.state(dst_model, nnx.Param)
+    flax_model_params_fstate = dict(flax_model_params.flat_state())
+
+    # Mapping from Flax parameter names to TF parameter names.
+    params_name_mapping = {
+        ("cls_token",): ("vit", "embeddings", "cls_token"),
+        ("position_embeddings",): ("vit", "embeddings", "position_embeddings"),
+        **{
+            ("patch_embeddings", x): ("vit", "embeddings", "patch_embeddings", "projection", x)
+            for x in ["kernel", "bias"]
+        },
+        **{
+            ("encoder", "layers", i, "attn", y, x): (
+                "vit", "encoder", "layer", str(i), "attention", "attention", y, x
+            )
+            for x in ["kernel", "bias"]
+            for y in ["key", "value", "query"]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, "attn", "out", x): (
+                "vit", "encoder", "layer", str(i), "attention", "output", "dense", x
+            )
+            for x in ["kernel", "bias"]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, "mlp", "layers", y1, x): (
+                "vit", "encoder", "layer", str(i), y2, "dense", x
+            )
+            for x in ["kernel", "bias"]
+            for y1, y2 in [(0, "intermediate"), (3, "output")]
+            for i in range(12)
+        },
+        **{
+            ("encoder", "layers", i, y1, x): (
+                "vit", "encoder", "layer", str(i), y2, x
+            )
+            for x in ["scale", "bias"]
+            for y1, y2 in [("norm1", "layernorm_before"), ("norm2", "layernorm_after")]
+            for i in range(12)
+        },
+        **{
+            ("final_norm", x): ("vit", "layernorm", x)
+            for x in ["scale", "bias"]
+        },
+        **{
+            ("classifier", x): ("classifier", x)
+            for x in ["kernel", "bias"]
+        }
+    }
+
+    nonvisited = set(flax_model_params_fstate.keys())
+
+    for key1, key2 in params_name_mapping.items():
+        assert key1 in flax_model_params_fstate, key1
+        assert key2 in tf_model_params_fstate, (key1, key2)
+
+        nonvisited.remove(key1)
+
+        src_value = tf_model_params_fstate[key2]
+        if key2[-1] == "kernel" and key2[-2] in ("key", "value", "query"):
+            shape = src_value.shape
+            src_value = src_value.reshape((shape[0], 12, 64))
+
+        if key2[-1] == "bias" and key2[-2] in ("key", "value", "query"):
+            src_value = src_value.reshape((12, 64))
+
+        if key2[-4:] == ("attention", "output", "dense", "kernel"):
+            shape = src_value.shape
+            src_value = src_value.reshape((12, 64, shape[-1]))
+
+        dst_value = flax_model_params_fstate[key1]
+        assert src_value.shape == dst_value.value.shape, (key2, src_value.shape, key1, dst_value.value.shape)
+        dst_value.value = src_value.copy()
+        assert dst_value.value.mean() == src_value.mean(), (dst_value.value, src_value.mean())
+
+    assert len(nonvisited) == 0, nonvisited
+    # Notice the use of `flax.nnx.update` and `flax.nnx.State`.
+    nnx.update(dst_model, nnx.State.from_flat_path(flax_model_params_fstate))
+
+
+vit_inplace_copy_weights(src_model=tf_model, dst_model=model)
 ```
+
+```{python}
+model.classifier = nnx.Linear(model.classifier.in_features, 405, rngs=nnx.Rngs(0))
+
+x = jnp.ones((4, 224, 224, 3))
+y = model(x)
+print("Predictions shape: ", y.shape)
+```
+
+
+
+```{python}
+def normalize(img):
+    # We use the normalization parameters matching
+    # the pretrained ViT from HF Transformers:
+    # ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+    mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    image = image.astype(np.float32) / 255.0
+    return (image - mean) / std
+```
+
+
+<!-- ```{python} -->
+<!-- import jax -->
+<!-- import jax.numpy as jnp -->
+<!-- from flax import nnx -->
+<!-- from flax.nnx import bridge -->
+<!-- from transformers import FlaxViTForImageClassification -->
+
+<!-- class NABirdsViT(nnx.Module): -->
+<!--     def __init__(self, num_classes, *, rngs: nnx.Rngs): -->
+<!--         # 1. Load the pre-trained Linen model structure & weights from Hugging Face -->
+<!--         hf_model = FlaxViTForImageClassification.from_pretrained( -->
+<!--             "google/vit-base-patch16-224", -->
+<!--             num_labels=num_classes, -->
+<!--             ignore_mismatched_sizes=True # Necessary to overwrite the 1000-class head -->
+<!--         ) -->
+
+<!--         # 2. Bridge the Linen module to NNX -->
+<!--         # 'hf_model.module' is the underlying Linen module -->
+<!--         # 'hf_model.params' contains the pre-trained weights -->
+<!--         self.backbone = bridge.ToNNX(hf_model.module, rngs=rngs) -->
+
+<!--         # 3. Initialize and Load Weights -->
+<!--         # ToNNX requires a lazy initialization to structure the variables -->
+<!--         dummy_input = jnp.zeros((1, 3, 224, 224)) # ResNet expects NCHW by default in HF -->
+<!--         self.backbone.lazy_init(dummy_input) -->
+
+<!--         # Extract the empty NNX state -->
+<!--         _, backbone_state = nnx.split(self.backbone) -->
+
+<!--         # Copy weights from the loaded HF model into the NNX state -->
+<!--         # We define a helper to recursively copy the dictionary structure -->
+<!--         def copy_weights(target_state, source_dict): -->
+<!--             for key, value in source_dict.items(): -->
+<!--                 if isinstance(value, dict) or hasattr(value, 'items'): -->
+<!--                     copy_weights(target_state[key], value) -->
+<!--                 else: -->
+<!--                     # Assign the weight to the NNX Variable -->
+<!--                     target_state[key].value = value -->
+
+<!--         # HF stores weights in .params and batch stats in .batch_stats (if applicable) -->
+<!--         # We merge them to match the structure expected by the bridge -->
+<!--         full_linen_vars = {**hf_model.params} -->
+<!--         if hasattr(hf_model, 'batch_stats'): -->
+<!--             full_linen_vars['batch_stats'] = hf_model.batch_stats -->
+
+<!--         copy_weights(backbone_state, full_linen_vars) -->
+
+<!--         # Update the bridge with the loaded weights -->
+<!--         nnx.update(self.backbone, backbone_state) -->
+
+<!--     def __call__(self, x): -->
+<!--         # HF ResNet expects NCHW format (channels first) -->
+<!--         # If your data is NHWC (standard for JAX), transpose it: -->
+<!--         # x = jnp.transpose(x, (0, 3, 1, 2)) -->
+
+<!--         # Run the bridged model -->
+<!--         logits = self.backbone(x).logits -->
+<!--         return logits -->
+<!-- ``` -->
+
+<!-- Initialize the model: -->
+
+<!-- ```{python} -->
+<!-- rngs = nnx.Rngs(params=0, dropout=1) -->
+<!-- model = NABirdsViT(num_classes=405, rngs=rngs) -->
+<!-- ``` -->
+
+<!-- Test forward pass: -->
+
+<!-- ```{python} -->
+<!-- dummy_img = jax.random.normal(jax.random.key(0), (1, 3, 224, 224)) -->
+<!-- logits = model(dummy_img) -->
+<!-- print(f"Output shape: {logits.shape}") # (1, 555) -->
+<!-- ``` -->
 
 <!-- Forward pass: -->
 
