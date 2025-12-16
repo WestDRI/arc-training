@@ -340,6 +340,12 @@ window.Quarto = {
   <li><a href="#why-this-is-the-correct-approach" id="toc-why-this-is-the-correct-approach" class="nav-link" data-scroll-target="#why-this-is-the-correct-approach">Why this is the correct approach</a></li>
   <li><a href="#fine-tuning-advice" id="toc-fine-tuning-advice" class="nav-link" data-scroll-target="#fine-tuning-advice">Fine-Tuning Advice</a></li>
   </ul></li>
+  <li><a href="#flaxefficientnetmodel-doesnt-exist" id="toc-flaxefficientnetmodel-doesnt-exist" class="nav-link" data-scroll-target="#flaxefficientnetmodel-doesnt-exist">FlaxEfficientNetModel doesn’t exist</a>
+  <ul>
+  <li><a href="#the-solution-resnet-50-via-transformers-nnx-bridge" id="toc-the-solution-resnet-50-via-transformers-nnx-bridge" class="nav-link" data-scroll-target="#the-solution-resnet-50-via-transformers-nnx-bridge">The Solution: ResNet-50 via Transformers + NNX Bridge</a></li>
+  <li><a href="#why-this-is-better" id="toc-why-this-is-better" class="nav-link" data-scroll-target="#why-this-is-better">Why this is better</a></li>
+  <li><a href="#alternative-vision-transformer-vit" id="toc-alternative-vision-transformer-vit" class="nav-link" data-scroll-target="#alternative-vision-transformer-vit">Alternative: Vision Transformer (ViT)</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -1483,6 +1489,96 @@ head_params = nnx.filter(params, lambda path, _: 'head' in path)
 <ol start="2" type="1">
 <li><strong>Batch Statistics:</strong> Remember that EfficientNet has BatchNorm layers. In NNX, you need to handle <code>BatchStat</code> updates. Ensure your training step returns the updated state for these statistics alongside the gradients.</li>
 </ol>
+</section>
+</section>
+<section id="flaxefficientnetmodel-doesnt-exist" class="level2">
+<h2 class="anchored" data-anchor-id="flaxefficientnetmodel-doesnt-exist">FlaxEfficientNetModel doesn’t exist</h2>
+<p>You are correct; <code>FlaxEfficientNetModel</code> is not currently implemented in the main Hugging Face <code>transformers</code> library, and <code>efficientnet-jax</code> relies on older APIs.</p>
+<p>Since you want to use <strong>NNX</strong> with a <strong>non-archived</strong>, modern library, the best supported path is to use the <strong>ResNet</strong> or <strong>Vision Transformer (ViT)</strong> implementations available directly in Hugging Face <code>transformers</code>. These are actively maintained and have native Flax weights.</p>
+<p>For bird identification (NABirds), <strong>ResNet-50</strong> is still the safest baseline, but <strong>ViT-Base</strong> is a powerful modern alternative.</p>
+<p>Here is how to load a pre-trained <strong>ResNet-50</strong> (which <em>does</em> exist in <code>transformers</code> as <code>FlaxResNetForImageClassification</code>) and wrap it into a modern <strong>NNX</strong> module using the bridge.</p>
+<section id="the-solution-resnet-50-via-transformers-nnx-bridge" class="level3">
+<h3 class="anchored" data-anchor-id="the-solution-resnet-50-via-transformers-nnx-bridge">The Solution: ResNet-50 via Transformers + NNX Bridge</h3>
+<p>This approach gives you: 1. <strong>Modern Stack:</strong> Uses active <code>transformers</code> and <code>flax.nnx</code>. 2. <strong>Pre-trained Weights:</strong> Loads “microsoft/resnet-50” (trained on ImageNet). 3. <strong>NNX API:</strong> You interact with the model using the new NNX state management.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> flax <span class="im">import</span> nnx</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> flax.nnx <span class="im">import</span> bridge</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> FlaxResNetForImageClassification</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BirdClassifier(nnx.Module):</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, num_classes<span class="op">=</span><span class="dv">555</span>, <span class="op">*</span>, rngs: nnx.Rngs):</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 1. Load the official Flax ResNet from Hugging Face</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># We drop the original classification head to attach our own</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>        hf_model <span class="op">=</span> FlaxResNetForImageClassification.from_pretrained(</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">"microsoft/resnet-50"</span>,</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>            num_labels<span class="op">=</span>num_classes,</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>            ignore_mismatched_sizes<span class="op">=</span><span class="va">True</span> <span class="co"># Necessary to overwrite the 1000-class head</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 2. Bridge the Linen module to NNX</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 'hf_model.module' is the underlying Linen module</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 'hf_model.params' contains the pre-trained weights</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.backbone <span class="op">=</span> bridge.ToNNX(hf_model.module, rngs<span class="op">=</span>rngs)</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 3. Initialize and Load Weights</span></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ToNNX requires a lazy initialization to structure the variables</span></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>        dummy_input <span class="op">=</span> jnp.zeros((<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">224</span>, <span class="dv">224</span>)) <span class="co"># ResNet expects NCHW by default in HF</span></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.backbone.lazy_init(dummy_input)</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Extract the empty NNX state</span></span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>        _, backbone_state <span class="op">=</span> nnx.split(<span class="va">self</span>.backbone)</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy weights from the loaded HF model into the NNX state</span></span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>        <span class="co"># We define a helper to recursively copy the dictionary structure</span></span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> copy_weights(target_state, source_dict):</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> key, value <span class="kw">in</span> source_dict.items():</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> <span class="bu">isinstance</span>(value, <span class="bu">dict</span>) <span class="kw">or</span> <span class="bu">hasattr</span>(value, <span class="st">'items'</span>):</span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>                    copy_weights(target_state[key], value)</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>                <span class="cf">else</span>:</span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>                    <span class="co"># Assign the weight to the NNX Variable</span></span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a>                    target_state[key].value <span class="op">=</span> value</span>
+<span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-40"><a href="#cb17-40" aria-hidden="true" tabindex="-1"></a>        <span class="co"># HF stores weights in .params and batch stats in .batch_stats (if applicable)</span></span>
+<span id="cb17-41"><a href="#cb17-41" aria-hidden="true" tabindex="-1"></a>        <span class="co"># We merge them to match the structure expected by the bridge</span></span>
+<span id="cb17-42"><a href="#cb17-42" aria-hidden="true" tabindex="-1"></a>        full_linen_vars <span class="op">=</span> {<span class="op">**</span>hf_model.params}</span>
+<span id="cb17-43"><a href="#cb17-43" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">hasattr</span>(hf_model, <span class="st">'batch_stats'</span>):</span>
+<span id="cb17-44"><a href="#cb17-44" aria-hidden="true" tabindex="-1"></a>            full_linen_vars[<span class="st">'batch_stats'</span>] <span class="op">=</span> hf_model.batch_stats</span>
+<span id="cb17-45"><a href="#cb17-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-46"><a href="#cb17-46" aria-hidden="true" tabindex="-1"></a>        copy_weights(backbone_state, full_linen_vars)</span>
+<span id="cb17-47"><a href="#cb17-47" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb17-48"><a href="#cb17-48" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Update the bridge with the loaded weights</span></span>
+<span id="cb17-49"><a href="#cb17-49" aria-hidden="true" tabindex="-1"></a>        nnx.update(<span class="va">self</span>.backbone, backbone_state)</span>
+<span id="cb17-50"><a href="#cb17-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-51"><a href="#cb17-51" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, x):</span>
+<span id="cb17-52"><a href="#cb17-52" aria-hidden="true" tabindex="-1"></a>        <span class="co"># HF ResNet expects NCHW format (channels first)</span></span>
+<span id="cb17-53"><a href="#cb17-53" aria-hidden="true" tabindex="-1"></a>        <span class="co"># If your data is NHWC (standard for JAX), transpose it:</span></span>
+<span id="cb17-54"><a href="#cb17-54" aria-hidden="true" tabindex="-1"></a>        <span class="co"># x = jnp.transpose(x, (0, 3, 1, 2))</span></span>
+<span id="cb17-55"><a href="#cb17-55" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb17-56"><a href="#cb17-56" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Run the bridged model</span></span>
+<span id="cb17-57"><a href="#cb17-57" aria-hidden="true" tabindex="-1"></a>        logits <span class="op">=</span> <span class="va">self</span>.backbone(x).logits</span>
+<span id="cb17-58"><a href="#cb17-58" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> logits</span>
+<span id="cb17-59"><a href="#cb17-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-60"><a href="#cb17-60" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Usage ---</span></span>
+<span id="cb17-61"><a href="#cb17-61" aria-hidden="true" tabindex="-1"></a>rngs <span class="op">=</span> nnx.Rngs(params<span class="op">=</span><span class="dv">0</span>, dropout<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb17-62"><a href="#cb17-62" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> BirdClassifier(num_classes<span class="op">=</span><span class="dv">555</span>, rngs<span class="op">=</span>rngs)</span>
+<span id="cb17-63"><a href="#cb17-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-64"><a href="#cb17-64" aria-hidden="true" tabindex="-1"></a><span class="co"># Test forward pass</span></span>
+<span id="cb17-65"><a href="#cb17-65" aria-hidden="true" tabindex="-1"></a>dummy_img <span class="op">=</span> jax.random.normal(jax.random.key(<span class="dv">0</span>), (<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">224</span>, <span class="dv">224</span>))</span>
+<span id="cb17-66"><a href="#cb17-66" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> model(dummy_img)</span>
+<span id="cb17-67"><a href="#cb17-67" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Output shape: </span><span class="sc">{</span>logits<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>) <span class="co"># (1, 555)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="why-this-is-better" class="level3">
+<h3 class="anchored" data-anchor-id="why-this-is-better">Why this is better</h3>
+<ol type="1">
+<li><strong>Microsoft/ResNet-50</strong> is a very strong, standard baseline.</li>
+<li><strong>Native Support:</strong> Unlike EfficientNet, this model has a dedicated Flax implementation (<code>FlaxResNetForImageClassification</code>) inside the <code>transformers</code> library, so you don’t need to hack older repos.</li>
+<li><strong>Bridge:</strong> The <code>bridge.ToNNX</code> allows you to treat this legacy Linen model exactly like a native NNX object (mutable state, no <code>apply/init</code> functional boilerplate) in your training loop.</li>
+</ol>
+</section>
+<section id="alternative-vision-transformer-vit" class="level3">
+<h3 class="anchored" data-anchor-id="alternative-vision-transformer-vit">Alternative: Vision Transformer (ViT)</h3>
+<p>If you prefer a Transformer-based architecture, simply replace <code>"microsoft/resnet-50"</code> with <code>"google/vit-base-patch16-224"</code> and <code>FlaxResNetForImageClassification</code> with <code>FlaxViTForImageClassification</code>. The bridge logic remains identical. ViT is excellent but can be heavier to train; ResNet is often “safer” for fine-grained tasks with medium-sized datasets like NABirds.</p>
 
 
 </section>

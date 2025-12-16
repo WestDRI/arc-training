@@ -225,7 +225,17 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
   <li><a href="#validation-check" id="toc-validation-check" class="nav-link" data-scroll-target="#validation-check">Validation check</a></li>
   </ul></li>
   </ul></li>
-  <li><a href="#applying-our-augmentation-strategy" id="toc-applying-our-augmentation-strategy" class="nav-link" data-scroll-target="#applying-our-augmentation-strategy">Applying our augmentation strategy</a></li>
+  <li><a href="#our-plan-for-the-train-set" id="toc-our-plan-for-the-train-set" class="nav-link" data-scroll-target="#our-plan-for-the-train-set">Our plan for the train set</a>
+  <ul>
+  <li><a href="#image-normalization" id="toc-image-normalization" class="nav-link" data-scroll-target="#image-normalization">Image normalization</a></li>
+  <li><a href="#our-augmentation-strategy" id="toc-our-augmentation-strategy" class="nav-link" data-scroll-target="#our-augmentation-strategy">Our augmentation strategy</a></li>
+  <li><a href="#pass-to-dataloader" id="toc-pass-to-dataloader" class="nav-link" data-scroll-target="#pass-to-dataloader">Pass to DataLoader</a></li>
+  </ul></li>
+  <li><a href="#what-about-the-eval-set" id="toc-what-about-the-eval-set" class="nav-link" data-scroll-target="#what-about-the-eval-set">What about the eval set?</a>
+  <ul>
+  <li><a href="#resizing" id="toc-resizing" class="nav-link" data-scroll-target="#resizing">Resizing</a></li>
+  <li><a href="#pass-to-dataloader-1" id="toc-pass-to-dataloader-1" class="nav-link" data-scroll-target="#pass-to-dataloader-1">Pass to DataLoader</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -277,44 +287,48 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <p>To be replaced by actual path: in our training cluster, the <code>base_dir</code> is at <code>/project/def-sponsor00/nabirds</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>base_dir <span class="op">=</span> <span class="st">'/project/def-sponsor00/nabirds'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="1e9ef6a8" class="cell" data-execution_count="3">
+<div id="51e65718" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> imageio.v3 <span class="im">as</span> iio</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> grain.python <span class="im">as</span> grain</span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> pl.read_parquet(<span class="st">"metadata.parquet"</span>)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>metadata_train <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">"is_training_img"</span>) <span class="op">==</span> <span class="dv">1</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>cleaned_img_dir <span class="op">=</span> os.path.join(base_dir, <span class="st">"cleaned_images"</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NABirdsDataset:</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""NABirds dataset class."""</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> pl.read_parquet(<span class="st">"metadata.parquet"</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>metadata_train <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">"is_training_img"</span>) <span class="op">==</span> <span class="dv">1</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>metadata_val <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">"is_training_img"</span>) <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>cleaned_img_dir <span class="op">=</span> os.path.join(base_dir, <span class="st">"cleaned_images"</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, metadata_file, data_dir):</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.metadata_file <span class="op">=</span> metadata_file</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.data_dir <span class="op">=</span> data_dir</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__len__</span>(<span class="va">self</span>):</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">len</span>(<span class="va">self</span>.metadata_file)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NABirdsDataset:</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""NABirds dataset class."""</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, metadata_file, data_dir):</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.metadata_file <span class="op">=</span> metadata_file</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.data_dir <span class="op">=</span> data_dir</span>
 <span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__getitem__</span>(<span class="va">self</span>, idx):</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        path <span class="op">=</span> os.path.join(<span class="va">self</span>.data_dir, <span class="va">self</span>.metadata_file.get_column(<span class="st">"path"</span>)[idx])</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> iio.imread(path)</span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        species <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">"species"</span>)[idx].replace(<span class="st">"_"</span>, <span class="st">" "</span>)</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        subcategory <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">"subcategory"</span>)[idx]</span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> subcategory <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>            subcategory <span class="op">=</span> subcategory.replace(<span class="st">"_"</span>, <span class="st">" "</span>)</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        photographer <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">"photographer"</span>)[idx].replace(<span class="st">"_"</span>, <span class="st">" "</span>)</span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        element <span class="op">=</span> {</span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>            <span class="st">"img"</span>: img,</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>            <span class="st">"species"</span>: species,</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>            <span class="st">"subcategory"</span>: subcategory,</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>            <span class="st">"photographer"</span>: photographer,</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>        }</span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> element</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>nabirds_train <span class="op">=</span> NABirdsDataset(metadata_train, cleaned_img_dir)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__len__</span>(<span class="va">self</span>):</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">len</span>(<span class="va">self</span>.metadata_file)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__getitem__</span>(<span class="va">self</span>, idx):</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        path <span class="op">=</span> os.path.join(<span class="va">self</span>.data_dir, <span class="va">self</span>.metadata_file.get_column(<span class="st">"path"</span>)[idx])</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> iio.imread(path)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        species <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">"species"</span>)[idx].replace(<span class="st">"_"</span>, <span class="st">" "</span>)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># subcategory = self.metadata_file.get_column("subcategory")[idx]</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        <span class="co"># if subcategory is not None:</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>            <span class="co"># subcategory = subcategory.replace("_", " ")</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        photographer <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">"photographer"</span>)[idx].replace(<span class="st">"_"</span>, <span class="st">" "</span>)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>            <span class="st">"img"</span>: img,</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>            <span class="st">"species"</span>: species,</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>            <span class="co"># "subcategory": subcategory,</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>            <span class="st">"photographer"</span>: photographer,</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>nabirds_train <span class="op">=</span> NABirdsDataset(metadata_train, cleaned_img_dir)</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>nabirds_val <span class="op">=</span> NABirdsDataset(metadata_val, cleaned_img_dir)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
@@ -422,7 +436,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <h4 class="anchored" data-anchor-id="visual-sanity-check">Visual sanity check</h4>
 <p>Never set augmentation parameters blindly. Visualize some tests to ensure the data you are using to train is still reasonable (and to make sure that you aren’t messing something up and getting totally absurd results!).</p>
 <p>Let’s test various gamma values on the first 4 images in the training set:</p>
-<div id="f845d65f" class="cell" data-execution_count="4">
+<div id="87e9df55" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> dm_pix <span class="im">as</span> pix</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> PIL.Image <span class="im">as</span> Image</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
@@ -430,7 +444,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> jax.numpy <span class="im">as</span> jnp</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Let’s write a helper function that applies PIX deterministic <a href="https://dm-pix.readthedocs.io/en/latest/api.html#adjust-gamma">adjust_gamma</a> function to a JAX array image, then covert it to a PIL image that we can display:</p>
-<div id="b18e32da" class="cell" data-execution_count="5">
+<div id="4dd9ecb4" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> apply_gamma(img, gamma):</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Apply gamma transformation to a JAX array image</span></span>
@@ -447,7 +461,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pil_img, gamma</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>This next function will take a NumPy image from our Dataset class, turn it to a JAX array, apply our helper function <code>apply_gamma</code>, and display the result:</p>
-<div id="b72a034e" class="cell" data-execution_count="6">
+<div id="fdac9f45" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> show_tests(img, gamma_range):</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Turn the image into a JAX array,</span></span>
@@ -474,7 +488,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Now we can apply it to a few images to get an idea of the effect and ensure nothing weird is going on. This will help us catch a coding mistake that could ruin the whole training process:</p>
-<div id="3aebc687" class="cell" data-execution_count="7">
+<div id="48b3811f" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>show_tests(nabirds_train[<span class="dv">0</span>][<span class="st">'img'</span>], np.linspace(<span class="fl">0.1</span>, <span class="dv">3</span>, <span class="dv">12</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -485,7 +499,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 <p>0.4 to 1.2 seem ok.</p>
-<div id="81cc3848" class="cell" data-execution_count="8">
+<div id="972736a7" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>show_tests(nabirds_train[<span class="dv">1</span>][<span class="st">'img'</span>], np.linspace(<span class="fl">0.1</span>, <span class="dv">3</span>, <span class="dv">12</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -496,7 +510,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 <p>0.4 to 2.2 seem reasonable for this image.</p>
-<div id="50b85f78" class="cell" data-execution_count="9">
+<div id="a570cafb" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>show_tests(nabirds_train[<span class="dv">2</span>][<span class="st">'img'</span>], np.linspace(<span class="fl">0.1</span>, <span class="dv">3</span>, <span class="dv">12</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -507,7 +521,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 <p>0.4 to 2.5 seem ok for this one.</p>
-<div id="1778e441" class="cell" data-execution_count="10">
+<div id="2c7e51b0" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>show_tests(nabirds_train[<span class="dv">3</span>][<span class="st">'img'</span>], np.linspace(<span class="fl">0.1</span>, <span class="dv">3</span>, <span class="dv">12</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -528,14 +542,1799 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </section>
 </section>
 </section>
-<section id="applying-our-augmentation-strategy" class="level2">
+<section id="our-plan-for-the-train-set" class="level2">
+<h2 class="anchored" data-anchor-id="our-plan-for-the-train-set">Our plan for the train set</h2>
+<section id="image-normalization" class="level3">
+<h3 class="anchored" data-anchor-id="image-normalization">Image normalization</h3>
+<p>Before anything else, we need to normalize our images.</p>
+<p>Our images are currently stored as NumPy arrays of type integers ranging from 0 to 255 (the values of the pixels):</p>
+<div id="3202765c" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(nabirds_train[<span class="dv">0</span>][<span class="st">'img'</span>].dtype)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>uint8</code></pre>
+</div>
+</div>
+<p>It is a classic normalization technique to divide these pixel values by 255 to bring them in the 0-1 range. This improves performance and stability in training.</p>
+<p>To ensure that all features contribute equally and improve performance, it is also a standard practice to turn the pictures into <a href="https://en.wikipedia.org/wiki/Standard_score">standard scores (z-scores)</a> by subtracting each data point by the mean and dividing by the standard deviation.</p>
+<p>Let’s create a first transformation that does exactly that:</p>
+<div id="cf948e71" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Normalize(grain.MapTransform):</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">map</span>(<span class="va">self</span>, element):</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> element[<span class="st">'img'</span>]</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Image preprocessing matches the one of pretrained ViT</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>        mean <span class="op">=</span> np.array([<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="fl">0.5</span>], dtype<span class="op">=</span>np.float32)</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        std <span class="op">=</span> np.array([<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="fl">0.5</span>], dtype<span class="op">=</span>np.float32)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> img.astype(np.float32) <span class="op">/</span> <span class="fl">255.0</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        img_norm <span class="op">=</span> (img <span class="op">-</span> mean) <span class="op">/</span> std</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        element[<span class="st">'img'</span>] <span class="op">=</span> img_norm</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> element</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="our-augmentation-strategy" class="level3">
+<h3 class="anchored" data-anchor-id="our-augmentation-strategy">Our augmentation strategy</h3>
+<div id="6a46c68d" class="cell" data-execution_count="12">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> dm_pix <span class="im">as</span> pix</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>img_size <span class="op">=</span> <span class="dv">224</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<!-- ```{python} -->
+<!-- def augment_batch(batch, rng_key): -->
+<!--     # Split rng key for different operations -->
+<!--     rng1, rng2 = jax.random.split(rng_key) -->
+<!--     images = batch['image'] -->
+<!--     # Example: Random flip and brightness -->
+<!--     # PIX functions expect (H, W, C), so we use vmap to handle (Batch, H, W, C) -->
+<!--     images = jax.vmap(pix.flip_left_right)(images) -->
+<!--     images = jax.vmap(lambda i, k: pix.random_brightness(k, i, max_delta=0.2))(images, jax.random.split(rng1, images.shape[0])) -->
+<!--     return {**batch, 'image': images} -->
+<!-- ``` -->
+<!-- ```{python} -->
+<!-- # trains_transforms =  -->
+<!-- ``` -->
+</section>
+<section id="pass-to-dataloader" class="level3">
+<h3 class="anchored" data-anchor-id="pass-to-dataloader">Pass to DataLoader</h3>
+<p>We can now pass the transformations to the DataLoader:</p>
+<div id="ff296368" class="cell" data-execution_count="13">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>seed <span class="op">=</span> <span class="dv">123</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>train_batch_size <span class="op">=</span> <span class="dv">32</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Train set sampler:</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>train_sampler <span class="op">=</span> grain.IndexSampler(</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># num_records=len(nabirds_train),</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    num_records<span class="op">=</span><span class="dv">100</span>,</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">True</span>,                      <span class="co"># We shuffle the training set</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    seed<span class="op">=</span>seed,</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    shard_options<span class="op">=</span>grain.NoSharding(),  <span class="co"># No sharding for a single-device setup</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    num_epochs<span class="op">=</span><span class="dv">1</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Train set DataLoader:</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>train_loader <span class="op">=</span> grain.DataLoader(</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    data_source<span class="op">=</span>nabirds_train,</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">=</span>train_sampler,</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>    operations<span class="op">=</span>[</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        Normalize(),</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># AsArray(),</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>        grain.Batch(train_batch_size, drop_remainder<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<!-- ```{python} -->
+<!-- for i, sample in enumerate(train_loader): -->
+<!--     print(sample) -->
+<!--     if i == 3: -->
+<!--         break -->
+<!-- ``` -->
+<!-- ```{python} -->
+<!-- next(iter(train_loader)) -->
+<!-- ``` -->
+</section>
+</section>
+<section id="what-about-the-eval-set" class="level2">
+<h2 class="anchored" data-anchor-id="what-about-the-eval-set">What about the eval set?</h2>
+<p>You don’t want to apply any augmentation on the evaluation set. However, these images must match the normalization and resizing of the training set.</p>
+<p>For the normalization, we can use the <code>Normalize</code> class we used on the training set. For resizing however, we want to resize to 224 x 224 deterministically and without cropping the image.</p>
+<section id="resizing" class="level3">
+<h3 class="anchored" data-anchor-id="resizing">Resizing</h3>
+<div id="34b981ca" class="cell" data-execution_count="14">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Resize(grain.MapTransform):</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">map</span>(<span class="va">self</span>, element):</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> element[<span class="st">'img'</span>]</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        img_resized <span class="op">=</span> pix.resize_with_crop_or_pad(img, img_size, img_size)</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        element[<span class="st">'img'</span>] <span class="op">=</span> img_resized</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> element</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="pass-to-dataloader-1" class="level3">
+<h3 class="anchored" data-anchor-id="pass-to-dataloader-1">Pass to DataLoader</h3>
+<p>Pass transformations to the DataLoader:</p>
+<div id="349ec6b5" class="cell" data-execution_count="15">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># val_batch_size = 2 * train_batch_size</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>val_batch_size <span class="op">=</span> train_batch_size</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Validation set sampler:</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>val_sampler <span class="op">=</span> grain.IndexSampler(</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">len</span>(nabirds_val),</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">False</span>,                     <span class="co"># We don't shuffle the validation set</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    seed<span class="op">=</span>seed,</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    shard_options<span class="op">=</span>grain.NoSharding(),</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    num_epochs<span class="op">=</span><span class="dv">1</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Validation set DataLoader:</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>val_loader <span class="op">=</span> grain.DataLoader(</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    data_source<span class="op">=</span>nabirds_val,</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">=</span>val_sampler,</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># worker_count=4,                 # If you have the resources (I don't)</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># worker_buffer_size=2,</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>    operations<span class="op">=</span>[</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>        Normalize(),</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>        Resize(),</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>        grain.Batch(val_batch_size)</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="b16b3137" class="cell" data-execution_count="16">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, sample <span class="kw">in</span> <span class="bu">enumerate</span>(val_loader):</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(sample)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> i <span class="op">==</span> <span class="dv">3</span>:</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>{'img': array([[[[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
 
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        ...,
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]]],
+
+
+       [[[ 0.70980394,  0.8745098 , -0.05882353],
+         [ 0.6627451 ,  0.827451  , -0.10588235],
+         [ 0.6313726 ,  0.79607844, -0.1372549 ],
+         ...,
+         [ 0.52156866,  0.6627451 ,  0.0196079 ],
+         [ 0.5372549 ,  0.67058825,  0.04313731],
+         [ 0.5137255 ,  0.6627451 ,  0.04313731]],
+
+        [[ 0.6862745 ,  0.8352941 , -0.0745098 ],
+         [ 0.6313726 ,  0.78039217, -0.12941176],
+         [ 0.6       ,  0.7490196 , -0.17647058],
+         ...,
+         [ 0.54509807,  0.6784314 ,  0.05098045],
+         [ 0.54509807,  0.6784314 ,  0.05098045],
+         [ 0.5294118 ,  0.6627451 ,  0.05098045]],
+
+        [[ 0.6784314 ,  0.827451  , -0.0745098 ],
+         [ 0.64705884,  0.79607844, -0.10588235],
+         [ 0.62352943,  0.77254903, -0.1372549 ],
+         ...,
+         [ 0.54509807,  0.6784314 ,  0.05098045],
+         [ 0.5372549 ,  0.67058825,  0.05882359],
+         [ 0.5294118 ,  0.654902  ,  0.06666672]],
+
+        ...,
+
+        [[-0.29411763, -0.29411763, -0.21568626],
+         [-0.30196077, -0.30196077, -0.2235294 ],
+         [-0.3333333 , -0.3333333 , -0.25490195],
+         ...,
+         [ 0.60784316,  0.70980394,  0.14509809],
+         [ 0.60784316,  0.70980394,  0.14509809],
+         [ 0.5921569 ,  0.69411767,  0.14509809]],
+
+        [[-0.27843136, -0.27843136, -0.19999999],
+         [-0.3098039 , -0.3098039 , -0.23137254],
+         [-0.372549  , -0.372549  , -0.29411763],
+         ...,
+         [ 0.60784316,  0.70980394,  0.14509809],
+         [ 0.6       ,  0.7019608 ,  0.13725495],
+         [ 0.58431375,  0.6862745 ,  0.14509809]],
+
+        [[-0.34117645, -0.34117645, -0.26274508],
+         [-0.38039213, -0.38039213, -0.30196077],
+         [-0.38823527, -0.38823527, -0.3098039 ],
+         ...,
+         [ 0.5921569 ,  0.69411767,  0.12941182],
+         [ 0.5921569 ,  0.69411767,  0.12941182],
+         [ 0.5764706 ,  0.6784314 ,  0.13725495]]],
+
+
+       [[[-0.3098039 , -0.2862745 , -0.21568626],
+         [-0.372549  , -0.3490196 , -0.27843136],
+         [-0.372549  , -0.3490196 , -0.27843136],
+         ...,
+         [-0.45098037, -0.4352941 , -0.34117645],
+         [-0.41176468, -0.3960784 , -0.30196077],
+         [-0.38039213, -0.36470586, -0.27058822]],
+
+        [[-0.34117645, -0.31764704, -0.24705881],
+         [-0.3960784 , -0.372549  , -0.30196077],
+         [-0.3960784 , -0.372549  , -0.30196077],
+         ...,
+         [-0.3490196 , -0.3333333 , -0.23921567],
+         [-0.40392154, -0.38823527, -0.29411763],
+         [-0.47450978, -0.4588235 , -0.36470586]],
+
+        [[-0.35686272, -0.3333333 , -0.26274508],
+         [-0.3960784 , -0.372549  , -0.30196077],
+         [-0.3960784 , -0.372549  , -0.30196077],
+         ...,
+         [-0.34117645, -0.32549018, -0.23137254],
+         [-0.3960784 , -0.38039213, -0.2862745 ],
+         [-0.45098037, -0.4352941 , -0.34117645]],
+
+        ...,
+
+        [[ 0.09803927,  0.09803927,  0.09803927],
+         [-0.17647058, -0.17647058, -0.17647058],
+         [-0.60784316, -0.60784316, -0.60784316],
+         ...,
+         [ 0.082353  ,  0.082353  ,  0.14509809],
+         [ 0.11372554,  0.11372554,  0.17647064],
+         [ 0.16078436,  0.16078436,  0.22352946]],
+
+        [[ 0.7882353 ,  0.7882353 ,  0.7882353 ],
+         [ 0.1686275 ,  0.1686275 ,  0.1686275 ],
+         [ 0.13725495,  0.13725495,  0.13725495],
+         ...,
+         [ 0.13725495,  0.12941182,  0.17647064],
+         [ 0.13725495,  0.14509809,  0.18431377],
+         [ 0.15294123,  0.16078436,  0.20000005]],
+
+        [[ 0.8039216 ,  0.8039216 ,  0.8039216 ],
+         [ 0.9372549 ,  0.9372549 ,  0.9372549 ],
+         [ 0.6784314 ,  0.6784314 ,  0.6784314 ],
+         ...,
+         [ 0.18431377,  0.17647064,  0.22352946],
+         [ 0.12941182,  0.13725495,  0.17647064],
+         [ 0.082353  ,  0.09019613,  0.12941182]]],
+
+
+       ...,
+
+
+       [[[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        ...,
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]]],
+
+
+       [[[-0.1607843 , -0.15294117, -0.4823529 ],
+         [-0.12941176, -0.11372548, -0.4823529 ],
+         [-0.10588235, -0.08235294, -0.4980392 ],
+         ...,
+         [ 0.4666667 ,  0.26274514, -0.01176471],
+         [ 0.62352943,  0.39607847,  0.12941182],
+         [ 0.79607844,  0.56078434,  0.3411765 ]],
+
+        [[-0.20784312, -0.21568626, -0.5921569 ],
+         [-0.16862744, -0.16862744, -0.5764706 ],
+         [-0.12941176, -0.12156862, -0.5764706 ],
+         ...,
+         [ 0.45882356,  0.2313726 , -0.08235294],
+         [ 0.5529412 ,  0.30196083, -0.00392157],
+         [ 0.7254902 ,  0.4666667 ,  0.20784318]],
+
+        [[-0.2235294 , -0.2235294 , -0.6313726 ],
+         [-0.1372549 , -0.14509803, -0.58431375],
+         [-0.09803921, -0.08235294, -0.5764706 ],
+         ...,
+         [ 0.5686275 ,  0.32549024, -0.03529412],
+         [ 0.5764706 ,  0.3176471 , -0.03529412],
+         [ 0.7254902 ,  0.45882356,  0.16078436]],
+
+        ...,
+
+        [[-0.09803921, -0.19999999, -0.27058822],
+         [ 0.07450986, -0.02745098, -0.09803921],
+         [ 0.18431377,  0.10588241,  0.01176476],
+         ...,
+         [ 0.20784318,  0.17647064, -0.19215685],
+         [ 0.16078436,  0.12941182, -0.23921567],
+         [ 0.11372554,  0.09019613, -0.24705881]],
+
+        [[-0.23921567, -0.31764704, -0.38823527],
+         [-0.16862744, -0.24705881, -0.32549018],
+         [-0.11372548, -0.17647058, -0.26274508],
+         ...,
+         [ 0.36470592,  0.33333337, -0.04313725],
+         [ 0.3803922 ,  0.34901965, -0.02745098],
+         [ 0.20784318,  0.19215691, -0.19215685]],
+
+        [[-0.19999999, -0.27843136, -0.3490196 ],
+         [-0.20784312, -0.2862745 , -0.36470586],
+         [-0.20784312, -0.27058822, -0.35686272],
+         ...,
+         [ 0.4666667 ,  0.41960788,  0.04313731],
+         [ 0.45882356,  0.43529415,  0.03529418],
+         [ 0.36470592,  0.35686278, -0.08235294]]],
+
+
+       [[[ 0.07450986,  0.49803925,  0.8666667 ],
+         [ 0.07450986,  0.49803925,  0.8666667 ],
+         [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+         ...,
+         [ 0.09019613,  0.49803925,  0.8745098 ],
+         [ 0.09019613,  0.49803925,  0.8745098 ],
+         [ 0.09019613,  0.49803925,  0.8745098 ]],
+
+        [[ 0.07450986,  0.49803925,  0.8666667 ],
+         [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+         [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+         ...,
+         [ 0.09019613,  0.49803925,  0.8745098 ],
+         [ 0.09019613,  0.49803925,  0.8745098 ],
+         [ 0.082353  ,  0.4901961 ,  0.8666667 ]],
+
+        [[ 0.082353  ,  0.5058824 ,  0.8745098 ],
+         [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+         [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+         ...,
+         [ 0.082353  ,  0.4901961 ,  0.8666667 ],
+         [ 0.082353  ,  0.4901961 ,  0.8666667 ],
+         [ 0.09019613,  0.49803925,  0.8745098 ]],
+
+        ...,
+
+        [[ 0.06666672,  0.4901961 ,  0.85882354],
+         [ 0.06666672,  0.4901961 ,  0.85882354],
+         [ 0.05882359,  0.48235297,  0.8509804 ],
+         ...,
+         [-0.7411765 , -0.64705884, -0.6784314 ],
+         [-0.7254902 , -0.6392157 , -0.7490196 ],
+         [-0.64705884, -0.5921569 , -0.7176471 ]],
+
+        [[ 0.06666672,  0.4901961 ,  0.85882354],
+         [ 0.07450986,  0.48235297,  0.85882354],
+         [ 0.05882359,  0.48235297,  0.8509804 ],
+         ...,
+         [-0.77254903, -0.6313726 , -0.6313726 ],
+         [-0.73333335, -0.6313726 , -0.7019608 ],
+         [-0.7411765 , -0.6784314 , -0.78039217]],
+
+        [[ 0.082353  ,  0.4901961 ,  0.85882354],
+         [ 0.09019613,  0.48235297,  0.8666667 ],
+         [ 0.09019613,  0.49803925,  0.8745098 ],
+         ...,
+         [-0.6156863 , -0.42745095, -0.3490196 ],
+         [-0.79607844, -0.654902  , -0.654902  ],
+         [-0.64705884, -0.56078434, -0.62352943]]]],
+      shape=(32, 224, 224, 3), dtype=float32), 'photographer': array(['Ruth Cantwell', 'Christopher L. Wood Chris Wood', 'Ryan Schain',
+       'Dan Irizarry', 'Ken Schneider', 'Velma Knowles', 'Cory Gregory',
+       'Jerry Ting', 'Joshua Jones', 'Tripp Davenport', 'David Waltman',
+       'Bob Gunderson', 'Robert Wilkin', 'Alex Burdo', 'Russell Greaves',
+       'Gerry Dewaghe', 'Steven Joyner', 'Tom Murray', 'David Waltman',
+       'Jerry Oldenettel', 'Velma Knowles',
+       'Stephen Ramirez www.birdsiview.org', 'Frode Jacobsen',
+       'Kevin Lantz', 'Cameron Rognan', 'Jerry Ting', 'Gerry Dewaghe',
+       'Will Sweet', 'Stephen Ramirez www.birdsiview.org',
+       'Christian Nunes', 'Steven Joyner', 'David Stephens'], dtype='&lt;U34'), 'species': array(['Oak Titmouse', 'Ovenbird', 'Savannah Sparrow', 'Eastern Phoebe',
+       'Yellow-crowned Night-Heron', 'Florida Scrub-Jay', 'Herring Gull',
+       'Lazuli Bunting', 'Red-tailed Hawk', 'Red-naped Sapsucker',
+       "Allen's Hummingbird", "Hutton's Vireo", 'Vermilion Flycatcher',
+       'Bridled Titmouse', "Steller's Jay", 'Common Yellowthroat',
+       'Killdeer', 'Spotted Sandpiper', 'White-winged Scoter',
+       "Cassin's Vireo", 'Chestnut-sided Warbler', 'Carolina Chickadee',
+       'Louisiana Waterthrush', 'Sharp-shinned Hawk',
+       'Ruby-crowned Kinglet', 'Spotted Towhee', 'Brown Pelican',
+       'Great Egret', 'Curve-billed Thrasher', 'Cordilleran Flycatcher',
+       'American Redstart', 'Western Meadowlark'], dtype='&lt;U26')}
+{'img': array([[[[ 0.27843142,  0.3411765 ,  0.17647064],
+         [ 0.21568632,  0.28627455,  0.12156868],
+         [ 0.15294123,  0.2313726 ,  0.04313731],
+         ...,
+         [-0.32549018,  0.05098045, -0.60784316],
+         [-0.36470586,  0.0196079 , -0.62352943],
+         [-0.36470586,  0.0196079 , -0.62352943]],
+
+        [[ 0.2313726 ,  0.3176471 ,  0.082353  ],
+         [ 0.19215691,  0.27843142,  0.04313731],
+         [ 0.16078436,  0.24705887, -0.00392157],
+         ...,
+         [-0.32549018,  0.06666672, -0.6       ],
+         [-0.3490196 ,  0.03529418, -0.60784316],
+         [-0.35686272,  0.02745104, -0.60784316]],
+
+        [[ 0.20000005,  0.30980396,  0.03529418],
+         [ 0.1686275 ,  0.27843142, -0.00392157],
+         [ 0.16078436,  0.254902  , -0.02745098],
+         ...,
+         [-0.32549018,  0.06666672, -0.6       ],
+         [-0.34117645,  0.04313731, -0.6       ],
+         [-0.3490196 ,  0.03529418, -0.6       ]],
+
+        ...,
+
+        [[ 0.16078436,  0.33333337, -0.05098039],
+         [ 0.17647064,  0.34901965, -0.03529412],
+         [ 0.18431377,  0.35686278, -0.01176471],
+         ...,
+         [-0.19215685, -0.03529412, -0.4352941 ],
+         [-0.6156863 , -0.5294118 , -0.7647059 ],
+         [-0.5921569 , -0.5372549 , -0.6784314 ]],
+
+        [[ 0.13725495,  0.30980396, -0.0745098 ],
+         [ 0.15294123,  0.32549024, -0.05882353],
+         [ 0.1686275 ,  0.3411765 , -0.02745098],
+         ...,
+         [-0.05882353,  0.12156868, -0.30196077],
+         [-0.5686275 , -0.4823529 , -0.7176471 ],
+         [-0.5921569 , -0.5372549 , -0.6784314 ]],
+
+        [[ 0.11372554,  0.2941177 , -0.11372548],
+         [ 0.13725495,  0.3176471 , -0.09019607],
+         [ 0.15294123,  0.32549024, -0.05882353],
+         ...,
+         [ 0.12941182,  0.30980396, -0.12941176],
+         [-0.5137255 , -0.42745095, -0.6627451 ],
+         [-0.62352943, -0.5686275 , -0.70980394]]],
+
+
+       [[[-0.8980392 , -0.8980392 , -0.9137255 ],
+         [-0.8980392 , -0.8980392 , -0.9137255 ],
+         [-0.8980392 , -0.8980392 , -0.9137255 ],
+         ...,
+         [ 0.0196079 ,  0.07450986,  0.13725495],
+         [ 0.0196079 ,  0.07450986,  0.13725495],
+         [ 0.0196079 ,  0.07450986,  0.13725495]],
+
+        [[-0.92156863, -0.92156863, -0.9372549 ],
+         [-0.9137255 , -0.9137255 , -0.92941177],
+         [-0.8980392 , -0.8980392 , -0.9137255 ],
+         ...,
+         [ 0.02745104,  0.082353  ,  0.14509809],
+         [ 0.05098045,  0.10588241,  0.1686275 ],
+         [ 0.07450986,  0.12941182,  0.19215691]],
+
+        [[-0.9137255 , -0.92156863, -0.9372549 ],
+         [-0.90588236, -0.90588236, -0.92156863],
+         [-0.8745098 , -0.88235295, -0.8980392 ],
+         ...,
+         [ 0.11372554,  0.1686275 ,  0.2313726 ],
+         [ 0.14509809,  0.20000005,  0.26274514],
+         [ 0.18431377,  0.23921573,  0.30196083]],
+
+        ...,
+
+        [[-0.26274508, -0.25490195, -0.30196077],
+         [-0.27058822, -0.26274508, -0.3098039 ],
+         [-0.3098039 , -0.31764704, -0.35686272],
+         ...,
+         [-0.11372548, -0.24705881, -0.30196077],
+         [-0.25490195, -0.3960784 , -0.42745095],
+         [-0.30196077, -0.44313723, -0.4588235 ]],
+
+        [[-0.27058822, -0.26274508, -0.3098039 ],
+         [-0.3333333 , -0.32549018, -0.372549  ],
+         [-0.35686272, -0.36470586, -0.40392154],
+         ...,
+         [-0.05882353, -0.14509803, -0.1607843 ],
+         [-0.05882353, -0.16862744, -0.16862744],
+         [-0.06666666, -0.1607843 , -0.1607843 ]],
+
+        [[-0.27058822, -0.26274508, -0.30196077],
+         [-0.372549  , -0.36470586, -0.40392154],
+         [-0.4352941 , -0.44313723, -0.4823529 ],
+         ...,
+         [-0.03529412, -0.09019607, -0.03529412],
+         [-0.00392157, -0.08235294, -0.01176471],
+         [-0.01960784, -0.0745098 , -0.01176471]]],
+
+
+       [[[ 0.19215691,  0.2313726 ,  0.26274514],
+         [ 0.19215691,  0.2313726 ,  0.26274514],
+         [ 0.18431377,  0.22352946,  0.254902  ],
+         ...,
+         [-0.62352943, -0.62352943, -0.6392157 ],
+         [-0.6313726 , -0.6156863 , -0.6392157 ],
+         [-0.73333335, -0.7176471 , -0.7411765 ]],
+
+        [[ 0.30196083,  0.3411765 ,  0.37254906],
+         [ 0.30980396,  0.34901965,  0.3803922 ],
+         [ 0.30196083,  0.3411765 ,  0.37254906],
+         ...,
+         [-0.6156863 , -0.62352943, -0.6392157 ],
+         [-0.62352943, -0.62352943, -0.6392157 ],
+         [-0.6784314 , -0.67058825, -0.70980394]],
+
+        [[ 0.35686278,  0.39607847,  0.427451  ],
+         [ 0.37254906,  0.41176474,  0.4431373 ],
+         [ 0.37254906,  0.41176474,  0.4431373 ],
+         ...,
+         [-0.60784316, -0.6156863 , -0.6313726 ],
+         [-0.6156863 , -0.62352943, -0.6392157 ],
+         [-0.8039216 , -0.79607844, -0.8352941 ]],
+
+        ...,
+
+        [[ 0.01176476, -0.00392157,  0.03529418],
+         [-0.03529412, -0.0745098 , -0.02745098],
+         [-0.05882353, -0.09803921, -0.05098039],
+         ...,
+         [-0.12156862, -0.21568626, -0.3098039 ],
+         [-0.12156862, -0.21568626, -0.3098039 ],
+         [-0.18431371, -0.2862745 , -0.35686272]],
+
+        [[-0.03529412, -0.05098039, -0.01176471],
+         [-0.05098039, -0.09019607, -0.04313725],
+         [-0.05882353, -0.09803921, -0.06666666],
+         ...,
+         [-0.14509803, -0.2235294 , -0.30196077],
+         [-0.10588235, -0.18431371, -0.26274508],
+         [-0.09803921, -0.17647058, -0.25490195]],
+
+        [[-0.14509803, -0.1607843 , -0.1372549 ],
+         [-0.09019607, -0.12156862, -0.11372548],
+         [-0.05098039, -0.08235294, -0.0745098 ],
+         ...,
+         [-0.05882353, -0.1372549 , -0.21568626],
+         [-0.00392157, -0.08235294, -0.1607843 ],
+         [-0.05882353, -0.1372549 , -0.21568626]]],
+
+
+       ...,
+
+
+       [[[ 0.64705884,  0.7254902 ,  0.79607844],
+         [ 0.6392157 ,  0.7176471 ,  0.7882353 ],
+         [ 0.6392157 ,  0.7176471 ,  0.7882353 ],
+         ...,
+         [-0.69411767, -0.7254902 , -0.7490196 ],
+         [-0.7176471 , -0.7490196 , -0.77254903],
+         [-0.73333335, -0.7647059 , -0.7882353 ]],
+
+        [[ 0.6392157 ,  0.7176471 ,  0.7882353 ],
+         [ 0.6392157 ,  0.7176471 ,  0.7882353 ],
+         [ 0.6392157 ,  0.7176471 ,  0.7882353 ],
+         ...,
+         [-0.75686276, -0.7882353 , -0.8117647 ],
+         [-0.79607844, -0.827451  , -0.8509804 ],
+         [-0.78039217, -0.8117647 , -0.8352941 ]],
+
+        [[ 0.6392157 ,  0.7176471 ,  0.7882353 ],
+         [ 0.6392157 ,  0.7176471 ,  0.7882353 ],
+         [ 0.6313726 ,  0.70980394,  0.78039217],
+         ...,
+         [-0.6392157 , -0.67058825, -0.69411767],
+         [-0.654902  , -0.6862745 , -0.70980394],
+         [-0.6313726 , -0.6627451 , -0.6862745 ]],
+
+        ...,
+
+        [[-0.64705884, -0.654902  , -0.6862745 ],
+         [-0.7882353 , -0.79607844, -0.827451  ],
+         [-0.77254903, -0.8039216 , -0.827451  ],
+         ...,
+         [-0.1372549 , -0.19999999, -0.30196077],
+         [-0.12941176, -0.17647058, -0.27058822],
+         [-0.1607843 , -0.21568626, -0.29411763]],
+
+        [[-0.32549018, -0.3333333 , -0.36470586],
+         [-0.6156863 , -0.62352943, -0.654902  ],
+         [-0.77254903, -0.8039216 , -0.8117647 ],
+         ...,
+         [-0.19215685, -0.25490195, -0.35686272],
+         [-0.1372549 , -0.19999999, -0.30196077],
+         [-0.16862744, -0.23137254, -0.31764704]],
+
+        [[-0.12941176, -0.1372549 , -0.16862744],
+         [-0.32549018, -0.3333333 , -0.36470586],
+         [-0.5764706 , -0.60784316, -0.6156863 ],
+         ...,
+         [-0.1372549 , -0.19215685, -0.31764704],
+         [-0.14509803, -0.20784312, -0.3098039 ],
+         [-0.15294117, -0.21568626, -0.31764704]]],
+
+
+       [[[ 0.6627451 ,  0.6862745 ,  0.7254902 ],
+         [ 0.64705884,  0.67058825,  0.70980394],
+         [ 0.6313726 ,  0.654902  ,  0.69411767],
+         ...,
+         [-0.3490196 , -0.4823529 , -0.56078434],
+         [-0.29411763, -0.42745095, -0.5058824 ],
+         [-0.27058822, -0.40392154, -0.46666664]],
+
+        [[ 0.6627451 ,  0.6862745 ,  0.7254902 ],
+         [ 0.64705884,  0.67058825,  0.70980394],
+         [ 0.6313726 ,  0.654902  ,  0.69411767],
+         ...,
+         [-0.30196077, -0.4352941 , -0.5137255 ],
+         [-0.25490195, -0.38823527, -0.46666664],
+         [-0.2235294 , -0.35686272, -0.4352941 ]],
+
+        [[ 0.6627451 ,  0.6862745 ,  0.7254902 ],
+         [ 0.64705884,  0.67058825,  0.70980394],
+         [ 0.6313726 ,  0.654902  ,  0.69411767],
+         ...,
+         [-0.3333333 , -0.46666664, -0.54509807],
+         [-0.30196077, -0.4352941 , -0.5137255 ],
+         [-0.27843136, -0.41176468, -0.49019605]],
+
+        ...,
+
+        [[ 0.20000005,  0.254902  ,  0.3176471 ],
+         [ 0.17647064,  0.2313726 ,  0.27843142],
+         [ 0.14509809,  0.20000005,  0.24705887],
+         ...,
+         [ 0.12156868,  0.04313731,  0.02745104],
+         [ 0.14509809,  0.06666672,  0.05098045],
+         [ 0.18431377,  0.10588241,  0.09019613]],
+
+        [[ 0.22352946,  0.27843142,  0.3411765 ],
+         [ 0.20000005,  0.254902  ,  0.30196083],
+         [ 0.16078436,  0.21568632,  0.26274514],
+         ...,
+         [ 0.22352946,  0.14509809,  0.12941182],
+         [ 0.27058828,  0.19215691,  0.17647064],
+         [ 0.30196083,  0.22352946,  0.20784318]],
+
+        [[ 0.23921573,  0.2941177 ,  0.35686278],
+         [ 0.22352946,  0.27843142,  0.3411765 ],
+         [ 0.18431377,  0.23921573,  0.28627455],
+         ...,
+         [ 0.30196083,  0.2313726 ,  0.19215691],
+         [ 0.36470592,  0.27843142,  0.24705887],
+         [ 0.37254906,  0.28627455,  0.254902  ]]],
+
+
+       [[[-0.7411765 , -0.45098037, -0.2235294 ],
+         [-0.77254903, -0.49019605, -0.2862745 ],
+         [-0.7411765 , -0.49019605, -0.3098039 ],
+         ...,
+         [ 0.39607847,  0.49803925,  0.56078434],
+         [ 0.48235297,  0.56078434,  0.6392157 ],
+         [ 0.18431377,  0.26274514,  0.35686278]],
+
+        [[-0.7176471 , -0.4823529 , -0.27843136],
+         [-0.73333335, -0.5137255 , -0.34117645],
+         [-0.70980394, -0.4980392 , -0.3333333 ],
+         ...,
+         [-0.27843136, -0.17647058, -0.11372548],
+         [ 0.3803922 ,  0.45882356,  0.5372549 ],
+         [ 0.28627455,  0.36470592,  0.4431373 ]],
+
+        [[-0.6627451 , -0.49019605, -0.3098039 ],
+         [-0.6784314 , -0.5137255 , -0.3490196 ],
+         [-0.6784314 , -0.5137255 , -0.36470586],
+         ...,
+         [-0.5686275 , -0.49019605, -0.41960782],
+         [ 0.16078436,  0.22352946,  0.30980396],
+         [ 0.2313726 ,  0.2941177 ,  0.3803922 ]],
+
+        ...,
+
+        [[-0.40392154,  0.28627455,  0.78039217],
+         [-0.40392154,  0.28627455,  0.78039217],
+         [-0.40392154,  0.28627455,  0.78039217],
+         ...,
+         [ 0.22352946,  0.082353  , -0.0745098 ],
+         [ 0.10588241, -0.03529412, -0.20784312],
+         [ 0.02745104, -0.11372548, -0.2862745 ]],
+
+        [[-0.40392154,  0.28627455,  0.78039217],
+         [-0.40392154,  0.28627455,  0.78039217],
+         [-0.40392154,  0.28627455,  0.78039217],
+         ...,
+         [ 0.06666672, -0.0745098 , -0.23137254],
+         [-0.08235294, -0.2235294 , -0.3960784 ],
+         [-0.00392157, -0.14509803, -0.31764704]],
+
+        [[-0.40392154,  0.28627455,  0.78039217],
+         [-0.40392154,  0.28627455,  0.78039217],
+         [-0.40392154,  0.28627455,  0.78039217],
+         ...,
+         [ 0.01176476, -0.12941176, -0.2862745 ],
+         [ 0.14509809,  0.00392163, -0.16862744],
+         [ 0.4039216 ,  0.26274514,  0.09019613]]]],
+      shape=(32, 224, 224, 3), dtype=float32), 'photographer': array(['David Wong', 'Ian Davies', 'Tony Leukering', 'Steven Mlodinow',
+       'Paul Dennehy', 'Jaime Thomas', 'Evan Jackson', 'Bill Thompson',
+       'Ian Davies', 'Rachel LeBlanc', 'Conrad Tan', 'Paul Kusmin',
+       'Alan Magerkurth', 'Cory Gregory', 'Sharon E. Madison',
+       'Glen Tepke', 'Michele Morningstar', 'Earl Reinink',
+       'Debbie Garcy', 'Conrad Tan', 'Valerie Sauers', 'Velma Knowles',
+       'David Stephens', 'Tim Spahr', 'Jon Corcoran', 'David Stephens',
+       'Ryan Schain', 'Sam Hough', 'Zach Smith',
+       'Stephen Ramirez www.birdsiview.org', 'Michelle Lamberson',
+       'Brian E Kushner Brian Kushner'], dtype='&lt;U34'), 'species': array(['European Starling', 'Surf Scoter', 'Black Oystercatcher',
+       'Western Gull', 'Anhinga', 'Eastern Phoebe', 'Gray Jay',
+       'White-throated Sparrow', 'Boreal Chickadee', 'American Pipit',
+       'Barn Swallow', 'Wood Thrush', 'Crested Caracara',
+       'Red-eyed Vireo', 'Greater Roadrunner', 'Black Turnstone',
+       'House Finch', 'Bobolink', 'Common Grackle', 'Golden Eagle',
+       'Red-winged Blackbird', 'Red-breasted Merganser', 'Willet',
+       'White-crowned Sparrow', 'Canada Warbler', 'House Finch',
+       'Great Horned Owl', "Hutton's Vireo", 'White-winged Dove',
+       'Ladder-backed Woodpecker', 'Fox Sparrow', 'Ruddy Duck'],
+      dtype='&lt;U24')}
+{'img': array([[[[ 0.67058825,  0.6       ,  0.5294118 ],
+         [ 0.67058825,  0.6       ,  0.5294118 ],
+         [ 0.67058825,  0.6       ,  0.5294118 ],
+         ...,
+         [ 0.78039217,  0.7882353 ,  0.7490196 ],
+         [ 0.78039217,  0.7882353 ,  0.7490196 ],
+         [ 0.78039217,  0.7882353 ,  0.7490196 ]],
+
+        [[ 0.67058825,  0.6       ,  0.5294118 ],
+         [ 0.67058825,  0.6       ,  0.5294118 ],
+         [ 0.67058825,  0.6       ,  0.5294118 ],
+         ...,
+         [ 0.7882353 ,  0.79607844,  0.75686276],
+         [ 0.7882353 ,  0.79607844,  0.75686276],
+         [ 0.7882353 ,  0.79607844,  0.75686276]],
+
+        [[ 0.6627451 ,  0.6       ,  0.5137255 ],
+         [ 0.6627451 ,  0.6       ,  0.5137255 ],
+         [ 0.654902  ,  0.5921569 ,  0.5058824 ],
+         ...,
+         [ 0.78039217,  0.7882353 ,  0.7490196 ],
+         [ 0.78039217,  0.7882353 ,  0.7490196 ],
+         [ 0.78039217,  0.7882353 ,  0.7490196 ]],
+
+        ...,
+
+        [[ 0.54509807,  0.3176471 ,  0.05098045],
+         [ 0.5529412 ,  0.32549024,  0.05882359],
+         [ 0.5529412 ,  0.32549024,  0.05882359],
+         ...,
+         [ 0.56078434,  0.41176474,  0.27843142],
+         [ 0.56078434,  0.41176474,  0.27843142],
+         [ 0.56078434,  0.41176474,  0.27843142]],
+
+        [[ 0.54509807,  0.32549024,  0.03529418],
+         [ 0.54509807,  0.32549024,  0.03529418],
+         [ 0.5529412 ,  0.33333337,  0.04313731],
+         ...,
+         [ 0.5529412 ,  0.4039216 ,  0.27058828],
+         [ 0.56078434,  0.41176474,  0.27843142],
+         [ 0.56078434,  0.41176474,  0.27843142]],
+
+        [[ 0.5372549 ,  0.3176471 ,  0.02745104],
+         [ 0.54509807,  0.32549024,  0.03529418],
+         [ 0.54509807,  0.32549024,  0.03529418],
+         ...,
+         [ 0.5529412 ,  0.4039216 ,  0.27058828],
+         [ 0.56078434,  0.41176474,  0.27843142],
+         [ 0.56078434,  0.41176474,  0.27843142]]],
+
+
+       [[[-0.17647058, -0.18431371, -0.2235294 ],
+         [ 0.20000005,  0.17647064,  0.12156868],
+         [ 0.34901965,  0.2941177 ,  0.2313726 ],
+         ...,
+         [-0.1372549 , -0.1607843 , -0.29411763],
+         [-0.12941176, -0.15294117, -0.2862745 ],
+         [-0.11372548, -0.1372549 , -0.27058822]],
+
+        [[-0.05098039, -0.04313725, -0.08235294],
+         [ 0.19215691,  0.18431377,  0.14509809],
+         [ 0.082353  ,  0.02745104, -0.03529412],
+         ...,
+         [-0.1372549 , -0.1607843 , -0.29411763],
+         [-0.12941176, -0.15294117, -0.2862745 ],
+         [-0.12156862, -0.14509803, -0.27843136]],
+
+        [[ 0.2941177 ,  0.30980396,  0.28627455],
+         [ 0.3411765 ,  0.33333337,  0.2941177 ],
+         [ 0.35686278,  0.30196083,  0.23921573],
+         ...,
+         [-0.1372549 , -0.1607843 , -0.29411763],
+         [-0.12941176, -0.15294117, -0.2862745 ],
+         [-0.12156862, -0.14509803, -0.27843136]],
+
+        ...,
+
+        [[ 0.2313726 ,  0.09803927, -0.10588235],
+         [ 0.2313726 ,  0.09803927, -0.10588235],
+         [ 0.20000005,  0.07450986, -0.12941176],
+         ...,
+         [-0.44313723, -0.41176468, -0.5921569 ],
+         [-0.27058822, -0.23921567, -0.41960782],
+         [ 0.01176476,  0.04313731, -0.15294117]],
+
+        [[ 0.2313726 ,  0.09803927, -0.10588235],
+         [ 0.2313726 ,  0.09803927, -0.10588235],
+         [ 0.21568632,  0.09019613, -0.11372548],
+         ...,
+         [-0.52156866, -0.49019605, -0.67058825],
+         [-0.3490196 , -0.31764704, -0.4980392 ],
+         [-0.15294117, -0.12156862, -0.31764704]],
+
+        [[ 0.2313726 ,  0.09803927, -0.10588235],
+         [ 0.2313726 ,  0.09803927, -0.10588235],
+         [ 0.2313726 ,  0.11372554, -0.11372548],
+         ...,
+         [-0.56078434, -0.5294118 , -0.70980394],
+         [-0.40392154, -0.372549  , -0.5529412 ],
+         [-0.32549018, -0.29411763, -0.49019605]]],
+
+
+       [[[-0.3490196 , -0.4980392 , -0.60784316],
+         [-0.34117645, -0.49019605, -0.6       ],
+         [-0.34117645, -0.49019605, -0.6       ],
+         ...,
+         [-0.32549018, -0.44313723, -0.4980392 ],
+         [-0.32549018, -0.44313723, -0.4980392 ],
+         [-0.32549018, -0.4352941 , -0.5058824 ]],
+
+        [[-0.34117645, -0.49019605, -0.6       ],
+         [-0.34117645, -0.49019605, -0.6       ],
+         [-0.34117645, -0.49019605, -0.6       ],
+         ...,
+         [-0.3333333 , -0.45098037, -0.5058824 ],
+         [-0.3333333 , -0.45098037, -0.5058824 ],
+         [-0.3333333 , -0.44313723, -0.5137255 ]],
+
+        [[-0.3333333 , -0.4823529 , -0.5921569 ],
+         [-0.34117645, -0.49019605, -0.6       ],
+         [-0.34117645, -0.49019605, -0.6       ],
+         ...,
+         [-0.3333333 , -0.45098037, -0.5058824 ],
+         [-0.3490196 , -0.46666664, -0.52156866],
+         [-0.3490196 , -0.4588235 , -0.5294118 ]],
+
+        ...,
+
+        [[-0.32549018, -0.372549  , -0.46666664],
+         [-0.3490196 , -0.3960784 , -0.49019605],
+         [-0.34117645, -0.38823527, -0.4980392 ],
+         ...,
+         [-0.3098039 , -0.44313723, -0.5058824 ],
+         [-0.31764704, -0.42745095, -0.4980392 ],
+         [-0.31764704, -0.42745095, -0.4980392 ]],
+
+        [[-0.27843136, -0.34117645, -0.42745095],
+         [-0.31764704, -0.38039213, -0.46666664],
+         [-0.29411763, -0.35686272, -0.4588235 ],
+         ...,
+         [-0.29411763, -0.42745095, -0.49019605],
+         [-0.3333333 , -0.44313723, -0.5137255 ],
+         [-0.3333333 , -0.44313723, -0.5137255 ]],
+
+        [[-0.30196077, -0.38039213, -0.4588235 ],
+         [-0.3098039 , -0.38823527, -0.46666664],
+         [-0.32549018, -0.40392154, -0.4980392 ],
+         ...,
+         [-0.25490195, -0.38823527, -0.45098037],
+         [-0.32549018, -0.4352941 , -0.5058824 ],
+         [-0.3333333 , -0.44313723, -0.5137255 ]]],
+
+
+       ...,
+
+
+       [[[-0.4980392 , -0.3960784 , -0.46666664],
+         [-0.46666664, -0.36470586, -0.44313723],
+         [-0.42745095, -0.3333333 , -0.42745095],
+         ...,
+         [-0.54509807, -0.47450978, -0.4352941 ],
+         [-0.56078434, -0.47450978, -0.44313723],
+         [-0.5921569 , -0.47450978, -0.45098037]],
+
+        [[-0.5372549 , -0.45098037, -0.5137255 ],
+         [-0.49019605, -0.41176468, -0.4823529 ],
+         [-0.46666664, -0.38823527, -0.47450978],
+         ...,
+         [-0.5372549 , -0.4823529 , -0.41960782],
+         [-0.5529412 , -0.4823529 , -0.42745095],
+         [-0.5764706 , -0.49019605, -0.44313723]],
+
+        [[-0.52156866, -0.44313723, -0.5137255 ],
+         [-0.49019605, -0.41176468, -0.4823529 ],
+         [-0.46666664, -0.38823527, -0.47450978],
+         ...,
+         [-0.5921569 , -0.56078434, -0.47450978],
+         [-0.5686275 , -0.5372549 , -0.45098037],
+         [-0.5764706 , -0.52156866, -0.4588235 ]],
+
+        ...,
+
+        [[ 0.26274514,  0.5294118 , -0.5372549 ],
+         [ 0.254902  ,  0.54509807, -0.54509807],
+         [ 0.27058828,  0.56078434, -0.5372549 ],
+         ...,
+         [-0.47450978,  0.05882359, -0.8745098 ],
+         [-0.4588235 ,  0.06666672, -0.84313726],
+         [-0.4352941 ,  0.09019613, -0.81960785]],
+
+        [[ 0.254902  ,  0.54509807, -0.54509807],
+         [ 0.26274514,  0.5529412 , -0.54509807],
+         [ 0.28627455,  0.5764706 , -0.5372549 ],
+         ...,
+         [-0.47450978,  0.06666672, -0.8509804 ],
+         [-0.47450978,  0.06666672, -0.8509804 ],
+         [-0.45098037,  0.07450986, -0.8352941 ]],
+
+        [[ 0.254902  ,  0.54509807, -0.54509807],
+         [ 0.254902  ,  0.56078434, -0.54509807],
+         [ 0.28627455,  0.5921569 , -0.5294118 ],
+         ...,
+         [-0.4823529 ,  0.05882359, -0.85882354],
+         [-0.49019605,  0.05098045, -0.8666667 ],
+         [-0.49019605,  0.05098045, -0.8666667 ]]],
+
+
+       [[[ 0.23921573,  0.05098045, -0.04313725],
+         [ 0.28627455,  0.082353  , -0.01960784],
+         [ 0.27843142,  0.05882359, -0.03529412],
+         ...,
+         [ 0.41176474,  0.20000005,  0.03529418],
+         [ 0.41176474,  0.20000005,  0.05098045],
+         [ 0.427451  ,  0.20000005,  0.07450986]],
+
+        [[ 0.28627455,  0.082353  , -0.03529412],
+         [ 0.3176471 ,  0.09803927, -0.01176471],
+         [ 0.32549024,  0.09803927, -0.01176471],
+         ...,
+         [ 0.48235297,  0.28627455,  0.11372554],
+         [ 0.48235297,  0.28627455,  0.12941182],
+         [ 0.4901961 ,  0.2941177 ,  0.13725495]],
+
+        [[ 0.3176471 ,  0.10588241, -0.02745098],
+         [ 0.3411765 ,  0.11372554, -0.01176471],
+         [ 0.35686278,  0.10588241, -0.01176471],
+         ...,
+         [ 0.5058824 ,  0.33333337,  0.15294123],
+         [ 0.5137255 ,  0.3411765 ,  0.17647064],
+         [ 0.5058824 ,  0.33333337,  0.1686275 ]],
+
+        ...,
+
+        [[-0.46666664, -0.58431375, -0.62352943],
+         [-0.45098037, -0.5686275 , -0.60784316],
+         [-0.40392154, -0.52156866, -0.56078434],
+         ...,
+         [ 0.14509809, -0.03529412, -0.1607843 ],
+         [ 0.09019613, -0.08235294, -0.19215685],
+         [-0.04313725, -0.21568626, -0.32549018]],
+
+        [[-0.30196077, -0.41960782, -0.47450978],
+         [-0.1607843 , -0.27843136, -0.3333333 ],
+         [-0.1372549 , -0.25490195, -0.3098039 ],
+         ...,
+         [ 0.15294123, -0.02745098, -0.15294117],
+         [ 0.09019613, -0.08235294, -0.19215685],
+         [-0.05098039, -0.2235294 , -0.3333333 ]],
+
+        [[-0.15294117, -0.27058822, -0.32549018],
+         [-0.01176471, -0.12941176, -0.18431371],
+         [ 0.05098045, -0.06666666, -0.12156862],
+         ...,
+         [ 0.09803927, -0.08235294, -0.20784312],
+         [ 0.0196079 , -0.15294117, -0.26274508],
+         [-0.10588235, -0.27843136, -0.38823527]]],
+
+
+       [[[-0.41176468, -0.4823529 , -0.5529412 ],
+         [-0.4352941 , -0.5058824 , -0.5764706 ],
+         [-0.45098037, -0.52156866, -0.5921569 ],
+         ...,
+         [ 0.41176474,  0.5058824 ,  0.6       ],
+         [ 0.41960788,  0.49803925,  0.5764706 ],
+         [ 0.41176474,  0.4901961 ,  0.5686275 ]],
+
+        [[-0.41960782, -0.49019605, -0.54509807],
+         [-0.4352941 , -0.5058824 , -0.56078434],
+         [-0.45098037, -0.52156866, -0.5764706 ],
+         ...,
+         [ 0.41960788,  0.5137255 ,  0.60784316],
+         [ 0.41176474,  0.4901961 ,  0.5686275 ],
+         [ 0.4039216 ,  0.48235297,  0.56078434]],
+
+        [[-0.4352941 , -0.5058824 , -0.56078434],
+         [-0.44313723, -0.5137255 , -0.5686275 ],
+         [-0.45098037, -0.52156866, -0.5764706 ],
+         ...,
+         [ 0.427451  ,  0.52156866,  0.6156863 ],
+         [ 0.41176474,  0.4901961 ,  0.5686275 ],
+         [ 0.41176474,  0.4901961 ,  0.5686275 ]],
+
+        ...,
+
+        [[ 0.28627455,  0.3803922 ,  0.4901961 ],
+         [ 0.27843142,  0.37254906,  0.48235297],
+         [ 0.27843142,  0.37254906,  0.48235297],
+         ...,
+         [-0.18431371, -0.05882353,  0.14509809],
+         [-0.16862744, -0.05882353,  0.15294123],
+         [-0.17647058, -0.05098039,  0.15294123]],
+
+        [[ 0.28627455,  0.3803922 ,  0.4901961 ],
+         [ 0.27058828,  0.36470592,  0.47450984],
+         [ 0.27843142,  0.37254906,  0.48235297],
+         ...,
+         [-0.15294117, -0.05882353,  0.12941182],
+         [-0.1372549 , -0.04313725,  0.14509809],
+         [-0.14509803, -0.05098039,  0.13725495]],
+
+        [[ 0.2941177 ,  0.38823533,  0.49803925],
+         [ 0.28627455,  0.3803922 ,  0.4901961 ],
+         [ 0.28627455,  0.3803922 ,  0.4901961 ],
+         ...,
+         [-0.15294117, -0.09019607,  0.05882359],
+         [-0.12156862, -0.05882353,  0.09019613],
+         [-0.10588235, -0.04313725,  0.10588241]]]],
+      shape=(32, 224, 224, 3), dtype=float32), 'photographer': array(['Russell Greaves', 'Stephen Ramirez www.birdsiview.org',
+       'James Fox', 'Evi Meyer', 'Tripp Davenport', 'LC McCarty',
+       'Jason Daly', 'Alex Burdo', 'Terry Gray', 'Christopher Ciccone',
+       'Jeremiah Trimble', 'jfuhr', 'Sigmundur sgeirsson', 'Jerry Ting',
+       'Carole Gobert', 'David Waltman', 'Ryan Merrill', 'Gerry Dewaghe',
+       'Ryan Schain', 'Frode Jacobsen', 'Terry Gray', 'Alan Schmierer',
+       'Ryan Schain', 'Tony Leukering', 'Bob Gunderson',
+       'Stephen Ramirez www.birdsiview.org', 'Sam Galick', 'Tim Spahr',
+       'Robert Wilkin', 'Susan Wrublewski', 'Sam Hough', 'Steven Joyner'],
+      dtype='&lt;U34'), 'species': array(["Allen's Hummingbird", 'Yellow-rumped Warbler',
+       'Rufous Hummingbird', 'Yellow-headed Blackbird',
+       'Black-throated Gray Warbler', 'Ruby-throated Hummingbird',
+       'Black Vulture', 'Pygmy Nuthatch', 'Pacific Wren',
+       'Swallow-tailed Kite', 'Western Gull', 'Purple Finch',
+       'Black Guillemot', 'Caspian Tern', 'Barred Owl',
+       'White-winged Dove', 'Double-crested Cormorant', 'Laughing Gull',
+       'Warbling Vireo', 'Ring-billed Gull', 'Western Tanager',
+       'Scaled Quail', 'Brown-headed Cowbird', 'Wood Duck',
+       'Spotted Sandpiper', 'Black-necked Stilt',
+       'Golden-fronted Woodpecker', 'Barn Swallow', 'Common Goldeneye',
+       'Scarlet Tanager', "Wilson's Snipe", 'Gadwall'], dtype='&lt;U27')}
+{'img': array([[[[-0.09019607,  0.01176476, -0.2235294 ],
+         [-0.09019607,  0.01176476, -0.2235294 ],
+         [-0.09803921,  0.00392163, -0.23137254],
+         ...,
+         [-0.06666666,  0.00392163, -0.14509803],
+         [-0.05882353,  0.01176476, -0.1372549 ],
+         [-0.0745098 , -0.00392157, -0.15294117]],
+
+        [[-0.09019607,  0.01176476, -0.2235294 ],
+         [-0.09019607,  0.01176476, -0.2235294 ],
+         [-0.09803921,  0.00392163, -0.23137254],
+         ...,
+         [-0.0745098 , -0.00392157, -0.15294117],
+         [-0.06666666,  0.00392163, -0.14509803],
+         [-0.0745098 , -0.00392157, -0.15294117]],
+
+        [[-0.09019607,  0.01176476, -0.2235294 ],
+         [-0.09019607,  0.01176476, -0.2235294 ],
+         [-0.09803921,  0.00392163, -0.23137254],
+         ...,
+         [-0.0745098 , -0.00392157, -0.15294117],
+         [-0.0745098 , -0.00392157, -0.15294117],
+         [-0.0745098 , -0.00392157, -0.15294117]],
+
+        ...,
+
+        [[-0.11372548, -0.02745098, -0.36470586],
+         [-0.10588235, -0.01176471, -0.372549  ],
+         [-0.10588235, -0.01176471, -0.38823527],
+         ...,
+         [-0.32549018, -0.17647058, -0.41176468],
+         [-0.32549018, -0.17647058, -0.41176468],
+         [-0.30196077, -0.17647058, -0.38823527]],
+
+        [[-0.09803921, -0.01176471, -0.32549018],
+         [-0.09019607, -0.00392157, -0.3333333 ],
+         [-0.09019607, -0.00392157, -0.34117645],
+         ...,
+         [-0.32549018, -0.18431371, -0.38823527],
+         [-0.32549018, -0.18431371, -0.38823527],
+         [-0.30196077, -0.17647058, -0.38823527]],
+
+        [[-0.10588235, -0.01176471, -0.32549018],
+         [-0.09803921,  0.00392163, -0.3333333 ],
+         [-0.09019607,  0.01176476, -0.32549018],
+         ...,
+         [-0.31764704, -0.18431371, -0.3333333 ],
+         [-0.25490195, -0.11372548, -0.2862745 ],
+         [-0.3098039 , -0.18431371, -0.38823527]]],
+
+
+       [[[-0.64705884, -0.6156863 , -0.54509807],
+         [-0.62352943, -0.5921569 , -0.52156866],
+         [-0.5529412 , -0.52156866, -0.45098037],
+         ...,
+         [ 0.20784318,  0.12156868,  0.09019613],
+         [ 0.41176474,  0.32549024,  0.30980396],
+         [ 0.34901965,  0.28627455,  0.26274514]],
+
+        [[-0.62352943, -0.58431375, -0.5372549 ],
+         [-0.62352943, -0.58431375, -0.5372549 ],
+         [-0.5686275 , -0.5294118 , -0.4823529 ],
+         ...,
+         [-0.08235294, -0.16862744, -0.19999999],
+         [ 0.12156868,  0.03529418,  0.00392163],
+         [ 0.2313726 ,  0.1686275 ,  0.14509809]],
+
+        [[-0.64705884, -0.60784316, -0.56078434],
+         [-0.6313726 , -0.5921569 , -0.54509807],
+         [-0.5529412 , -0.5137255 , -0.46666664],
+         ...,
+         [ 0.082353  , -0.00392157, -0.03529412],
+         [-0.01960784, -0.10588235, -0.1372549 ],
+         [ 0.05098045, -0.00392157, -0.05098039]],
+
+        ...,
+
+        [[ 0.35686278,  0.26274514,  0.13725495],
+         [ 0.35686278,  0.26274514,  0.13725495],
+         [ 0.3411765 ,  0.27058828,  0.15294123],
+         ...,
+         [ 0.33333337,  0.23921573,  0.11372554],
+         [ 0.30980396,  0.24705887,  0.09803927],
+         [ 0.30196083,  0.23921573,  0.09019613]],
+
+        [[ 0.35686278,  0.26274514,  0.13725495],
+         [ 0.35686278,  0.26274514,  0.13725495],
+         [ 0.3411765 ,  0.27058828,  0.15294123],
+         ...,
+         [ 0.33333337,  0.23921573,  0.11372554],
+         [ 0.30980396,  0.24705887,  0.09803927],
+         [ 0.30196083,  0.23921573,  0.09019613]],
+
+        [[ 0.35686278,  0.26274514,  0.13725495],
+         [ 0.35686278,  0.26274514,  0.13725495],
+         [ 0.3411765 ,  0.27058828,  0.15294123],
+         ...,
+         [ 0.33333337,  0.23921573,  0.11372554],
+         [ 0.30980396,  0.24705887,  0.09803927],
+         [ 0.30196083,  0.23921573,  0.09019613]]],
+
+
+       [[[-0.32549018,  0.23921573,  0.8352941 ],
+         [-0.32549018,  0.23921573,  0.8352941 ],
+         [-0.3098039 ,  0.254902  ,  0.8509804 ],
+         ...,
+         [-0.35686272, -0.49019605, -0.5686275 ],
+         [-0.3098039 , -0.4980392 , -0.5921569 ],
+         [-0.34117645, -0.52156866, -0.6313726 ]],
+
+        [[-0.32549018,  0.23921573,  0.8352941 ],
+         [-0.32549018,  0.23921573,  0.8352941 ],
+         [-0.3098039 ,  0.254902  ,  0.8509804 ],
+         ...,
+         [-0.36470586, -0.4980392 , -0.56078434],
+         [-0.32549018, -0.5137255 , -0.60784316],
+         [-0.3333333 , -0.5372549 , -0.6392157 ]],
+
+        [[-0.32549018,  0.23921573,  0.8352941 ],
+         [-0.32549018,  0.23921573,  0.8352941 ],
+         [-0.3098039 ,  0.254902  ,  0.8509804 ],
+         ...,
+         [-0.34117645, -0.47450978, -0.5294118 ],
+         [-0.3098039 , -0.4980392 , -0.5764706 ],
+         [-0.3098039 , -0.52156866, -0.60784316]],
+
+        ...,
+
+        [[-0.25490195,  0.30980396,  0.90588236],
+         [-0.25490195,  0.30980396,  0.90588236],
+         [-0.26274508,  0.30196083,  0.8980392 ],
+         ...,
+         [-0.25490195,  0.27843142,  0.8509804 ],
+         [-0.26274508,  0.27058828,  0.84313726],
+         [-0.24705881,  0.28627455,  0.85882354]],
+
+        [[-0.27058822,  0.2941177 ,  0.8901961 ],
+         [-0.26274508,  0.30196083,  0.8980392 ],
+         [-0.26274508,  0.30196083,  0.8980392 ],
+         ...,
+         [-0.24705881,  0.28627455,  0.85882354],
+         [-0.25490195,  0.27843142,  0.8509804 ],
+         [-0.25490195,  0.27843142,  0.8509804 ]],
+
+        [[-0.2862745 ,  0.27843142,  0.8745098 ],
+         [-0.27058822,  0.2941177 ,  0.8901961 ],
+         [-0.27058822,  0.2941177 ,  0.8901961 ],
+         ...,
+         [-0.23921567,  0.2941177 ,  0.8666667 ],
+         [-0.24705881,  0.28627455,  0.85882354],
+         [-0.26274508,  0.27058828,  0.84313726]]],
+
+
+       ...,
+
+
+       [[[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        ...,
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]],
+
+        [[ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         ...,
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ],
+         [ 0.        ,  0.        ,  0.        ]]],
+
+
+       [[[-0.8352941 , -0.8117647 , -0.8980392 ],
+         [-0.7254902 , -0.7176471 , -0.78039217],
+         [-0.52156866, -0.5137255 , -0.5764706 ],
+         ...,
+         [ 0.6       ,  0.60784316,  0.56078434],
+         [ 0.5372549 ,  0.6       ,  0.49803925],
+         [-0.47450978, -0.372549  , -0.5137255 ]],
+
+        [[-0.7176471 , -0.7019608 , -0.7882353 ],
+         [-0.67058825, -0.654902  , -0.7411765 ],
+         [-0.62352943, -0.6156863 , -0.6784314 ],
+         ...,
+         [ 0.34901965,  0.35686278,  0.30980396],
+         [ 0.52156866,  0.58431375,  0.4666667 ],
+         [-0.38039213, -0.2862745 , -0.44313723]],
+
+        [[-0.6862745 , -0.67058825, -0.75686276],
+         [-0.654902  , -0.6392157 , -0.7254902 ],
+         [-0.6627451 , -0.64705884, -0.73333335],
+         ...,
+         [ 0.19215691,  0.20000005,  0.13725495],
+         [ 0.20000005,  0.24705887,  0.13725495],
+         [-0.30196077, -0.20784312, -0.36470586]],
+
+        ...,
+
+        [[-0.5294118 , -0.5372549 , -0.6784314 ],
+         [-0.654902  , -0.67058825, -0.8352941 ],
+         [-0.75686276, -0.77254903, -0.9529412 ],
+         ...,
+         [ 0.5372549 ,  0.54509807,  0.2313726 ],
+         [ 0.38823533,  0.39607847,  0.12941182],
+         [-0.2862745 , -0.23137254, -0.4980392 ]],
+
+        [[-0.42745095, -0.41176468, -0.5764706 ],
+         [-0.5058824 , -0.5058824 , -0.69411767],
+         [-0.5294118 , -0.5294118 , -0.73333335],
+         ...,
+         [ 0.8745098 ,  0.8745098 ,  0.45098042],
+         [ 0.8980392 ,  0.9137255 ,  0.5294118 ],
+         [ 0.8901961 ,  0.94509804,  0.6       ]],
+
+        [[-0.4823529 , -0.46666664, -0.6313726 ],
+         [-0.5372549 , -0.52156866, -0.69411767],
+         [-0.42745095, -0.40392154, -0.6156863 ],
+         ...,
+         [-0.04313725, -0.03529412, -0.5686275 ],
+         [ 0.34901965,  0.3803922 , -0.09803921],
+         [ 0.35686278,  0.427451  , -0.00392157]]],
+
+
+       [[[-0.08235294, -0.05098039, -0.5294118 ],
+         [-0.0745098 , -0.04313725, -0.52156866],
+         [-0.0745098 , -0.04313725, -0.52156866],
+         ...,
+         [ 0.5058824 ,  0.38823533,  0.082353  ],
+         [ 0.5058824 ,  0.38823533,  0.082353  ],
+         [ 0.5058824 ,  0.38823533,  0.082353  ]],
+
+        [[-0.08235294, -0.05098039, -0.5294118 ],
+         [-0.0745098 , -0.04313725, -0.52156866],
+         [-0.0745098 , -0.04313725, -0.52156866],
+         ...,
+         [ 0.49803925,  0.3803922 ,  0.07450986],
+         [ 0.49803925,  0.3803922 ,  0.07450986],
+         [ 0.49803925,  0.3803922 ,  0.07450986]],
+
+        [[-0.0745098 , -0.04313725, -0.52156866],
+         [-0.0745098 , -0.04313725, -0.52156866],
+         [-0.06666666, -0.03529412, -0.5137255 ],
+         ...,
+         [ 0.49803925,  0.3803922 ,  0.07450986],
+         [ 0.49803925,  0.3803922 ,  0.07450986],
+         [ 0.49803925,  0.3803922 ,  0.07450986]],
+
+        ...,
+
+        [[-0.47450978, -0.6       , -0.78039217],
+         [-0.4588235 , -0.58431375, -0.7647059 ],
+         [-0.45098037, -0.5764706 , -0.75686276],
+         ...,
+         [ 0.35686278,  0.1686275 , -0.17647058],
+         [ 0.34901965,  0.16078436, -0.18431371],
+         [ 0.34901965,  0.16078436, -0.18431371]],
+
+        [[-0.5058824 , -0.6313726 , -0.8117647 ],
+         [-0.47450978, -0.6       , -0.78039217],
+         [-0.4588235 , -0.58431375, -0.7647059 ],
+         ...,
+         [ 0.34901965,  0.16078436, -0.18431371],
+         [ 0.34901965,  0.16078436, -0.18431371],
+         [ 0.3411765 ,  0.15294123, -0.19215685]],
+
+        [[-0.5372549 , -0.6627451 , -0.84313726],
+         [-0.5137255 , -0.6392157 , -0.81960785],
+         [-0.49019605, -0.6156863 , -0.79607844],
+         ...,
+         [ 0.3411765 ,  0.15294123, -0.19215685],
+         [ 0.3411765 ,  0.15294123, -0.19215685],
+         [ 0.3411765 ,  0.15294123, -0.19215685]]]],
+      shape=(32, 224, 224, 3), dtype=float32), 'photographer': array(['Laura Erickson', 'Steven G. Mlodinow', 'Lois Manowitz',
+       'Tim Spahr', 'Bill Schmoker', 'Terry Gray', 'Ruth Sullivan',
+       'Brian E Kushner Brian Kushner', 'Matt Brady',
+       'Stephen Ramirez www.birdsiview.org', 'Steven Joyner',
+       'Glen Tepke', 'Pete Dunten', 'Tim Lenz', 'Ruth Sullivan',
+       'Cameron Rognan', 'Tripp Davenport', 'Ryan Schain', 'Glen Tepke',
+       'Jeremiah Trimble', 'Lois Manowitz', 'Dan Haas', 'Tim Spahr',
+       'Andy Johnson', 'Janet Allen', 'Frode Jacobsen', 'Andy Jordan',
+       'Ryan Schain', 'Matt Tobey', 'Conrad Tan', 'Glen Tepke',
+       'Muriel Neddermeyer'], dtype='&lt;U34'), 'species': array(['Bobolink', "Brewer's Blackbird", 'Turkey Vulture',
+       'Blackpoll Warbler', 'Gray-crowned Rosy-Finch', 'Dark-eyed Junco',
+       'Lark Bunting', "Forster's Tern", 'Black-and-white Warbler',
+       'Black-and-white Warbler', 'Red-breasted Nuthatch',
+       'Hermit Warbler', 'Western Sandpiper', 'Great Blue Heron',
+       'Song Sparrow', 'Eastern Bluebird', "Wilson's Snipe",
+       "Cooper's Hawk", 'Canvasback', 'Yellow-throated Warbler',
+       "Wilson's Warbler", 'Chestnut-sided Warbler', 'Nashville Warbler',
+       'Yellow-crowned Night-Heron', 'Hairy Woodpecker',
+       'Long-billed Curlew', 'Blackpoll Warbler', 'American Redstart',
+       'Red-breasted Nuthatch', 'Golden Eagle', 'Gray Jay',
+       'Black-chinned Hummingbird'], dtype='&lt;U26')}</code></pre>
+</div>
+</div>
+<div id="f884041c" class="cell" data-execution_count="17">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="bu">next</span>(<span class="bu">iter</span>(val_loader))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="34">
+<pre><code>{'img': array([[[[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         ...,
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]]],
+ 
+ 
+        [[[ 0.70980394,  0.8745098 , -0.05882353],
+          [ 0.6627451 ,  0.827451  , -0.10588235],
+          [ 0.6313726 ,  0.79607844, -0.1372549 ],
+          ...,
+          [ 0.52156866,  0.6627451 ,  0.0196079 ],
+          [ 0.5372549 ,  0.67058825,  0.04313731],
+          [ 0.5137255 ,  0.6627451 ,  0.04313731]],
+ 
+         [[ 0.6862745 ,  0.8352941 , -0.0745098 ],
+          [ 0.6313726 ,  0.78039217, -0.12941176],
+          [ 0.6       ,  0.7490196 , -0.17647058],
+          ...,
+          [ 0.54509807,  0.6784314 ,  0.05098045],
+          [ 0.54509807,  0.6784314 ,  0.05098045],
+          [ 0.5294118 ,  0.6627451 ,  0.05098045]],
+ 
+         [[ 0.6784314 ,  0.827451  , -0.0745098 ],
+          [ 0.64705884,  0.79607844, -0.10588235],
+          [ 0.62352943,  0.77254903, -0.1372549 ],
+          ...,
+          [ 0.54509807,  0.6784314 ,  0.05098045],
+          [ 0.5372549 ,  0.67058825,  0.05882359],
+          [ 0.5294118 ,  0.654902  ,  0.06666672]],
+ 
+         ...,
+ 
+         [[-0.29411763, -0.29411763, -0.21568626],
+          [-0.30196077, -0.30196077, -0.2235294 ],
+          [-0.3333333 , -0.3333333 , -0.25490195],
+          ...,
+          [ 0.60784316,  0.70980394,  0.14509809],
+          [ 0.60784316,  0.70980394,  0.14509809],
+          [ 0.5921569 ,  0.69411767,  0.14509809]],
+ 
+         [[-0.27843136, -0.27843136, -0.19999999],
+          [-0.3098039 , -0.3098039 , -0.23137254],
+          [-0.372549  , -0.372549  , -0.29411763],
+          ...,
+          [ 0.60784316,  0.70980394,  0.14509809],
+          [ 0.6       ,  0.7019608 ,  0.13725495],
+          [ 0.58431375,  0.6862745 ,  0.14509809]],
+ 
+         [[-0.34117645, -0.34117645, -0.26274508],
+          [-0.38039213, -0.38039213, -0.30196077],
+          [-0.38823527, -0.38823527, -0.3098039 ],
+          ...,
+          [ 0.5921569 ,  0.69411767,  0.12941182],
+          [ 0.5921569 ,  0.69411767,  0.12941182],
+          [ 0.5764706 ,  0.6784314 ,  0.13725495]]],
+ 
+ 
+        [[[-0.3098039 , -0.2862745 , -0.21568626],
+          [-0.372549  , -0.3490196 , -0.27843136],
+          [-0.372549  , -0.3490196 , -0.27843136],
+          ...,
+          [-0.45098037, -0.4352941 , -0.34117645],
+          [-0.41176468, -0.3960784 , -0.30196077],
+          [-0.38039213, -0.36470586, -0.27058822]],
+ 
+         [[-0.34117645, -0.31764704, -0.24705881],
+          [-0.3960784 , -0.372549  , -0.30196077],
+          [-0.3960784 , -0.372549  , -0.30196077],
+          ...,
+          [-0.3490196 , -0.3333333 , -0.23921567],
+          [-0.40392154, -0.38823527, -0.29411763],
+          [-0.47450978, -0.4588235 , -0.36470586]],
+ 
+         [[-0.35686272, -0.3333333 , -0.26274508],
+          [-0.3960784 , -0.372549  , -0.30196077],
+          [-0.3960784 , -0.372549  , -0.30196077],
+          ...,
+          [-0.34117645, -0.32549018, -0.23137254],
+          [-0.3960784 , -0.38039213, -0.2862745 ],
+          [-0.45098037, -0.4352941 , -0.34117645]],
+ 
+         ...,
+ 
+         [[ 0.09803927,  0.09803927,  0.09803927],
+          [-0.17647058, -0.17647058, -0.17647058],
+          [-0.60784316, -0.60784316, -0.60784316],
+          ...,
+          [ 0.082353  ,  0.082353  ,  0.14509809],
+          [ 0.11372554,  0.11372554,  0.17647064],
+          [ 0.16078436,  0.16078436,  0.22352946]],
+ 
+         [[ 0.7882353 ,  0.7882353 ,  0.7882353 ],
+          [ 0.1686275 ,  0.1686275 ,  0.1686275 ],
+          [ 0.13725495,  0.13725495,  0.13725495],
+          ...,
+          [ 0.13725495,  0.12941182,  0.17647064],
+          [ 0.13725495,  0.14509809,  0.18431377],
+          [ 0.15294123,  0.16078436,  0.20000005]],
+ 
+         [[ 0.8039216 ,  0.8039216 ,  0.8039216 ],
+          [ 0.9372549 ,  0.9372549 ,  0.9372549 ],
+          [ 0.6784314 ,  0.6784314 ,  0.6784314 ],
+          ...,
+          [ 0.18431377,  0.17647064,  0.22352946],
+          [ 0.12941182,  0.13725495,  0.17647064],
+          [ 0.082353  ,  0.09019613,  0.12941182]]],
+ 
+ 
+        ...,
+ 
+ 
+        [[[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         ...,
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]],
+ 
+         [[ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          ...,
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ],
+          [ 0.        ,  0.        ,  0.        ]]],
+ 
+ 
+        [[[-0.1607843 , -0.15294117, -0.4823529 ],
+          [-0.12941176, -0.11372548, -0.4823529 ],
+          [-0.10588235, -0.08235294, -0.4980392 ],
+          ...,
+          [ 0.4666667 ,  0.26274514, -0.01176471],
+          [ 0.62352943,  0.39607847,  0.12941182],
+          [ 0.79607844,  0.56078434,  0.3411765 ]],
+ 
+         [[-0.20784312, -0.21568626, -0.5921569 ],
+          [-0.16862744, -0.16862744, -0.5764706 ],
+          [-0.12941176, -0.12156862, -0.5764706 ],
+          ...,
+          [ 0.45882356,  0.2313726 , -0.08235294],
+          [ 0.5529412 ,  0.30196083, -0.00392157],
+          [ 0.7254902 ,  0.4666667 ,  0.20784318]],
+ 
+         [[-0.2235294 , -0.2235294 , -0.6313726 ],
+          [-0.1372549 , -0.14509803, -0.58431375],
+          [-0.09803921, -0.08235294, -0.5764706 ],
+          ...,
+          [ 0.5686275 ,  0.32549024, -0.03529412],
+          [ 0.5764706 ,  0.3176471 , -0.03529412],
+          [ 0.7254902 ,  0.45882356,  0.16078436]],
+ 
+         ...,
+ 
+         [[-0.09803921, -0.19999999, -0.27058822],
+          [ 0.07450986, -0.02745098, -0.09803921],
+          [ 0.18431377,  0.10588241,  0.01176476],
+          ...,
+          [ 0.20784318,  0.17647064, -0.19215685],
+          [ 0.16078436,  0.12941182, -0.23921567],
+          [ 0.11372554,  0.09019613, -0.24705881]],
+ 
+         [[-0.23921567, -0.31764704, -0.38823527],
+          [-0.16862744, -0.24705881, -0.32549018],
+          [-0.11372548, -0.17647058, -0.26274508],
+          ...,
+          [ 0.36470592,  0.33333337, -0.04313725],
+          [ 0.3803922 ,  0.34901965, -0.02745098],
+          [ 0.20784318,  0.19215691, -0.19215685]],
+ 
+         [[-0.19999999, -0.27843136, -0.3490196 ],
+          [-0.20784312, -0.2862745 , -0.36470586],
+          [-0.20784312, -0.27058822, -0.35686272],
+          ...,
+          [ 0.4666667 ,  0.41960788,  0.04313731],
+          [ 0.45882356,  0.43529415,  0.03529418],
+          [ 0.36470592,  0.35686278, -0.08235294]]],
+ 
+ 
+        [[[ 0.07450986,  0.49803925,  0.8666667 ],
+          [ 0.07450986,  0.49803925,  0.8666667 ],
+          [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+          ...,
+          [ 0.09019613,  0.49803925,  0.8745098 ],
+          [ 0.09019613,  0.49803925,  0.8745098 ],
+          [ 0.09019613,  0.49803925,  0.8745098 ]],
+ 
+         [[ 0.07450986,  0.49803925,  0.8666667 ],
+          [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+          [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+          ...,
+          [ 0.09019613,  0.49803925,  0.8745098 ],
+          [ 0.09019613,  0.49803925,  0.8745098 ],
+          [ 0.082353  ,  0.4901961 ,  0.8666667 ]],
+ 
+         [[ 0.082353  ,  0.5058824 ,  0.8745098 ],
+          [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+          [ 0.082353  ,  0.5058824 ,  0.8745098 ],
+          ...,
+          [ 0.082353  ,  0.4901961 ,  0.8666667 ],
+          [ 0.082353  ,  0.4901961 ,  0.8666667 ],
+          [ 0.09019613,  0.49803925,  0.8745098 ]],
+ 
+         ...,
+ 
+         [[ 0.06666672,  0.4901961 ,  0.85882354],
+          [ 0.06666672,  0.4901961 ,  0.85882354],
+          [ 0.05882359,  0.48235297,  0.8509804 ],
+          ...,
+          [-0.7411765 , -0.64705884, -0.6784314 ],
+          [-0.7254902 , -0.6392157 , -0.7490196 ],
+          [-0.64705884, -0.5921569 , -0.7176471 ]],
+ 
+         [[ 0.06666672,  0.4901961 ,  0.85882354],
+          [ 0.07450986,  0.48235297,  0.85882354],
+          [ 0.05882359,  0.48235297,  0.8509804 ],
+          ...,
+          [-0.77254903, -0.6313726 , -0.6313726 ],
+          [-0.73333335, -0.6313726 , -0.7019608 ],
+          [-0.7411765 , -0.6784314 , -0.78039217]],
+ 
+         [[ 0.082353  ,  0.4901961 ,  0.85882354],
+          [ 0.09019613,  0.48235297,  0.8666667 ],
+          [ 0.09019613,  0.49803925,  0.8745098 ],
+          ...,
+          [-0.6156863 , -0.42745095, -0.3490196 ],
+          [-0.79607844, -0.654902  , -0.654902  ],
+          [-0.64705884, -0.56078434, -0.62352943]]]],
+       shape=(32, 224, 224, 3), dtype=float32),
+ 'photographer': array(['Ruth Cantwell', 'Christopher L. Wood Chris Wood', 'Ryan Schain',
+        'Dan Irizarry', 'Ken Schneider', 'Velma Knowles', 'Cory Gregory',
+        'Jerry Ting', 'Joshua Jones', 'Tripp Davenport', 'David Waltman',
+        'Bob Gunderson', 'Robert Wilkin', 'Alex Burdo', 'Russell Greaves',
+        'Gerry Dewaghe', 'Steven Joyner', 'Tom Murray', 'David Waltman',
+        'Jerry Oldenettel', 'Velma Knowles',
+        'Stephen Ramirez www.birdsiview.org', 'Frode Jacobsen',
+        'Kevin Lantz', 'Cameron Rognan', 'Jerry Ting', 'Gerry Dewaghe',
+        'Will Sweet', 'Stephen Ramirez www.birdsiview.org',
+        'Christian Nunes', 'Steven Joyner', 'David Stephens'], dtype='&lt;U34'),
+ 'species': array(['Oak Titmouse', 'Ovenbird', 'Savannah Sparrow', 'Eastern Phoebe',
+        'Yellow-crowned Night-Heron', 'Florida Scrub-Jay', 'Herring Gull',
+        'Lazuli Bunting', 'Red-tailed Hawk', 'Red-naped Sapsucker',
+        "Allen's Hummingbird", "Hutton's Vireo", 'Vermilion Flycatcher',
+        'Bridled Titmouse', "Steller's Jay", 'Common Yellowthroat',
+        'Killdeer', 'Spotted Sandpiper', 'White-winged Scoter',
+        "Cassin's Vireo", 'Chestnut-sided Warbler', 'Carolina Chickadee',
+        'Louisiana Waterthrush', 'Sharp-shinned Hawk',
+        'Ruby-crowned Kinglet', 'Spotted Towhee', 'Brown Pelican',
+        'Great Egret', 'Curve-billed Thrasher', 'Cordilleran Flycatcher',
+        'American Redstart', 'Western Meadowlark'], dtype='&lt;U26')}</code></pre>
+</div>
+</div>
 
 
 
 </section>
+</section>
 
-<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">Applying our augmentation strategy</h2><div id="refs" class="references csl-bib-body" role="list">
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body" role="list">
 <div id="ref-Xu_2023" class="csl-entry" role="listitem">
 <div class="csl-left-margin">1. </div><div class="csl-right-inline">Xu M, Yoon S, Fuentes A, Park DS (2023) A comprehensive survey of image augmentation techniques for deep learning. Pattern Recognition 137:109347. <a href="https://doi.org/10.1016/j.patcog.2023.109347">https://doi.org/10.1016/j.patcog.2023.109347</a></div>
 </div>
