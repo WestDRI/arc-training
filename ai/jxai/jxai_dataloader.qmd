@@ -52,7 +52,6 @@ cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
 
 class NABirdsDataset:
     """NABirds dataset class."""
-
     def __init__(self, metadata_file, data_dir):
         self.metadata_file = metadata_file
         self.data_dir = data_dir
@@ -61,18 +60,20 @@ class NABirdsDataset:
         return len(self.metadata_file)
 
     def __getitem__(self, idx):
-        path = os.path.join(self.data_dir, self.metadata_file.get_column("path")[idx])
+        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
         img = iio.imread(path)
-        species = self.metadata_file.get_column("species")[idx].replace("_", " ")
-        subcategory = self.metadata_file.get_column("subcategory")[idx]
+        class_id = self.metadata_file.get_column('class_id')[idx]
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
         if subcategory is not None:
-            subcategory = subcategory.replace("_", " ")
-        photographer = self.metadata_file.get_column("photographer")[idx].replace("_", " ")
+            subcategory = subcategory.replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
         element = {
-            "img": img,
-            "species": species,
-            "subcategory": subcategory,
-            "photographer": photographer,
+            'img': img,
+            'class_id': class_id,
+            'species': species,
+            'subcategory': subcategory,
+            'photographer': photographer,
         }
 
         return element
@@ -229,6 +230,7 @@ nabirds_train_dl = grain.DataLoader(
 )
 ```
 
+We can plot images in this sequential DataLoader:
 
 ```{python}
 import matplotlib.pyplot as plt
@@ -271,6 +273,8 @@ nabirds_train_dl = grain.DataLoader(
 )
 ```
 
+Let's plot these as well:
+
 ```{python}
 fig = plt.figure(figsize=(8, 9))
 
@@ -308,6 +312,42 @@ nabirds_train_dl = grain.DataLoader(
 )
 ```
 
+## 
+
+```{python}
+print(nabirds_train[0]['img'].dtype)
+```
+
+```{python}
+def normalize(img):
+    # Image preprocessing matches the one of pretrained ViT
+    mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+    img = img.astype(np.float32) / 255.0
+    return (img - mean) / std
+```
+
+```{python}
+def get_transform(fn):
+    def wrapper(batch):
+        batch['img'] = [
+            fn(img) for img in batch['img']
+        ]
+        # batch['class_id'] = [
+            # label for label in batch['class_id']
+        # ]
+        return batch
+    return wrapper
+```
+
+```{python}
+train_normalize = get_transform(normalize)
+```
+
+```{python}
+train_normalized = train_normalize(nabirds_train)
+```
+
 ## The DataLoaders we will use
 
 Now that we have played with various DataLoaders to understand how they work, here are the DataLoaders we will actually use to train the model:
@@ -319,7 +359,7 @@ val_batch_size = 2 * train_batch_size
 
 # Train set sampler:
 train_sampler = grain.IndexSampler(
-    len(nabirds_train),
+    len(train_normalized),
     shuffle=True,                      # We shuffle the training set
     seed=seed,
     shard_options=grain.NoSharding(),  # No sharding for a single-device setup
@@ -328,7 +368,7 @@ train_sampler = grain.IndexSampler(
 
 # Train set DataLoader:
 train_loader = grain.DataLoader(
-    data_source=nabirds_train,
+    data_source=train_normalized,
     sampler=train_sampler,
     worker_count=4,        # Number of child processes to parallelize the transformations
     worker_buffer_size=2,  # Output batches to produce in advance per worker
@@ -338,13 +378,13 @@ train_loader = grain.DataLoader(
 )
 ```
 
-Now we can create the sampler and DataLoader for the validation set:
+We can also create the sampler and DataLoader for the validation set:
 
 ```{python}
 # Validation set sampler:
 val_sampler = grain.IndexSampler(
     len(nabirds_val),
-    shuffle=False,                    # We don't shuffle the validation set
+    shuffle=False,                     # We don't shuffle the validation set
     seed=seed,
     shard_options=grain.NoSharding(),
     num_epochs=1
