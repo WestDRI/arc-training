@@ -16,7 +16,7 @@ csl: diabetologia.csl
 ## Minimal necessary code from previous sections
 
 ```{.python}
-base_dir = "<path-of-the-nabirds-dir>"
+base_dir = '<path-of-the-nabirds-dir>'
 ```
 
 :::{.notenoit}
@@ -41,10 +41,12 @@ import polars as pl
 import imageio.v3 as iio
 import grain.python as grain
 
-metadata = pl.read_parquet("metadata.parquet")
-metadata_train = metadata.filter(pl.col("is_training_img") == 1)
-metadata_val = metadata.filter(pl.col("is_training_img") == 0)
-cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
+
+metadata = pl.read_parquet('metadata.parquet')
+metadata_train = metadata.filter(pl.col('is_training_img') == 1)
+metadata_val = metadata.filter(pl.col('is_training_img') == 0)
+cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
+
 
 class NABirdsDataset:
     """NABirds dataset class."""
@@ -57,21 +59,17 @@ class NABirdsDataset:
         return len(self.metadata_file)
 
     def __getitem__(self, idx):
-        path = os.path.join(self.data_dir, self.metadata_file.get_column("path")[idx])
+        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
         img = iio.imread(path)
-        species = self.metadata_file.get_column("species")[idx].replace("_", " ")
-        subcategory = self.metadata_file.get_column("subcategory")[idx]
-        if subcategory is not None:
-            subcategory = subcategory.replace("_", " ")
-        photographer = self.metadata_file.get_column("photographer")[idx].replace("_", " ")
-        element = {
-            "img": img,
-            "species": species,
-            "subcategory": subcategory,
-            "photographer": photographer,
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+
+        return {
+            'img': img,
+            'species': species,
+            'photographer': photographer,
         }
 
-        return element
 
 nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
 nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
@@ -190,7 +188,7 @@ class VisionTransformer(nnx.Module):
             hidden_size,
             kernel_size=(patch_size, patch_size),
             strides=(patch_size, patch_size),
-            padding="VALID",
+            padding='VALID',
             use_bias=True,
             rngs=rngs,
         )
@@ -311,9 +309,9 @@ class TransformerEncoder(nnx.Module):
 
 # Example usage for testing:
 x = jnp.ones((4, 224, 224, 3))
-model = VisionTransformer(num_classes=1000)
+model = VisionTransformer(num_classes=405)
 y = model(x)
-print("Predictions shape: ", y.shape)
+print('Predictions shape: ', y.shape)
 ```
 
 ```{python}
@@ -336,50 +334,50 @@ def vit_inplace_copy_weights(*, src_model, dst_model):
 
     # Mapping from Flax parameter names to TF parameter names.
     params_name_mapping = {
-        ("cls_token",): ("vit", "embeddings", "cls_token"),
-        ("position_embeddings",): ("vit", "embeddings", "position_embeddings"),
+        ('cls_token',): ('vit', 'embeddings', 'cls_token'),
+        ('position_embeddings',): ('vit', 'embeddings', 'position_embeddings'),
         **{
-            ("patch_embeddings", x): ("vit", "embeddings", "patch_embeddings", "projection", x)
-            for x in ["kernel", "bias"]
+            ('patch_embeddings', x): ('vit', 'embeddings', 'patch_embeddings', 'projection', x)
+            for x in ['kernel', 'bias']
         },
         **{
-            ("encoder", "layers", i, "attn", y, x): (
-                "vit", "encoder", "layer", str(i), "attention", "attention", y, x
+            ('encoder', 'layers', i, 'attn', y, x): (
+                'vit', 'encoder', 'layer', str(i), 'attention', 'attention', y, x
             )
-            for x in ["kernel", "bias"]
-            for y in ["key", "value", "query"]
+            for x in ['kernel', 'bias']
+            for y in ['key', 'value', 'query']
             for i in range(12)
         },
         **{
-            ("encoder", "layers", i, "attn", "out", x): (
-                "vit", "encoder", "layer", str(i), "attention", "output", "dense", x
+            ('encoder', 'layers', i, 'attn', 'out', x): (
+                'vit', 'encoder', 'layer', str(i), 'attention', 'output', 'dense', x
             )
-            for x in ["kernel", "bias"]
+            for x in ['kernel', 'bias']
             for i in range(12)
         },
         **{
-            ("encoder", "layers", i, "mlp", "layers", y1, x): (
-                "vit", "encoder", "layer", str(i), y2, "dense", x
+            ('encoder', 'layers', i, 'mlp', 'layers', y1, x): (
+                'vit', 'encoder', 'layer', str(i), y2, 'dense', x
             )
-            for x in ["kernel", "bias"]
-            for y1, y2 in [(0, "intermediate"), (3, "output")]
+            for x in ['kernel', 'bias']
+            for y1, y2 in [(0, 'intermediate'), (3, 'output')]
             for i in range(12)
         },
         **{
-            ("encoder", "layers", i, y1, x): (
-                "vit", "encoder", "layer", str(i), y2, x
+            ('encoder', 'layers', i, y1, x): (
+                'vit', 'encoder', 'layer', str(i), y2, x
             )
-            for x in ["scale", "bias"]
-            for y1, y2 in [("norm1", "layernorm_before"), ("norm2", "layernorm_after")]
+            for x in ['scale', 'bias']
+            for y1, y2 in [('norm1', 'layernorm_before'), ('norm2', 'layernorm_after')]
             for i in range(12)
         },
         **{
-            ("final_norm", x): ("vit", "layernorm", x)
-            for x in ["scale", "bias"]
+            ('final_norm', x): ('vit', 'layernorm', x)
+            for x in ['scale', 'bias']
         },
         **{
-            ("classifier", x): ("classifier", x)
-            for x in ["kernel", "bias"]
+            ('classifier', x): ('classifier', x)
+            for x in ['kernel', 'bias']
         }
     }
 
@@ -392,14 +390,14 @@ def vit_inplace_copy_weights(*, src_model, dst_model):
         nonvisited.remove(key1)
 
         src_value = tf_model_params_fstate[key2]
-        if key2[-1] == "kernel" and key2[-2] in ("key", "value", "query"):
+        if key2[-1] == 'kernel' and key2[-2] in ('key', 'value', 'query'):
             shape = src_value.shape
             src_value = src_value.reshape((shape[0], 12, 64))
 
-        if key2[-1] == "bias" and key2[-2] in ("key", "value", "query"):
+        if key2[-1] == 'bias' and key2[-2] in ('key', 'value', 'query'):
             src_value = src_value.reshape((12, 64))
 
-        if key2[-4:] == ("attention", "output", "dense", "kernel"):
+        if key2[-4:] == ('attention', 'output', 'dense', 'kernel'):
             shape = src_value.shape
             src_value = src_value.reshape((12, 64, shape[-1]))
 
@@ -421,22 +419,8 @@ model.classifier = nnx.Linear(model.classifier.in_features, 405, rngs=nnx.Rngs(0
 
 x = jnp.ones((4, 224, 224, 3))
 y = model(x)
-print("Predictions shape: ", y.shape)
+print('Predictions shape: ', y.shape)
 ```
-
-
-
-```{python}
-def normalize(img):
-    # We use the normalization parameters matching
-    # the pretrained ViT from HF Transformers:
-    # ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
-    mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
-    std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
-    image = image.astype(np.float32) / 255.0
-    return (image - mean) / std
-```
-
 
 <!-- ```{python} -->
 <!-- import jax -->
@@ -449,7 +433,7 @@ def normalize(img):
 <!--     def __init__(self, num_classes, *, rngs: nnx.Rngs): -->
 <!--         # 1. Load the pre-trained Linen model structure & weights from Hugging Face -->
 <!--         hf_model = FlaxViTForImageClassification.from_pretrained( -->
-<!--             "google/vit-base-patch16-224", -->
+<!--             'google/vit-base-patch16-224', -->
 <!--             num_labels=num_classes, -->
 <!--             ignore_mismatched_sizes=True # Necessary to overwrite the 1000-class head -->
 <!--         ) -->
