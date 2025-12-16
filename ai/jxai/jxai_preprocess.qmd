@@ -425,42 +425,20 @@ class NABirdsDataset:
         path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
         img = iio.imread(path)
         class_id = self.metadata_file.get_column('class_id')[idx]
-
-        return {
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        subcategory = self.metadata_file.get_column('subcategory')[idx]
+        if subcategory is not None:
+            subcategory = subcategory.replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        element = {
             'img': img,
             'class_id': class_id,
+            'species': species,
+            'subcategory': subcategory,
+            'photographer': photographer,
         }
-```
 
-```{python}
-class_id_to_name_file = os.path.join(base_dir, 'classes_cleaned.txt')
-
-class_id_to_name = pl.read_csv(
-    class_id_to_name_file,
-    separator=' ',
-    has_header=False,
-    infer_schema_length=296,
-    new_columns=['class_id', 'species', 'subcategory']
-)
-```
-
-```{python}
-def translator(df, class_id):
-    species = df.filter(
-        pl.col('class_id') == class_id
-    ).select(pl.col('species')).item()
-
-    subcategory = df.filter(
-        pl.col('class_id') == class_id
-    ).select(pl.col('subcategory')).item()
-
-    return species, subcategory
-```
-
-```{python}
-print(translator(class_id_to_name, 860))
-print(translator(class_id_to_name, 900))
-print(translator(class_id_to_name, 400))
+        return element
 ```
 
 ## Training set
