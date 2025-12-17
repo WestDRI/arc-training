@@ -214,25 +214,38 @@ We are also not making use of the bounding boxes this dataset comes with. This m
 
 Lastly, our images are fairly large (often up to 1024 pixels in width or height). Classification models often come with a few variants for a handful of different image sizes, but the most standard size is 224 by 224 (good compromise between detail and speed).
 
-In this section, we do the first step of addressing these problems: we crop the images to the bounding boxes, with a 20% margin, and save them to disk. The rest will be addressed during the data augmentation step (and resizing for the evaluation set).
-
 ## Cleaning Dataset class
 
-We could write a function to clean our images. Another, more elegant approach is to create a class:
+We want to crop the unnecessary parts of images, then resize them (without distortion that could invalidate the labels) to a size of 224 x 224. We will treat the training and evaluation images differently.
+
+We want to randomly crop the training images as one of our augmentation technique. We want the randomly cropped images to be 224 x 224. So we don't want to resize them to 224 x 224 before the random crops or they'll end up smaller, then re-enlarged and we will loose some resolution unnecessarily. So instead we crop them to the bounding box with an additional 20% margin and resize them to 269 x 269. the random crop will bring them back to the final size of 224 x 224.
+
+For the evaluation set, we crop to the bounding boxes (no margin) and directly resize to 224 x 224.
+
+Then we will save all the images to files since this step only needs to happen once (remember [our strategy](jxai_ex#our-strategy.qmd)).
+
+We could write a function to clean our images, but another more elegant approach, is to create a class.
+
+To downsize the images without distortion, we use [`skimage.transform.resize`](https://scikit-image.org/docs/0.25.x/api/skimage.transform.html#skimage.transform.resize).
 
 ```{python}
+from skimage.transform import resize
+import numpy as np
+
 class CleaningDataset:
     """Cleaning dataset class."""
-    def __init__(self, metadata_file, source_dir, target_dir):
+    def __init__(self, metadata_file, source_dir, target_dir, target_size, margin_factor):
         self.metadata_file = metadata_file
         self.source_dir = source_dir
         self.target_dir = target_dir
+        self.target_size = target_size
+        self.margin_factor = margin_factor
 
     def __len__(self):
         return len(self.metadata_file)
 
     def __getitem__(self, idx):
-        """Returns cropped image and save path."""
+        """Returns cropped, resized image and save path."""
 
         # Build paths
         read_path = os.path.join(
@@ -269,10 +282,10 @@ class CleaningDataset:
         # 1. Get the image dimensions (to make sure we don't go out of bounds)
         height, width = img.shape[:2]
 
-        # 2. Calculate the margin size (20% of the box dimensions)
+        # 2. Calculate the margin size
         # We use int() because pixel coordinates must be integers
-        margin_w = int(bbw * 0.2)
-        margin_h = int(bbh * 0.2)
+        margin_w = int(bbw * self.margin_factor)
+        margin_h = int(bbh * self.margin_factor)
 
         # 3. Calculate the new coordinates with the margin
         x1 = bbx - margin_w
@@ -291,10 +304,36 @@ class CleaningDataset:
         # 5. Crop
         img_cropped = img[y1:y2, x1:x2]
 
-        return img_cropped, save_path
+        # 6. Resize
+        # Resize img to target size with padding to avoid distortion
+        h, w, _ = img_cropped.shape
+        target_h = target_w = self.target_size
+
+        # Calculate the scaling factor to fit the image inside the box
+        scale = min(target_h / h, target_w / w)
+
+        # Calculate the new dimensions of the image
+        new_h, new_w = int(h * scale), int(w * scale)
+
+        # Resize
+        img_resized = resize(img_cropped, (new_h, new_w), anti_aliasing=True)
+
+        # Create a black canvas (zeros) of the target size
+        out_img = np.zeros((target_h, target_w, img.shape[2]), dtype=img_resized.dtype)
+
+        # Place the resized image in the center of the canvas
+        y_offset = (target_h - new_h) // 2
+        x_offset = (target_w - new_w) // 2
+        out_img[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = img_resized
+
+        # Convert back to uint8 (0-255)
+        final_img = (out_img * 255).astype(np.uint8) # <2>
+
+        return final_img, save_path
 ```
 
-1. Reason for this step:
+1. Reason for this step: see note below.
+2. `skimage` returns elements with a `dtype(float64)` (values from 0 to 1), but we want to save space on disk.
 
 :::{.notenoit}
 
@@ -330,24 +369,56 @@ from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm  # to display a progress bar
 ```
 
-Let's instantiate our `CleaningDataset`:
+Let's instantiate our `CleaningDataset` for the training set:
 
 ```{python}
 cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
 
-dataset_to_clean = CleaningDataset(
-    metadata_file=metadata,
+# Filter only training set from the metadata DataFrame:
+metadata_train = metadata.filter(pl.col('is_training_img') == 1)
+
+train_dataset_to_clean = CleaningDataset(
+    metadata_file=metadata_train,
     source_dir=img_dir,
-    target_dir=cleaned_img_dir
+    target_dir=cleaned_img_dir,
+    target_size=269,              # 224 with a 20% margin
+    margin_factor=0.2
 )
 ```
 
-We can now create a helper function:
+And let's create an instance for the validation set:
 
 ```{python}
-def process_idx(i):
+# Filter the validation metadata in our DataFrame:
+metadata_val = metadata.filter(pl.col('is_training_img') == 0)
+
+val_dataset_to_clean = CleaningDataset(
+    metadata_file=metadata_val,
+    source_dir=img_dir,
+    target_dir=cleaned_img_dir,
+    target_size=224,
+    margin_factor=0
+)
+```
+
+We can now create helper functions:
+
+```{python}
+def process_train_idx(i):
     """Helper function for the parallel worker."""
-    img, path = dataset_to_clean[i]
+    img, path = train_dataset_to_clean[i]
+    if img is not None:
+        # Create target directory if it doesn't exist
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # Save cleaned image
+        iio.imwrite(path, img)
+        return 1 # Success
+    return 0 # Failure
+
+
+def process_val_idx(i):
+    """Helper function for the parallel worker."""
+    img, path = val_dataset_to_clean[i]
     if img is not None:
         # Create target directory if it doesn't exist
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -357,16 +428,16 @@ def process_idx(i):
     return 0 # Failure
 ```
 
-And run it in parallel:
+And run them in parallel:
 
 :::{.info}
 
-Note that you will not be able to run the following chunk:
+Note that you will not be able to run the actual processing chunks:
 
-- Cropping 50,000 images takes a lot on the CPUs and if we do it all, we will probably crash the cluster.
+- Cropping and resizing 50,000 images takes a lot on the CPUs and if we do it all, we will probably crash the cluster.
 - Additionally, we would all be trying to write to the same path, creating weird file conflicts.
 
-I ran this ahead of time and already created the cropped files and I did not give you write access to the dataset.
+I ran this ahead of time and already created the cropped and resized files and I did not give you write access to the dataset.
 
 If you want to run the code and experiment with various numbers of CPUs, you can do this later on your machine or on a production cluster.
 
@@ -377,16 +448,33 @@ If you want to run the code and experiment with various numbers of CPUs, you can
 with ProcessPoolExecutor() as executor:
     # Map indices to the process function
     results = list(tqdm(
-        executor.map(process_idx, range(len(dataset_to_clean))),
-        total=len(dataset_to_clean),
+        executor.map(process_train_idx, range(len(train_dataset_to_clean))),
+        total=len(train_dataset_to_clean),
         desc='Cleaning Images'
     ))
 
-print(f"Done. {sum(results)} images processed.")
+print(f"Done. {sum(results)} training images processed.")
 ```
 
 ```
-Done. 48562 images processed.
+Done. 23929 training images processed.
+```
+
+```{.python filename="Don't try to run this chunk in the training cluster."}
+# Use as many workers as you have CPU cores
+with ProcessPoolExecutor() as executor:
+    # Map indices to the process function
+    results = list(tqdm(
+        executor.map(process_val_idx, range(len(val_dataset_to_clean))),
+        total=len(val_dataset_to_clean),
+        desc='Cleaning Images'
+    ))
+
+print(f"Done. {sum(results)} validation images processed.")
+```
+
+```
+Done. 24633 validation images processed.
 ```
 
 You can watch the parallel work live with an application such as [htop](https://github.com/htop-dev/htop/) (on your machine or the cluster) or [btop](https://github.com/aristocratos/btop) (on your machine).
@@ -425,24 +513,18 @@ class NABirdsDataset:
 
 ## Training set
 
-We instantiate this Dataset class with the training set, using the cropped images:
+We instantiate this Dataset class with the training set, using the cropped and resized images:
 
 ```{python}
-# Filter only training set from the metadata DataFrame:
-metadata_train = metadata.filter(pl.col('is_training_img') == 1)
-
 # Create Dataset class instance:
 nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
 ```
 
 ## Validation set
 
-And for the validation set, we need to instantiate a Dataset class with our validation data on the cropped images:
+And for the validation set, we need to instantiate a Dataset class with our validation data on the cropped and resized images:
 
 ```{python}
-# Filter the validation metadata in our DataFrame:
-metadata_val = metadata.filter(pl.col('is_training_img') == 0)
-
 # Instantiate a Dataset class with the validation data:
 nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
 ```
@@ -458,6 +540,12 @@ for i, element in enumerate(nabirds_train):
         break
 ```
 
+:::{.note}
+
+Notice that all the images are now of the same size: 269 x 269.
+
+:::
+
 And on a sample of our evaluation set:
 
 ```{python}
@@ -466,6 +554,12 @@ for i, element in enumerate(nabirds_val):
     if i == 3:
         break
 ```
+
+:::{.note}
+
+Notice that all the images are now of the same size: 224 x 224.
+
+:::
 
 ## Display samples
 
@@ -492,6 +586,14 @@ for i, element in enumerate(nabirds_train):
         break
 ```
 
+:::{.note}
+
+Notice the lower resolution (since we downsized) compared to the first few images we displayed. This resolution is still adequate (the distinctive bird features are still perfectly visible).
+
+Notice also the margin around the birds.
+
+:::
+
 And let's do the same for the evaluation set:
 
 ```{python}
@@ -514,3 +616,9 @@ for i, element in enumerate(nabirds_val):
         plt.show()
         break
 ```
+
+:::{.note}
+
+Notice how the cropping was done without margin on the evaluation set (matching the bounding boxes just around the birds).
+
+:::
