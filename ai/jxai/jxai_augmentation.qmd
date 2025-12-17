@@ -16,7 +16,7 @@ Key to deep learning is data augmentation. This section explains what it is and 
 ## Minimal necessary code from previous sections
 
 ```{.python}
-base_dir = "<path-of-the-nabirds-dir>"
+base_dir = '<path-of-the-nabirds-dir>'
 ```
 
 :::{.notenoit}
@@ -41,9 +41,12 @@ import polars as pl
 import imageio.v3 as iio
 import grain.python as grain
 
-metadata = pl.read_parquet("metadata.parquet")
-metadata_train = metadata.filter(pl.col("is_training_img") == 1)
-cleaned_img_dir = os.path.join(base_dir, "cleaned_images")
+
+metadata = pl.read_parquet('metadata.parquet')
+metadata_train = metadata.filter(pl.col('is_training_img') == 1)
+metadata_val = metadata.filter(pl.col('is_training_img') == 0)
+cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
+
 
 class NABirdsDataset:
     """NABirds dataset class."""
@@ -56,23 +59,20 @@ class NABirdsDataset:
         return len(self.metadata_file)
 
     def __getitem__(self, idx):
-        path = os.path.join(self.data_dir, self.metadata_file.get_column("path")[idx])
+        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
         img = iio.imread(path)
-        species = self.metadata_file.get_column("species")[idx].replace("_", " ")
-        subcategory = self.metadata_file.get_column("subcategory")[idx]
-        if subcategory is not None:
-            subcategory = subcategory.replace("_", " ")
-        photographer = self.metadata_file.get_column("photographer")[idx].replace("_", " ")
-        element = {
-            "img": img,
-            "species": species,
-            "subcategory": subcategory,
-            "photographer": photographer,
+        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
+        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+
+        return {
+            'img': img,
+            'species': species,
+            'photographer': photographer,
         }
 
-        return element
 
 nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
+nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
 ```
 
 :::
@@ -126,7 +126,7 @@ The size of your dataset dictates how aggressively you should augment.
 | **Large (>100K images)** | **Light augmentation.** | **1-2 techniques**  |
 | **Massive (>1M images)** | **No augmentation**. The data itself provides enough diversity. Augmentation will only slow down training. | **0 technique** |
 
-<br>Our dataset contains about 50K images (including the evaluation set). This puts us in the medium category and a standard approach with **3 or 4 techniques** should be reasonable.
+<br>Our dataset contains about 50K images (including the validation set). This puts us in the medium category and a standard approach with **3 or 4 techniques** should be reasonable.
 
 ### Which ones to use?
 
@@ -136,11 +136,11 @@ In our case, we are dealing with fine-grained birds identification. Colours are 
 
 Vertical flips or 90° rotations would not be very useful as they wouldn't produce realistic data ...
 
-There are a lot of more advanced techniques out there (CutMix, SnapMix, TransMix, Attention Drop), but let's start with easier ones. For geometric techniques, let's do **random crops**, **horizontal flips**, and slight **rotations**.
+There are a lot of more advanced techniques out there (CutMix, SnapMix, TransMix, Attention Drop), but let's start with easier ones. For geometric techniques, let's do **random crops** and **random horizontal flips**.
 
 We can also do some photometric augmentation as long as they don't invalidate the labels: brightness and contrast. If we want the model to be able to identify black and white pictures, we definitely need to remove the colour dependence by using a technique turning images to gray (with some probability and level of colour removal). If, on the other hand, we are only interested in having a model able to identify colour images, we want to stay away from this.
 
-Let's consider for instance random **gamma adjustments**. They simulate different exposure levels and will improve the model's robustness and performance by making it less sensitive to variations in lighting conditions.
+Let's consider for instance **random gamma adjustments** and **random contrast**. They simulate different exposure levels and will improve the model's robustness and performance by making it less sensitive to variations in lighting conditions.
 
 ### Choosing the parameters
 
@@ -172,29 +172,26 @@ Let's test various gamma values on the first 4 images in the training set:
 
 ```{python}
 import dm_pix as pix
-import PIL.Image as Image
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 ```
 
-Let's write a helper function that applies PIX deterministic [adjust_gamma](https://dm-pix.readthedocs.io/en/latest/api.html#adjust-gamma) function to a JAX array image, then covert it to a PIL image that we can display:
+Let's write a helper function that applies PIX deterministic [adjust_gamma](https://dm-pix.readthedocs.io/en/latest/api.html#adjust-gamma) function to a JAX array image, then covert it to an RGB image that we can display:
 
 ```{python}
 def apply_gamma(img, gamma):
     """
     Apply gamma transformation to a JAX array image
-    then turn it back into a PIL image for display.
+    then turn it back into an RGB image for display.
     """
     new_img = pix.adjust_gamma(
         image=img,
         gamma=gamma
     )
-    pil_img = Image.fromarray(
-        np.asarray(new_img * 255.).astype(np.uint8), 'RGB'
-    )
+    rgb_img = (new_img * 255.0).astype(np.uint8)
     gamma = round(gamma, 1)
-    return pil_img, gamma
+    return rgb_img, gamma
 ```
 
 This next function will take a NumPy image from our Dataset class, turn it to a JAX array, apply our helper function `apply_gamma`, and display the result:
@@ -204,8 +201,8 @@ def show_tests(img, gamma_range):
     """
     Turn the image into a JAX array,
     run our apply_gamma function on it
-    (apply gamma then turn back to PIL image),
-    plot the PIL image.
+    (apply gamma then turn back to RGB image),
+    plot the RGB image.
     """
     jnp_img = jnp.array(img, dtype=jnp.float32) / 255.
     pics = []
@@ -232,27 +229,29 @@ Now we can apply it to a few images to get an idea of the effect and ensure noth
 show_tests(nabirds_train[0]['img'], np.linspace(0.1, 3, 12))
 ```
 
-0.4 to 1.2 seem ok.
+0.6 to 1.2 seem ok.
 
 ```{python}
 show_tests(nabirds_train[1]['img'], np.linspace(0.1, 3, 12))
 ```
 
-0.4 to 2.2 seem reasonable for this image.
+0.6 to 2.2 seem reasonable for this image.
 
 ```{python}
 show_tests(nabirds_train[2]['img'], np.linspace(0.1, 3, 12))
 ```
 
-0.4 to 2.5 seem ok for this one.
+0.6 to 2.2 seem ok for this one.
 
 ```{python}
 show_tests(nabirds_train[3]['img'], np.linspace(0.1, 3, 12))
 ```
 
-0.4 to 1.4 seem reasonable here.
+0.6 to 1.4 seem reasonable here.
 
-For training, we will use [random gamma](https://dm-pix.readthedocs.io/en/latest/api.html#random-gamma) as one of our transformation (we don't want the deterministic function here since we want different transformations randomly applied at each epoch) with the min and max values set a bit more broadly than what is standard as our images seem to handle it OK. Let's go with a min and max of 0.4 and 1.2 respectively.
+For training, we will use [random gamma](https://dm-pix.readthedocs.io/en/latest/api.html#random-gamma) as one of our transformation (we don't want the deterministic function here since we want different transformations randomly applied at each epoch) with the min and max values set a bit more broadly than what is standard as our images seem to handle it OK. Let's go with a min and max of 0.6 and 1.2 respectively.
+
+You need to do similar checks for all augmentations that might lead to unpredictable results: you don't want to try to train a model on images that are all black, crippled by artifacts, or smeared beyond recognition!
 
 #### Validation check
 
@@ -262,5 +261,399 @@ You can train a small version of your model (or for fewer epochs) and check how 
 
 I recently gave a [webinar on MLflow](/ai/mlops/wb_mlflow.qmd) which would be the perfect tool for this kind of comparison.
 
-## Applying our augmentation strategy
+## Our plan for the train set
 
+### Image normalization
+
+Before anything else, we need to normalize our images.
+
+Our images are currently stored as NumPy arrays of type integers ranging from 0 to 255 (the values of the pixels):
+
+```{python}
+print(nabirds_train[0]['img'].dtype)
+```
+
+It is a classic normalization technique to divide these pixel values by 255 to bring them in the 0-1 range. This improves performance and stability in training.
+
+To ensure that all features contribute equally and improve performance, it is also a standard practice to turn the pictures into [standard scores (z-scores)](https://en.wikipedia.org/wiki/Standard_score) by subtracting each data point by the mean and dividing by the standard deviation.
+
+In our case, we have to do it because the ViT model that we will eventually use was pretrained on images preprocessed this way and it is important to use the same normalization as was used for the pretrained model.
+
+Let's create a first transformation that does exactly that:
+
+```{python}
+import numpy as np
+
+class Normalize(grain.MapTransform):
+    def map(self, element):
+        img = element['img']
+        # Image preprocessing matches the one of pretrained ViT
+        mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        img = img.astype(np.float32) / 255.0
+        img_norm = (img - mean) / std
+        element['img'] = img_norm
+        return element
+```
+
+### Our augmentation strategy
+
+:::{.callout-note collapse="true"}
+
+## Pseudorandom numbers in JAX
+
+Because we apply random transformations to our data, we need to talk about [pseudorandom numbers in JAX](https://docs.jax.dev/en/latest/random-numbers.html#random-numbers-in-jax).
+
+**TL;DR**
+
+JAX has a mechanism to handle pseudorandom number generation (PRNG) that solves the problems that the PRNG mechanisms used by NumPy, Julia, R, and many other languages suffer from: parallelization and vectorization.
+
+It is not based on an implicit global random state; instead, it tracks the state explicitly via a random `key` (an array with a special dtype). Random functions do not modify the key. This means that you can't reuse a key (to avoid spurious correlations). But the key is splittable into as many new keys as you want. This is what allows the parallelization and vectorization of stochasticity.
+
+You start by generating a key with:
+
+```{.python}
+from jax import random
+
+key = random.key(123)  # 123 can be replaced by any other number
+                       # reuse the same number for replicability
+```
+
+You then split the key with:
+
+```{.python}
+key, subkey = random.split(key)
+```
+
+This uses the initial key (the argument of the `split` method), so you can't reuse it. But it creates two new keys (the two on the left of the equal sign). You can name these new keys however you want, but to ensure that we don't reuse the initial key by accident, we re-assign its name to one of the new key.
+
+Now, you can use `subkey` in the next random function. And if later on you need another one, you split `key` (the new one) again in the same way.
+
+You can also create multiple new keys at once:
+
+```{.python}
+key, subkey1, subkey2, subkey3 = random.split(key)
+```
+
+:::
+
+Random crop:
+
+```{python}
+from jax import random
+import dm_pix as pix
+
+key = random.key(31)
+key, subkey = random.split(key)
+
+class RandomCrop(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_crop(
+            key=subkey,
+            image=element['img'],
+            crop_sizes=(224, 224, 3)
+        )
+        return element
+```
+
+Random flip:
+
+```{python}
+key, subkey = random.split(key)
+
+class RandomFlip(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_flip_left_right(
+            key=subkey,
+            image=element['img']
+        )
+        return element
+```
+
+Random contrast:
+
+```{python}
+key, subkey = random.split(key)
+
+class RandomContrast(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_contrast(
+            key=subkey,
+            image=element['img'],
+            lower=0.8,
+            upper=1.2
+        )
+        return element
+```
+
+Random gamma (using the bounds we tested earlier):
+
+```{python}
+key, subkey = random.split(key)
+
+class RandomGamma(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_gamma(
+            key=subkey,
+            image=element['img'],
+            min_gamma=0.6,
+            max_gamma=1.2
+        )
+        return element
+```
+
+### Pass to DataLoader
+
+We can now pass the transformations to the DataLoader. We can combine Transforms together very easily with Grain (no need of a Compose class with Grain as with TorchVision):
+
+```{python}
+seed = 123
+train_batch_size = 32
+
+# Train set sampler:
+train_sampler = grain.IndexSampler(
+    num_records=len(nabirds_train),
+    shuffle=True,                      # We shuffle the training set
+    seed=seed,
+    shard_options=grain.NoSharding(),  # No sharding for a single-device setup
+    num_epochs=1
+)
+
+# Train set DataLoader:
+train_loader = grain.DataLoader(
+    data_source=nabirds_train,
+    sampler=train_sampler,
+    operations=[
+        Normalize(),
+        RandomCrop(),
+        RandomFlip(),
+        RandomContrast(),
+        RandomGamma(),
+        grain.Batch(train_batch_size, drop_remainder=True)
+    ]
+)
+```
+
+### The importance of checks
+
+We have our DataLoader for the training set and we could start training, potentially spending hours or days trying to train a model ... with terrible results.
+
+[Before starting to train, it is crutial to check that your samples look the way you expect them to.]{.emph}
+
+Let's get some info on a batch:
+
+```{python}
+train_batch = next(iter(train_loader))
+
+print(f"""
+training batch info:
+- img shape is {train_batch['img'].shape} and data type is {train_batch['img'].dtype}
+- species shape is {train_batch['species'].shape} and data type is {train_batch['species'].dtype}
+- photographer shape is {train_batch['photographer'].shape} and data type is {train_batch['photographer'].dtype}
+""")
+```
+
+All looks as expected.
+
+And let's plot a few processed training images:
+
+```{python}
+fig = plt.figure(figsize=(8, 8))
+
+for i in range(12):
+    ax = plt.subplot(3, 4, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f"""
+        {train_batch['species'][i]}
+        Picture by {train_batch['photographer'][i]}
+        """,
+        fontsize=7,
+        linespacing=1.5
+    )
+    ax.axis('off')
+    rgb_img = (
+        (train_batch['img'][i] - train_batch['img'][i].min()) / (train_batch['img'][i].max() - train_batch['img'][i].min()) * 255.0
+    ).astype(np.uint8)
+
+    plt.imshow(rgb_img)
+
+plt.show()
+```
+
+Oh no!!!! What happened?
+
+We checked carefully that our gamma adjustment bounds are reasonable and we chose very moderate brightness adjustment, so what happened?
+
+Z-score normalization creates negative values (roughly half the pixels will be negative). But `dm-pix` expects `[0, 1]` inputs, so by default, it clips all negative values to 0. This immediately turns half your image black.
+
+Why does `dm-pix` do this clipping? Without this, the gamma math would fail: gamma correction uses exponentiation (pixel to the power of gamma) and you cannot raise negative numbers to a floating-point power.
+
+As a result, all the pixels that were darker than average (negative z-scores) were forced to pure black (value of 0).
+
+What is the solution?
+
+We could change the order of the transformations and move our `Normalize` class *after* the PIX augmentations. But this would also fail because PIX expects `[0, 1]` values and we have `[0, 255]` values.
+
+So we have no choice by to break our normalization into 2 steps. Here is the order of transformations that we need to use:
+
+- Convert the integers 0–255 images to floats 0–1 images.
+- Apply random gamma, brightness, etc. from the PIX library.
+- Apply the specific mean/std normalization expected by the model.
+
+Note that different augmentation libraries might have different behaviours, so **you need to check carefully what inputs the augmentation library you use expects**.
+
+So let's fix our problem.
+
+First, split our `Normalize` class into two steps.
+
+A first step to turn the RGB integers to 0–1 floats:
+
+```{python}
+class ToFloat(grain.MapTransform):
+    def map(self, element):
+        element['img'] = element['img'].astype(np.float32) / 255.0
+        return element
+```
+
+And a second step to create the z-scores:
+
+```{python}
+class ZScore(grain.MapTransform):
+    def map(self, element):
+        img = element['img']
+        mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        img = (img - mean) / std
+        element['img'] = img
+        return element
+```
+
+Finally, we apply the transformations in the proper order:
+
+```{python}
+train_loader = grain.DataLoader(
+    data_source=nabirds_train,
+    sampler=train_sampler,
+    operations=[
+        ToFloat(),
+        RandomCrop(),
+        RandomFlip(),
+        RandomContrast(),
+        RandomGamma(),
+        ZScore(),
+        grain.Batch(train_batch_size, drop_remainder=True)
+    ]
+)
+```
+
+We recreate a batch:
+
+```{python}
+train_batch = next(iter(train_loader))
+```
+
+Let's plot a sample again:
+
+```{python}
+fig = plt.figure(figsize=(8, 8))
+
+for i in range(12):
+    ax = plt.subplot(3, 4, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f"""
+        {train_batch['species'][i]}
+        Picture by {train_batch['photographer'][i]}
+        """,
+        fontsize=7,
+        linespacing=1.5
+    )
+    ax.axis('off')
+    rgb_img = (
+        (train_batch['img'][i] - train_batch['img'][i].min()) / (train_batch['img'][i].max() - train_batch['img'][i].min()) * 255.0
+    ).astype(np.uint8)
+
+    plt.imshow(rgb_img)
+
+plt.show()
+```
+
+This time, things look as expected. Phew!
+
+## What about the validation set?
+
+You don't want to apply any augmentation to the evaluation set. However, these images must match the normalization of the training set. Here, it is ok to use our `Normalize` class that combines both normalizations.
+
+### Pass to DataLoader
+
+Pass transformations to the DataLoader:
+
+```{python}
+val_batch_size = 2 * train_batch_size
+
+# Validation set sampler:
+val_sampler = grain.IndexSampler(
+    num_records=len(nabirds_val),
+    shuffle=False,                     # We don't shuffle the validation set
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1
+)
+
+# Validation set DataLoader:
+val_loader = grain.DataLoader(
+    data_source=nabirds_val,
+    sampler=val_sampler,
+    # worker_count=4,                 # If you have the resources (I don't)
+    # worker_buffer_size=2,
+    operations=[
+        Normalize(),
+        grain.Batch(val_batch_size)
+    ]
+)
+```
+
+### Checks
+
+Here again, we want to make sure all is fine by gathering some info on a batch:
+
+```{python}
+val_batch = next(iter(val_loader))
+
+print(f"""
+Validation batch info:
+- img shape is {val_batch['img'].shape} and data type is {val_batch['img'].dtype}
+- species shape is {val_batch['species'].shape} and data type is {val_batch['species'].dtype}
+- photographer shape is {val_batch['photographer'].shape} and data type is {val_batch['photographer'].dtype}
+""")
+```
+
+And displaying some samples:
+
+
+```{python}
+fig = plt.figure(figsize=(8, 8))
+
+for i in range(12):
+    ax = plt.subplot(3, 4, i + 1)
+    plt.tight_layout()
+    ax.set_title(
+        f"""
+        {val_batch['species'][i]}
+        Picture by {val_batch['photographer'][i]}
+        """,
+        fontsize=7,
+        linespacing=1.5
+    )
+    ax.axis('off')
+    rgb_img = (
+        (val_batch['img'][i] - val_batch['img'][i].min()) / (val_batch['img'][i].max() - val_batch['img'][i].min()) * 255.0
+    ).astype(np.uint8)
+
+    plt.imshow(rgb_img)
+
+plt.show()
+```
+
+Everything looks good here. It is now time to talk about models.
