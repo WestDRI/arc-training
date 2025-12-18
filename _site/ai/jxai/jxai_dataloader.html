@@ -85,6 +85,7 @@ div.csl-indent {
 <script src="../../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../../">
+<link href="../../ai/jxai/jxai_augmentation.html" rel="next">
 <link href="../../ai/jxai/jxai_preprocess.html" rel="prev">
 <link href="../..//img/favicon_sfu.png" rel="icon" type="image/png">
 <script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
@@ -589,6 +590,30 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
  <span class="menu-text">DataLoaders</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ai/jxai/jxai_augmentation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data augmentation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ai/jxai/jxai_model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model and training strategy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ai/jxai/jxai_training.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Training</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ai/jxai/jxai_resources.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resources</span></a>
+  </div>
+</li>
           <li class="px-0"><hr class="sidebar-divider hi "></li>
       </ul>
   </li>
@@ -911,40 +936,45 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <p>To be replaced by actual path: in our training cluster, the <code>base_dir</code> is at <code>/project/def-sponsor00/nabirds</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>base_dir <span class="op">=</span> <span class="st">'/project/def-sponsor00/nabirds'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="6540df4d" class="cell" data-execution_count="3">
+<div id="983c7506" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> imageio.v3 <span class="im">as</span> iio</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> grain.python <span class="im">as</span> grain</span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> pl.read_parquet(<span class="st">'metadata.parquet'</span>)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>metadata_train <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">'is_training_img'</span>) <span class="op">==</span> <span class="dv">1</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>metadata_val <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">'is_training_img'</span>) <span class="op">==</span> <span class="dv">0</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>cleaned_img_dir <span class="op">=</span> os.path.join(base_dir, <span class="st">'cleaned_images'</span>)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NABirdsDataset(grain.RandomAccessDataSource):</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""NABirds dataset class."""</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, metadata_file, data_dir):</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.metadata_file <span class="op">=</span> metadata_file</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.data_dir <span class="op">=</span> data_dir</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__len__</span>(<span class="va">self</span>):</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">len</span>(<span class="va">self</span>.metadata_file)</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__getitem__</span>(<span class="va">self</span>, idx):</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        path <span class="op">=</span> os.path.join(<span class="va">self</span>.data_dir, <span class="va">self</span>.metadata_file.get_column(<span class="st">'path'</span>)[idx])</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> iio.imread(path)</span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        species <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">'species'</span>)[idx].replace(<span class="st">'_'</span>, <span class="st">' '</span>)</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        photographer <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">'photographer'</span>)[idx].replace(<span class="st">'_'</span>, <span class="st">' '</span>)</span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>            <span class="st">'img'</span>: img,</span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>            <span class="st">'species'</span>: species,</span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>            <span class="st">'photographer'</span>: photographer,</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        }</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>nabirds_train <span class="op">=</span> NABirdsDataset(metadata_train, cleaned_img_dir)</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>nabirds_val <span class="op">=</span> NABirdsDataset(metadata_val, cleaned_img_dir)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> pl.read_parquet(<span class="st">'metadata.parquet'</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>metadata_train <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">'is_training_img'</span>) <span class="op">==</span> <span class="dv">1</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>metadata_val <span class="op">=</span> metadata.<span class="bu">filter</span>(pl.col(<span class="st">'is_training_img'</span>) <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>cleaned_img_dir <span class="op">=</span> os.path.join(base_dir, <span class="st">'cleaned_images'</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NABirdsDataset:</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""NABirds dataset class."""</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, metadata_file, data_dir):</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.metadata_file <span class="op">=</span> metadata_file</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.data_dir <span class="op">=</span> data_dir</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__len__</span>(<span class="va">self</span>):</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">len</span>(<span class="va">self</span>.metadata_file)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__getitem__</span>(<span class="va">self</span>, idx):</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        path <span class="op">=</span> os.path.join(<span class="va">self</span>.data_dir, <span class="va">self</span>.metadata_file.get_column(<span class="st">'path'</span>)[idx])</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        img <span class="op">=</span> iio.imread(path)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        species_name <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">'species_name'</span>)[idx]</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        species_id <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">'species_id'</span>)[idx]</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        photographer <span class="op">=</span> <span class="va">self</span>.metadata_file.get_column(<span class="st">'photographer'</span>)[idx]</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>            <span class="st">'img'</span>: img,</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>            <span class="st">'species_name'</span>: species_name,</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>            <span class="st">'species_id'</span>: species_id,</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>            <span class="st">'photographer'</span>: photographer,</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>nabirds_train <span class="op">=</span> NABirdsDataset(metadata_train, cleaned_img_dir)</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>nabirds_val <span class="op">=</span> NABirdsDataset(metadata_val, cleaned_img_dir)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
@@ -952,7 +982,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <section id="goal-of-dataloaders" class="level2">
 <h2 class="anchored" data-anchor-id="goal-of-dataloaders">Goal of DataLoaders</h2>
 <p>We can access elements of our Dataset class (as we did in the previous section) with:</p>
-<div id="26de674c" class="cell" data-execution_count="4">
+<div id="b81a8c0f" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, element <span class="kw">in</span> <span class="bu">enumerate</span>(nabirds_train):</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(element[<span class="st">'img'</span>].shape)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> i <span class="op">==</span> <span class="dv">3</span>:</span>
@@ -965,9 +995,9 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 <p>And we can return the next object by creating an iterator from of iterable dataset:</p>
-<div id="ac6e75b2" class="cell" data-execution_count="5">
+<div id="a5facce8" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="bu">next</span>(<span class="bu">iter</span>(nabirds_train))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display" data-execution_count="4">
+<div class="cell-output cell-output-display" data-execution_count="16">
 <pre><code>{'img': array([[[0, 0, 0],
          [0, 0, 0],
          [0, 0, 0],
@@ -1017,7 +1047,8 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
          [0, 0, 0],
          [0, 0, 0],
          [0, 0, 0]]], shape=(269, 269, 3), dtype=uint8),
- 'species': 'Eared Grebe',
+ 'species_name': 'Eared Grebe',
+ 'species_id': 145,
  'photographer': 'Laura Erickson'}</code></pre>
 </div>
 </div>
@@ -1143,7 +1174,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <section id="sequential-sampler" class="level3">
 <h3 class="anchored" data-anchor-id="sequential-sampler">Sequential sampler</h3>
 <p>Grain comes with a <a href="https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.SequentialSampler.html">basic sequential sampler</a>.</p>
-<div id="26ddcb86" class="cell" data-execution_count="6">
+<div id="8b0d6850" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> grain.python <span class="im">as</span> grain</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>nabirds_train_seqsampler <span class="op">=</span> grain.SequentialSampler(</span>
@@ -1163,7 +1194,7 @@ RecordMetadata(index=3, record_key=3, rng=None)</code></pre>
 <section id="index-sampler" class="level3">
 <h3 class="anchored" data-anchor-id="index-sampler">Index sampler</h3>
 <p>Grain <a href="https://google-grain.readthedocs.io/en/latest/_autosummary/grain.samplers.IndexSampler.html">index sampler</a> is the one you should use as it allows for global shuffling of the dataset, setting the number of epochs, etc.</p>
-<div id="0ed0001e" class="cell" data-execution_count="7">
+<div id="3b0de656" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_isampler <span class="op">=</span> grain.IndexSampler(</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    num_records<span class="op">=</span><span class="dv">200</span>,</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">True</span>,</span>
@@ -1187,7 +1218,7 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 <h2 class="anchored" data-anchor-id="lets-experiment-with-dataloaders">Let’s experiment with DataLoaders</h2>
 <section id="with-sequential-sampler" class="level3">
 <h3 class="anchored" data-anchor-id="with-sequential-sampler">With sequential sampler</h3>
-<div id="d266a0e8" class="cell" data-execution_count="8">
+<div id="dbd453a8" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_dl <span class="op">=</span> grain.DataLoader(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    data_source<span class="op">=</span>nabirds_train,</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">=</span>nabirds_train_seqsampler,</span>
@@ -1195,7 +1226,7 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>We can plot images in this sequential DataLoader:</p>
-<div id="d87f8d6d" class="cell" data-execution_count="9">
+<div id="b1c1591e" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">9</span>))</span>
@@ -1205,7 +1236,7 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 <span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
 <span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    ax.set_title(</span>
 <span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"""</span></span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="ss">        </span><span class="sc">{</span>element[<span class="st">'species'</span>]<span class="sc">}</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="ss">        </span><span class="sc">{</span>element[<span class="st">'species_name'</span>]<span class="sc">}</span></span>
 <span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="ss">        Picture by </span><span class="sc">{</span>element[<span class="st">'photographer'</span>]<span class="sc">}</span></span>
 <span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="ss">        """</span>,</span>
 <span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        fontsize<span class="op">=</span><span class="dv">9</span>,</span>
@@ -1230,7 +1261,7 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 </section>
 <section id="with-index-sampler" class="level3">
 <h3 class="anchored" data-anchor-id="with-index-sampler">With index sampler</h3>
-<div id="82875444" class="cell" data-execution_count="10">
+<div id="ce0bd08b" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_dl <span class="op">=</span> grain.DataLoader(</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    data_source<span class="op">=</span>nabirds_train,</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">=</span>nabirds_train_isampler,</span>
@@ -1238,7 +1269,7 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Let’s plot these as well:</p>
-<div id="dc2ab52f" class="cell" data-execution_count="11">
+<div id="f7d87f6b" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">9</span>))</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, element <span class="kw">in</span> <span class="bu">enumerate</span>(nabirds_train_dl):</span>
@@ -1246,7 +1277,7 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    ax.set_title(</span>
 <span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"""</span></span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="ss">        </span><span class="sc">{</span>element[<span class="st">'species'</span>]<span class="sc">}</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="ss">        </span><span class="sc">{</span>element[<span class="st">'species_name'</span>]<span class="sc">}</span></span>
 <span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="ss">        Picture by </span><span class="sc">{</span>element[<span class="st">'photographer'</span>]<span class="sc">}</span></span>
 <span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="ss">        """</span>,</span>
 <span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        fontsize<span class="op">=</span><span class="dv">9</span>,</span>
@@ -1269,7 +1300,7 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 <section id="adding-batch-sizes" class="level3">
 <h3 class="anchored" data-anchor-id="adding-batch-sizes">Adding batch sizes</h3>
 <p>You can add the batch size in the <code>operations</code> argument of <code>grain.DataLoader</code>:</p>
-<div id="2064b861" class="cell" data-execution_count="12">
+<div id="eb115496" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>nabirds_train_dl <span class="op">=</span> grain.DataLoader(</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    data_source<span class="op">=</span>nabirds_train,</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">=</span>nabirds_train_isampler,</span>
@@ -1280,9 +1311,9 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
 <span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Now we can access the next batch with:</p>
-<div id="287da4c6" class="cell" data-execution_count="13">
+<div id="bdd1b105" class="cell" data-execution_count="13">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="bu">next</span>(<span class="bu">iter</span>(nabirds_train_dl))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display" data-execution_count="12">
+<div class="cell-output cell-output-display" data-execution_count="24">
 <pre><code>{'img': array([[[[ 0,  0,  0],
           [ 0,  0,  0],
           [ 0,  0,  0],
@@ -1600,7 +1631,10 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
         'Muriel Neddermeyer', 'Conrad Tan', 'Tripp Davenport',
         'Bill Schmoker', 'Chris Cochems', 'Terry Gray', 'Davor Desancic',
         'Terry Gray'], dtype='&lt;U34'),
- 'species': array(['Western Kingbird', 'Bald Eagle', 'House Finch', 'Carolina Wren',
+ 'species_id': array([367,  22, 202, 105, 207, 134,  65, 359, 156, 112, 236, 269,  24,
+        384, 347, 276, 142, 145, 339, 231,  28, 228,  22,  17, 316, 350,
+         87, 370, 267, 252, 384, 295]),
+ 'species_name': array(['Western Kingbird', 'Bald Eagle', 'House Finch', 'Carolina Wren',
         'Indigo Bunting', 'Common Yellowthroat', 'Blue-winged Teal ',
         'Verdin', 'Field Sparrow', 'Cedar Waxwing', 'Mottled Duck',
         'Palm Warbler', 'Band-tailed Pigeon', 'White-winged Dove',
@@ -2035,6 +2069,9 @@ RecordMetadata(index=3, record_key=136, rng=Generator(Philox))</code></pre>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
+      <a href="../../ai/jxai/jxai_augmentation.html" class="pagination-link" aria-label="Data augmentation">
+        <span class="nav-page-text">Data augmentation</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
   </div>
 </nav>
 </div> <!-- /content -->
