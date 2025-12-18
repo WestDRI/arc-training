@@ -3,11 +3,14 @@ title: Model and training strategy
 author: Marie-Hélène Burle
 bibliography: jxai.bib
 csl: diabetologia.csl
+resources: img/polarbears.jpg
 ---
 
 :::{.def}
 
+In this section, we think about what deep learning technique, what model architecture, what weights, what specific packages to use for our classification task.
 
+Then we create our model.
 
 :::
 
@@ -40,6 +43,9 @@ import os
 import polars as pl
 import imageio.v3 as iio
 import grain.python as grain
+import dm_pix as pix
+import numpy as np
+from jax import random
 
 
 metadata = pl.read_parquet('metadata.parquet')
@@ -61,18 +67,136 @@ class NABirdsDataset:
     def __getitem__(self, idx):
         path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
         img = iio.imread(path)
-        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
-        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        species_name = self.metadata_file.get_column('species_name')[idx]
+        species_id = self.metadata_file.get_column('species_id')[idx]
+        photographer = self.metadata_file.get_column('photographer')[idx]
 
         return {
             'img': img,
-            'species': species,
+            'species_name': species_name,
+            'species_id': species_id,
             'photographer': photographer,
         }
 
 
 nabirds_train = NABirdsDataset(metadata_train, cleaned_img_dir)
 nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
+
+
+class Normalize(grain.MapTransform):
+    def map(self, element):
+        img = element['img']
+        mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        img = img.astype(np.float32) / 255.0
+        img_norm = (img - mean) / std
+        element['img'] = img_norm
+        return element
+
+
+class ToFloat(grain.MapTransform):
+    def map(self, element):
+        element['img'] = element['img'].astype(np.float32) / 255.0
+        return element
+
+
+key = random.key(31)
+key, subkey1, subkey2, subkey3, subkey4 = random.split(key, num=5)
+
+
+class RandomCrop(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_crop(
+            key=subkey1,
+            image=element['img'],
+            crop_sizes=(224, 224, 3)
+        )
+        return element
+
+
+class RandomFlip(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_flip_left_right(
+            key=subkey2,
+            image=element['img']
+        )
+        return element
+
+
+class RandomContrast(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_contrast(
+            key=subkey3,
+            image=element['img'],
+            lower=0.8,
+            upper=1.2
+        )
+        return element
+
+
+class RandomGamma(grain.MapTransform):
+    def map(self, element):
+        element['img'] = pix.random_gamma(
+            key=subkey4,
+            image=element['img'],
+            min_gamma=0.6,
+            max_gamma=1.2
+        )
+        return element
+
+
+class ZScore(grain.MapTransform):
+    def map(self, element):
+        img = element['img']
+        mean = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        std = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        img = (img - mean) / std
+        element['img'] = img
+        return element
+
+
+seed = 123
+train_batch_size = 32
+val_batch_size = 2 * train_batch_size
+
+train_sampler = grain.IndexSampler(
+    num_records=len(nabirds_train),
+    shuffle=True,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=None
+)
+
+train_loader = grain.DataLoader(
+    data_source=nabirds_train,
+    sampler=train_sampler,
+    operations=[
+        ToFloat(),
+        RandomCrop(),
+        RandomFlip(),
+        RandomContrast(),
+        RandomGamma(),
+        ZScore(),
+        grain.Batch(train_batch_size, drop_remainder=True)
+    ]
+)
+
+val_sampler = grain.IndexSampler(
+    num_records=len(nabirds_val),
+    shuffle=False,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1
+)
+
+val_loader = grain.DataLoader(
+    data_source=nabirds_val,
+    sampler=val_sampler,
+    operations=[
+        Normalize(),
+        grain.Batch(val_batch_size)
+    ]
+)
 ```
 
 :::
@@ -81,7 +205,7 @@ nabirds_val = NABirdsDataset(metadata_val, cleaned_img_dir)
 
 ### Technique
 
-
+Training a model from scratch (starting with random weights) is a loss of time and computing resources. The overall technique that we need to apply is [transfer learning](https://en.wikipedia.org/wiki/Transfer_learning)—that is, starting from weights pre-trained on a task similar to ours.
 
 ### Architecture
 
@@ -118,36 +242,45 @@ While the other options were CNN, [ViT](https://en.wikipedia.org/wiki/Vision_tra
 
 Which one to choose depends on the available hardware, libraries in the framework you want to use, and other practical considerations. If time permits, this is a good case of [experiment tracking](/ai/mlops/wb_mlflow) with [MLflow](https://github.com/mlflow/mlflow).
 
+We will go with the ViT option.
+
+But we have a problem.
+
+[Flax](https://github.com/google/flax) is the neural network library in the JAX AI stack. It comes with an older, challenging API called `Linen` and a more recent, easier, more Pythonic API called `NNX`. We want to use the latter.
+
+The problem is that Hugging Face Transformers has a Flax ViT model with a classification head (`transformers.FlaxViTForImageClassification`) which is exactly what we want, but it was built with the old [Flax Linen](https://flax-linen.readthedocs.io/en/latest/) API and there is no pretrained model built with NNX. So we need to build a ViT model from scratch with the NNX API and transfer the weights from the Linen ViT.
+
+After that, we can fine-tune with our dataset.
+
 ### Pre-trained weights
 
-
-### Choice of library
-
+We are doing fine-grained specialized image classification. An obvious place to start are weights pretrained on some general image classification dataset. The classic such dataset is [ImageNet](https://en.wikipedia.org/wiki/ImageNet)[@deng2009imagenet].
 
 ### Strategy summary
 
-Category | Answer
--- | -----
-Technique | Transfer learning
-Architecture | EfficientNet-B2 (EfficientNet-B0 or ResNet-50 are other reasonable options)
-Pre-trained weights | ImageNet
-Library | 
+Here is our plan at the highest level:
+
+Category | Our choice
+---- | ----
+Overall technique | Transfer learning
+Architecture | ViT with Flax NNX
+Pre-trained weights | Trained on ImageNet-21k
+ViT for which we can get the pre-trained weights | `transformers.FlaxViTForImageClassification`
 
 ## Implementation
 
-[Flax](https://github.com/google/flax) is the neural network library in the JAX AI stack.
+*This part of the course draws from [the ViT for image classification tutorial](https://docs.jaxstack.ai/en/latest/JAX_Vision_transformer.html).*
 
-[Hugging Face transformers](https://github.com/huggingface/transformers) package.
+### Define the model with Flax NNX
+
+First we define a ViT architecture from scratch using the Flax NNX API. The tutorial we draw from here itself uses [the original JAX-based implementation of the ViT](https://github.com/google-research/vision_transformer/) as described in [@dosovitskiy2021imageworth16x16words].
 
 ```{python}
 import jax
 import jax.numpy as jnp
 from flax import nnx
-import optax
-from transformers import FlaxViTForImageClassification
-```
 
-```{python}
+
 class VisionTransformer(nnx.Module):
     """ Implements the ViT model, inheriting from `flax.nnx.Module`.
 
@@ -306,21 +439,43 @@ class TransformerEncoder(nnx.Module):
         # The feed-forward network with layer normalization.
         x = x + self.mlp(self.norm2(x))
         return x
+```
 
-# Example usage for testing:
+Quick test to make sure the predictions have an expected shape:
+
+```{python}
 x = jnp.ones((4, 224, 224, 3))
 model = VisionTransformer(num_classes=1000)
 y = model(x)
 print('Predictions shape: ', y.shape)
 ```
 
+### Load pretrained weights
+
+The [Hugging Face Transformers](https://github.com/huggingface/transformers) package allows to load models and pretrained weights from the [Hugging Face Models Hub](https://huggingface.co/models)—the largest repository of open-weights models.
+
+We use it to import the ViT model built with the old Flax Linen API:
+
+```{python}
+from transformers import FlaxViTForImageClassification
+```
+
+Then we load [weights pretrained on ImageNet-21k at the 224x224 resolution](https://huggingface.co/google/vit-base-patch16-224) from the Hugging Face Models Hub:
+
 ```{python}
 tf_model = FlaxViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
 ```
 
+:::{.note}
+
+Note the warning about Transformers stopping support for TensorFlow and JAX starting at version 5. This is why we pinned the package at version 4 when we installed it.
+
+:::
+
+Now we copy the weights to our ViT model, reshaping layers to match the new architecture:
+
+
 ```{python}
-# Copies weights from a TF ViT model to a Flax ViT model, reshaping layers
-# to match the expected shapes in Flax.
 def vit_inplace_copy_weights(*, src_model, dst_model):
     assert isinstance(src_model, FlaxViTForImageClassification)
     assert isinstance(dst_model, VisionTransformer)
@@ -414,95 +569,84 @@ def vit_inplace_copy_weights(*, src_model, dst_model):
 vit_inplace_copy_weights(src_model=tf_model, dst_model=model)
 ```
 
+### Verify weights transfer
+
+To make sure the weights pretrained on ImageNet got transferred successfully to our ViT model, we perform inference on a single image (that I added to my website to make it easily available at a URL) using both the original model from Transformers and our model so that we can compare the two:
+
+```{python}
+import matplotlib.pyplot as plt
+from transformers import ViTImageProcessor
+from PIL import Image
+import requests
+
+url = "https://mint.westdri.ca/ai/jxai/img/polarbears.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+
+processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+
+inputs = processor(images=image, return_tensors="np")
+outputs = tf_model(**inputs)
+logits = outputs.logits
+
+
+model.eval()
+x = jnp.transpose(inputs["pixel_values"], axes=(0, 2, 3, 1))
+output = model(x)
+
+# Model predicts one of the 1000 ImageNet classes.
+ref_class_idx = logits.argmax(-1).item()
+pred_class_idx = output.argmax(-1).item()
+assert jnp.abs(logits[0, :] - output[0, :]).max() < 0.1
+
+fig, axs = plt.subplots(1, 2, figsize=(7, 9))
+
+for ax in axs:
+    ax.axis('off')
+
+plt.tight_layout()
+
+axs[0].set_title(
+    f"""
+    Reference model:
+    {tf_model.config.id2label[ref_class_idx]}
+    p={nnx.softmax(logits, axis=-1)[0, ref_class_idx]:.3f}
+    """,
+    fontsize=8
+)
+axs[0].imshow(image)
+
+axs[1].set_title(
+    f"""
+    Our model:
+    {tf_model.config.id2label[pred_class_idx]}
+    p={nnx.softmax(output, axis=-1)[0, pred_class_idx]:.3f}
+    """,
+    fontsize=8
+)
+axs[1].imshow(image)
+```
+
+:::{.figure-caption}
+
+Picture by Paul Zizka
+
+:::
+
+The weights transfer worked.
+
+### Adjust classifier
+
+We do not have 1000 classes (the default for our ViT model), but 405 (the bird species in our dataset). So we replace the classifier with a fully-connected layer returning 405 classes:
+
 ```{python}
 model.classifier = nnx.Linear(model.classifier.in_features, 405, rngs=nnx.Rngs(0))
 
-x = jnp.ones((4, 224, 224, 3))
-y = model(x)
+# Make sure the predictions shape with our tiny example got adjusted
 print('Predictions shape: ', y.shape)
 ```
 
-<!-- ```{python} -->
-<!-- import jax -->
-<!-- import jax.numpy as jnp -->
-<!-- from flax import nnx -->
-<!-- from flax.nnx import bridge -->
-<!-- from transformers import FlaxViTForImageClassification -->
+### Display model
 
-<!-- class NABirdsViT(nnx.Module): -->
-<!--     def __init__(self, num_classes, *, rngs: nnx.Rngs): -->
-<!--         # 1. Load the pre-trained Linen model structure & weights from Hugging Face -->
-<!--         hf_model = FlaxViTForImageClassification.from_pretrained( -->
-<!--             'google/vit-base-patch16-224', -->
-<!--             num_labels=num_classes, -->
-<!--             ignore_mismatched_sizes=True # Necessary to overwrite the 1000-class head -->
-<!--         ) -->
-
-<!--         # 2. Bridge the Linen module to NNX -->
-<!--         # 'hf_model.module' is the underlying Linen module -->
-<!--         # 'hf_model.params' contains the pre-trained weights -->
-<!--         self.backbone = bridge.ToNNX(hf_model.module, rngs=rngs) -->
-
-<!--         # 3. Initialize and Load Weights -->
-<!--         # ToNNX requires a lazy initialization to structure the variables -->
-<!--         dummy_input = jnp.zeros((1, 3, 224, 224)) # ResNet expects NCHW by default in HF -->
-<!--         self.backbone.lazy_init(dummy_input) -->
-
-<!--         # Extract the empty NNX state -->
-<!--         _, backbone_state = nnx.split(self.backbone) -->
-
-<!--         # Copy weights from the loaded HF model into the NNX state -->
-<!--         # We define a helper to recursively copy the dictionary structure -->
-<!--         def copy_weights(target_state, source_dict): -->
-<!--             for key, value in source_dict.items(): -->
-<!--                 if isinstance(value, dict) or hasattr(value, 'items'): -->
-<!--                     copy_weights(target_state[key], value) -->
-<!--                 else: -->
-<!--                     # Assign the weight to the NNX Variable -->
-<!--                     target_state[key].value = value -->
-
-<!--         # HF stores weights in .params and batch stats in .batch_stats (if applicable) -->
-<!--         # We merge them to match the structure expected by the bridge -->
-<!--         full_linen_vars = {**hf_model.params} -->
-<!--         if hasattr(hf_model, 'batch_stats'): -->
-<!--             full_linen_vars['batch_stats'] = hf_model.batch_stats -->
-
-<!--         copy_weights(backbone_state, full_linen_vars) -->
-
-<!--         # Update the bridge with the loaded weights -->
-<!--         nnx.update(self.backbone, backbone_state) -->
-
-<!--     def __call__(self, x): -->
-<!--         # HF ResNet expects NCHW format (channels first) -->
-<!--         # If your data is NHWC (standard for JAX), transpose it: -->
-<!--         # x = jnp.transpose(x, (0, 3, 1, 2)) -->
-
-<!--         # Run the bridged model -->
-<!--         logits = self.backbone(x).logits -->
-<!--         return logits -->
-<!-- ``` -->
-
-<!-- Initialize the model: -->
-
-<!-- ```{python} -->
-<!-- rngs = nnx.Rngs(params=0, dropout=1) -->
-<!-- model = NABirdsViT(num_classes=405, rngs=rngs) -->
-<!-- ``` -->
-
-<!-- Test forward pass: -->
-
-<!-- ```{python} -->
-<!-- dummy_img = jax.random.normal(jax.random.key(0), (1, 3, 224, 224)) -->
-<!-- logits = model(dummy_img) -->
-<!-- print(f"Output shape: {logits.shape}") # (1, 555) -->
-<!-- ``` -->
-
-<!-- Forward pass: -->
-
-<!-- ```{python} -->
-<!-- x = jax.random.normal(jax.random.key(0), (1, 224, 224, 3)) -->
-<!-- logits = model(x) -->
-
-<!-- print(f"Logits shape: {logits.shape}") # (1, 555) -->
-<!-- print("Model initialized and pre-trained weights loaded via NNX bridge.") -->
-<!-- ``` -->
+```{python}
+nnx.display(model)
+```

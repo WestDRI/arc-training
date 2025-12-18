@@ -61,12 +61,14 @@ class NABirdsDataset:
     def __getitem__(self, idx):
         path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
         img = iio.imread(path)
-        species = self.metadata_file.get_column('species')[idx].replace('_', ' ')
-        photographer = self.metadata_file.get_column('photographer')[idx].replace('_', ' ')
+        species_name = self.metadata_file.get_column('species_name')[idx]
+        species_id = self.metadata_file.get_column('species_id')[idx]
+        photographer = self.metadata_file.get_column('photographer')[idx]
 
         return {
             'img': img,
-            'species': species,
+            'species_name': species_name,
+            'species_id': species_id,
             'photographer': photographer,
         }
 
@@ -296,6 +298,36 @@ class Normalize(grain.MapTransform):
         return element
 ```
 
+:::{.callout-tip collapse="true"}
+
+## Equivalent using PyTorch
+
+TorchVision comes with many transformations, but custom Transforms can also be written in PyTorch. Here is an example for a simple normalization and casting of images:
+
+```{.python}
+class NormAndCastPyTorch(object):
+    """Transform class to normalize and cast images to float32."""
+    def __call__(self, element):
+        element['img'] = np.asarray(element['img'], dtype=np.float32) / 255.0
+        return element
+```
+
+To combine multiple Transforms, you use [`torchvision.transforms.Compose`](https://docs.pytorch.org/vision/0.8/transforms.html#torchvision.transforms.Compose), one of the [TorchVision Transforms](https://docs.pytorch.org/vision/0.8/transforms.html) (or you can use the newer [transforms v2](https://docs.pytorch.org/vision/main/auto_examples/transforms/plot_transforms_getting_started.html)).
+
+In PyTorch, you would apply the Transforms as you instantiate your Dataset class since the Dataset class has a `transform` argument in which to pass them:
+
+```{.python}
+nabirds_norm_train_pytorch = NABirdsDataset(
+    metadata_train,
+    os.path.join(base_dir, img_dir),
+    transform=NormAndCastPyTorch()
+)
+```
+
+With Grain, you pass the combined Transforms as an argument of the DataLoader class, as we will see later.
+
+:::
+
 ### Our augmentation strategy
 
 :::{.callout-note collapse="true"}
@@ -303,8 +335,6 @@ class Normalize(grain.MapTransform):
 ## Pseudorandom numbers in JAX
 
 Because we apply random transformations to our data, we need to talk about [pseudorandom numbers in JAX](https://docs.jax.dev/en/latest/random-numbers.html#random-numbers-in-jax).
-
-**TL;DR**
 
 JAX has a mechanism to handle pseudorandom number generation (PRNG) that solves the problems that the PRNG mechanisms used by NumPy, Julia, R, and many other languages suffer from: parallelization and vectorization.
 
@@ -332,7 +362,7 @@ Now, you can use `subkey` in the next random function. And if later on you need 
 You can also create multiple new keys at once:
 
 ```{.python}
-key, subkey1, subkey2, subkey3 = random.split(key)
+key, subkey1, subkey2, subkey3 = random.split(key, num=4)
 ```
 
 :::
@@ -416,7 +446,7 @@ train_sampler = grain.IndexSampler(
     shuffle=True,                      # We shuffle the training set
     seed=seed,
     shard_options=grain.NoSharding(),  # No sharding for a single-device setup
-    num_epochs=1
+    num_epochs=None                    # The default (infinite stream of data)
 )
 
 # Train set DataLoader:
@@ -448,7 +478,8 @@ train_batch = next(iter(train_loader))
 print(f"""
 training batch info:
 - img shape is {train_batch['img'].shape} and data type is {train_batch['img'].dtype}
-- species shape is {train_batch['species'].shape} and data type is {train_batch['species'].dtype}
+- species_name shape is {train_batch['species_name'].shape} and data type is {train_batch['species_name'].dtype}
+- species_id shape is {train_batch['species_id'].shape} and data type is {train_batch['species_id'].dtype}
 - photographer shape is {train_batch['photographer'].shape} and data type is {train_batch['photographer'].dtype}
 """)
 ```
@@ -465,7 +496,7 @@ for i in range(12):
     plt.tight_layout()
     ax.set_title(
         f"""
-        {train_batch['species'][i]}
+        {train_batch['species_name'][i]}
         Picture by {train_batch['photographer'][i]}
         """,
         fontsize=7,
@@ -563,7 +594,7 @@ for i in range(12):
     plt.tight_layout()
     ax.set_title(
         f"""
-        {train_batch['species'][i]}
+        {train_batch['species_name'][i]}
         Picture by {train_batch['photographer'][i]}
         """,
         fontsize=7,
@@ -624,7 +655,8 @@ val_batch = next(iter(val_loader))
 print(f"""
 Validation batch info:
 - img shape is {val_batch['img'].shape} and data type is {val_batch['img'].dtype}
-- species shape is {val_batch['species'].shape} and data type is {val_batch['species'].dtype}
+- species_name shape is {val_batch['species_name'].shape} and data type is {val_batch['species_name'].dtype}
+- species_id shape is {val_batch['species_id'].shape} and data type is {val_batch['species_id'].dtype}
 - photographer shape is {val_batch['photographer'].shape} and data type is {val_batch['photographer'].dtype}
 """)
 ```
@@ -640,7 +672,7 @@ for i in range(12):
     plt.tight_layout()
     ax.set_title(
         f"""
-        {val_batch['species'][i]}
+        {val_batch['species_name'][i]}
         Picture by {val_batch['photographer'][i]}
         """,
         fontsize=7,

@@ -281,7 +281,7 @@ size_file = os.path.join(base_dir, 'sizes.txt')
 train_test_split_file = os.path.join(base_dir, 'train_test_split.txt')
 ```
 
-## Create a metadata DataFrame
+## Create a DataFrame
 
 Now it's time to put all the data together in one DataFrame.
 
@@ -305,7 +305,7 @@ class_id = pl.read_csv(
 )
 ```
 
-The `class_id_to_name_file` is also fairly complicated: some bird species name are followed by additional information (e.g. "Adult" or "Immature") in parenthesis. If we want to train a model to identify bird species (rather than classes including the subcategories), we need to separate the two.
+The `class_id_to_name_file` is also fairly complicated: some bird species name are followed by additional information (e.g. "Adult" or "Immature") in parenthesis. If we want to train a model to identify bird species (rather than classes including the subcategories), we need to separate the two (see also section below for more explanations on this).
 
 :::{.notenoit}
 
@@ -380,12 +380,56 @@ classes_metadata = (
 Finally, we combine all the DataFrames:
 
 ```{python}
-metadata = (
+initial_metadata = (
     bb.join(classes_metadata, on='UUID')
     .join(path, on='UUID')
     .join(photographer, on='UUID')
     .join(size, on='UUID')
     .join(train_test_split, on='UUID')
+)
+```
+
+## Format strings
+
+We now have all those underscores in the `species`, `subcategory`, and `photographer` columns. We needed them to read in the files properly into DataFrames, but we now want to format those strings properly:
+
+```{python}
+formatted_metadata = initial_metadata.with_columns(
+    pl.col('species').str.replace_all(r'_', ' ').alias('species_name'),
+    pl.col('subcategory').str.replace_all(r'_', ' '),
+    pl.col('photographer').str.replace_all(r'_', ' ')
+).drop('species')
+```
+
+:::{.note}
+
+We are also renaming `species` to `species_name` because we will add a `species_id` in the section below.
+
+:::
+
+## Create species mapping
+
+We could use `class_id` as our training labels. The problem with that is that not all the labels are disjunct. For instance:
+
+- `class_id` 175 is the `species` Red-shouldered Haw with the `subcategory` None
+- `class_id` 359 is the `species` Red-shouldered Haw with the `subcategory` Adult
+- `class_id` 658 is the `species` Red-shouldered Haw with the `subcategory` Immature
+
+And a Red-shouldered Haw is either an immature or an adult. So `class_id` 175 overlaps with either of the other two. This is not good to train our model.
+
+[This emphasizes that you need to know your data very well before you start training a model with it. It is important to spend the time to explore it at length, otherwise the training will fail or perform poorly and you will not understand why.]{.emph}
+
+There is an additional file in this dataset called `hierarchy.txt` that gives a hierarchy of the various classes. In the example above, this shows that both 658 and 359 fall under the category 175. So we could play with that to solve the problem.
+
+In this exercise though, I decided that I didn't want to train a model that identifies birds at the level of these categories (Red-shouldered Haw adult vs Red-shouldered Haw immature), but at the level of the species (i.e. simply Red-shouldered Haw).
+
+**How you approach this depends on the model you want to create and what exactly you want it to be able to do.**
+
+If we use `species` as the labels, we need to create a mapping for them because models cannot calculate loss on strings—they need numeric labels corresponding to the output neurons of your final layer. So we need to associate each `species` with an integer. This can be done directly in a Polars DataFrame with a dense ranking:
+
+```{python}
+metadata = formatted_metadata.with_columns(
+    pl.col('species_name').rank('dense').alias('species_id')
 )
 ```
 
@@ -485,7 +529,7 @@ There are:
 
 ```{python}
 class_id = metadata.unique(pl.col('class_id'))
-species = metadata.unique(pl.col('species'))
+species = metadata.unique(pl.col('species_id'))
 print(f"There are {len(class_id)} different classes and {len(species)} different species in the dataset.")
 ```
 
@@ -498,7 +542,7 @@ with an average of {round(train_class_id_group_length.select(pl.mean('len')).ite
 ```
 
 ```{python}
-train_species_group_length = metadata_train.group_by(pl.col('species')).len()
+train_species_group_length = metadata_train.group_by(pl.col('species_id')).len()
 print(f"""
 The number of images per species in the training set varies from {train_species_group_length.select(pl.min('len')).item()} to {train_species_group_length.select(pl.max('len')).item()},
 with an average of {round(train_species_group_length.select(pl.mean('len')).item())} images per species.
