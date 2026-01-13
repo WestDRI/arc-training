@@ -57,19 +57,19 @@ cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
 class NABirdsDataset:
     """NABirds dataset class."""
 
-    def __init__(self, metadata_file, data_dir):
-        self.metadata_file = metadata_file
+    def __init__(self, metadata, data_dir):
+        self.metadata = metadata
         self.data_dir = data_dir
 
     def __len__(self):
-        return len(self.metadata_file)
+        return len(self.metadata)
 
     def __getitem__(self, idx):
-        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
+        path = os.path.join(self.data_dir, self.metadata.get_column('path')[idx])
         img = iio.imread(path)
-        species_name = self.metadata_file.get_column('species_name')[idx]
-        species_id = self.metadata_file.get_column('species_id')[idx]
-        photographer = self.metadata_file.get_column('photographer')[idx]
+        species_name = self.metadata.get_column('species_name')[idx]
+        species_id = self.metadata.get_column('species_id')[idx]
+        photographer = self.metadata.get_column('photographer')[idx]
 
         return {
             'img': img,
@@ -281,6 +281,61 @@ import jax.numpy as jnp
 from flax import nnx
 
 
+class TransformerEncoder(nnx.Module):
+    """
+    A single transformer encoder block in the ViT model, inheriting from `flax.nnx.Module`.
+
+    Args:
+        hidden_size (int): Input/output embedding dimensionality.
+        mlp_dim (int): Dimension of the feed-forward/MLP block hidden layer.
+        num_heads (int): Number of attention heads.
+        dropout_rate (float): Dropout rate. Defaults to 0.0.
+        rngs (flax.nnx.Rngs): A set of named `flax.nnx.RngStream` objects that generate a stream of JAX pseudo-random number generator (PRNG) keys. Defaults to `flax.nnx.Rngs(0)`.
+    """
+    def __init__(
+        self,
+        hidden_size: int,
+        mlp_dim: int,
+        num_heads: int,
+        dropout_rate: float = 0.0,
+        *,
+        rngs: nnx.Rngs = nnx.Rngs(0),
+    ) -> None:
+        # First layer normalization using `flax.nnx.LayerNorm`
+        # before we apply Multi-Head Attentn.
+        self.norm1 = nnx.LayerNorm(hidden_size, rngs=rngs)
+        # The Multi-Head Attention layer (using `flax.nnx.MultiHeadAttention`).
+        self.attn = nnx.MultiHeadAttention(
+            num_heads=num_heads,
+            in_features=hidden_size,
+            dropout_rate=dropout_rate,
+            broadcast_dropout=False,
+            decode=False,
+            deterministic=False,
+            rngs=rngs,
+        )
+        # Second layer normalization using `flax.nnx.LayerNorm`.
+        self.norm2 = nnx.LayerNorm(hidden_size, rngs=rngs)
+
+        # The MLP for point-wise feedforward (using `flax.nnx.Sequential`, `flax.nnx.Linear, flax.nnx.Dropout`)
+        # with the GeLU activation function (`flax.nnx.gelu`).
+        self.mlp = nnx.Sequential(
+            nnx.Linear(hidden_size, mlp_dim, rngs=rngs),
+            nnx.gelu,
+            nnx.Dropout(dropout_rate, rngs=rngs),
+            nnx.Linear(mlp_dim, hidden_size, rngs=rngs),
+            nnx.Dropout(dropout_rate, rngs=rngs),
+        )
+
+    # The forward pass through the transformer encoder block.
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # The Multi-Head Attention layer with layer normalization.
+        x = x + self.attn(self.norm1(x))
+        # The feed-forward network with layer normalization.
+        x = x + self.mlp(self.norm2(x))
+        return x
+
+
 class VisionTransformer(nnx.Module):
     """ Implements the ViT model, inheriting from `flax.nnx.Module`.
 
@@ -384,61 +439,6 @@ class VisionTransformer(nnx.Module):
 
         # Predict class probabilities based on the CLS token embedding.
         return self.classifier(x)
-
-
-class TransformerEncoder(nnx.Module):
-    """
-    A single transformer encoder block in the ViT model, inheriting from `flax.nnx.Module`.
-
-    Args:
-        hidden_size (int): Input/output embedding dimensionality.
-        mlp_dim (int): Dimension of the feed-forward/MLP block hidden layer.
-        num_heads (int): Number of attention heads.
-        dropout_rate (float): Dropout rate. Defaults to 0.0.
-        rngs (flax.nnx.Rngs): A set of named `flax.nnx.RngStream` objects that generate a stream of JAX pseudo-random number generator (PRNG) keys. Defaults to `flax.nnx.Rngs(0)`.
-    """
-    def __init__(
-        self,
-        hidden_size: int,
-        mlp_dim: int,
-        num_heads: int,
-        dropout_rate: float = 0.0,
-        *,
-        rngs: nnx.Rngs = nnx.Rngs(0),
-    ) -> None:
-        # First layer normalization using `flax.nnx.LayerNorm`
-        # before we apply Multi-Head Attentn.
-        self.norm1 = nnx.LayerNorm(hidden_size, rngs=rngs)
-        # The Multi-Head Attention layer (using `flax.nnx.MultiHeadAttention`).
-        self.attn = nnx.MultiHeadAttention(
-            num_heads=num_heads,
-            in_features=hidden_size,
-            dropout_rate=dropout_rate,
-            broadcast_dropout=False,
-            decode=False,
-            deterministic=False,
-            rngs=rngs,
-        )
-        # Second layer normalization using `flax.nnx.LayerNorm`.
-        self.norm2 = nnx.LayerNorm(hidden_size, rngs=rngs)
-
-        # The MLP for point-wise feedforward (using `flax.nnx.Sequential`, `flax.nnx.Linear, flax.nnx.Dropout`)
-        # with the GeLU activation function (`flax.nnx.gelu`).
-        self.mlp = nnx.Sequential(
-            nnx.Linear(hidden_size, mlp_dim, rngs=rngs),
-            nnx.gelu,
-            nnx.Dropout(dropout_rate, rngs=rngs),
-            nnx.Linear(mlp_dim, hidden_size, rngs=rngs),
-            nnx.Dropout(dropout_rate, rngs=rngs),
-        )
-
-    # The forward pass through the transformer encoder block.
-    def __call__(self, x: jax.Array) -> jax.Array:
-        # The Multi-Head Attention layer with layer normalization.
-        x = x + self.attn(self.norm1(x))
-        # The feed-forward network with layer normalization.
-        x = x + self.mlp(self.norm2(x))
-        return x
 ```
 
 Quick test to make sure the predictions have an expected shape:

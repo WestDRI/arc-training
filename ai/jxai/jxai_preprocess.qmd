@@ -59,24 +59,24 @@ import imageio.v3 as iio
 
 class NABirdsDataset:
     """NABirds dataset class."""
-    def __init__(self, metadata_file, data_dir):
-        self.metadata_file = metadata_file
+    def __init__(self, metadata, data_dir):
+        self.metadata = metadata
         self.data_dir = data_dir
     def __len__(self):
-        return len(self.metadata_file)
+        return len(self.metadata)
     def __getitem__(self, idx):
         path = os.path.join(
             self.data_dir,
-            self.metadata_file.get_column('path')[idx]
+            self.metadata.get_column('path')[idx]
         )
         img = iio.imread(path)
-        species_name = self.metadata_file.get_column('species_name')[idx]
-        species_id = self.metadata_file.get_column('species_id')[idx]
-        photographer = self.metadata_file.get_column('photographer')[idx]
-        bbx = self.metadata_file.get_column('bb_x')[idx]
-        bby = self.metadata_file.get_column('bb_y')[idx]
-        bbw = self.metadata_file.get_column('bb_width')[idx]
-        bbh = self.metadata_file.get_column('bb_height')[idx]
+        species_name = self.metadata.get_column('species_name')[idx]
+        species_id = self.metadata.get_column('species_id')[idx]
+        photographer = self.metadata.get_column('photographer')[idx]
+        bbx = self.metadata.get_column('bb_x')[idx]
+        bby = self.metadata.get_column('bb_y')[idx]
+        bbw = self.metadata.get_column('bb_width')[idx]
+        bbh = self.metadata.get_column('bb_height')[idx]
         element = {
             'img': img,
             'species_name': species_name,
@@ -107,25 +107,25 @@ from torch.utils.data import Dataset
 
 class NABirdsDatasetPyTorch(Dataset):
     """NABirds dataset class."""
-    def __init__(self, metadata_file, data_dir, transform=None):
-        self.metadata_file = metadata_file
+    def __init__(self, metadata, data_dir, transform=None):
+        self.metadata = metadata
         self.data_dir = data_dir
         self.transform = transform
     def __len__(self):
-        return len(self.metadata_file)
+        return len(self.metadata)
     def __getitem__(self, idx):
         path = os.path.join(
             self.data_dir,
-            self.metadata_file.get_column('path')[idx]
+            self.metadata.get_column('path')[idx]
         )
         img = iio.imread(path)
-        species_name = self.metadata_file.get_column('species_name')[idx]
-        species_id = self.metadata_file.get_column('species_id')[idx]
-        photographer = self.metadata_file.get_column('photographer')[idx]
-        bbx = self.metadata_file.get_column('bb_x')[idx]
-        bby = self.metadata_file.get_column('bb_y')[idx]
-        bbw = self.metadata_file.get_column('bb_width')[idx]
-        bbh = self.metadata_file.get_column('bb_height')[idx]
+        species_name = self.metadata.get_column('species_name')[idx]
+        species_id = self.metadata.get_column('species_id')[idx]
+        photographer = self.metadata.get_column('photographer')[idx]
+        bbx = self.metadata.get_column('bb_x')[idx]
+        bby = self.metadata.get_column('bb_y')[idx]
+        bbw = self.metadata.get_column('bb_width')[idx]
+        bbh = self.metadata.get_column('bb_height')[idx]
         element = {
             'img': img,
             'species_name': species_name,
@@ -238,15 +238,15 @@ import numpy as np
 
 class CleaningDataset:
     """Cleaning dataset class."""
-    def __init__(self, metadata_file, source_dir, target_dir, target_size, margin_factor):
-        self.metadata_file = metadata_file
+    def __init__(self, metadata, source_dir, target_dir, target_size, margin_factor):
+        self.metadata = metadata
         self.source_dir = source_dir
         self.target_dir = target_dir
         self.target_size = target_size
         self.margin_factor = margin_factor
 
     def __len__(self):
-        return len(self.metadata_file)
+        return len(self.metadata)
 
     def __getitem__(self, idx):
         """Returns cropped, resized image and save path."""
@@ -254,11 +254,11 @@ class CleaningDataset:
         # Build paths
         read_path = os.path.join(
             self.source_dir,
-            self.metadata_file.get_column('path')[idx]
+            self.metadata.get_column('path')[idx]
         )
         save_path = os.path.join(
             self.target_dir,
-            self.metadata_file.get_column('path')[idx]
+            self.metadata.get_column('path')[idx]
         )
 
         # Load image
@@ -273,10 +273,10 @@ class CleaningDataset:
             img = img[:,:,:3]
 
         # Get bounding box data
-        bbx = self.metadata_file.get_column('bb_x')[idx]
-        bby = self.metadata_file.get_column('bb_y')[idx]
-        bbw = self.metadata_file.get_column('bb_width')[idx]
-        bbh = self.metadata_file.get_column('bb_height')[idx]
+        bbx = self.metadata.get_column('bb_x')[idx]
+        bby = self.metadata.get_column('bb_y')[idx]
+        bbw = self.metadata.get_column('bb_width')[idx]
+        bbh = self.metadata.get_column('bb_height')[idx]
 
         # Crop image with a 20% margin:
         # 1. Get the image dimensions (to make sure we don't go out of bounds)
@@ -378,7 +378,7 @@ cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
 metadata_train = metadata.filter(pl.col('is_training_img') == 1)
 
 train_dataset_to_clean = CleaningDataset(
-    metadata_file=metadata_train,
+    metadata=metadata_train,
     source_dir=img_dir,
     target_dir=cleaned_img_dir,
     target_size=269,              # 224 with a 20% margin
@@ -393,7 +393,7 @@ And let's create an instance for the validation set:
 metadata_val = metadata.filter(pl.col('is_training_img') == 0)
 
 val_dataset_to_clean = CleaningDataset(
-    metadata_file=metadata_val,
+    metadata=metadata_val,
     source_dir=img_dir,
     target_dir=cleaned_img_dir,
     target_size=224,
@@ -490,19 +490,19 @@ Now we can create a new, simplified Dataset class (we don't need the bounding bo
 ```{python}
 class NABirdsDataset:
     """NABirds dataset class."""
-    def __init__(self, metadata_file, data_dir):
-        self.metadata_file = metadata_file
+    def __init__(self, metadata, data_dir):
+        self.metadata = metadata
         self.data_dir = data_dir
 
     def __len__(self):
-        return len(self.metadata_file)
+        return len(self.metadata)
 
     def __getitem__(self, idx):
-        path = os.path.join(self.data_dir, self.metadata_file.get_column('path')[idx])
+        path = os.path.join(self.data_dir, self.metadata.get_column('path')[idx])
         img = iio.imread(path)
-        species_name = self.metadata_file.get_column('species_name')[idx]
-        species_id = self.metadata_file.get_column('species_id')[idx]
-        photographer = self.metadata_file.get_column('photographer')[idx]
+        species_name = self.metadata.get_column('species_name')[idx]
+        species_id = self.metadata.get_column('species_id')[idx]
+        photographer = self.metadata.get_column('photographer')[idx]
         element = {
             'img': img,
             'species_name': species_name,
