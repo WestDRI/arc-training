@@ -1,0 +1,163 @@
+---
+title: Next steps for harder problems
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+Fine-tuning a classification model shouldn't take many epochs and this approach is sufficient for our example.
+
+For some problems however, you will need a lot more training. In that case, there are additional steps you need to take.
+
+:::
+
+## Checkpointing
+
+Checkpointing becomes essential if you train for a long time. This will save you from loosing hours, days, or weeks of training if something happens (cluster issue, power outage, computer failure, training interruption...)
+
+[Orbax](https://github.com/google-deepmind/optax)—which we used to save the trained model—also provides a checkpointing management API for JAX.
+
+To create a checkpointing schedule and delete checkpoints as they become unnecessary while your training adds new ones, follow [this template](https://orbax.readthedocs.io/en/latest/guides/checkpoint/orbax_checkpoint_101.html#managing-checkpoints).
+
+## Stopping
+
+If the training is very long, how do you know how many epochs you need to choose?
+
+You don't want to take a random guess. You also don't want to spend your days and nights staring at TensorBoard or MLflow. So you need to set things up to have the training stop automatically.
+
+### Monitoring
+
+The training loss always goes down (eventually to 0) as the accuracy keeps going up. So **what you want to monitor is the validation loss**.
+
+The validation loss should go down as the model improves, then flatten out, and eventually start going up again as you start overfitting. At that point, the model is learning all the idiosyncrasies of the training set (which is why it is doing better and better on it), to a point that it is learning features that are not applicable to images that are not part of the training set (hence why the validation loss starts to deteriorate).
+
+### Early stopping
+
+The way to set things up for automatic stopping is to choose a large number of epochs (e.g. 50)—many more than you expect to need, and stop the model when the validation loss goes up.
+
+You can use, for instance, an if/else statement to automatically stop training when you get to that point.
+
+To be more sophisticated, instead of stopping as soon as this happens, one hyperparameter that can be set is **patience**.
+
+**Patience** is the number of epochs the model should continue training after the validation loss goes up (usually 3 to 5). This allows the model to recover from temporary plateaus and avoids the problem of [double descent](https://en.wikipedia.org/wiki/Double_descent).
+
+Once that patience value is reached, you should use the checkpoint for the best validation loss (before the patience period) as your trained model.
+
+## Using the Alliance clusters
+
+### Move data to the cluster
+
+First you need to move the data and your script to the cluster.
+
+We already covered how to move data to a cluster [in a previous section](jxai_getdata#transfer-data-to-clusters.qmd).
+
+Copying [your script](jxai_inference.html#training-script-with-main.qmd) to the cluster can be done *from your computer* with:
+
+```{.python}
+scp local/path username@hostname:remote/path
+```
+
+:::{.note}
+
+Replace `hostname` by the hostname for the cluster you are using (e.g. `fir.alliancecan.ca`).
+
+:::
+
+### Write a Slurm script
+
+Then you need to write a Bash script for the Slurm scheduler. Something that might look like:
+
+```{.bash filename="nabirds.sh"}
+#!/bin/bash
+#SBATCH --account=def-<name>
+#SBATCH --time=8:0:0
+#SBATCH --mem=50G
+#SBATCH --gpus-per-node=2
+
+module load python/3.11.5
+source ~/env/bin/activate
+
+python main.py
+```
+
+:::{.note}
+
+Replace `<name>` by your Alliance account name.
+
+This assumes that you have a Python virtual environment in `~/env` with all necessary packages installed.
+
+Take our intro to HPC course and read [the wiki page on how to run jobs](https://docs.alliancecan.ca/wiki/Running_jobs) for more info.
+
+:::
+
+### Run the script
+
+```{.bash}
+sbatch nabirds.sh
+```
+
+### Monitor the job
+
+To see whether your job is still running and to get the job ID, you can use the Alliance alias:
+
+```{.bash}
+sq
+```
+
+:::{.note}
+
+- PD &emsp;&emsp;&emsp;&nbsp;&nbsp;➔ the job is pending
+- R &emsp;&emsp;&emsp;&emsp;&nbsp;➔ the job is running
+- No output &nbsp;➔ the job is done
+
+:::
+
+While your job is running, you can monitor it by opening a new terminal and, from the login node, running:
+
+```{.bash}
+srun --jobid=<jobID> --pty bash
+```
+
+:::{.note}
+
+Replace `<jobID>` by the job ID you got by running `sq`.
+
+:::
+
+Then launch `htop`:
+
+```{.bash}
+alias htop='htop -u $USER -s PERCENT_CPU'
+htop                     # monitor all your processes
+htop --filter "python"   # filter processes by name
+```
+
+Check average memory usage with:
+
+```{.bash}
+sstat -j <jobID> --format=AveRSS
+```
+
+Or maximum memory usage with:
+
+```{.bash}
+sstat -j <jobID> --format=MaxRSS
+```
+
+### Get the results
+
+The results will be in a file created by Slurm and called, by default, `slurm-<jobID>.out` (you can change the name of this file by adding an option in your Slurm script).
+
+You can look at them with:
+
+```{.bash}
+bat slurm-<jobID>.out
+```
+
+### Retrieve files
+
+To retrieve files, you can use `scp` again *from your computer*:
+
+```{.bash}
+scp username@hostname:remote/path local/path
+```
