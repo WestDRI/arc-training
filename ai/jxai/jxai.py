@@ -327,17 +327,17 @@ iterate_subsample = np.linspace(0, num_epochs * total_steps, 100)
 
 optimizer = nnx.ModelAndOptimizer(model, optax.sgd(lr_schedule, momentum, nesterov=True))
 
-plt.plot(
-    np.linspace(0, num_epochs, len(iterate_subsample)),
-    [lr_schedule(i) for i in iterate_subsample],
-    lw=3,
-)
-plt.title('Learning rate')
-plt.xlabel('Epochs')
-plt.ylabel('Learning rate')
-plt.grid()
-plt.xlim((0, num_epochs))
-plt.show()
+# plt.plot(
+#     np.linspace(0, num_epochs, len(iterate_subsample)),
+#     [lr_schedule(i) for i in iterate_subsample],
+#     lw=3,
+# )
+# plt.title('Learning rate')
+# plt.xlabel('Epochs')
+# plt.ylabel('Learning rate')
+# plt.grid()
+# plt.xlim((0, num_epochs))
+# plt.show()
 
 def compute_losses_and_logits(model: nnx.Module, imgs: jax.Array, species: jax.Array):
     logits = model(imgs)
