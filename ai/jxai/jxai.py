@@ -342,27 +342,29 @@ optimizer = nnx.ModelAndOptimizer(model, optax.sgd(lr_schedule, momentum, nester
 def compute_losses_and_logits(model: nnx.Module, imgs: jax.Array, species: jax.Array):
     logits = model(imgs)
     loss = optax.softmax_cross_entropy_with_integer_labels(
-        logits=logits, species=species
+        logits=logits, labels=species
     ).mean()
     return loss, logits
 
+@nnx.jit
 def train_step(
-    model: nnx.Module, optimizer: nnx.Optimizer, batch: dict[str, np.ndarray]
+    model: nnx.Module, optimizer: nnx.Optimizer, imgs: np.ndarray, species_id: np.ndarray
 ):
     # Convert np.ndarray to jax.Array on GPU
-    imgs = jnp.array(batch['img'])
-    species = jnp.array(batch['species_id'], dtype=jnp.int32)
+    imgs = jnp.array(imgs)
+    species = jnp.array(species_id, dtype=jnp.int32)
     grad_fn = nnx.value_and_grad(compute_losses_and_logits, has_aux=True)
     (loss, logits), grads = grad_fn(model, imgs, species)
     optimizer.update(grads)  # In-place updates.
     return loss
 
+@nnx.jit
 def eval_step(
-    model: nnx.Module, batch: dict[str, np.ndarray], eval_metrics: nnx.MultiMetric
+    model: nnx.Module, eval_metrics: nnx.MultiMetric, imgs: np.ndarray, species_id: np.ndarray
 ):
     # Convert np.ndarray to jax.Array on GPU
-    imgs = jnp.array(batch['img'])
-    species = jnp.array(batch['species_id'], dtype=jnp.int32)
+    imgs = jnp.array(imgs)
+    species = jnp.array(species_id, dtype=jnp.int32)
     loss, logits = compute_losses_and_logits(model, imgs, species)
     eval_metrics.update(
         loss=loss,
@@ -386,7 +388,6 @@ eval_metrics_history = {
 
 bar_format = '{desc}[{n_fmt}/{total_fmt}]{postfix} [{elapsed}<{remaining}]'
 
-@nnx.jit              # To JIT compile and automatically use GPU/TPU if available
 def train_one_epoch(epoch):
     model.train()  # Set model to the training mode: e.g. update batch statistics
     with tqdm.tqdm(
@@ -396,18 +397,17 @@ def train_one_epoch(epoch):
         leave=True,
     ) as pbar:
         for batch in train_loader:
-            loss = train_step(model, optimizer, batch)
+            loss = train_step(model, optimizer, batch['img'], batch['species_id'])
             train_metrics_history['train_loss'].append(loss.item())
             pbar.set_postfix({'loss': loss.item()})
             pbar.update(1)
 
-@nnx.jit
 def evaluate_model(epoch):
     # Computes the metrics on the training and test sets after each training epoch.
     model.eval()  # Sets model to evaluation model: e.g. use stored batch statistics.
     eval_metrics.reset()  # Reset the eval metrics
     for val_batch in val_loader:
-        eval_step(model, val_batch, eval_metrics)
+        eval_step(model, eval_metrics, val_batch['img'], val_batch['species_id'])
     for metric, value in eval_metrics.compute().items():
         eval_metrics_history[f'val_{metric}'].append(value)
     print(f"[val] epoch: {epoch + 1}/{num_epochs}")
