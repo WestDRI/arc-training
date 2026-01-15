@@ -108,7 +108,7 @@ class ZScore(grain.MapTransform):
         return element
 
 seed = 123
-train_batch_size = 32
+train_batch_size = 8
 val_batch_size = 2 * train_batch_size
 
 train_sampler = grain.IndexSampler(
