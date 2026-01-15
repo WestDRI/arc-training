@@ -341,7 +341,6 @@ plt.show()
 
 def compute_losses_and_logits(model: nnx.Module, imgs: jax.Array, species: jax.Array):
     logits = model(imgs)
-
     loss = optax.softmax_cross_entropy_with_integer_labels(
         logits=logits, species=species
     ).mean()
@@ -353,12 +352,9 @@ def train_step(
     # Convert np.ndarray to jax.Array on GPU
     imgs = jnp.array(batch['img'])
     species = jnp.array(batch['species_id'], dtype=jnp.int32)
-
     grad_fn = nnx.value_and_grad(compute_losses_and_logits, has_aux=True)
     (loss, logits), grads = grad_fn(model, imgs, species)
-
     optimizer.update(grads)  # In-place updates.
-
     return loss
 
 def eval_step(
@@ -368,7 +364,6 @@ def eval_step(
     imgs = jnp.array(batch['img'])
     species = jnp.array(batch['species_id'], dtype=jnp.int32)
     loss, logits = compute_losses_and_logits(model, imgs, species)
-
     eval_metrics.update(
         loss=loss,
         logits=logits,
@@ -410,14 +405,11 @@ def train_one_epoch(epoch):
 def evaluate_model(epoch):
     # Computes the metrics on the training and test sets after each training epoch.
     model.eval()  # Sets model to evaluation model: e.g. use stored batch statistics.
-
     eval_metrics.reset()  # Reset the eval metrics
     for val_batch in val_loader:
         eval_step(model, val_batch, eval_metrics)
-
     for metric, value in eval_metrics.compute().items():
         eval_metrics_history[f'val_{metric}'].append(value)
-
     print(f"[val] epoch: {epoch + 1}/{num_epochs}")
     print(f"- total loss: {eval_metrics_history['val_loss'][-1]:0.4f}")
     print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
