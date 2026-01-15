@@ -426,3 +426,14 @@ axs[0].set_title('Loss value on validation set')
 axs[0].plot(eval_metrics_history['val_loss'])
 axs[1].set_title('Accuracy on validation set')
 axs[1].plot(eval_metrics_history['val_accuracy'])
+
+import json
+
+# Save metrics history to files
+with open('train_metrics.json', 'w') as f:
+    json.dump(train_metrics_history, f)
+
+with open('eval_metrics.json', 'w') as f:
+    json.dump(eval_metrics_history, f)
+
+print("Metrics history saved to train_metrics.json and eval_metrics.json")
