@@ -398,23 +398,27 @@ model.classifier = nnx.Linear(model.classifier.in_features, 405, rngs=nnx.Rngs(0
 
 We need to define the hyperparameters that will control the training process.
 
-The **learning rate** controls the size of the steps the optimizer takes in the direction of the gradient. You don't want to overshoot the minimum, so it is a good idea to decrease the learning rate during training. We are doing this with a scheduler, reducing it linearly from 0.001 to 0.
+First, we need to set the number of epochs. While fine-tuning a ViT model for classification, we can expect the following:
 
-The **momentum** controls the inertia of the optimizer. It helps accelerate the optimizer in the right direction and dampens oscillations (instead of using only the current gradient to update weights, momentum adds a fraction of the previous update factor to the current one. So if the gradient keeps pointing in the same direction, the momentum increases the speed of updates. If the gradient bounces back and forth, the momentum decreases the speed of updates).
+- Epochs 1-5: Massive improvements. The model adapts from "identifying objects" to "identifying birds."
+- Epochs 5-15: Small, incremental gains.
+- Epochs 15+: Often starts overfitting (unless you have a massive dataset or very strong augmentation).
+
+Let's do 3 epochs:
+
+```{python}
+num_epochs = 3
+```
+
+The **learning rate** controls the size of the steps the optimizer takes in the direction of the gradient. You don't want to overshoot the minimum, so it is a good idea to decrease the learning rate during training. We are doing this with an [Optax](https://github.com/google-deepmind/optax) scheduler, reducing it linearly from 0.001 to 0.
 
 ```{python}
 import optax
 
-num_epochs = 3
 learning_rate = 0.001
-momentum = 0.8
 total_steps = len(nabirds_train) // train_batch_size
-
 lr_schedule = optax.linear_schedule(learning_rate, 0.0, num_epochs * total_steps)
-
 iterate_subsample = np.linspace(0, num_epochs * total_steps, 100)
-
-optimizer = nnx.ModelAndOptimizer(model, optax.sgd(lr_schedule, momentum, nesterov=True))
 ```
 
 We can plot the learning rate schedule:
@@ -433,6 +437,18 @@ plt.ylabel('Learning rate')
 plt.grid()
 plt.xlim((0, num_epochs))
 plt.show()
+```
+
+The **momentum** controls the inertia of the optimizer. It helps accelerate the optimizer in the right direction and dampens oscillations (instead of using only the current gradient to update weights, momentum adds a fraction of the previous update factor to the current one. So if the gradient keeps pointing in the same direction, the momentum increases the speed of updates. If the gradient bounces back and forth, the momentum decreases the speed of updates).
+
+```{python}
+momentum = 0.8
+```
+
+Finally, we pass our learning rate schedule and momentum to a [stochastic gradient descent](https://en.wikipedia.org/wiki/Stochastic_gradient_descent) function from [Optax](https://github.com/google-deepmind/optax) and create our optimizer:
+
+```{python}
+optimizer = nnx.ModelAndOptimizer(model, optax.sgd(lr_schedule, momentum, nesterov=True))
 ```
 
 ### Loss function
@@ -477,7 +493,7 @@ def eval_step(
     eval_metrics.update(
         loss=loss,
         logits=logits,
-        species=species,
+        labels=species,
     )
 ```
 
@@ -536,7 +552,7 @@ def evaluate_model(epoch):
     print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 ```
 
-## Training
+## Training loop
 
 Time to run the training loop:
 
@@ -622,7 +638,7 @@ I also had some NaN (not a number) for the loss at the start of training. This d
 Evolution of validation loss and accuracy:
 
 ```{python}
-fig, axs = plt.subplots(1, 2, figsize=(10, 10))
+fig, axs = plt.subplots(1, 2, figsize=(8, 8))
 axs[0].set_title('Loss value on validation set')
 axs[0].plot(eval_metrics_history['val_loss'])
 axs[1].set_title('Accuracy on validation set')
@@ -633,42 +649,132 @@ You can also use [TensorBoard](https://github.com/tensorflow/tensorboard) for th
 
 :::{.note}
 
-[MLflow is available on our JupyterHubs!](https://docs.alliancecan.ca/wiki/MLflow)
+[MLflow is now available on our JupyterHubs!](https://docs.alliancecan.ca/wiki/MLflow)
 
 :::
 
-## Next steps for harder problems
+## Test a few samples
 
-Fine-tuning a classification model shouldn't take many epochs and this approach should be sufficient for our example.
+```{python}
+#| echo: false
 
-For some problems however, you will need a lot more training. In that case, there are additional steps you need to take.
+import orbax.checkpoint as ocp
+import sys
 
-### Checkpointing
+# Import from nabirds_train
+try:
+    from nabirds_train import VisionTransformer
+except ImportError:
+    # If nabirds_train is not in pythonpath, try to append current dir
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from nabirds_train import VisionTransformer
 
-Checkpointing becomes essential if you train for a long time. This will save you from loosing days of training if something happens (cluster issue, power outage, computer failure, training interruption...)
+# Constants
+CHECKPOINT_DIR = os.path.abspath('checkpoint')
+METADATA_PATH = 'metadata.parquet'
 
-[Orbax](https://github.com/google/orbax) provides checkpointing utilities for JAX.
+def load_model(checkpoint_dir=CHECKPOINT_DIR):
+    """Loads the model from the checkpoint directory."""
+    print(f"Loading model from {checkpoint_dir}...")
 
-### Stopping
+    # Instantiate model with same structure as training (405 classes for NABirds)
+    model = VisionTransformer(num_classes=405)
 
-If the training is very long, how do you know how many epochs you need to choose?
+    # Create abstract state for structure
+    abstract_state = nnx.state(model)
 
-You don't want to take a random guess. You also don't want to spend your days and nights staring at TensorBoard or MLflow. So you need to set things up to have the training stop automatically.
+    # Create checkpointer
+    checkpointer = ocp.PyTreeCheckpointer()
 
-#### Monitoring
+    # Define restore args
+    restore_args = ocp.args.PyTreeRestore(abstract_state)
 
-The training loss always goes down (eventually to 0) as the accuracy keeps going up. So **what you want to monitor is the validation loss**.
+    # Restore
+    try:
+        restored_state = checkpointer.restore(checkpoint_dir, item=restore_args)
+        # Update model with restored state
+        nnx.update(model, restored_state)
+        print("Model loaded successfully.")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        print("Ensure you have trained the model and a checkpoint exists.")
+        sys.exit(1)
 
-The validation loss should go down as the model improves, then flatten out, and eventually start going up again as you start overfitting. At that point, the model is learning all the idiosyncrasies of the training set (which is why it is doing better and better on it), to a point that it is learning features that are not applicable to images that are not part of the training set (hence why the validation loss starts to deteriorate).
+    # Set to eval mode
+    model.eval()
+    return model
 
-#### Early stopping
+def load_species_mapping(metadata_path=METADATA_PATH):
+    """Loads species ID to name mapping from metadata."""
+    if not os.path.exists(metadata_path):
+        print(f"Metadata file not found at {metadata_path}")
+        return {}
 
-The way to set things up for automatic stopping is to choose a large number of epochs (e.g. 50)—many more than you expect to need, and stop the model when the validation loss goes up.
+    df = pl.read_parquet(metadata_path)
+    # Creates specific id -> name mapping
+    mapping = dict(df.select(['species_id', 'species_name']).unique().iter_rows())
+    return mapping
+```
 
-You can use, for instance, an if/else statement to automatically stop training when you get to that point.
+We can now run inference on a few test images.
 
-To be more sophisticated, instead of stopping as soon as this happens, one hyperparameter that can be set is **patience**.
+Select a subset of test images and their labels:
 
-**Patience** is the number of epochs the model should continue training after the validation loss goes up (usually 3 to 5). This allows the model to recover from temporary plateaus and avoids the problem of [double descent](https://en.wikipedia.org/wiki/Double_descent).
+```{python}
+test_indices = [250, 500, 750, 1000]
 
-Once that patience value is reached, you should use the checkpoint for the best validation loss (before the patience period) as your trained model.
+test_images = jnp.array([nabirds_val[i]['img'] for i in test_indices])
+expected_labels = [nabirds_val[i]['species_name'] for i in test_indices]
+```
+
+Run the model to get the predictions for this subset:
+
+```{python}
+model.eval()
+preds = model(test_images)
+probas = nnx.softmax(preds, axis=1)
+pred_labels = probas.argmax(axis=1)
+```
+
+We need to define a translation function to get the species names from the species ids for the predictions:
+
+```{python}
+def translator(df, species_id):
+    species_name = df.unique(subset='species_id').filter(
+        pl.col('species_id') == species_id
+    ).select(pl.col('species_name')).item()
+
+    return species_name
+```
+
+Let's print the subset with their predicted vs expected labels:
+
+```{python}
+num_samples = len(test_indices)
+
+fig, axs = plt.subplots(1, num_samples, figsize=(7, 8))
+
+for i in range(num_samples):
+    img, expected_label = test_images[i], expected_labels[i]
+
+    pred_label_id = pred_labels[i].item()
+    pred_label_name = translator(metadata, pred_label_id)
+    proba = probas[i, pred_label_id].item()
+    if img.dtype in (np.float32, ):
+        img = ((img - img.min()) / (img.max() - img.min()) * 255.0).astype(np.uint8)
+
+    plt.tight_layout()
+
+    axs[i].set_title(
+        f"""
+        Expected: {expected_labels[i]} vs
+        Predicted: {pred_label_name}, P={proba:.2f}
+        """,
+        fontsize=6,
+        linespacing=1.5
+    )
+
+    axs[i].axis('off')
+
+    axs[i].imshow(img)
+```
