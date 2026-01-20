@@ -11,20 +11,17 @@ In this section, we cover how to save our model and how to use it for inference 
 
 :::
 
-## Training script with main
+## How to save the code to script
 
-Throughout this course, we developed the code bits by bits. 
+Throughout this course, we developed the code bits by bits. It is a good practice to wrap it all up in a script. That will be useful for further training and if you move the script to a cluster to train on more hardware.
 
+We have to make a few changes to our code while we create the script:
 
-:::{.note}
-
-We have to make a few changes to our code:
-
-- Strip your code of anything unnecessary that you might have used during prototyping.
+- Strip the code of anything unnecessary that you might have used during prototyping.
 
 - It doesn't make sense to use [tqdm](https://github.com/tqdm/tqdm) anymore, so remove the corresponding code.
 
-- We can't display the graphs anymore, so we save them to files with `plt.savefig()`
+- We can't display the graphs anymore, so we save them to files with `plt.savefig()` (or remove all `matplotlib` code).
 
 - When we aren't using IPython (directly or via Jupyter), we don't have access to the built-in magic commands such as `%%time` to time the execution of a cell. Instead, we use the following snippet:
 
@@ -52,11 +49,13 @@ end = time()
 print(f"Training took {round((end - start) / 60, 1)} minutes")
 ```
 
-:::
+- Wrap the part of the code related to training in a `main` function to prevent training from starting automatically when importing the model definition in other scripts.
 
+## Our script
 
+Following the above steps, here is what we get for our script:
 
-```{.python}
+```{.python filename="nabirds_train.py"}
 import os
 import polars as pl
 import imageio.v3 as iio
@@ -356,7 +355,7 @@ def eval_step(
     eval_metrics.update(
         loss=loss,
         logits=logits,
-        species=species,
+        labels=species,
     )
 
 
@@ -474,9 +473,17 @@ def main():
         print(f"- total loss: {eval_metrics_history['val_loss'][-1]:0.4f}")
         print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 
+
+    start = time()
+
     for epoch in range(num_epochs):
         train_one_epoch(epoch)
         evaluate_model(epoch)
+
+    end = time()
+
+    print(f"Training took {round((end - start) / 60, 1)} minutes")
+
 
     # Save model checkpoint using Orbax
     ckpt_dir = os.path.abspath('checkpoint')
@@ -491,7 +498,9 @@ if __name__ == '__main__':
 
 ## Inference script
 
-```{.python}
+Now we need an inference script that we can use with any bird image. It needs to process the image to make it consistent with our model:
+
+```{.python filename="nabirds_infer.py"}
 import os
 import sys
 import jax
@@ -503,13 +512,13 @@ import imageio.v3 as iio
 import polars as pl
 import dm_pix as pix
 
-# Import from jxai
+# Import from nabirds_train
 try:
-    from jxai import VisionTransformer
+    from nabirds_train import VisionTransformer
 except ImportError:
-    # If jxai is not in pythonpath, try to append current dir
+    # If nabirds_train is not in pythonpath, try to append current dir
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    from jxai import VisionTransformer
+    from nabirds_train import VisionTransformer
 
 # Constants
 CHECKPOINT_DIR = os.path.abspath('checkpoint')
@@ -578,7 +587,6 @@ def preprocess_image(image_path):
     img = jax.image.resize(img, (224, 224, 3), method='bilinear')
 
     # Normalize with mean/std (matching training logic: ZScore transform)
-    # In jxai.py: mean = 0.5, std = 0.5
     mean = jnp.array([0.5, 0.5, 0.5])
     std = jnp.array([0.5, 0.5, 0.5])
     img = (img - mean) / std
@@ -627,9 +635,17 @@ if __name__ == "__main__":
         image_path = sys.argv[1]
         predict(image_path)
     else:
-        print("Usage: uv run python inference.py <path_to_bird_image>")
+        print("Usage: uv run python nabirds_infer.py <path_to_bird_image>")
 ```
 
 ## Usage
 
-![[© Steven Mlodinow / Macaulay Library](https://macaulaylibrary.org/asset/45426151)](img/song_sparrow.jpg)
+<!-- Let's pick some random picture from the internet: -->
+
+<!-- ![[© Steven Mlodinow / Macaulay Library](https://macaulaylibrary.org/asset/45426151)](img/song_sparrow.jpg) -->
+
+From the command line and using `uv`, the script can be run with:
+
+```{.bash}
+uv run nabirds_infer.py <path_to_bird_image>
+```
