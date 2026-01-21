@@ -168,14 +168,13 @@ with open('eval_metrics.pkl', 'rb') as f:
 path = '/home/marie/parvus/prog/mint/ai/jxai/checkpoints/'
 options = ocp.CheckpointManagerOptions(max_to_keep=3)
 mngr = ocp.CheckpointManager(path, options=options)
-
 model = mngr.restore(mngr.latest_step())
+model.eval()
 
 test_indices = [250, 500, 750, 1000]
 test_images = jnp.array([nabirds_val[i]['img'] for i in test_indices])
 expected_labels = [nabirds_val[i]['species_name'] for i in test_indices]
 
-model.eval()
 preds = model(test_images)
 probas = nnx.softmax(preds, axis=1)
 pred_labels = probas.argmax(axis=1)
