@@ -522,52 +522,13 @@ import orbax.checkpoint as ocp
 from flax import nnx
 import imageio.v3 as iio
 import polars as pl
-import dm_pix as pix
 
-# Import from nabirds_train
-try:
-    from nabirds_train import VisionTransformer
-except ImportError:
-    # If nabirds_train is not in pythonpath, try to append current dir
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    from nabirds_train import VisionTransformer
 
-# Constants
-CHECKPOINT_DIR = os.path.abspath('checkpoint')
-METADATA_PATH = 'metadata.parquet'
+metadata_path = 'metadata.parquet'
+checkpoint_path = '/project/def-sponsor00/nabirds/checkpoints/'
 
-def load_model(checkpoint_dir=CHECKPOINT):
-    """Loads the model from the checkpoint directory."""
-    print(f"Loading model from {checkpoint_dir}...")
 
-    # Instantiate model with same structure as training (405 classes for NABirds)
-    model = VisionTransformer(num_classes=405)
-
-    # Create abstract state for structure
-    abstract_state = nnx.state(model)
-
-    # Create checkpointer
-    checkpointer = ocp.PyTreeCheckpointer()
-
-    # Define restore args
-    restore_args = ocp.args.PyTreeRestore(abstract_state)
-
-    # Restore
-    try:
-        restored_state = checkpointer.restore(checkpoint_dir, item=restore_args)
-        # Update model with restored state
-        nnx.update(model, restored_state)
-        print("Model loaded successfully.")
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        print("Ensure you have trained the model and a checkpoint exists.")
-        sys.exit(1)
-
-    # Set to eval mode
-    model.eval()
-    return model
-
-def load_species_mapping(metadata_path=METADATA_PATH):
+def load_species_mapping(metadata_path=metadata_path):
     """Loads species ID to name mapping from metadata."""
     if not os.path.exists(metadata_path):
         print(f"Metadata file not found at {metadata_path}")
@@ -577,6 +538,7 @@ def load_species_mapping(metadata_path=METADATA_PATH):
     # Creates specific id -> name mapping
     mapping = dict(df.select(['species_id', 'species_name']).unique().iter_rows())
     return mapping
+
 
 def preprocess_image(image_path):
     """Reads and preprocesses an image for the model."""
@@ -608,9 +570,15 @@ def preprocess_image(image_path):
 
     return img
 
+
 def predict(image_path):
-    """Runs prediction on a single image."""
-    model = load_model()
+    """Restores model from checkpoint and runs prediction on a single image."""
+    # Restore model from checkpoint
+    options = ocp.CheckpointManagerOptions(max_to_keep=3)
+    mngr = ocp.CheckpointManager(path, options=options)
+    model = mngr.restore(mngr.latest_step())
+    model.eval()
+
     mapping = load_species_mapping()
 
     print(f"Processing image: {image_path}")
@@ -623,6 +591,12 @@ def predict(image_path):
     # Get top prediction
     predicted_id = int(jnp.argmax(probs))
     confidence = float(jnp.max(probs))
+
+    # def translator(df, species_id):
+    #     species_name = df.unique(subset='species_id').filter(
+    #         pl.col('species_id') == species_id
+    #     ).select(pl.col('species_name')).item()
+    #     return species_name
 
     predicted_name = mapping.get(predicted_id, f"Unknown ID {predicted_id}")
 
@@ -641,6 +615,7 @@ def predict(image_path):
         score = float(probs[0, idx])
         name = mapping.get(idx, f"ID {idx}")
         print(f"  {name}: {score:.2%}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
