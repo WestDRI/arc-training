@@ -398,6 +398,8 @@ model.classifier = nnx.Linear(model.classifier.in_features, 405, rngs=nnx.Rngs(0
 
 We need to define the hyperparameters that will control the training process.
 
+### Epochs
+
 First, we need to set the number of epochs. While fine-tuning a ViT model for classification, we can expect the following:
 
 - Epochs 1-5: Massive improvements. The model adapts from "identifying objects" to "identifying birds."
@@ -410,7 +412,15 @@ Let's do 3 epochs:
 num_epochs = 3
 ```
 
+### Learning rate
+
 The **learning rate** controls the size of the steps the optimizer takes in the direction of the gradient. You don't want to overshoot the minimum, so it is a good idea to decrease the learning rate during training. We are doing this with an [Optax](https://github.com/google-deepmind/optax) scheduler, reducing it linearly from 0.001 to 0.
+
+:::{.note}
+
+[As we saw previously](jxai_dataloader#learning-rate), if you reduce (or increase) the batch size dramatically, you should also reduce (or increase) the learning rate. Since we went from a batch size of 32 to 8, we shouldn't start with a learning rate that is too high.
+
+:::
 
 ```{python}
 import optax
@@ -439,11 +449,17 @@ plt.xlim((0, num_epochs))
 plt.show()
 ```
 
+### Momentum
+
 The **momentum** controls the inertia of the optimizer. It helps accelerate the optimizer in the right direction and dampens oscillations (instead of using only the current gradient to update weights, momentum adds a fraction of the previous update factor to the current one. So if the gradient keeps pointing in the same direction, the momentum increases the speed of updates. If the gradient bounces back and forth, the momentum decreases the speed of updates).
 
+A momentum of 0.9 is pretty standard:
+
 ```{python}
-momentum = 0.8
+momentum = 0.9
 ```
+
+### Optimizer
 
 Finally, we pass our learning rate schedule and momentum to a [stochastic gradient descent](https://en.wikipedia.org/wiki/Stochastic_gradient_descent) function from [Optax](https://github.com/google-deepmind/optax) and create our optimizer:
 
@@ -463,7 +479,7 @@ def compute_losses_and_logits(model: nnx.Module, imgs: jax.Array, species: jax.A
     return loss, logits
 ```
 
-## Define train and eval steps
+## Training and evaluation steps
 
 ```{python}
 @nnx.jit              # To JIT compile and automatically use GPU/TPU if available
@@ -525,7 +541,7 @@ bar_format = '{desc}[{n_fmt}/{total_fmt}]{postfix} [{elapsed}<{remaining}]'
 def train_one_epoch(epoch):
     model.train()  # Set model to the training mode: e.g. update batch statistics
     with tqdm.tqdm(
-        desc=f"[train] epoch: {epoch}/{num_epochs}, ",
+        desc=f"[train] epoch: {epoch + 1}/{num_epochs}, ",
         total=total_steps,
         bar_format=bar_format,
         leave=True,
@@ -552,6 +568,177 @@ def evaluate_model(epoch):
     print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 ```
 
+## Checkpointing
+
+Checkpointing is essential if you train for a long time. This will save you from loosing hours, days, or weeks of training if something happens (cluster issue, power outage, computer failure, training interruption...)
+
+[Orbax](https://github.com/google-deepmind/optax) provides a checkpointing management API for JAX:
+
+```{python}
+import orbax.checkpoint as ocp
+```
+
+First of all, it is important to create a directory for the checkpoints and to ensure that this directory is empty before you start training (otherwise the checkpoints won't be saved and you will only get an error about it *after* the training has happened—which means that you are basically loosing your entire training as the trained parameters aren't saved!).
+
+Let's create a path for a directory called "checkpoints" in the current directory and ensure that it is empty:
+
+```{.python}
+path = ocp.test_utils.erase_and_create_empty('/project/def-sponsor00/nabirds/checkpoints/')
+```
+
+:::{.note}
+
+Be careful that the path provided needs to be an absolute path.
+
+:::
+
+Then you set the options you want for the checkpoint manager such as: how often do you want to save checkpoints? how many checkpoints do you want to keep in total (as more checkpoints are saved, early ones can safely be deleted).
+
+For instance, if we want to save a checkpoint every 2 steps and keep the last 3 checkpoints, we can set the options with:
+
+```{.python}
+options = ocp.CheckpointManagerOptions(save_interval_steps=2, max_to_keep=3)
+```
+
+Here, we will save a checkpoint at every step (the default) since are only running 3 epochs:
+
+```{.python}
+options = ocp.CheckpointManagerOptions(max_to_keep=3)
+```
+
+Past this point, if you follow the documentation, you will get the following warning when you try to restore your model from checkpoints:
+
+```
+WARNING:absl:Item "default" was found in the checkpoint, but could not be restored. Please provide a `CheckpointHandlerRegistry`, or call `restore` with an appropriate `CheckpointArgs` subclass.
+```
+
+This is because [Orbax does not yet handle](https://github.com/google/flax/issues/4231) the [new JAX PRNG key format](https://docs.jax.dev/en/latest/jax.random.html#prng-keys).
+
+A way around this is to create a function to save checkpoints that will convert PRNG keys from the new to the old format (function taken from [this tutorial](https://docs.jaxstack.ai/en/latest/JAX_examples_image_segmentation.html)):
+
+```{.python}
+def save_model(epoch):
+    # Get all params, statistics, RNGs, etc. from model:
+    state = nnx.state(model)
+    # Convert PRNG keys to the old format:
+    def get_key_data(x):
+        if isinstance(x, jax._src.prng.PRNGKeyArray):
+            if isinstance(x.dtype, jax._src.prng.KeyTy):
+                return jax.random.key_data(x)
+        return x
+
+    serializable_state = jax.tree.map(get_key_data, state)
+    mngr.save(epoch, args=ocp.args.StandardSave(serializable_state))
+    # Block the manager until all operations have finished running
+    # (only useful for asynchronous (distributed) training)
+    mngr.wait_until_finished()
+```
+
+Now, to create checkpoints following our management plan, we will add this function to the training loop.
+
+## Testing and debugging
+
+It is a good idea to try your code on a very small problem to make sure it runs before launching your training loop: many scripts will only error upon finishing and if you start by running 25 epochs on your full dataset without prior testing, you may be waiting (and sitting on resources) for days before realizing that your code has issues.
+
+An easy way to test your code on a small subset of your data is to play with the samplers of the data loaders: you only need to run the code on a handful of records to debug problems such as the checkpointer not working (and the trained model not being saved!).
+
+So let's replace `num_records=len(nabirds_train)` and `num_records=len(nabirds_val)` by `num_records=10` for both the training and validation samplers. Then we can recreate the training and validation loaders:
+
+```{.python}
+train_sampler = grain.IndexSampler(
+    num_records=10,
+    shuffle=True,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1
+)
+
+train_loader = grain.DataLoader(
+    data_source=nabirds_train,
+    sampler=train_sampler,
+    operations=[
+        ToFloat(),
+        RandomCrop(),
+        RandomFlip(),
+        RandomContrast(),
+        RandomGamma(),
+        ZScore(),
+        grain.Batch(train_batch_size, drop_remainder=True)
+    ]
+)
+
+val_sampler = grain.IndexSampler(
+    num_records=10,
+    shuffle=False,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1
+)
+
+val_loader = grain.DataLoader(
+    data_source=nabirds_val,
+    sampler=val_sampler,
+    operations=[
+        Normalize(),
+        grain.Batch(val_batch_size)
+    ]
+)
+```
+
+Now we can run a test loop:
+
+```{.python}
+for epoch in range(num_epochs):
+    train_one_epoch(epoch)
+    evaluate_model(epoch)
+    save_model(epoch)
+```
+
+... and debug as needed.
+
+Once you are sure that the code runs, your checkpoints are being created as planned and all looks good, you can revert the values of the samplers and loaders:
+
+```{.python}
+train_sampler = grain.IndexSampler(
+    num_records=len(nabirds_train),
+    shuffle=True,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1
+)
+
+train_loader = grain.DataLoader(
+    data_source=nabirds_train,
+    sampler=train_sampler,
+    operations=[
+        ToFloat(),
+        RandomCrop(),
+        RandomFlip(),
+        RandomContrast(),
+        RandomGamma(),
+        ZScore(),
+        grain.Batch(train_batch_size, drop_remainder=True)
+    ]
+)
+
+val_sampler = grain.IndexSampler(
+    num_records=len(nabirds_val),
+    shuffle=False,
+    seed=seed,
+    shard_options=grain.NoSharding(),
+    num_epochs=1
+)
+
+val_loader = grain.DataLoader(
+    data_source=nabirds_val,
+    sampler=val_sampler,
+    operations=[
+        Normalize(),
+        grain.Batch(val_batch_size)
+    ]
+)
+```
+
 ## Training loop
 
 Time to run the training loop:
@@ -562,13 +749,27 @@ Time to run the training loop:
 for epoch in range(num_epochs):
     train_one_epoch(epoch)
     evaluate_model(epoch)
+    save_model(epoch)
 ```
 
 ```
-ValueError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 77463552 bytes.
+[train] epoch: 1/3, [2991/2991], loss=0.392 [37:37<00:00]
+[val] epoch: 1/3
+- total loss: nan
+- Accuracy: 0.8144
+[train] epoch: 2/3, [2991/2991], loss=0.225 [39:31<00:00]
+[val] epoch: 2/3
+- total loss: nan
+- Accuracy: 0.8545
+[train] epoch: 3/3, [2991/2991], loss=0.224 [40:11<00:00]
+[val] epoch: 3/3
+- total loss: nan
+- Accuracy: 0.8666
 ```
 
-As you can see, I initially ran into an [out of memory (OOM)](https://en.wikipedia.org/wiki/Out_of_memory) problem running this code on my machine.
+On my laptop with a dedicated GPU (Nvidia GeForce RTX 2060), each epoch takes about 40 min. On a desktop with a more powerful GPU, training takes about 10 min per epoch.
+
+*I am still investigating why my total loss is not a number.*
 
 :::{.exo}
 
@@ -578,7 +779,13 @@ Your turn:
 
 :::
 
-What are my options at this point?
+Initially I ran into an [out of memory (OOM)](https://en.wikipedia.org/wiki/Out_of_memory) problem running this code on my machine:
+
+```
+ValueError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 77463552 bytes.
+```
+
+What were my options at that point?
 
 :::
 
@@ -617,13 +824,13 @@ Evolution of training loss:
 ```{python}
 #| echo: false
 
-import json
+import pickle
 
-with open('train_metrics.json', 'r') as f:
-    train_metrics_history = json.load(f)
+with open('train_metrics.pkl', 'rb') as f:
+    train_metrics_history = pickle.load(f)
 
-with open('eval_metrics.json', 'r') as f:
-    eval_metrics_history = json.load(f)
+with open('eval_metrics.pkl', 'rb') as f:
+    eval_metrics_history = pickle.load(f)
 ```
 
 ```{python}
@@ -655,81 +862,29 @@ You can also use [TensorBoard](https://github.com/tensorflow/tensorboard) for th
 
 ## Test a few samples
 
-```{python}
-#| echo: false
+<!-- ```{python} -->
+<!-- #| echo: false -->
 
-import orbax.checkpoint as ocp
-import sys
+<!-- path = '/home/marie/parvus/prog/mint/ai/jxai/checkpoints/' -->
+<!-- options = ocp.CheckpointManagerOptions(max_to_keep=3, save_interval_steps=1) -->
+<!-- mngr = ocp.CheckpointManager(path, options=options) -->
 
-# Import from nabirds_train
-try:
-    from nabirds_train import VisionTransformer
-except ImportError:
-    # If nabirds_train is not in pythonpath, try to append current dir
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    from nabirds_train import VisionTransformer
-
-# Constants
-CHECKPOINT_DIR = os.path.abspath('checkpoint')
-METADATA_PATH = 'metadata.parquet'
-
-def load_model(checkpoint_dir=CHECKPOINT_DIR):
-    """Loads the model from the checkpoint directory."""
-    print(f"Loading model from {checkpoint_dir}...")
-
-    # Instantiate model with same structure as training (405 classes for NABirds)
-    model = VisionTransformer(num_classes=405)
-
-    # Create abstract state for structure
-    abstract_state = nnx.state(model)
-
-    # Create checkpointer
-    checkpointer = ocp.PyTreeCheckpointer()
-
-    # Define restore args
-    restore_args = ocp.args.PyTreeRestore(abstract_state)
-
-    # Restore
-    try:
-        restored_state = checkpointer.restore(checkpoint_dir, item=restore_args)
-        # Update model with restored state
-        nnx.update(model, restored_state)
-        print("Model loaded successfully.")
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        print("Ensure you have trained the model and a checkpoint exists.")
-        sys.exit(1)
-
-    # Set to eval mode
-    model.eval()
-    return model
-
-def load_species_mapping(metadata_path=METADATA_PATH):
-    """Loads species ID to name mapping from metadata."""
-    if not os.path.exists(metadata_path):
-        print(f"Metadata file not found at {metadata_path}")
-        return {}
-
-    df = pl.read_parquet(metadata_path)
-    # Creates specific id -> name mapping
-    mapping = dict(df.select(['species_id', 'species_name']).unique().iter_rows())
-    return mapping
-```
+<!-- model = mngr.restore(mngr.latest_step()) -->
+<!-- ``` -->
 
 We can now run inference on a few test images.
 
 Select a subset of test images and their labels:
 
-```{python}
+```{.python}
 test_indices = [250, 500, 750, 1000]
-
 test_images = jnp.array([nabirds_val[i]['img'] for i in test_indices])
 expected_labels = [nabirds_val[i]['species_name'] for i in test_indices]
 ```
 
 Run the model to get the predictions for this subset:
 
-```{python}
+```{.python}
 model.eval()
 preds = model(test_images)
 probas = nnx.softmax(preds, axis=1)
@@ -738,7 +893,7 @@ pred_labels = probas.argmax(axis=1)
 
 We need to define a translation function to get the species names from the species ids for the predictions:
 
-```{python}
+```{.python}
 def translator(df, species_id):
     species_name = df.unique(subset='species_id').filter(
         pl.col('species_id') == species_id
@@ -749,7 +904,7 @@ def translator(df, species_id):
 
 Let's print the subset with their predicted vs expected labels:
 
-```{python}
+```{.python}
 num_samples = len(test_indices)
 
 fig, axs = plt.subplots(1, num_samples, figsize=(7, 8))
@@ -767,14 +922,44 @@ for i in range(num_samples):
 
     axs[i].set_title(
         f"""
-        Expected: {expected_labels[i]} vs
-        Predicted: {pred_label_name}, P={proba:.2f}
+        Expected: {expected_labels[i]}
+        Predicted: {pred_label_name}
+        p={proba:.2f}
         """,
-        fontsize=6,
+        fontsize=6.5,
         linespacing=1.5
     )
 
     axs[i].axis('off')
-
     axs[i].imshow(img)
+```
+
+<!-- ![](img/sample_tests.png) -->
+
+## Restore from checkpoint
+
+You can see how many checkpoints you have saved with the following:
+
+```{.python}
+# Steps of all checkpoints
+mngr.all_steps()
+```
+
+```
+[0, 1, 2]
+```
+
+```{.python}
+# Step of the last checkpoint
+mngr.latest_step()
+```
+
+```
+2
+```
+
+To restore the last checkpoint:
+
+```{.python}
+model = mngr.restore(mngr.latest_step())
 ```
