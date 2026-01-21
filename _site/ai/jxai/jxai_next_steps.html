@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.26">
+<meta name="generator" content="quarto-1.8.27">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -76,7 +76,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-48758e0ea246f80a9d80e8901e3a7c2a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-38f1eba84205b676c237b16b2e3e732c.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="../../site_libs/bootstrap/bootstrap-3ab34fd50eaf4c251bc27ae6cc09dd28.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -592,7 +592,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../../ai/jxai/jxai_inference.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Saving the model for inference</span></a>
+ <span class="menu-text">Using the model for inference</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -861,12 +861,8 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
     <h2 id="toc-title"><em>On this page:</em></h2>
    
   <ul>
-  <li><a href="#checkpointing" id="toc-checkpointing" class="nav-link active" data-scroll-target="#checkpointing">Checkpointing</a></li>
-  <li><a href="#stopping" id="toc-stopping" class="nav-link" data-scroll-target="#stopping">Stopping</a>
-  <ul>
-  <li><a href="#monitoring" id="toc-monitoring" class="nav-link" data-scroll-target="#monitoring">Monitoring</a></li>
-  <li><a href="#early-stopping" id="toc-early-stopping" class="nav-link" data-scroll-target="#early-stopping">Early stopping</a></li>
-  </ul></li>
+  <li><a href="#monitoring-and-early-stopping" id="toc-monitoring-and-early-stopping" class="nav-link active" data-scroll-target="#monitoring-and-early-stopping">Monitoring and early stopping</a></li>
+  <li><a href="#patience" id="toc-patience" class="nav-link" data-scroll-target="#patience">Patience</a></li>
   <li><a href="#using-the-alliance-clusters" id="toc-using-the-alliance-clusters" class="nav-link" data-scroll-target="#using-the-alliance-clusters">Using the Alliance clusters</a>
   <ul>
   <li><a href="#move-data-to-the-cluster" id="toc-move-data-to-the-cluster" class="nav-link" data-scroll-target="#move-data-to-the-cluster">Move data to the cluster</a></li>
@@ -911,29 +907,20 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <p>Fine-tuning a classification model shouldn’t take many epochs and this approach is sufficient for our example.</p>
 <p>For some problems however, you will need a lot more training. In that case, there are additional steps you need to take.</p>
 </div>
-<section id="checkpointing" class="level2">
-<h2 class="anchored" data-anchor-id="checkpointing">Checkpointing</h2>
-<p>Checkpointing becomes essential if you train for a long time. This will save you from loosing hours, days, or weeks of training if something happens (cluster issue, power outage, computer failure, training interruption…)</p>
-<p><a href="https://github.com/google-deepmind/optax">Orbax</a>—which we used to save the trained model—also provides a checkpointing management API for JAX.</p>
-<p>To create a checkpointing schedule and delete checkpoints as they become unnecessary while your training adds new ones, follow <a href="https://orbax.readthedocs.io/en/latest/guides/checkpoint/orbax_checkpoint_101.html#managing-checkpoints">this template</a>.</p>
-</section>
-<section id="stopping" class="level2">
-<h2 class="anchored" data-anchor-id="stopping">Stopping</h2>
-<p>If the training is very long, how do you know how many epochs you need to choose?</p>
-<p>You don’t want to take a random guess. You also don’t want to spend your days and nights staring at TensorBoard or MLflow. So you need to set things up to have the training stop automatically.</p>
-<section id="monitoring" class="level3">
-<h3 class="anchored" data-anchor-id="monitoring">Monitoring</h3>
+<section id="monitoring-and-early-stopping" class="level2">
+<h2 class="anchored" data-anchor-id="monitoring-and-early-stopping">Monitoring and early stopping</h2>
+<p>If the training is long, how do you know how many epochs to choose?</p>
+<p>You don’t want to take a random guess. You also don’t want to spend your days and nights staring at TensorBoard or the MLflow dashboard. So you need to set things up to have the training stop automatically.</p>
 <p>The training loss always goes down (eventually to 0) as the accuracy keeps going up. So <strong>what you want to monitor is the validation loss</strong>.</p>
 <p>The validation loss should go down as the model improves, then flatten out, and eventually start going up again as you start overfitting. At that point, the model is learning all the idiosyncrasies of the training set (which is why it is doing better and better on it), to a point that it is learning features that are not applicable to images that are not part of the training set (hence why the validation loss starts to deteriorate).</p>
-</section>
-<section id="early-stopping" class="level3">
-<h3 class="anchored" data-anchor-id="early-stopping">Early stopping</h3>
 <p>The way to set things up for automatic stopping is to choose a large number of epochs (e.g.&nbsp;50)—many more than you expect to need, and stop the model when the validation loss goes up.</p>
 <p>You can use, for instance, an if/else statement to automatically stop training when you get to that point.</p>
+</section>
+<section id="patience" class="level2">
+<h2 class="anchored" data-anchor-id="patience">Patience</h2>
 <p>To be more sophisticated, instead of stopping as soon as this happens, one hyperparameter that can be set is <strong>patience</strong>.</p>
 <p><strong>Patience</strong> is the number of epochs the model should continue training after the validation loss goes up (usually 3 to 5). This allows the model to recover from temporary plateaus and avoids the problem of <a href="https://en.wikipedia.org/wiki/Double_descent">double descent</a>.</p>
 <p>Once that patience value is reached, you should use the checkpoint for the best validation loss (before the patience period) as your trained model.</p>
-</section>
 </section>
 <section id="using-the-alliance-clusters" class="level2">
 <h2 class="anchored" data-anchor-id="using-the-alliance-clusters">Using the Alliance clusters</h2>
@@ -1423,8 +1410,8 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../../ai/jxai/jxai_inference.html" class="pagination-link" aria-label="Saving the model for inference">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Saving the model for inference</span>
+      <a href="../../ai/jxai/jxai_inference.html" class="pagination-link" aria-label="Using the model for inference">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Using the model for inference</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
