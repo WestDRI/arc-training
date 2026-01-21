@@ -12,6 +12,7 @@ from transformers import FlaxViTForImageClassification
 import optax
 import matplotlib.pyplot as plt
 import tqdm
+import orbax.checkpoint as ocp
 
 base_dir = 'nabirds'
 cleaned_img_dir = os.path.join(base_dir, 'cleaned_images')
@@ -116,7 +117,7 @@ train_sampler = grain.IndexSampler(
     shuffle=True,
     seed=seed,
     shard_options=grain.NoSharding(),
-    num_epochs=None
+    num_epochs=1
 )
 
 train_loader = grain.DataLoader(
@@ -309,7 +310,6 @@ def vit_inplace_copy_weights(*, src_model, dst_model):
         dst_value.value = src_value.copy()
         assert dst_value.value.mean() == src_value.mean(), (dst_value.value, src_value.mean())
     assert len(nonvisited) == 0, nonvisited
-    # Notice the use of `flax.nnx.update` and `flax.nnx.State`.
     nnx.update(dst_model, nnx.State.from_flat_path(flax_model_params_fstate))
 
 vit_inplace_copy_weights(src_model=tf_model, dst_model=model)
@@ -318,7 +318,7 @@ model.classifier = nnx.Linear(model.classifier.in_features, 405, rngs=nnx.Rngs(0
 
 num_epochs = 3
 learning_rate = 0.001
-momentum = 0.8
+momentum = 0.9
 total_steps = len(nabirds_train) // train_batch_size
 
 lr_schedule = optax.linear_schedule(learning_rate, 0.0, num_epochs * total_steps)
@@ -326,18 +326,6 @@ lr_schedule = optax.linear_schedule(learning_rate, 0.0, num_epochs * total_steps
 iterate_subsample = np.linspace(0, num_epochs * total_steps, 100)
 
 optimizer = nnx.ModelAndOptimizer(model, optax.sgd(lr_schedule, momentum, nesterov=True))
-
-# plt.plot(
-#     np.linspace(0, num_epochs, len(iterate_subsample)),
-#     [lr_schedule(i) for i in iterate_subsample],
-#     lw=3,
-# )
-# plt.title('Learning rate')
-# plt.xlabel('Epochs')
-# plt.ylabel('Learning rate')
-# plt.grid()
-# plt.xlim((0, num_epochs))
-# plt.show()
 
 def compute_losses_and_logits(model: nnx.Module, imgs: jax.Array, species: jax.Array):
     logits = model(imgs)
@@ -350,7 +338,6 @@ def compute_losses_and_logits(model: nnx.Module, imgs: jax.Array, species: jax.A
 def train_step(
     model: nnx.Module, optimizer: nnx.Optimizer, imgs: np.ndarray, species_id: np.ndarray
 ):
-    # Convert np.ndarray to jax.Array on GPU
     imgs = jnp.array(imgs)
     species = jnp.array(species_id, dtype=jnp.int32)
     grad_fn = nnx.value_and_grad(compute_losses_and_logits, has_aux=True)
@@ -362,14 +349,13 @@ def train_step(
 def eval_step(
     model: nnx.Module, eval_metrics: nnx.MultiMetric, imgs: np.ndarray, species_id: np.ndarray
 ):
-    # Convert np.ndarray to jax.Array on GPU
     imgs = jnp.array(imgs)
     species = jnp.array(species_id, dtype=jnp.int32)
     loss, logits = compute_losses_and_logits(model, imgs, species)
     eval_metrics.update(
         loss=loss,
         logits=logits,
-        species=species,
+        labels=species,
     )
 
 eval_metrics = nnx.MultiMetric(
@@ -391,7 +377,7 @@ bar_format = '{desc}[{n_fmt}/{total_fmt}]{postfix} [{elapsed}<{remaining}]'
 def train_one_epoch(epoch):
     model.train()  # Set model to the training mode: e.g. update batch statistics
     with tqdm.tqdm(
-        desc=f"[train] epoch: {epoch}/{num_epochs}, ",
+        desc=f"[train] epoch: {epoch + 1}/{num_epochs}, ",
         total=total_steps,
         bar_format=bar_format,
         leave=True,
@@ -414,26 +400,84 @@ def evaluate_model(epoch):
     print(f"- total loss: {eval_metrics_history['val_loss'][-1]:0.4f}")
     print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 
+path = ocp.test_utils.erase_and_create_empty('/home/marie/parvus/prog/mint/ai/jxai/checkpoints/')
+
+options = ocp.CheckpointManagerOptions(max_to_keep=3, save_interval_steps=1)
+
+mngr = ocp.CheckpointManager(path, options=options)
+
+def save_model(epoch):
+    state = nnx.state(model)
+    def get_key_data(x):
+        if isinstance(x, jax._src.prng.PRNGKeyArray):
+            if isinstance(x.dtype, jax._src.prng.KeyTy):
+                return jax.random.key_data(x)
+        return x
+    serializable_state = jax.tree.map(get_key_data, state)
+    mngr.save(epoch, args=ocp.args.StandardSave(serializable_state))
+    mngr.wait_until_finished()
+
 for epoch in range(num_epochs):
     train_one_epoch(epoch)
     evaluate_model(epoch)
+    save_model(epoch)
 
-plt.plot(train_metrics_history['train_loss'], label='Loss value during the training')
-plt.legend()
+# plt.plot(train_metrics_history['train_loss'], label='Loss value during training')
+# plt.legend()
 
-fig, axs = plt.subplots(1, 2, figsize=(10, 10))
-axs[0].set_title('Loss value on validation set')
-axs[0].plot(eval_metrics_history['val_loss'])
-axs[1].set_title('Accuracy on validation set')
-axs[1].plot(eval_metrics_history['val_accuracy'])
+# plt.savefig('training_loss.png', dpi=400)
 
-import json
+# fig, axs = plt.subplots(1, 2, figsize=(10, 10))
+# axs[0].set_title('Loss value on validation set')
+# axs[0].plot(eval_metrics_history['val_loss'])
+# axs[1].set_title('Accuracy on validation set')
+# axs[1].plot(eval_metrics_history['val_accuracy'])
 
-# Save metrics history to files
-with open('train_metrics.json', 'w') as f:
-    json.dump(train_metrics_history, f)
+import pickle
 
-with open('eval_metrics.json', 'w') as f:
-    json.dump(eval_metrics_history, f)
+with open('train_metrics.pkl', 'wb') as f:
+    pickle.dump(train_metrics_history, f)
 
-print("Metrics history saved to train_metrics.json and eval_metrics.json")
+with open('eval_metrics.pkl', 'wb') as f:
+    pickle.dump(eval_metrics_history, f)
+
+test_indices = [250, 500, 750, 1000]
+test_images = jnp.array([nabirds_val[i]['img'] for i in test_indices])
+expected_labels = [nabirds_val[i]['species_name'] for i in test_indices]
+
+model.eval()
+preds = model(test_images)
+probas = nnx.softmax(preds, axis=1)
+pred_labels = probas.argmax(axis=1)
+
+def translator(df, species_id):
+    species_name = df.unique(subset='species_id').filter(
+        pl.col('species_id') == species_id
+    ).select(pl.col('species_name')).item()
+    return species_name
+
+num_samples = len(test_indices)
+
+fig, axs = plt.subplots(1, num_samples, figsize=(7, 2))
+
+for i in range(num_samples):
+    img, expected_label = test_images[i], expected_labels[i]
+    pred_label_id = pred_labels[i].item()
+    pred_label_name = translator(metadata, pred_label_id)
+    proba = probas[i, pred_label_id].item()
+    if img.dtype in (np.float32, ):
+        img = ((img - img.min()) / (img.max() - img.min()) * 255.0).astype(np.uint8)
+    plt.tight_layout()
+    axs[i].set_title(
+        f"""
+        Expected: {expected_labels[i]}
+        Predicted: {pred_label_name}
+        p={proba:.2f}
+        """,
+        fontsize=6.5,
+        linespacing=1.5
+    )
+    axs[i].axis('off')
+    axs[i].imshow(img)
+
+plt.savefig('sample_tests.png', dpi=300)
