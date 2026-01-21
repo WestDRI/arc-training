@@ -323,7 +323,7 @@ def main():
         shuffle=True,
         seed=seed,
         shard_options=grain.NoSharding(),
-        num_epochs=None
+        num_epochs=1
     )
 
     train_loader = grain.DataLoader(
@@ -364,9 +364,9 @@ def main():
 
     model.classifier = nnx.Linear(model.classifier.in_features, 405, rngs=nnx.Rngs(0))
 
-    num_epochs = 1
+    num_epochs = 3
     learning_rate = 0.001
-    momentum = 0.8
+    momentum = 0.9
     total_steps = len(nabirds_train) // train_batch_size
 
     lr_schedule = optax.linear_schedule(learning_rate, 0.0, num_epochs * total_steps)
@@ -392,7 +392,7 @@ def main():
     def train_one_epoch(epoch):
         model.train()  # Set model to the training mode: e.g. update batch statistics
         with tqdm.tqdm(
-            desc=f"[train] epoch: {epoch}/{num_epochs}, ",
+            desc=f"[train] epoch: {epoch + 1}/{num_epochs}, ",
             total=total_steps,
             bar_format=bar_format,
             leave=True,
@@ -415,16 +415,31 @@ def main():
         print(f"- total loss: {eval_metrics_history['val_loss'][-1]:0.4f}")
         print(f"- Accuracy: {eval_metrics_history['val_accuracy'][-1]:0.4f}")
 
+    path = ocp.test_utils.erase_and_create_empty('/project/def-sponsor00/nabirds/checkpoints/')
+    options = ocp.CheckpointManagerOptions(max_to_keep=3)
+    mngr = ocp.CheckpointManager(path, options=options)
+
+    def save_model(epoch):
+        # Get all params, statistics, RNGs, etc. from model:
+        state = nnx.state(model)
+        # Convert PRNG keys to the old format:
+        def get_key_data(x):
+            if isinstance(x, jax._src.prng.PRNGKeyArray):
+                if isinstance(x.dtype, jax._src.prng.KeyTy):
+                    return jax.random.key_data(x)
+            return x
+
+        serializable_state = jax.tree.map(get_key_data, state)
+        mngr.save(epoch, args=ocp.args.StandardSave(serializable_state))
+        # Block the manager until all operations have finished running
+        # (only useful for asynchronous (distributed) training)
+        mngr.wait_until_finished()
+
     for epoch in range(num_epochs):
         train_one_epoch(epoch)
         evaluate_model(epoch)
+        save_model(epoch)
 
-    # Save model checkpoint using Orbax
-    ckpt_dir = os.path.abspath('checkpoint')
-    checkpointer = ocp.PyTreeCheckpointer()
-    save_args = ocp.args.PyTreeSave(nnx.state(model))
-    checkpointer.save(ckpt_dir, save_args)
-    print(f"Model checkpoint saved to {ckpt_dir}")
 
 if __name__ == '__main__':
     main()
