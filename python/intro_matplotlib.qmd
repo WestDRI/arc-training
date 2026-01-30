@@ -1,0 +1,238 @@
+---
+title: "Matplotlib: a brief introduction"
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+We don't have time in this course to cover matplotlib at length, but this section will get you started with the library. The [website](https://matplotlib.org/) contains the full documentation along with many examples and tutorials.
+
+:::
+
+## Input data
+
+At its chore, matplotlib is a library for arrays and it needs [NumPy ndarrays](https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray) or objects that can be converted to them as input (such as [Polars](https://docs.pola.rs/) and [pandas](https://pandas.pydata.org/) DataFrames).
+
+## Plots elements
+
+A matplotlib plot is typically made of several elements, all subclasses of the [`Artist` class](https://matplotlib.org/stable/api/artist_api.html#matplotlib.artist.Artist):
+
+- a [`Figure`](https://matplotlib.org/stable/api/_as_gen/matplotlib.figure.Figure.html#matplotlib.figure.Figure) (the container for the plot),
+- one or more [`Axes`](https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.html#matplotlib.axes.Axes) (the subplot(s) within your plot),
+- all the objects contained in each of the Axes:
+  - [`Axis`](https://matplotlib.org/stable/api/axis_api.html#matplotlib.axis.Axis) (ticks and ticks labels),
+  - [`Text` objects](https://matplotlib.org/stable/api/text_api.html#matplotlib.text.Text),
+  - [`Line2D` objects](https://matplotlib.org/stable/api/_as_gen/matplotlib.lines.Line2D.html#matplotlib.lines.Line2D) (lines in 2D graphs),
+  - [`Polygon` objects](https://matplotlib.org/stable/api/_as_gen/matplotlib.patches.Polygon.html#matplotlib.patches.Polygon),
+  - etc.
+
+![from [matplotlib website](https://matplotlib.org/stable/users/explain/quick_start.html)](img/matplotlib_elements.png)
+
+Let's explore some of these elements.
+
+## Figure
+
+The common way to use matplotlib is via the `pyplot` API:
+
+```{python}
+import matplotlib.pyplot as plt
+```
+
+You can define a `Figure` with [`matplotlib.pyplot.figure`](https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.figure.html):
+
+```{python}
+fig = plt.figure()
+```
+
+```{python}
+print(fig)
+```
+
+You can change the dimensions of a `Figure`:
+
+```{python}
+fig = plt.figure(figsize=(9, 7))
+```
+
+## Figure and Axes
+
+### Single Axes
+
+You can create a `Figure` as we saw above, then add `Axes` with [`matplotlib.figure.Figure.subplots`](https://matplotlib.org/stable/api/_as_gen/matplotlib.figure.Figure.subplots.html):
+
+```{python}
+fig = plt.figure()
+ax = fig.subplots()
+```
+
+:::{.note}
+
+In Jupyter notebooks, matplotlib plots are displayed automatically as soon as they have `Axes`. Outside of Jupyter, you display the plot with [`matplotlib.pyplot.show`](https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.show.html#matplotlib.pyplot.show) (which means that here, you would run `plt.show()`).
+
+:::
+
+If you don't pass any argument to `subplots`, this creates a single `Axes`.
+
+[`matplotlib.pyplot.subplots`](https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.subplots.html#matplotlib.pyplot.subplots) provides a convenient way to create a `Figure` and the `Axes` at the same time:
+
+```{python}
+fig, ax = plt.subplots()
+```
+
+```{python}
+print(type(fig))
+print(type(ax))
+```
+
+### Multiple Axes
+
+If you pass values to the arguments `nrows` and `ncols` of the `subplots` function (their defaults are `1`), this creates an array of `Axes` and thus multiple subplots in the plot:
+
+```{python}
+fig, axs = plt.subplots(2, 3)
+```
+
+The default is a little squished. We can fix that by increasing the size of the `Figure`:
+
+```{python}
+fig, axs = plt.subplots(2, 3, figsize=(9, 7))
+```
+
+```{python}
+print(type(fig))
+print(type(axs))
+print(axs.shape)
+print(axs)
+print(type(axs[0][0]))
+```
+
+[`matplotlib.pyplot.subplot_mosaic
+`](https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.subplot_mosaic.html#matplotlib.pyplot.subplot_mosaic) allows to customize the location of the various `Axes` thanks to nested lists:
+
+```{python}
+fig, axs = plt.subplot_mosaic([['A', 'B'],
+                               ['A', 'C']])
+fig, axs = plt.subplot_mosaic([['A', 'A', 'B'],
+                               ['C', '.', 'B']])
+fig, axs = plt.subplot_mosaic([['A', 'B'],
+                               ['A', 'B']])
+```
+
+## Adding data
+
+### Single Axes
+
+Let's make up some array data:
+
+```{python}
+import numpy as np
+
+x = np.linspace(0, 10, 100)
+y = 4 + 1 * np.sin(2 * x)
+```
+
+Now, let's plot a `Figure` with a single `Axes` and with our data:
+
+```{python}
+fig, ax = plt.subplots()
+ax.plot(x, y)
+```
+
+The [`matplotlib.axes.Axes.plot`](https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.plot.html#matplotlib.axes.Axes.plot) function plots the 2nd argument (`y` here) as the dependent variable and the 1st argument (`x` here) as the independent variable as lines and/or markers using an object of the class [`matplotlib.lines.Line2D`](https://matplotlib.org/stable/api/_as_gen/matplotlib.lines.Line2D.html#matplotlib.lines.Line2D).
+
+:::{.note}
+
+If we don't want to print the address in memory of our `Line2D`, we can add a semi-colon after the `plot` function:
+
+```{python}
+fig, ax = plt.subplots()
+ax.plot(x, y);
+```
+
+:::
+
+You can customize the line and/or add makers by passing arguments to the `plot` function.
+
+```{python}
+# Customize line:
+fig, ax = plt.subplots()
+ax.plot(x, y, linewidth=4, color='g', linestyle=':');
+```
+
+```{python}
+# Add markers:
+fig, ax = plt.subplots()
+ax.plot(x, y, marker='*');
+```
+
+You can add more data to the plot:
+
+```{python}
+y2 = np.cos(x)
+
+fig, ax = plt.subplots()
+ax.plot(x, y)
+ax.plot(x, y2);
+```
+
+We can add a legend, title, and axes labels:
+
+```{python}
+fig, ax = plt.subplots()
+ax.plot(x, y, label='Data 1')
+ax.plot(x, y2, label='Data 2')
+ax.legend()
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_title('Example plot');
+```
+
+### Multiple Axes
+
+```{python}
+fig, axs = plt.subplots(1, 2, figsize=(9, 7))
+axs[0].plot(x, y)
+axs[1].plot(x, y2);
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Add axes labels and a title for each of the subplot.
+
+:::
+
+```{python}
+fig, axs = plt.subplots(1, 2, figsize=(9, 7))
+axs[0].plot(x, y)
+axs[1].plot(x, y2)
+axs[0].set_xlabel('x')
+axs[0].set_ylabel('y')
+axs[0].set_title('Example plot 1')
+axs[1].set_xlabel('x')
+axs[1].set_ylabel('y')
+axs[1].set_title('Example plot 2');
+```
+
+## Saving plots
+
+You can save a plot with [`matplotlib.figure.Figure.savefig`](https://matplotlib.org/stable/api/_as_gen/matplotlib.figure.Figure.savefig.html#matplotlib.figure.Figure.savefig):
+
+```{.python}
+fig.savefig('our_graph.png')
+```
+
+You can set the size, dpi, file type, etc. of the saved file by passing options to the `savefig` function.
+
+Plots can be saved in `.png`, `.pdf`, `.svg`, `.jpg`, `.tif`, `.gif`, `.raw`, among others.
+
+## A note on syntax
+
+There are many ways to do anything in matplotlib and you will come across various syntaxes linked with the [many APIs](https://matplotlib.org/stable/users/explain/figure/api_interfaces.html#api-interfaces). This can be very confusing!
+
+In this course, we stick to the native explicit "Axes" interface which is the most customizable and the most standard way to use matplotlib.
