@@ -22,7 +22,7 @@ slides_to_content() {
     sed -i '/^frontpicmargintop:/d' $newname
     sed -i '/^frontpicmarginbottom:/d' $newname
     sed -i '/^frontpicborderradius:/d' $newname
-    sed -i '/^noshadow: noshadow/d' $newname
+    sed -i '/^shadow: shadow/d' $newname
     sed -i '/^frontlogo: \/img\/logo_sfudrac.png/d' $newname
     sed -i '/^date:/d' $newname
     sed -i '/^date-format: long/d' $newname
