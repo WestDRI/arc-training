@@ -87,7 +87,56 @@ For more examples, you can visit the seaborn gallery:
 
 ## [bokeh](http://bokeh.org/)
 
-Bokeh creates interactive plots great for dashboards and web apps. It is more efficient than other libraries for streaming or interactions with large datasets. It does have a fairly steep learning curve.
+Bokeh creates interactive plots great for dashboards and web apps. It is more efficient than other libraries for streaming or interactions with large datasets. It does however have a fairly steep learning curve.
+
+### Example
+
+```{python}
+from bokeh.models import LogColorMapper
+from bokeh.palettes import Viridis6 as palette
+from bokeh.plotting import output_notebook, figure, show
+from bokeh.sampledata.unemployment import data as unemployment
+from bokeh.sampledata.us_counties import data as counties
+
+output_notebook()
+
+palette = tuple(reversed(palette))
+
+counties = {
+    code: county for code, county in counties.items() if county["state"] == "tx"
+}
+
+county_xs = [county["lons"] for county in counties.values()]
+county_ys = [county["lats"] for county in counties.values()]
+
+county_names = [county['name'] for county in counties.values()]
+county_rates = [unemployment[county_id] for county_id in counties]
+color_mapper = LogColorMapper(palette=palette)
+
+data=dict(
+    x=county_xs,
+    y=county_ys,
+    name=county_names,
+    rate=county_rates,
+)
+
+TOOLS = "pan,wheel_zoom,reset,hover,save"
+
+p = figure(
+    title="Texas Unemployment, 2009", tools=TOOLS,
+    x_axis_location=None, y_axis_location=None,
+    tooltips=[
+        ("Name", "@name"), ("Unemployment rate", "@rate%"), ("(Long, Lat)", "($x, $y)"),
+    ])
+p.grid.grid_line_color = None
+p.hover.point_policy = "follow_mouse"
+
+p.patches('x', 'y', source=data,
+          fill_color={'field': 'rate', 'transform': color_mapper},
+          fill_alpha=0.7, line_color="white", line_width=0.5)
+
+show(p)
+```
 
 ### Demos
 
@@ -107,7 +156,9 @@ You can look for examples in the demo page:
 
 ## [plotly](https://plotly.com/python/)
 
-Plotly also creates interactive plots and its declarative option with the Plotly Express framework makes it very easy to use (the imperative approach is also possible). Static plots however are less sophisticated than with matplotlib and it is not as good as Bokeh for dashboard interactions.
+Plotly also creates interactive plots. It comes with two APIs: an older, lower-level, imperative one (Plotly Graph Objects) that allows for more control and a newer, higher-level, declarative one (Plotly Express) which is very easy to use. Static plots however are less sophisticated than with matplotlib and it is not as good as Bokeh for dashboard interactions.
+
+We will have a quick look at plotly later in the course.
 
 ### Example
 
@@ -129,27 +180,28 @@ fig.show()
 
 ## [Vega-Altair](https://altair-viz.github.io/)
 
-Vega-Altair is a declarative library with an easy syntax and interactive plots options, ideal for EDA.
+[Vega](https://vega.github.io/vega/) is a low-level, declarative, interactive visualization library for JSON.
+
+On top of it was built [Vega-Lite](https://vega.github.io/vega-lite/), a higher-level, simpler interactive JSON library.
+
+Finally, [Vega-Altair](https://altair-viz.github.io/) is a Python API built on top of Vega-Lite. It thus provides is a high-level, simple, declarative library for interactive plots. It is ideal for statistical visualization and EDA.
 
 ### Example
 
-```{.python}
+```{python}
 import altair as alt
-from vega_datasets import data
-
-source = data.us_employment()
+source = "https://cdn.jsdelivr.net/npm/vega-datasets/data/us-employment.csv"
 
 predicate = alt.datum.nonfarm_change > 0
 color = alt.when(predicate).then(alt.value("steelblue")).otherwise(alt.value("orange"))
 
 alt.Chart(source).mark_bar().encode(
-    x="month:T",
-    y="nonfarm_change:Q",
-    color=color
-).properties(width=600)
+    alt.X("month:T").title("Month"),
+    alt.Y("nonfarm_change:Q").title("Month to month change in unemployment"),
+    color=color,
+    tooltip=[alt.Tooltip("nonfarm:Q", title="Unemployment that month")]
+).properties(width=650).interactive()
 ```
-
-![](img/plot_altair.png) <br><br>
 
 ### Gallery
 
@@ -173,7 +225,7 @@ Plotnine is an adaptation to Python of the popular R library [ggplot2](https://g
 
 ### Example
 
-```{.python}
+```{python}
 from plotnine import (
     ggplot,
     aes,
@@ -194,8 +246,6 @@ theme_set(theme_matplotlib())
     + geom_tile()
 )
 ```
-
-![](img/plot_plotnine.png) <br><br>
 
 ### Website
 
