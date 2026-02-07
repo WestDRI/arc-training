@@ -5,42 +5,68 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-When it comes to high-performance computing, one of the strengths of Polars is that it supports [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation). Lazy evaluation instantly returns a future that can be used down the code without waiting for the result of the computation to get calculated. It also allows the query optimizer to combine operations, very much the way compiled languages work.
+When it comes to high-performance computing, one of the strengths of Polars is that it supports [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation). Lazy evaluation instantly returns a future that can be used without waiting for the result of the computation. Moreover, when you run queries on a LazyFrame, Polars creates a graph and runs [optimizations](https://docs.pola.rs/user-guide/lazy/optimizations/) on it, very much the way compiled languages work.
 
 If you want to speedup your code, **use lazy execution whenever possible.**
 
 :::
 
-Try to use the lazy API from the start, when reading a file.
+## Reading in data to a LazyFrame
 
-In previous examples, we used `read_csv` to read our data. This returns a Polars DataFrame. Instead, you can use `scan_csv` to create a LazyFrame:
+Ideally, you want to use the lazy API from the start, when you read in the data.
+
+In the previous examples, we used [`polars.read_csv`](https://docs.pola.rs/api/python/stable/reference/api/polars.read_csv.html#polars.read_csv) to read our data. This returns a Polars DataFrame:
 
 ```{python}
 import polars as pl
 
-url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+url = "https://cdn.jsdelivr.net/npm/vega-datasets/data/disasters.csv"
 
 df = pl.read_csv(url)
-df_lazy = pl.scan_csv(url)
+type(df)
+```
 
-print(type(df))
-print(type(df_lazy))
+Instead, you can use [`polars.scan_csv`](https://docs.pola.rs/api/python/stable/reference/api/polars.scan_csv.html#polars.scan_csv) to create a LazyFrame:
+
+```{python}
+df_lazy = pl.scan_csv(url)
+type(df_lazy)
 ```
 
 :::{.note}
 
-There are scan functions [for all the numerous IO methods Polars offers](https://docs.pola.rs/user-guide/io/).
+There are scan functions [for all the IO methods Polars offers](https://docs.pola.rs/user-guide/io/).
 
 :::
 
-If you already have a DataFrame, you can create a LazyFrame from it with the `lazy` method:
+## Converting to a LazyFrame
+
+If you already have a DataFrame, you can create a LazyFrame from it with the [`polars.DataFrame.lazy`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.lazy.html#polars.DataFrame.lazy) method:
 
 ```{python}
 df_lazy = df.lazy()
 ```
 
-When you run queries on a LazyFrame, instead of evaluating them, Polars creates a graph and runs [many optimizations](https://docs.pola.rs/user-guide/lazy/optimizations/) on it.
+## Getting the results
 
-To evaluate the code and get the result, you use the `collect` method.
+To get results from a LazyFrame, you use [`polars.LazyFrame.collect`](https://docs.pola.rs/api/python/stable/reference/lazyframe/api/polars.LazyFrame.collect.html).
 
-We will see this in action in the next section.
+This won't work because a LazyFrame has no attribute `shape`:
+
+```{python}
+df_lazy.filter(pl.col("Year") == 2001).shape
+```
+
+You need to `collect` the result first:
+
+```{python}
+df_lazy.filter(pl.col("Year") == 2001).collect().shape
+```
+
+`collect` turns your LazyFrame into a DataFrame, but it only does so on the subset needed for your query:
+
+```{python}
+type(df_lazy.filter(pl.col("Year") == 2001).collect())
+```
+
+This allows you to work with data too big to fit in memory!
