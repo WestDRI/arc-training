@@ -9,88 +9,143 @@ The syntax to subset data is very different in Polars compared to the indexing o
 
 :::
 
-Let's start with the same DataFrame we used in the previous section:
+Let's read in [another online dataset from Vega-Altair](https://github.com/vega/vega-datasets/blob/main/datapackage.md#disasters) into a DataFrame:
 
 ```{python}
 import polars as pl
 
-df = pl.read_csv("https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv")
+df = pl.read_csv("https://cdn.jsdelivr.net/npm/vega-datasets/data/disasters.csv")
 
 print(df)
 ```
 
 ## Selecting rows
 
-You can select rows based on any expression that evaluates to a Boolean with `filter`:
+You can create a new DataFrame with a subset of rows matching some condition with [`polars.DataFrame.filter`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.filter.html).
+
+Let's select rows for the year `2001`. For this, we select the column `Year` by its name with [`polars.col`](https://docs.pola.rs/api/python/stable/reference/expressions/col.html) and return the rows when the values for that column equal `2001`:
 
 ```{python}
-df_sub = df.filter(
-    pl.col("Air Date") == "5/8/09"
-    )
+df_sub_row = df.filter(pl.col("Year") == 2001)
 
-print(df_sub)
+print(df_sub_row)
 ```
 
-You can combine conditions:
+You can combine multiple conditions:
 
 ```{python}
-df_sub = df.filter(
-    pl.col("Air Date") == "5/8/09",
-    pl.col("Round") != "Double Jeopardy!"
+df_sub_row = df.filter(
+    pl.col("Year") == 2001,
+    pl.col("Entity") == "Flood"
     )
 
-print(df_sub)
+print(df_sub_row)
 ```
 
 ## Selecting columns
 
-To select columns (variables), you use `select`:
+To select columns (variables), you use [`polars.DataFrame.select`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.select.html):
 
 ```{python}
-df_sub = df.select(
-    pl.col("Show Number"),
-    pl.col("Category")
+df_sub_col = df.select(
+    pl.col("Entity"),
+    pl.col("Year")
     )
 
-print(df_sub)
+print(df_sub_col)
 ```
 
-## Creating new columns with output of expressions
-
-The jeopardy dataset is made mostly of String variables. Let's use another one here: the [now archived global confirmed Covid-19 cases from John Hopkins University](https://github.com/CSSEGISandData/COVID-19):
+Note that if you select a single column, you still have a DataFrame:
 
 ```{python}
-url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+df_onecol = df.select(pl.col("Entity"))
 
-df = pl.read_csv(url)
-
-print(df)
+print(df_onecol)
 ```
 
-To create a new variable called `daily_avg` with the daily average of new cases, we use `select` again, but this time we add an expression:
-
 ```{python}
-df_new = df.select(
-    daily_avg=pl.col("3/9/23") / 1143
-    )
-
-print(df_new)
+type(df_onecol)
 ```
 
-:::{.note}
+## Extracting Series
 
-Since the data is cumulative across dates, we took the last columns (totals cases for each row) and divided by the number of days of this dataset (total number of columns menus the four first columns).
+[As we saw earlier](polars_structures.qmd), Polars DataFrames are made of [`Series`](https://docs.pola.rs/api/python/stable/reference/series/index.html): one-dimensional homogeneous data structures representing the columns of the DataFrames.
 
-:::
-
-If you want to keep all columns in the output, you use `with_columns`:
+To extract a Series out of a DataFrames, you can use [`polars.DataFrame.get_column`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.get_column.html#polars.DataFrame.get_column) if you want to use the column name:
 
 ```{python}
-df_new = df.with_columns(
-    daily_avg=pl.col("3/9/23") / 1143
-    )
+s_entity = df.get_column("Entity")
 
-print(df_new)
+print(s_entity)
+```
+
+Or you can use [`polars.DataFrame.to_series`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.to_series.html#polars.DataFrame.to_series) if you want to extract the column by its index:
+
+```{python}
+s_entity = df.to_series(0)
+
+print(s_entity)
+```
+
+```{python}
+type(s_entity)
+```
+
+Using [`polars.DataFrame.unique`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.unique.html) and [`polars.Series.to_list`](https://docs.pola.rs/api/python/stable/reference/series/api/polars.Series.to_list.html#polars.Series.to_list), you can get a list of all the types of natural disasters in this dataset (we can then sort the list with the standard `list.sort` method):
+
+```{python}
+disasters = s_entity.unique().to_list()
+disasters.sort()
+
+disasters
+```
+
+```{python}
+type(disasters)
+```
+
+## Modifying selected columns
+
+You can modify selected columns to create new columns. The new columns can be named with [`polars.Expr.alias`](https://docs.pola.rs/api/python/stable/reference/expressions/api/polars.Expr.alias.html#polars.Expr.alias):
+
+```{python}
+df_col_mod = df.select(
+    pl.col("Entity"),
+    pl.col("Year"),
+    (pl.col("Deaths") / 1000).alias("Kilodeaths")
+)
+
+print(df_col_mod)
+```
+
+Or you can name the new columns by assigning their values to the new names:
+
+```{python}
+df_col_mod = df.select(
+    pl.col("Entity"),
+    pl.col("Year"),
+    Kilodeaths=pl.col("Deaths") / 1000
+)
+
+print(df_col_mod)
+```
+
+## Adding modified columns
+
+If you want to add the modified columns to the initial DataFrame (instead of selecting them), you use [`polars.DataFrame.with_columns`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.with_columns.html). The naming works in the same way:
+
+```{python}
+df_mod = df.with_columns((pl.col("Deaths") / 1000).alias("Kilodeaths"))
+
+print(df_mod)
+```
+
+Or, with the alternative column naming:
+
+```{python}
+df_mod = df.with_columns(Kilodeaths=pl.col("Deaths") / 1000)
+
+print(df_mod)
 ```
 
 :::{.note}
@@ -99,59 +154,33 @@ Notice that our new variable got added as the last column of the DataFrame.
 
 :::
 
-If we want to write in place, we can reassign the output to the initial DataFrame:
-
-```{python}
-df = df.with_columns(
-    daily_avg=pl.col("3/9/23") / 1143
-    )
-```
-
 ## Group by operations
 
-In this Covid-19 dataset some countries (e.g. Australia) are split between several provinces or states. If we want the total numbers for such countries we have to group the rows by the variable `Country/Region`, then get the sum for each group.
+If you want to perform operations on rows sharing the same value for some variable, you group those rows with [`polars.DataFrame.group_by`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.group_by.html#polars.DataFrame.group_by).
 
-Getting the sums of the latitude and longitude wouldn't make any sense, so first we get rid of those two columns:
+For instance, if we want to get the total number of deaths for each category of disaster, we can do:
 
 ```{python}
-df_clean = df.select(
-    pl.col("*").exclude("Lat", "Long")
-    )
+totals = df.group_by(
+    (pl.col("Entity"))
+).agg(
+    pl.col("Deaths").sum()
+)
 
-print(df_clean)
+print(totals)
 ```
 
-:::{.note}
-
-There are [many ways](https://docs.pola.rs/user-guide/expressions/column-selections/) to select columns from a DataFrame.
-
-:::
-
-Now we can group by and get our sums:
+Notice that the rows became out of order. Not to worry about order makes the code more efficient and does not affect future subsetting of our DataFrame. If you want to maintain the order however, you can use the `maintain_order` parameter (but this slows down the operation):
 
 ```{python}
-df_countries = df_clean.group_by(
-    (pl.col("Country/Region")).alias("Country totals")
-    ).sum()
-
-print(df_countries)
-```
-
-:::{.note}
-
-The `alias` method allows us to give a name to the groups.
-
-:::
-
-Notice that the rows became out of order. Not to worry about order makes the code more efficient and does not affect future subsetting of our DataFrame. If you want to maintain the order however, you can use the `maintain_order` parameter:
-
-```{python}
-df_countries = df_clean.group_by(
-    (pl.col("Country/Region")).alias("Country"),
+totals = df.group_by(
+    (pl.col("Entity")),
     maintain_order=True
-    ).sum()
+).agg(
+    pl.col("Deaths").sum()
+)
 
-print(df_countries)
+print(totals)
 ```
 
 :::{.exo}
@@ -162,68 +191,67 @@ Your turn:
 
 :::
 
-- The old `Country/Region` column is now irrelevant. Remove it from `df_countries`.
-
-- How could you get the total number of cases for each day for the whole world?
+Create a new DataFrame, ordered by year, that shows the total number of deaths for each year.
 
 :::
 
-<!-- To get a world total of number of cases for each day, we simply need to use the `sum` method on either the initial DataFrame or our  -->
-
 <!-- ```{python} -->
-<!-- df_total = df_countries.sum() -->
+<!-- year_deaths = df.filter( -->
+<!--     pl.col("Entity") != "All natural disasters" -->
+<!-- ).group_by( -->
+<!--     (pl.col("Year")) -->
+<!-- ).agg( -->
+<!--     pl.col("Deaths").sum() -->
+<!-- ).sort("Year") -->
 
-<!-- print(df_total) -->
+<!-- print(year_deaths) -->
 <!-- ``` -->
 
-<!-- ```{python} -->
-<!-- df_total = df_clean.sum() -->
-
-<!-- print(df_total) -->
-<!-- ``` -->
+<!-- Or: -->
 
 <!-- ```{python} -->
-<!-- df_countries = df_countries.select( -->
-<!--     pl.col("*").exclude("Country/Region") -->
-<!--     ) -->
+<!-- year_deaths = df.filter( -->
+<!--     pl.col("Entity") == "All natural disasters" -->
+<!-- ).group_by( -->
+<!--     (pl.col("Year")) -->
+<!-- ).agg( -->
+<!--     pl.col("Deaths").sum() -->
+<!-- ).sort("Year") -->
 
-<!-- print(df_countries) -->
+<!-- print(year_deaths) -->
 <!-- ``` -->
 
-<!-- ## Aggregations -->
+## Combining contexts
 
-<!-- To keep a list of all elements of the groups, we use the `agg` method: -->
+`select`, `with_columns`, `filter`, and `group_by` are called [contexts]{.emph} in the Polars terminology (the data transformations performed in these contexts are called [expressions]{.emph}).
 
-<!-- ```{python} -->
-<!-- df_countries = df.group_by( -->
-<!--     (pl.col("Country/Region")).alias("Country"), -->
-<!--     maintain_order=True -->
-<!--     ).agg(pl.col("Country/Region")) -->
+Contexts can be combined. For instance, we can create a new DataFrame with the number of deaths for each decade:
 
-<!-- print(df_countries) -->
-<!-- ``` -->
+```{python}
+decade_totals = df.filter(
+    pl.col("Entity") == "All natural disasters"
+).with_columns(
+    (pl.col("Year") // 10 * 10).alias("Decade")
+).group_by(
+    pl.col("Decade"),
+    maintain_order=True
+).agg(
+    pl.col("Deaths").sum()
+)
 
-<!-- :::{.exo} -->
+print(decade_totals)
+```
 
-<!-- :::{.yourturn} -->
+Or one with the number of deaths for that decade for each type of disaster:
 
-<!-- Your turn: -->
+```{python}
+decade_totals_by_type = df.with_columns(
+    (pl.col("Year") // 10 * 10).alias("Decade"),
+).group_by([pl.col("Decade"), pl.col("Entity")],
+    maintain_order=True
+).agg(
+    pl.col("Deaths").sum()
+)
 
-<!-- ::: -->
-
-<!-- This doesn't show the point of the aggregation as we only see rows for which  -->
-
-<!-- ::: -->
-
-<!-- ```{python} -->
-<!-- print( -->
-<!--     df_countries.filter( -->
-<!--         pl.col("Country") == "Australia" -->
-<!--     ) -->
-<!-- ) -->
-<!-- ``` -->
-
-<!-- ```{python} -->
-<!-- df_na = df_countries.select( -->
-<!--     pl.col("Country") == "France" -->
-<!-- ``` -->
+print(decade_totals_by_type)
+```
