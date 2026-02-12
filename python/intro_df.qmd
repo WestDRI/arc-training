@@ -1,0 +1,264 @@
+---
+title: DataFrames in Python
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+In programming languages, tabular data is handled in objects called DataFrames (or data frames or Data Frames). They were first implemented in the statistical language S, then in R, then they made it to Python.
+
+In this section, we will have a briefly look at the tools available in Python to work with DataFrames.
+
+:::
+
+## [pandas](https://pandas.pydata.org/)
+
+As the first (and only) implementation of DataFrames in Python, [pandas](https://pandas.pydata.org/) was the *de facto* DataFrame library for a very long time. Free and open-source, it is built on top of the array library [NumPy](https://numpy.org/) and was directly inspired by R Data Frames.
+
+pandas is still widely used and you will come across it everywhere. Looking back on its design, even its creator [Wes McKinney](https://wesmckinney.com/) saw flaws in its implementation.
+
+Since July 1, 2024 there has been a new and much faster library called Polars. For this reason, we decided not to teach pandas in this course but to focus instead on the newer and better tool.
+
+## [Polars](https://docs.pola.rs/)
+
+[Polars](https://docs.pola.rs/) is a free and open-source new framework for DataFrames in Rust, R, JS, Ruby, and Python. It uses [Apache Arrow](https://arrow.apache.org/) columnar memory format which is the new standard for efficiency. It allows for [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation) (which allows it to work with more data than can fit in memory), multi-threaded queries, [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) vectorization, automatic parallelization, and better support for missing data.
+
+We are only covering a succinct introduction to Polars here, but we will cover more in the [section on plotting with seaborn](intro_seaborn.qmd) later in this course. You can also have a look at [our introductory course on Polars](hpc_polars.qmd) for more details. Finally, we will offer a course on using Polars on GPU later this term.
+
+### DataFrame exploration
+
+Let's use the [la_riots dataset](https://github.com/vega/vega-datasets/blob/main/datapackage.md#la_riots), an open-source dataset on fatalities during the civil unrest in Los Angeles in April and May 1992, provided by the plotting library [Vega-Altair](https://altair-viz.github.io/). The dataset is hosted online as a CSV file.
+
+You can read in a CSV file (local or from the Internet) with [`polars.read_csv`](https://docs.pola.rs/api/python/stable/reference/api/polars.read_csv.html):
+
+```{python}
+import polars as pl
+
+file_path = "https://cdn.jsdelivr.net/npm/vega-datasets/data/la-riots.csv"
+
+df = pl.read_csv(file_path)
+```
+
+Let's have a look at the first 5 rows of data:
+
+```{python}
+print(df.head())
+```
+
+The list of columns (variable names) can be accessed with the `columns` attribute:
+
+```{python}
+print(df.columns)
+```
+
+An overview of the structure of the data can be accessed with the method `glimpse`:
+
+```{python}
+df.glimpse()
+```
+
+And summary statistics with the method `describe`:
+
+```{python}
+print(df.describe())
+```
+
+### Subsetting
+
+Let's read in [another online dataset from Vega-Altair](https://github.com/vega/vega-datasets/blob/main/datapackage.md#disasters) into a DataFrame:
+
+```{python}
+df = pl.read_csv("https://cdn.jsdelivr.net/npm/vega-datasets/data/disasters.csv")
+
+print(df)
+```
+
+We can subset it by rows:
+
+```{python}
+df_sub_row = df.filter(pl.col("Year") == 2001)
+
+print(df_sub_row)
+```
+
+Or by columns:
+
+```{python}
+df_sub_col = df.select(
+    pl.col("Entity"),
+    pl.col("Year")
+    )
+
+print(df_sub_col)
+```
+
+### Transformations
+
+Selected columns can be modified:
+
+```{python}
+df_col_mod = df.select(
+    pl.col("Entity"),
+    pl.col("Year"),
+    (pl.col("Deaths") / 1000).alias("Kilodeaths")
+)
+
+print(df_col_mod)
+```
+
+The transformed columns can be created alongside all the columns of the original DataFrame:
+
+```{python}
+df_mod = df.with_columns((pl.col("Deaths") / 1000).alias("Kilodeaths"))
+
+print(df_mod)
+```
+
+### Group by operations
+
+If you want to perform operations on rows sharing the same value for some variable, you group those rows with [`polars.DataFrame.group_by`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.group_by.html#polars.DataFrame.group_by).
+
+For instance, if we want to get the total number of deaths for each category of disaster, we can do:
+
+```{python}
+totals = df.group_by(
+    pl.col("Entity")
+).agg(
+    pl.col("Deaths").sum()
+)
+
+print(totals)
+```
+
+Notice that the rows became out of order. Not to worry about order makes the code more efficient and does not affect future subsetting of our DataFrame. If you want to maintain the order however, you can use the `maintain_order` parameter (but this slows down the operation):
+
+```{python}
+totals = df.group_by(
+    pl.col("Entity"),
+    maintain_order=True
+).agg(
+    pl.col("Deaths").sum()
+)
+
+print(totals)
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Create a new DataFrame, ordered by year, that shows the total number of deaths for each year:
+
+```{python}
+#| echo: false
+
+year_deaths = df.filter(
+    pl.col("Entity") == "All natural disasters"
+).group_by(
+    (pl.col("Year"))
+).agg(
+    pl.col("Deaths").sum()
+).sort("Year")
+
+# or:
+# year_deaths = df.filter(
+#     pl.col("Entity") != "All natural disasters"
+# ).group_by(
+#     (pl.col("Year"))
+# ).agg(
+#     pl.col("Deaths").sum()
+# ).sort("Year")
+
+print(year_deaths)
+```
+
+:::
+
+### Combining contexts
+
+`select`, `with_columns`, `filter`, and `group_by` are called [contexts]{.emph} in the Polars terminology (the data transformations performed in these contexts are called [expressions]{.emph}).
+
+Contexts can be combined. For instance, we can create a new DataFrame with the number of deaths for each decade:
+
+```{python}
+decade_totals = df.filter(
+    pl.col("Entity") == "All natural disasters"
+).with_columns(
+    (pl.col("Year") // 10 * 10).alias("Decade")
+).group_by(
+    pl.col("Decade"),
+    maintain_order=True
+).agg(
+    pl.col("Deaths").sum()
+)
+
+print(decade_totals)
+```
+
+Or one with the number of deaths for that decade for each type of disaster:
+
+```{python}
+decade_totals_by_type = df.with_columns(
+    (pl.col("Year") // 10 * 10).alias("Decade"),
+).group_by([pl.col("Decade"), pl.col("Entity")],
+    maintain_order=True
+).agg(
+    pl.col("Deaths").sum()
+)
+
+print(decade_totals_by_type)
+```
+
+### Lazy evaluation
+
+When it comes to high-performance computing, one of the strengths of Polars is that it supports [lazy evaluation](https://en.wikipedia.org/wiki/Lazy_evaluation). Lazy evaluation instantly returns a future that can be used without waiting for the result of the computation. Moreover, when you run queries on a LazyFrame, Polars creates a graph and runs [optimizations](https://docs.pola.rs/user-guide/lazy/optimizations/) on it, very much the way compiled languages work.
+
+If you want to speedup your code, use lazy execution whenever possible and try to use the lazy API from the start, when reading a file.
+
+In the previous examples, we used [`polars.read_csv`](https://docs.pola.rs/api/python/stable/reference/api/polars.read_csv.html#polars.read_csv) to read our data. This returns a Polars DataFrame:
+
+```{python}
+url = "https://cdn.jsdelivr.net/npm/vega-datasets/data/disasters.csv"
+
+df = pl.read_csv(url)
+type(df)
+```
+
+Instead, you can use [`polars.scan_csv`](https://docs.pola.rs/api/python/stable/reference/api/polars.scan_csv.html#polars.scan_csv) to create a LazyFrame:
+
+```{python}
+df_lazy = pl.scan_csv(url)
+type(df_lazy)
+```
+
+If you already have a DataFrame, you can create a LazyFrame from it with the [`polars.DataFrame.lazy`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.lazy.html#polars.DataFrame.lazy) method:
+
+```{python}
+df_lazy = df.lazy()
+```
+
+To get results from a LazyFrame, you use [`polars.LazyFrame.collect`](https://docs.pola.rs/api/python/stable/reference/lazyframe/api/polars.LazyFrame.collect.html).
+
+This won't work because a LazyFrame has no attribute `shape`:
+
+```{python}
+df_lazy.filter(pl.col("Year") == 2001).shape
+```
+
+You need to `collect` the result first:
+
+```{python}
+df_lazy.filter(pl.col("Year") == 2001).collect().shape
+```
+
+`collect` turns your LazyFrame into a DataFrame, but it only does so on the subset needed for your query:
+
+```{python}
+type(df_lazy.filter(pl.col("Year") == 2001).collect())
+```
+
+This allows you to work with data too big to fit in memory!
