@@ -13,7 +13,7 @@ csl: ../diabetologia.csl
 
 ## Getting data
 
-[seaborn](https://seaborn.pydata.org/) comes with a number of [datasets](https://github.com/mwaskom/seaborn-data) used in its documentation. They are convenient to play with the library. In this section however, we use [snow survey data for the province of British Columbia (Canada)](https://www2.gov.bc.ca/gov/content/environment/air-land-water/water/water-science-data/water-data-tools/snow-survey-data).
+[seaborn](https://seaborn.pydata.org/) comes with a number of [datasets](https://github.com/mwaskom/seaborn-data) used in its documentation. They are convenient to play with the library. In this section however, we use [snow survey data for the province of British Columbia (Canada)](https://www2.gov.bc.ca/gov/content/environment/air-land-water/water/water-science-data/water-data-tools/snow-survey-data). I am interested in assessing whether global warming is causing a decrease in the snowpack height in this part of the world.
 
 The data is tabular and stored in a CSV file. We read it into a Polars DataFrame:
 
@@ -147,9 +147,8 @@ I used Gemini 3 to split the list of stations into mountain ranges. This was ver
 
 :::
 
-Vancouver Island Ranges:
-
 ```{python}
+# Vancouver Island Ranges:
 island_stations = [
     "Burman Lake", "Dickson Lake", "East Creek", "Forbidden Plateau", "Green Mountain",
     "Heather Mountain", "Heather Mountain Upper", "June Lake", "Labour Day Lake",
@@ -157,11 +156,8 @@ island_stations = [
     "Sproat Lake", "Tennent Lake", "Upper Quinsam", "Upper Thelwood Lake",
     "Wolf River Lower", "Wolf River Middle", "Wolf River Upper"
 ]
-```
 
-Lower Mainland & Fraser Valley:
-
-```{python}
+# Lower Mainland & Fraser Valley:
 vancouver_stations = [
     "Alouette Lake", "Black Mountain (Cypress Provincial Park)", "Burwell Lake (North Shore)",
     "Coquitlam Lake", "Dog Mountain (Mount Seymour)", "Grouse Mountain", "Hollyburn", "Hope",
@@ -169,11 +165,8 @@ vancouver_stations = [
     "Orchid Lake (Stave/Lower Mainland)", "Palisade Lake (Capilano Watershed)",
     "Stave Lake", "Steelhead", "Upper Stave River", "Wahleach Lake"
 ]
-```
 
-Sea-to-Sky, Garibaldi & Bridge River:
-
-```{python}
+# Sea-to-Sky, Garibaldi & Bridge River:
 s2s_stations = [
     "Bralorne", "Bralorne (Upper)", "Bridge Glacier Lower", "Callaghan Creek", "Diamond Head",
     "Downton Lake Upper", "Duffey Lake", "Garibaldi Lake", "McGillivray Pass", "Mount Cook",
@@ -181,17 +174,16 @@ s2s_stations = [
     "Shalalth", "Shovelnose Mountain", "Tenquille Lake", "Toba River",
     "Tyaughton Creek (North)", "Whistler Mountain"
 ]
-```
 
-Cascades & Coquihalla (Southern Border Ranges):
-
-```{python}
+# Cascades & Coquihalla (Southern Border Ranges):
 cascades_stations = [
     "Blackwall Peak", "Boston Bar Creek (Lower)", "Boston Bar Creek (Upper)", "Great Bear",
     "Klesilkwa", "Lightning Lake", "Nahatlatch River", "New Tashme", "Sumallo River",
     "Sumallo River West", "Sunday Summit", "Tashme"
 ]
 ```
+
+Now we can filter the data for all these stations:
 
 ```{python}
 selected_data = snow_data.filter(
@@ -209,7 +201,7 @@ selected_data = snow_data.filter(
 
 ### Convert to seasons
 
-Snow pillow data go from October ^1st^ of one year to September ^30th^ of the following year. Let's bin the data into snow seasons:
+Snow pillow data go from October 1^st^ of one year to September 30^th^ of the following year. Let's add a `season` column:
 
 ```{python}
 season_data = selected_data.with_columns(
@@ -221,7 +213,9 @@ print(season_data)
 
 ### Select balanced panel
 
-[`polars.DataFrame.pivot`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.pivot.html) turns a long-format DataFrame to a wide-format one.
+Our data is in long format. It is the format we want for plotting and analyses. The wide format has use cases too. For instance, it allows to easily see whether data was collected for all stations at all times.
+
+[`polars.DataFrame.pivot`](https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.pivot.html) turns a long-format DataFrame to a wide-format one:
 
 ```{python}
 stations_years = season_data.pivot(
@@ -235,9 +229,11 @@ stations_years = season_data.pivot(
 print(stations_years)
 ```
 
-This clearly shows that the data was not collected on all the stations for all years. If we want to see trends over time, this is not good, particularly since not all stations are at the same elevation (if early years mostly had low elevations stations and recent years have more stations in the alpine, this would give a strong fake signal).
+This clearly shows that the data was not collected on all stations for all years. If we want to see trends over time, this is not good, particularly since not all stations are at the same elevation (if early years mostly had low elevations stations and recent years have more stations in the alpine, we would get a totally fake signal).
 
 We need to select a period and a set of stations that are monitored throughout that period. This is called a balanced panel.
+
+Let's define a function that returns the number of stations that have data collected for each season between 2 particular seasons:
 
 ```{python}
 def n_valid_in_period(df, period_start, period_end):
@@ -256,34 +252,50 @@ def n_valid_in_period(df, period_start, period_end):
 
     n_valid = len(valid_stations)
 
-    return (n_valid, period_start, period_end)
+    return n_valid, period_start, period_end
 ```
 
+We can test our function:
+
 ```{python}
-years = season_data.select(pl.col("date").dt.year())
-min_year = years.min().item()
-max_year = years.max().item()
-print(f"Year range: {min_year} to {max_year}")
+print(n_valid_in_period(season_data, 1998, 2001))
 ```
+
+This means that 29 stations have data collected every season between 1998 and 2001.
+
+Now we need to know the earliest and latest seasons in our dataset:
+
+```{python}
+seasons = season_data.select(pl.col("season"))
+min_season = seasons.min().item()
+max_season = seasons.max().item()
+print(f"Seasons range: {min_season} to {max_season}")
+```
+
+We can create a list the number of stations present in the whole period for each period spanning at least 10 seasons:
 
 ```{python}
 list_n_valid = []
 
-for i in range(min_year, max_year + 1):
-    for j in range(min_year, max_year + 1):
-        if j - i > 9:         # we want a period of at least 10 years
+for i in range(min_season, max_season + 1):
+    for j in range(min_season, max_season + 1):
+        if j - i > 9:         # we want a period of at least 10 seasons
             list_n_valid.append(n_valid_in_period(season_data, i, j))
 ```
 
 We want at least 5 stations, so let's clean the list from all `n_valid < 5`:
 
 ```{python}
-non_nil_list_n_valid = [i for i in list_n_valid if i[0] >= 5]
+selected_list_n_valid = [i for i in list_n_valid if i[0] >= 5]
+
+print(selected_list_n_valid)
 ```
+
+Now we can turn this new list of tuples into a DataFrame, add a column with the length of the period, and sort it by decreasing period length:
 
 ```{python}
 balanced_panels = pl.DataFrame(
-    non_nil_list_n_valid,
+    selected_list_n_valid,
     orient="row",
     schema=["n_valid", "period_start", "period_end"]
 ).with_columns(
@@ -291,11 +303,11 @@ balanced_panels = pl.DataFrame(
 ).sort(
     "period_length", "n_valid", descending=True
 )
-```
 
-```{python}
 print(balanced_panels)
 ```
+
+If there is any trend such as a decrease in the snow pack height due to global warming, we want to include data up to the present.
 
 :::{.exo}
 
@@ -324,7 +336,7 @@ with pl.Config(tbl_rows=100):
     print(balanced_current)
 ```
 
-48 seasons for 8 stations is not bad, so let's select the period from 1978 to the present.
+48 seasons for 8 stations is not bad, so let's select the period from 1978 to the present and create a new DataFrame called `subset_df`:
 
 ```{python}
 subset_df = season_data.filter(
@@ -333,6 +345,8 @@ subset_df = season_data.filter(
 
 print(subset_df)
 ```
+
+Now we want to get a list of the stations that have data for all seasons between 1978 and the present:
 
 ```{python}
 max_n_seasons = subset_df.group_by("station").agg(
@@ -343,8 +357,11 @@ subset_stations = subset_df.group_by("station").agg(
     pl.col("season").n_unique().alias("n_seasons")
 ).filter(pl.col("n_seasons") == max_n_seasons).get_column("station").to_list()
 
+print(len(subset_stations))  # should return 8
 print(subset_stations)
 ```
+
+Finally, we filter data for those stations:
 
 ```{python}
 subset_data = subset_df.filter(pl.col("station").is_in(subset_stations))
@@ -352,11 +369,15 @@ subset_data = subset_df.filter(pl.col("station").is_in(subset_stations))
 print(subset_data)
 ```
 
-### ADD ENSO data
+`subset_data` is a balanced panel of 8 stations between 1978 and 2026. That's the data we will plot and play with.
 
-[El Niño–Southern Oscillation (ENSO)](https://en.wikipedia.org/wiki/El_Ni%C3%B1o%E2%80%93Southern_Oscillation) 
+### Add ENSO data
 
-Based on NOAA ONI data. Year listed is the "Season Year" (approx Jan-Apr of that year). e.g. El Niño 1997-98 -> Season 1998
+The Pacific coast is strongly affected by [El Niño–Southern Oscillation (ENSO)](https://en.wikipedia.org/wiki/El_Ni%C3%B1o%E2%80%93Southern_Oscillation)—an unpredictable pseudo-cycle of sea-surface temperature changes that lead to atmospheric oscillations. El Niño years tend to be drier and warmer, so bad for the snowpack (and skiers!) while La Niña tend to be wetter and colder (so great for non-skiers but bad for the snowpack and skiers).
+
+Below a list of El Niño and La Niña years for our period of interest. It comes from the [National Oceanic and Atmospheric Administration](https://en.wikipedia.org/wiki/National_Oceanic_and_Atmospheric_Administration) Oceanic Niño Index (ONI) [data](https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php). Years that don't fall under either El Niño or La Niña are considered "neutral".
+
+This tells a simplified story because not all El Niño or La Niña years are the same: there are strong, moderate, and weak events in which the patterns observed during El Niño or La Niña have different intensities.
 
 <!-- ```{python} -->
 <!-- # all events -->
@@ -411,6 +432,8 @@ la_nina_years = [
 <!-- ] -->
 <!-- ``` -->
 
+We can add a column for ENSO data to our DataFrame (note the use of `polars.when`, `polars.then`, `polars.otherwise`, `polars.is_in`, and `polars.lit` in this snippet):
+
 ```{python}
 subset_enso = subset_data.with_columns(
 	pl.when(pl.col("season").is_in(el_nino_years)).then(pl.lit("El Niño"))
@@ -430,9 +453,13 @@ Let's load the seaborn library:
 import seaborn as sns
 ```
 
-### Relation plots
+### Relationship plots
 
-You could xxx
+[`seaborn.relplot`](https://seaborn.pydata.org/generated/seaborn.relplot.html#seaborn.relplot) displays relationships between dependent and independent variables.
+
+#### Scatter plots
+
+To display the relationship between the height of snow and the season, you could first calculate the mean height of the snowpack for each season:
 
 ```{python}
 season_means = subset_enso.group_by(
@@ -443,16 +470,39 @@ season_means = subset_enso.group_by(
 )
 ```
 
+Then plot those means against the seasons:
+
+```{python}
+sns.relplot(
+	data=season_means,
+	x="season",
+	y="mean_snow"
+).figure.set_size_inches(7, 4)
+```
+
+In Jupyter, the plots will be displayed automatically. Outside Jupyter, you need to import `matplotlib.pyplot` and run `matplotlib.pyplot.show()`:
+
+```{.python}
+import matplotlib.pyplot as plt
+plt.show()
+```
+
+#### Line plots
+
+By default `kind` is set to `scatter` and uses under the hood the function [`season.scatterplot`](https://seaborn.pydata.org/generated/seaborn.scatterplot.html#seaborn.scatterplot).
+
+You can change it to `line` and it will use instead the function [`seaborn.lineplot`](https://seaborn.pydata.org/generated/seaborn.lineplot.html#seaborn.lineplot):
+
 ```{python}
 sns.relplot(
 	data=season_means,
 	kind="line",
 	x="season",
 	y="mean_snow"
-).figure.set_size_inches(9, 4)
+).figure.set_size_inches(7, 4)
 ```
 
-But it isn't necessary with seaborn which is a statistically oriented plotting framework:
+But calculating the mean manually as we just did isn't necessary with seaborn which is a statistically oriented plotting framework. You can directly plot the height of the snowpack against the seasons and seaborn will calculate and plot the mean and 95% confidence interval around the mean:
 
 ```{python}
 sns.relplot(
@@ -460,22 +510,43 @@ sns.relplot(
 	kind="line",
 	x="season",
 	y="snow"
-).figure.set_size_inches(9, 4)
+).figure.set_size_inches(7, 4)
 ```
+
+We can see that there is a great deal of year to year variation in the snowpack height, but it doesn't look like there is much of a trend in the height of the snowpack over time.
+
+To assess this further, we can use regression plots.
 
 ### Regression plots
 
-`regplot`
+[`seaborn.regplot` ](https://seaborn.pydata.org/generated/seaborn.regplot.html) plots the data and a linear regression model fit:
 
 ```{python}
 sns.regplot(
 	data=subset_enso,
 	x="season",
 	y="snow"
-).figure.set_size_inches(9, 4)
+).figure.set_size_inches(7, 4)
 ```
 
-`lmplot`
+Note that you can overlay multiple plots, as long as they share the same axis, by running them in the cell Jupyter cell or, if outside Jupyter, calling them before calling `matplotlib.pyplot.show()`. In our case, the result is very busy and not great however:
+
+```{python}
+sns.relplot(
+	data=subset_enso,
+	kind="line",
+	x="season",
+	y="snow"
+).figure.set_size_inches(7, 4)
+
+sns.regplot(
+	data=subset_enso,
+	x="season",
+	y="snow"
+).figure.set_size_inches(7, 4)
+```
+
+[`seaborn.lmplot`](https://seaborn.pydata.org/generated/seaborn.lmplot.html#seaborn.lmplot) 
 
 ```{python}
 sns.lmplot(
@@ -483,31 +554,10 @@ sns.lmplot(
 	x="season",
 	y="snow",
     hue="enso"
-).figure.set_size_inches(9, 4)
+).figure.set_size_inches(7, 4)
 ```
 
-```{python}
-el_nino_seasons = subset_enso.filter(
-    pl.col("enso") == "El Niño"
-)
-```
-
-```{python}
-sns.relplot(
-	data=el_nino_seasons,
-	kind="line",
-	x="season",
-	y="snow"
-).figure.set_size_inches(9, 4)
-```
-
-```{python}
-sns.regplot(
-	data=el_nino_seasons,
-	x="season",
-	y="snow"
-).figure.set_size_inches(9, 4)
-```
+It looks like there is a downward trend for El Niño years.
 
 :::{.exo}
 
@@ -517,7 +567,49 @@ Your turn:
 
 :::
 
-Make the same plot with only the stations below 1100m to see whether climate change is affecting low elevations more strongly.
+Create relationship and regression plots for the El Niño data only.
+
+They should look like the following:
+
+```{python}
+#| echo: false
+
+el_nino_seasons = subset_enso.filter(
+    pl.col("enso") == "El Niño"
+)
+
+sns.relplot(
+	data=el_nino_seasons,
+	kind="line",
+	x="season",
+	y="snow"
+).figure.set_size_inches(7, 4)
+```
+
+```{python}
+#| echo: false
+
+sns.regplot(
+	data=el_nino_seasons,
+	x="season",
+	y="snow"
+).figure.set_size_inches(7, 4)
+```
+
+:::
+
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Now make the same regression plot with only the stations below 1100m to see whether climate change is affecting low elevations more strongly.
+
+Does it look like they are?
 
 ```{python}
 #| echo: false
@@ -538,18 +630,101 @@ low_stations = el_nino_seasons.filter(
 <!-- 	data=low_stations, -->
 <!-- 	x="season", -->
 <!-- 	y="snow" -->
-<!-- ).figure.set_size_inches(9, 4) -->
+<!-- ).figure.set_size_inches(7, 4) -->
 <!-- ``` -->
 
 :::
 
-### Boxplots
+### Categorical data
+
+#### Categorical scatterplots
 
 ```{python}
-sns.boxplot(
+sns.catplot(
 	data=subset_enso,
 	x="enso",
 	y="snow",
 	order=["La Niña", "Neutral", "El Niño"]
-).figure.set_size_inches(9, 9)
+).figure.set_size_inches(8, 8)
 ```
+
+#### Boxplots
+
+[Boxplots](https://en.wikipedia.org/wiki/Box_plot) are a good way to display differences between groups. They can be draw in seaborn with [`seaborn.boxplot`](https://seaborn.pydata.org/generated/seaborn.boxplot.html#seaborn.boxplot):
+
+```{python}
+sns.catplot(
+	data=subset_enso,
+	x="enso",
+	y="snow",
+    kind="box",
+	order=["La Niña", "Neutral", "El Niño"]
+).figure.set_size_inches(8, 8)
+```
+
+#### Violin plots
+
+```{python}
+sns.catplot(
+	data=subset_enso,
+	x="enso",
+	y="snow",
+    kind="violin",
+	order=["La Niña", "Neutral", "El Niño"]
+).figure.set_size_inches(8, 8)
+```
+
+### Distributions
+
+[`seaborn.displot`](https://seaborn.pydata.org/generated/seaborn.displot.html#seaborn.displot) allows to display distribution plots.
+
+#### Histograms
+
+[`seaborn.histplot`](https://seaborn.pydata.org/generated/seaborn.histplot.html#seaborn.histplot)
+
+```{python}
+sns.displot(
+    data=subset_enso,
+    x="snow",
+    hue="enso"
+)
+```
+
+We can see that there is more data in the left bins for El Niño and more in the right bins for La Niña but it is not the best plot to tell our story.
+
+#### Kernel density estimation
+
+[Kernel density estimation (KDE)](https://en.wikipedia.org/wiki/Kernel_density_estimation) applies kernel smoothing to the probability density estimation.
+
+[`seaborn.kdeplot`](https://seaborn.pydata.org/generated/seaborn.kdeplot.html#seaborn.kdeplot)
+
+The value for `cut` sets how far the evaluation grid extends past the extreme data points. Its default is `3`. Setting it to `0` prevents it from drawing negative height of snow by going below zero:
+
+```{python}
+sns.displot(
+    data=subset_enso,
+    x="snow",
+    hue="enso",
+    kind="kde",
+    cut=0
+)
+```
+
+This is even worse than the histogram to show tell our story. It is not a great plot with our data.
+
+#### eCDF plots
+
+[Empirical cumulative distribution functions (eCDF)](https://en.wikipedia.org/wiki/Empirical_distribution_function) display the fraction of observations that are smaller or equal to the values on the x axis.
+
+This can be achieved by passing the value `ecdf` in the `kind` argument of the `displot` (which uses [`seaborn.ecdfplot`](https://seaborn.pydata.org/generated/seaborn.ecdfplot.html) under the hood):
+
+```{python}
+sns.displot(
+    data=subset_enso,
+    x="snow",
+    hue="enso",
+    kind="ecdf"
+)
+```
+
+This is a much better way to display this data as it clearly tells the story: we can see that La Niña have a higher snowpack than neutral years which are in turn better than El Niño years.
