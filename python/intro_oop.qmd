@@ -44,3 +44,196 @@ This is a restrictive style, but it has the benefits of being more readable, eas
 If you ever want to use [JAX](https://docs.jax.dev/en/latest/beginner_guide.html#beginner-guide)—a Python library for high-performance array computing, you will have to write functional programming code.
 
 ## OOP in Python
+
+Object-oriented programming allows to create objects with attributes and methods.
+
+First you define a [class]{.emph} which works as the blueprint for those objects, then you instantiate individual objects from that class. Those objects are called [instances]{.emph}.
+
+This is very convenient in a number of situations. For instance, in deep learning, most frameworks define model classes and you create a model as an instance of one of these classes. The data is also often packaged in a Dataset class which contains methods convenient to access individual samples.
+
+### Defining classes
+
+By convention, classes names are capitalized (and compound class names use TheCamelCase notation). You define a class with the `class` keyword:
+
+```{python}
+class Attendee:
+    # Class attributes (same for all instances of the class)
+    topic = "Programming"
+    language = "Python"
+    level = "Intro"
+
+    # Instance attributes (specific to each instance)
+    def __init__(self, name, email):
+        self.name =  name
+        self.email = email
+
+    # Instance methods
+    def introduce(self):
+        return f"My name is {self.name}."
+
+    def goal(self, goal_description):
+        return f"I want to learn Python {goal_description}."
+```
+
+`__init__` is called a dunder (double underscore), special method, or magic method. To get the list of all dunders, you can run:
+
+```{python}
+print(dir(int))
+```
+
+Here is an example [from one of my deep learning courses](/ai/jxai/jxai_preprocess#final-dataset-class.qmd) on how to define a dataset class:
+
+```{.python}
+class NABirdsDataset:
+    """NABirds dataset class."""
+    def __init__(self, metadata, data_dir):
+        self.metadata = metadata
+        self.data_dir = data_dir
+
+    def __len__(self):
+        return len(self.metadata)
+
+    def __getitem__(self, idx):
+        path = os.path.join(self.data_dir, self.metadata.get_column('path')[idx])
+        img = iio.imread(path)
+        species_name = self.metadata.get_column('species_name')[idx]
+        species_id = self.metadata.get_column('species_id')[idx]
+        photographer = self.metadata.get_column('photographer')[idx]
+        element = {
+            'img': img,
+            'species_name': species_name,
+            'species_id': species_id,
+            'photographer': photographer,
+        }
+
+        return element
+```
+
+:::{.note}
+
+Note the use of dunders to set the methods here. When a dunder already exists, you don't have to define the method yourself. `__len__` is a method that allows us to get the length of the dataset and `__getitem__` allows us to get samples from it.
+
+:::
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+- How many class attributes does this class have? \
+- How many instance attributes? \
+- How many methods?
+
+:::
+
+### Instantiating objects
+
+To create an instance of a class, you run the class name followed by parentheses. If it doesn't have instance attributes, you don't pass anything between the parentheses. If it does, you pass the attributes as arguments.
+
+In our case, we have 2 instance attributes, so we need to pass to arguments to create instances:
+
+```{python}
+attendee1 = Attendee("Alex", "alex@email.com")
+attendee2 = Attendee("Marie", "marie@email.com")
+```
+
+`attendee1` and  `attendee2` are instances of the class `Attendee`.
+
+```{python}
+print(attendee1)
+```
+
+### Using instances
+
+You can get attributes:
+
+```{python}
+print(attendee1.topic)
+print(attendee1.name)
+print(attendee1.email)
+```
+
+And use the methods:
+
+```{python}
+print(attendee1.introduce())
+print(attendee1.goal("to teach it"))
+```
+
+### Inheritance
+
+Classes can inherit attributes and methods from another class. The initial class is called a *superclass*, *parent class*, or *base class*. The class that inherits from it is called a *subclass*, or *child class*. This is a useful way to recycle code.
+
+For instance, when you define a Model class in most frameworks, you will define it as a subclass of some superclass defined in the framework of your choice.
+
+Here is an example from [a JAX tutorial](https://docs.jaxstack.ai/en/latest/neural_net_basics.html#defining-the-flax-model):
+
+```{.python}
+# nnx.Module is the superclass
+# SimpleNN is the subclass
+class SimpleNN(nnx.Module):
+
+    # Instance attributes
+    def __init__(self, n_features: int = 64, n_hidden: int = 100, n_targets: int = 10,
+                 *, rngs: nnx.Rngs):
+        self.n_features = n_features
+        self.layer1 = nnx.Linear(n_features, n_hidden, rngs=rngs)
+        self.layer2 = nnx.Linear(n_hidden, n_hidden, rngs=rngs)
+        self.layer3 = nnx.Linear(n_hidden, n_targets, rngs=rngs)
+
+    # Method for the forward pass
+    def __call__(self, x):
+        x = x.reshape(x.shape[0], self.n_features)
+        x = nnx.selu(self.layer1(x))
+        x = nnx.selu(self.layer2(x))
+        x = self.layer3(x)
+        return x
+```
+
+This makes the code very lean: the `nnx.Module` from the Flax library already contains all the attributes and behaviours that you want for a Model class. All you have to do is to overwrite a handful of them to fit your particular needs.
+
+With our example of a the class Attendee, we could create a subclass for another course by overwriting a handful of sections while keeping the rest as is:
+
+```{python}
+class NewAttendee(Attendee):
+    language = "Julia"
+
+    def goal(self, goal_description):
+        return f"I want to learn Julia {goal_description}."
+```
+
+:::{.note}
+
+Note how we don't have to define what we are happy to inherit from the superclass. This is efficient code recycling.
+
+:::
+
+```{python}
+new_attendee = NewAttendee("Eric", "eric@email.com")
+```
+
+```{python}
+print(new_attendee.topic)
+print(new_attendee.language)
+print(new_attendee.name)
+```
+
+```{python}
+print(new_attendee.introduce())
+print(new_attendee.goal("because it is fast"))
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Create a subclass of `Attendee` for an advanced Python course.
+
+:::
