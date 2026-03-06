@@ -21,41 +21,6 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for syntax highlighting */
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
 </style>
 
 
@@ -66,6 +31,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
+<link href="../python/gpu_polars.html" rel="next">
+<link href="../python/gpu_clusters.html" rel="prev">
 <link href="..//img/favicon_sfu.png" rel="icon" type="image/png">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -119,7 +86,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <link rel="stylesheet" href="../styles.css">
 </head>
 
-<body class="nav-fixed quarto-light">
+<body class="nav-sidebar floating nav-fixed quarto-light">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
@@ -146,7 +113,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span class="menu-text">R</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../python/index.html"> 
+    <a class="nav-link active" href="../python/index.html" aria-current="page"> 
 <span class="menu-text">Python</span></a>
   </li>  
   <li class="nav-item">
@@ -181,43 +148,489 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
       </div> <!-- /container-fluid -->
     </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <a class="flex-grow-1 no-decor" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+          <h1 class="quarto-secondary-nav-title">Arrays on GPUs with <a href="https://github.com/cupy/cupy"><img src="img/logo_cupy.png" class="img-fluid" style="width:4.5em"></a></h1>
+        </a>     
+    </div>
+  </nav>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-<!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active">
-    <h2 id="toc-title"><em>On this page:</em></h2>
-   
-  <ul>
-  <li><a href="#load-module" id="toc-load-module" class="nav-link active" data-scroll-target="#load-module">Load module</a></li>
-  <li><a href="#create-a-virtual-env" id="toc-create-a-virtual-env" class="nav-link" data-scroll-target="#create-a-virtual-env">Create a virtual env</a></li>
-  <li><a href="#gpus-on-the-alliance-clusters" id="toc-gpus-on-the-alliance-clusters" class="nav-link" data-scroll-target="#gpus-on-the-alliance-clusters">GPUs on the Alliance clusters</a>
-  <ul>
-  <li><a href="#available-gpu-models" id="toc-available-gpu-models" class="nav-link" data-scroll-target="#available-gpu-models">Available GPU models</a></li>
-  <li><a href="#multi-instance-gpus" id="toc-multi-instance-gpus" class="nav-link" data-scroll-target="#multi-instance-gpus">Multi-instance GPUs</a></li>
-  <li><a href="#cpusgpu-ratio" id="toc-cpusgpu-ratio" class="nav-link" data-scroll-target="#cpusgpu-ratio">CPUs/GPU ratio</a>
-  <ul>
-  <li><a href="#ram-to-vram-ratio" id="toc-ram-to-vram-ratio" class="nav-link" data-scroll-target="#ram-to-vram-ratio">RAM to vRAM ratio</a></li>
-  </ul></li>
-  <li><a href="#requesting-gpus-from-slurm" id="toc-requesting-gpus-from-slurm" class="nav-link" data-scroll-target="#requesting-gpus-from-slurm">Requesting GPUs from Slurm</a>
-  <ul>
-  <li><a href="#gpus-spread-anywhere" id="toc-gpus-spread-anywhere" class="nav-link" data-scroll-target="#gpus-spread-anywhere">GPUs spread anywhere</a></li>
-  <li><a href="#gpus-per-node" id="toc-gpus-per-node" class="nav-link" data-scroll-target="#gpus-per-node">GPUs per node</a></li>
-  </ul></li>
-  </ul></li>
-  <li><a href="#launch-interactive-job" id="toc-launch-interactive-job" class="nav-link" data-scroll-target="#launch-interactive-job">Launch interactive job</a></li>
-  <li><a href="#section" id="toc-section" class="nav-link" data-scroll-target="#section"></a></li>
-  </ul>
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><br>&nbsp;<img src="img/logo_python.svg" class="img-fluid" style="width:1.55em" alt="noshadow"><br><br></span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Getting started</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_python.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A few words about Python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_run.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Running Python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_doc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Help and documentation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_syntax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Syntax</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_objects.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Python objects</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_collections.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Collections</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_control_flow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control flow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Writing functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_pkg.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Modules, pkgs, and libraries</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_df.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DataFrames in Python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_numpy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Array computing with NumPy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/intro_plot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Plotting in Python</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_matplotlib.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">matplotlib</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_seaborn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">seaborn</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_oop.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Object-oriented programming</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_hpc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Python at scale</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_resources.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resources</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_llm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Learning Python with LLMs</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_why.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LLMs and coding</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_first_dab.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">First dab at playing with an LLM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_webscraping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Webscraping with an LLM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_takeaways.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Takeaways on coding with LLMs</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_hpc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Faster Python</em></b></span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/hpc_jax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">JAX: accelerated arrays &amp; AD</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/hpc_polars.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Polars: faster DataFrames</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_dataframes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The world of DataFrames</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_install.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Installation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_types.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data types</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_structures.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data structures</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_inspection.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DataFrames inspection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_subset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Subsetting data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_lazy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Lazy evaluation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_pandas.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Comparison with pandas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_resources.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resources</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/hpc_gpu.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GPU-accelerated Python</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/gpu_clusters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GPUs on Alliance clusters</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/gpu_cupy.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Arrays with CuPy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/gpu_polars.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DataFrames with RAPIDS cuDF</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_nlp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Text analysis</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_install.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Package installation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting the data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_processing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Text processing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_normalization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Text normalization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sentiment analysis</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_ws.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em><b>Workshops</b></em></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/ws_webscraping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Web scraping with bs4</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/ws_pandas.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DataFrames with pandas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/ws_text.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Playing with text</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_wb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em><b>Webinars</b></em></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_polars.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Faster DataFrames</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_polars_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_polars2.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RIP pandas, welcome Polars</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_jax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Accelerated arrays &amp; AD</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_jax_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_hss_prog.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Intro programming for HSS</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_hss_prog_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_uv.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">uv package manager</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_uv_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_marimo.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Next gen Python notebooks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_marimo_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_shiny.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dashboards: Shiny vs Dash</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
 </nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
+        
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Arrays on GPUs with <a href="https://github.com/cupy/cupy"><img src="img/logo_cupy.png" class="img-fluid" style="width:4.5em"></a></h1>
+<h1 class="title d-none d-lg-block">Arrays on GPUs with <a href="https://github.com/cupy/cupy"><img src="img/logo_cupy.png" class="img-fluid" style="width:4.5em"></a></h1>
 </div>
 
 
@@ -240,87 +653,60 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </header>
 
 
-<div class="def">
-
-</div>
-<section id="load-module" class="level2">
-<h2 class="anchored" data-anchor-id="load-module">Load module</h2>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> spider python</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> spider python/3.14.2</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> list</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load python/3.14.2</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="create-a-virtual-env" class="level2">
-<h2 class="anchored" data-anchor-id="create-a-virtual-env">Create a virtual env</h2>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> venv ~/cupy_env</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> ~/cupy_env/bin/activate</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pip install <span class="at">--upgrade</span> <span class="at">--no-index</span> pip</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pip install <span class="at">--no-index</span> cupy</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="notenoit">
-<p>On your own computer (assuming that you have a dedicated GPU), if you already have CUDA 13, you can install CuPy with <a href="https://github.com/astral-sh/uv">uv</a> with:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> init <span class="at">--bare</span>                        <span class="co"># Initiate project</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> add cupy-cuda13x                   <span class="co"># Install CuPy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><em>Replace <code>cupy-cuda13x</code> by <code>cupy-cuda12x</code> if you have CUDA 12.</em></p>
-<p>If you don’t have CUDA, install CuPy with a CUDA toolkit as a dependency with:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> add <span class="st">"cupy-cuda13x[ctk]"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-</section>
-<section id="gpus-on-the-alliance-clusters" class="level2">
-<h2 class="anchored" data-anchor-id="gpus-on-the-alliance-clusters">GPUs on the Alliance clusters</h2>
-<section id="available-gpu-models" class="level3">
-<h3 class="anchored" data-anchor-id="available-gpu-models">Available GPU models</h3>
-<p>You can find a <a href="https://docs.alliancecan.ca/wiki/Using_GPUs_with_Slurm#Available_GPUs">list of GPU models for each cluster on the Alliance wiki</a>.</p>
-<p>While logged on any cluster, you can print a list of available GPU models for that cluster with:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sinfo</span> <span class="at">-o</span> <span class="st">"%G"</span><span class="kw">|</span><span class="fu">grep</span> gpu<span class="kw">|</span><span class="fu">sed</span> <span class="st">'s/gpu://g'</span><span class="kw">|</span><span class="fu">sed</span> <span class="st">'s/),/\n/g'</span><span class="kw">|</span><span class="fu">cut</span> <span class="at">-d:</span> <span class="at">-f1</span><span class="kw">|</span><span class="fu">sort</span><span class="kw">|</span><span class="fu">uniq</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>You should also visit the wiki page for that cluster for additional information.</p>
-<p><a href="https://docs.alliancecan.ca/wiki/Fir#GPU_instances">Here is an example for Fir</a>.</p>
-</section>
-<section id="multi-instance-gpus" class="level3">
-<h3 class="anchored" data-anchor-id="multi-instance-gpus">Multi-instance GPUs</h3>
-<p><a href="https://docs.alliancecan.ca/wiki/Multi-Instance_GPU"></a></p>
-</section>
-<section id="cpusgpu-ratio" class="level3">
-<h3 class="anchored" data-anchor-id="cpusgpu-ratio">CPUs/GPU ratio</h3>
-<p>Ideally, you want that neither the GPUs nor the CPUs become a bottleneck for your job by having a balanced approach, both in terms of their respective computing powers and in terms of their memory.</p>
-<p>A balanced ratio highly depends on the type of task your code performs as well as the type of GPU you are using. Typical ratios vary from 4:1 to 12:1, but if your code contains heavy steps that can only be performed on CPUs (e.g.&nbsp;I/O, data preprocessing), you will want more CPUs per GPU. More powerful GPUs also require more CPUs to handle the increased data throughput.</p>
-<p>The Alliance wiki maximum recommendations are (per GPU):</p>
-<ul>
-<li>on Fir, no more than 12 CPU cores</li>
-<li>on Narval, no more than 12 CPU cores</li>
-<li>on Nibi, no more than 14 CPU cores</li>
-<li>on Rorqual, no more than 16 CPU cores</li>
-</ul>
-<section id="ram-to-vram-ratio" class="level4">
-<h4 class="anchored" data-anchor-id="ram-to-vram-ratio">RAM to vRAM ratio</h4>
-<p>You also need to pay attention to the vRAM of the GPU(s) you are using and pair this appropriately with RAM on your CPUs. Here too, the type of task you are performing and the GPU model you are using will dictate the ideal ratio.</p>
-<p>2:1 to 4:1 RAM to vRAM works for most applications.</p>
-</section>
-</section>
-<section id="requesting-gpus-from-slurm" class="level3">
-<h3 class="anchored" data-anchor-id="requesting-gpus-from-slurm">Requesting GPUs from Slurm</h3>
-<section id="gpus-spread-anywhere" class="level4">
-<h4 class="anchored" data-anchor-id="gpus-spread-anywhere">GPUs spread anywhere</h4>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="gpus-per-node" class="level4">
-<h4 class="anchored" data-anchor-id="gpus-per-node">GPUs per node</h4>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-</section>
-</section>
-<section id="launch-interactive-job" class="level2">
-<h2 class="anchored" data-anchor-id="launch-interactive-job">Launch interactive job</h2>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">salloc</span> <span class="at">--time</span><span class="op">=</span>10 </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="section" class="level2">
-<h2 class="anchored" data-anchor-id="section"></h2>
-<div id="801ad8fb" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> cupy <span class="im">as</span> cp</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
+<p><em>Coming up in spring 2026.</em></p>
+<!-- :::{.def} -->
+<!-- ::: -->
+<!-- ## Load module -->
+<!-- ```{.bash} -->
+<!-- module spider python -->
+<!-- ``` -->
+<!-- ```{.bash} -->
+<!-- module spider python/3.14.2 -->
+<!-- ``` -->
+<!-- ```{.bash} -->
+<!-- module list -->
+<!-- ``` -->
+<!-- ```{.bash} -->
+<!-- module load python/3.14.2 -->
+<!-- ``` -->
+<!-- ## Create a virtual env -->
+<!-- ```{.bash} -->
+<!-- python -m venv ~/cupy_env -->
+<!-- ``` -->
+<!-- ```{.bash} -->
+<!-- source ~/cupy_env/bin/activate -->
+<!-- ``` -->
+<!-- ```{.bash} -->
+<!-- python -m pip install --upgrade --no-index pip -->
+<!-- ``` -->
+<!-- ```{.bash} -->
+<!-- python -m pip install --no-index cupy -->
+<!-- ``` -->
+<!-- :::{.notenoit} -->
+<!-- On your own computer (assuming that you have a dedicated GPU), if you already have CUDA 13, you can install CuPy with [uv](https://github.com/astral-sh/uv) with: -->
+<!-- ```{.bash} -->
+<!-- uv init --bare                       # Initiate project -->
+<!-- uv add cupy-cuda13x                      # Install CuPy -->
+<!-- ``` -->
+<!-- *Replace `cupy-cuda13x` by `cupy-cuda12x` if you have CUDA 12.* -->
+<!-- If you don't have CUDA, install CuPy with a CUDA toolkit as a dependency with: -->
+<!-- ```{.bash} -->
+<!-- uv add "cupy-cuda13x[ctk]" -->
+<!-- ``` -->
+<!-- ::: -->
+<!-- ## Launch interactive job -->
+<!-- ```{.bash} -->
+<!-- salloc --time=10  -->
+<!-- ``` -->
+<!-- ##  -->
+<!-- ```{python} -->
+<!-- import numpy as np -->
+<!-- import cupy as cp -->
+<!-- ``` -->
+<!-- ```{python} -->
+<!-- ``` -->
 
 
-</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
@@ -728,6 +1114,18 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
     }
   });
   </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../python/gpu_clusters.html" class="pagination-link" aria-label="GPUs on Alliance clusters">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">GPUs on Alliance clusters</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../python/gpu_polars.html" class="pagination-link" aria-label="DataFrames with RAPIDS cuDF">
+        <span class="nav-page-text">DataFrames with RAPIDS cuDF</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
 </div> <!-- /content -->
 <footer class="footer">
   <div class="nav-footer">
