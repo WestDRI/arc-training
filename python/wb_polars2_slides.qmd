@@ -1,12 +1,11 @@
 ---
-title: RIP pandas, welcome
-frontpic: img/logo_polars.png
-frontpicwidth: 45%
-frontpicmargintop: 40px
-frontpicmarginbottom: 40px
-
+title: RIP pandas, welcome Polars
+frontpic: img/polars_vs_pandas.png
+frontpicwidth: 40%
+frontpicmargintop: 30px
+frontpicmarginbottom: 20px
 author: Marie-Hélène Burle
-date: 2024-05-14
+date: 2026-04-7
 date-format: long
 execute:
   freeze: auto
@@ -15,8 +14,8 @@ execute:
   echo: true
 format:
   revealjs:
-    embed-resources: true
-    theme: [default, ../revealjspolars.scss]
+    <!-- embed-resources: true -->
+    theme: [default, ../revealjspdpl.scss]
     logo: /img/favicon_sfudrac.png
     highlight-style: vim-dark
     code-line-numbers: false
@@ -26,9 +25,439 @@ format:
       color: "#b5111b"
       pointerSize: 32
     link-external-newwindow: true
-    footer: <a href="wb_polars2.qmd"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="rgb(153, 153, 153)" class="bi bi-arrow-90deg-up" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4.854 1.146a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L4 2.707V12.5A2.5 2.5 0 0 0 6.5 15h8a.5.5 0 0 0 0-1h-8A1.5 1.5 0 0 1 5 12.5V2.707l3.146 3.147a.5.5 0 1 0 .708-.708l-4-4z"/></svg>&nbsp;Back to webinar page</a>
+    footer: <a href="wb_polars2.qmd"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="rgb(32,118,193)" class="bi bi-arrow-90deg-up" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4.854 1.146a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L4 2.707V12.5A2.5 2.5 0 0 0 6.5 15h8a.5.5 0 0 0 0-1h-8A1.5 1.5 0 0 1 5 12.5V2.707l3.146 3.147a.5.5 0 1 0 .708-.708l-4-4z"/></svg>&nbsp;Back to webinar page</a>
     auto-stretch: false
 revealjs-plugins:
   - pointer
 ---
+
+## Goal of this webinar {.center}
+
+There is a new and much better library for Python DataFrames
+
+There are no downsides to using it, beside the effort to changing habits. For new users who don't have habits yet, there are no downsides
+
+Yet, all Python intro courses still teach the old tool
+
+[My goal is to help shift the culture towards a wide adoption of Polars instead of pandas]{.emph}
+
+## A brief history of DataFrames {.center}
+
+```{dot}
+//| echo: false
+//| fig-height: 450px
+
+strict graph {
+
+bgcolor="transparent"
+graph [fontname="Inconsolata, sans-serif"]
+node [fontname="Inconsolata, sans-serif", fontsize=15]
+
+y1 [label=1990, shape=plaintext, group=g1, group=g1]
+y2 [label=2000, shape=plaintext, group=g1, group=g1]
+y3 [label=2008, shape=plaintext, group=g1]
+y4 [label=2020, shape=plaintext, group=g1]
+
+l1 [label="S language introduces concept of DataFrames", href="https://en.wikipedia.org/wiki/S_(programming_language)", shape=plaintext, group=g2]
+l2 [label="R supercedes S", href="https://en.wikipedia.org/wiki/R_(programming_language)", shape=plaintext, group=g2]
+l3 [label="DataFrames ported to Python with pandas", href="https://github.com/pandas-dev/pandas", shape=plaintext, group=g2, fontcolor="#e84c44"]
+l4 [label="Better DataFrames library for Python: Polars", href="https://github.com/pola-rs/polars", shape=plaintext, group=g2, fontcolor="#69c9e6"]
+
+{rank=same; y1 l1}
+
+y1 -- y2 -- y3 -- y4
+l1 -- l2 -- l3 -- l4 [style=invis]
+
+}
+```
+
+## Overview {.center}
+
+| | ![](img/logo_pandas_full.svg){width="55%"} || ![](img/logo_polars_full.svg){width="50%"} |
+|--|--|--|--|
+| Available for | Python || Rust, Python, R, NodeJS |
+| Written in | Cython || Rust |
+| Multithreading | Some operations || Yes (GIL released) |
+| Index | Rows are indexed || Integer positions are used |
+| Evaluation | Eager || Eager and lazy |
+| Query optimizer | No || Yes |
+| Out-of-core | No || Yes |
+| [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) vectorization | Yes || Yes |
+| Data in memory | [NumPy](https://github.com/numpy/numpy) arrays || [Apache Arrow](https://github.com/apache/arrow) arrays |
+| Memory efficiency | Poor || Excellent |
+| Missing data handling | Inconsistent || Consistent; type stability |
+
+## Method {.center}
+
+The performance of tools can only be evaluated on optimized code: poorly written pandas code is a lot slower than efficient pandas code
+
+I use the best pandas code from [Alex Razoumov pandas course](https://wgpages.netlify.app/python2/python-13-pandas/) in which he benchmarks various syntaxes
+
+# Example 1: a classic
+
+## FizzBuzz {.center}
+
+## {.center}
+
+Load libraries:
+
+```{python}
+import pandas as pd
+import numpy as np
+import polars as pl
+```
+
+Set series length:
+
+```{python}
+length = 10_000
+```
+
+## Code {.center}
+
+![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+
+```{python}
+df_pd = pd.DataFrame()
+
+df_pd["Count"] = np.arange(1, length+1)
+
+df_pd["FizzBuzz"] = df_pd["Count"].astype(str)
+
+df_pd.loc[df_pd["Count"] % 3 == 0, "FizzBuzz"] = "Fizz"
+df_pd.loc[df_pd["Count"] % 5 == 0, "FizzBuzz"] = "Buzz"
+df_pd.loc[df_pd["Count"] % 15 == 0, "FizzBuzz"] = "FizzBuzz"
+```
+## {.center}
+
+```{python}
+df_pd
+```
+
+## Code {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+df_pl = pl.DataFrame({"Count": np.arange(1, length+1)})
+
+df_pl.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
+
+df_pl = df_pl.with_columns(
+    pl.when(pl.col("Count") % 3 == 0).then(pl.lit("Fizz"))
+    .when(pl.col("Count") % 5 == 0).then(pl.lit("Buzz"))
+    .when(pl.col("Count") % 15 == 0).then(pl.lit("FizzBuzz"))
+    .otherwise(pl.col("Count")).alias("FizzBuzz")
+)
+```
+
+## {.center}
+
+```{python}
+df_pl
+```
+
+## Code {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, length+1)})
+
+df_pl_lazy.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
+
+df_pl_lazy = df_pl_lazy.with_columns(
+    pl.when(pl.col("Count") % 3 == 0).then(pl.lit("Fizz"))
+    .when(pl.col("Count") % 5 == 0).then(pl.lit("Buzz"))
+    .when(pl.col("Count") % 15 == 0).then(pl.lit("FizzBuzz"))
+    .otherwise(pl.col("Count")).alias("FizzBuzz")
+)
+
+df_pl_lazy_collected = df_pl_lazy.collect()
+```
+
+## {.center}
+
+```{python}
+df_pl_lazy_collected
+```
+
+## Timing {.center}
+
+![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+
+```{python}
+%%timeit
+
+df_pd = pd.DataFrame()
+
+df_pd["Count"] = np.arange(1, length+1)
+
+df_pd["FizzBuzz"] = df_pd["Count"].astype(str)
+
+df_pd.loc[df_pd["Count"] % 3 == 0, "FizzBuzz"] = "Fizz"
+df_pd.loc[df_pd["Count"] % 5 == 0, "FizzBuzz"] = "Buzz"
+df_pd.loc[df_pd["Count"] % 15 == 0, "FizzBuzz"] = "FizzBuzz"
+```
+
+## Timing {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+%%timeit
+
+df_pl = pl.DataFrame({"Count": np.arange(1, length+1)})
+
+df_pl.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
+
+df_pl.with_columns(
+    pl.when(pl.col("Count") % 3 == 0).then(pl.lit("Fizz"))
+    .when(pl.col("Count") % 5 == 0).then(pl.lit("Buzz"))
+    .when(pl.col("Count") % 15 == 0).then(pl.lit("FizzBuzz"))
+    .otherwise(pl.col("Count")).alias("FizzBuzz")
+)
+```
+
+## Timing {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+%%timeit
+
+df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, length+1)})
+
+df_pl_lazy.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
+
+df_pl_lazy = df_pl_lazy.with_columns(
+    pl.when(pl.col("Count") % 3 == 0).then(pl.lit("Fizz"))
+    .when(pl.col("Count") % 5 == 0).then(pl.lit("Buzz"))
+    .when(pl.col("Count") % 15 == 0).then(pl.lit("FizzBuzz"))
+    .otherwise(pl.col("Count")).alias("FizzBuzz")
+)
+
+df_pl = df_pl_lazy.collect()
+```
+
+## Speedup {.center}
+
+Speedup with Polars DataFrame around 6 \
+With Polars LazyFrame around 8
+
+These speedups highly depend on the types and sizes of the problems
+
+How much faster Polars is does vary, what doesn't vary is that it is always much faster
+
+## Memory usage {.center}
+
+::::{.columns}
+
+:::{.column width="32%"}
+
+**pandas**
+
+```{python}
+df_pd.memory_usage()
+```
+
+132 + 80,000 * 2 = \
+160,132 bytes \
+**≈ 160 KB**
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="32%"}
+
+**Polars**
+
+```{python}
+df_pl.estimated_size()
+```
+
+119,409 bytes \
+**≈ 119 KB**
+
+160,132 / 119,409 ≈ 1.3 \
+Footprint 1.3 times smaller
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="32%"}
+
+**Polars lazy**
+
+<br>
+Same as Polars eager: \
+if you collect the entire DataFrame as we did here, the lazy API does not reduce the memory footprint
+
+:::
+
+::::
+
+# Example 2: medium dataset
+
+## Data characteristics {.center}
+
+Shape: 216,930 rows, 7 columns
+
+## Code {.center}
+
+![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+
+```{python}
+df_pd = pd.read_csv(
+    "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
+)
+
+df_pd_subset = df_pd.loc[df_pd["Category"] == "HISTORY"]
+
+df_pd_subset.shape
+```
+
+## Code {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+df_pl = pl.read_csv(
+    "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
+)
+
+df_pl_subset = df_pl.filter(pl.col("Category") == "HISTORY")
+
+df_pl_subset.shape
+```
+
+## Code {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+df_pl_lazy = pl.scan_csv(
+    "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
+)
+
+df_pl_lazy_subset_collected = df_pl_lazy.filter(
+    pl.col("Category") == "HISTORY"
+).collect()
+
+df_pl_lazy_subset_collected.shape
+```
+
+## Timing {.center}
+
+![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+
+```{python}
+%%timeit
+
+df_pd = pd.read_csv(
+    "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
+)
+
+df_pd.loc[df_pd["Category"] == "HISTORY"].shape
+```
+
+## Timing {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+%%timeit
+
+df_pl = pl.read_csv(
+    "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
+)
+
+df_pl.filter(pl.col("Category") == "HISTORY").shape
+```
+
+## Timing {.center}
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+%%timeit
+
+df_pl_lazy = pl.scan_csv(
+    "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
+)
+
+df_pl_lazy.filter(pl.col("Category") == "HISTORY").collect().shape
+```
+
+## Speedup {.center}
+
+Polars here brings a speedup around 1.5
+
+Polars lazy ramps that up to a speedup of 17
+
+## Memory usage {.center}
+
+::::{.columns}
+
+:::{.column width="30%"}
+
+```{python}
+df_pd.memory_usage()
+```
+
+132 + 1,735,440 * 7 = \
+12,148,212 bytes \
+**≈ 12 MB**
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="33%"}
+
+```{python}
+df_pl.estimated_size()
+```
+
+31,606,250 bytes \
+**≈ 31 MB**
+
+31,606,250 / 12,148,212 ≈ 2.6 \
+Footprint 2.6 times *bigger*
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="33%"}
+
+```{python}
+df_pl_lazy_subset_collected.estimated_size()
+```
+
+48,774 bytes \
+**≈ 49 KB**
+
+12,148,212 / 48,774 ≈ 249 \
+Footprint **249 times smaller**
+
+If you only collect a subset of the data, the memory footprint drops dramatically
+
+:::
+
+::::
+
+# Example 3:<br>data too big to fit in memory
+
+## Data characteristics {.center}
+
+
+
+
 
