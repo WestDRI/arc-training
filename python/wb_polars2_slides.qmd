@@ -39,7 +39,9 @@ There are no downsides to using it, beside the effort to changing habits. For ne
 
 Yet, all Python intro courses still teach the old tool
 
-[My goal is to help shift the culture towards a wide adoption of Polars instead of pandas]{.emph}
+In this webinar, I will not teach Polars and its syntax. Instead I will demo why it is better
+
+[My goal is to help shift the culture towards a wider adoption of Polars instead of pandas]{.emph}
 
 ## A brief history of DataFrames {.center}
 
@@ -59,7 +61,7 @@ y3 [label=2008, shape=plaintext, group=g1]
 y4 [label=2020, shape=plaintext, group=g1]
 
 l1 [label="S language introduces concept of DataFrames", href="https://en.wikipedia.org/wiki/S_(programming_language)", shape=plaintext, group=g2]
-l2 [label="R supercedes S", href="https://en.wikipedia.org/wiki/R_(programming_language)", shape=plaintext, group=g2]
+l2 [label="R supercedes S and inherits DataFrames", href="https://en.wikipedia.org/wiki/R_(programming_language)", shape=plaintext, group=g2]
 l3 [label="DataFrames ported to Python with pandas", href="https://github.com/pandas-dev/pandas", shape=plaintext, group=g2, fontcolor="#e84c44"]
 l4 [label="Better DataFrames library for Python: Polars", href="https://github.com/pola-rs/polars", shape=plaintext, group=g2, fontcolor="#69c9e6"]
 
@@ -87,30 +89,78 @@ l1 -- l2 -- l3 -- l4 [style=invis]
 | Memory efficiency | Poor || Excellent |
 | Missing data handling | Inconsistent || Consistent; type stability |
 
-## Method {.center}
+## Missing data {.center}
+
+::::{.columns}
+
+:::{.column width="52%"}
+
+**pandas**
+
+For historical reasons, depending on dtype, missing values are either of:
+
+- `NaN` (`numpy.nan`, dtype float)
+- `None`
+- `NaT` (Not-a-Time, dtype datetime)
+- `pandas.NA` (nullable scalar)
+
+Leads to inconsistent behaviour and unexpected dtype changes
+
+[Ongoing issue](https://github.com/pandas-dev/pandas/issues/32265) since 2020
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="46%"}
+
+**Polars**
+
+One single missing value: `null`
+
+Simple and consistent behaviour across all data types. Better performance
+
+`NaN` exists and is a type of float. It is **not** missing data. Instead, it is the result of mathematical operations that don't return numbers
+
+:::
+
+::::
+
+[Here](https://www.dontusethiscode.com/blog/2025-01-22_null_vs_nan_applied.html) is a blog that goes into this in details
+
+## Group by {.center}
+
+[Here](https://labs.quansight.org/blog/dataframe-group-by) is a great blog comparing the ease of use of passing expressions to groups in Polars compared to pandas
+
+*TL;DR Polars has a much more straightforward and efficient syntax*
+
+## A note on comparisons {.center}
 
 The performance of tools can only be evaluated on optimized code: poorly written pandas code is a lot slower than efficient pandas code
 
-I use the best pandas code from [Alex Razoumov pandas course](https://wgpages.netlify.app/python2/python-13-pandas/) in which he benchmarks various syntaxes
+To ensure fairness towards pandas, I use the best pandas code from [Alex Razoumov pandas course](https://wgpages.netlify.app/python2/python-13-pandas/) in which he benchmarks various syntaxes
 
 # Example 1: a classic
 
 ## FizzBuzz {.center}
 
-## {.center}
+[FizzBuzz](https://en.wikipedia.org/wiki/Fizz_buzz#Programming) is a programming exercise based on a children game which consists of counting to `n`, replacing:
 
-Load libraries:
+- any number divisible by `3` with `Fizz`
+- any number divisible by `5` with `Buzz`
+- any number divisible by both `3` and `5` with `FizzBuzz`
+
+Let's do it:
 
 ```{python}
+# Load libraries
 import pandas as pd
 import numpy as np
 import polars as pl
-```
 
-Set series length:
-
-```{python}
-length = 10_000
+# Set series length
+n = 10_000
 ```
 
 ## Code {.center}
@@ -120,7 +170,7 @@ length = 10_000
 ```{python}
 df_pd = pd.DataFrame()
 
-df_pd["Count"] = np.arange(1, length+1)
+df_pd["Count"] = np.arange(1, n+1)
 
 df_pd["FizzBuzz"] = df_pd["Count"].astype(str)
 
@@ -139,7 +189,7 @@ df_pd
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
 ```{python}
-df_pl = pl.DataFrame({"Count": np.arange(1, length+1)})
+df_pl = pl.DataFrame({"Count": np.arange(1, n+1)})
 
 df_pl.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
 
@@ -162,7 +212,7 @@ df_pl
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
 ```{python}
-df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, length+1)})
+df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, n+1)})
 
 df_pl_lazy.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
 
@@ -191,7 +241,7 @@ df_pl_lazy_collected
 
 df_pd = pd.DataFrame()
 
-df_pd["Count"] = np.arange(1, length+1)
+df_pd["Count"] = np.arange(1, n+1)
 
 df_pd["FizzBuzz"] = df_pd["Count"].astype(str)
 
@@ -207,7 +257,7 @@ df_pd.loc[df_pd["Count"] % 15 == 0, "FizzBuzz"] = "FizzBuzz"
 ```{python}
 %%timeit
 
-df_pl = pl.DataFrame({"Count": np.arange(1, length+1)})
+df_pl = pl.DataFrame({"Count": np.arange(1, n+1)})
 
 df_pl.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
 
@@ -226,7 +276,7 @@ df_pl.with_columns(
 ```{python}
 %%timeit
 
-df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, length+1)})
+df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, n+1)})
 
 df_pl_lazy.with_columns(pl.col("Count").cast(pl.String).alias("FizzBuzz"))
 
@@ -457,7 +507,33 @@ If you only collect a subset of the data, the memory footprint drops dramaticall
 
 ## Data characteristics {.center}
 
+CSV file of 12.3 GB
 
+Shape: 25,687,526 rows, 50 columns
 
+::::{.columns}
 
+:::{.column width="49%"}
+
+**pandas**
+
+132 + 205500208 * 50 = \
+10,275,010,532 bytes \
+**≈ 10 GB**
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+**Polars**
+
+12,291,024,224 bytes \
+**≈ 12 GB**
+
+:::
+
+::::
 
