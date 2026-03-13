@@ -14,7 +14,7 @@ execute:
   echo: true
 format:
   revealjs:
-    embed-resources: true
+    <!-- embed-resources: true -->
     theme: [default, ../revealjspdpl.scss]
     logo: /img/favicon_sfudrac.png
     highlight-style: vim-dark
@@ -29,6 +29,8 @@ format:
     auto-stretch: false
 revealjs-plugins:
   - pointer
+bibliography: python.bib
+csl: ../diabetologia.csl
 ---
 
 ## Goal of this webinar {.center}
@@ -89,13 +91,15 @@ l1 -- l2 -- l3 -- l4 [style=invis]
 | Memory efficiency | Poor || Excellent |
 | Missing data handling | Inconsistent || Consistent; type stability |
 
-## Missing data {.center}
+# Missing data
+
+## {.center}
 
 ::::{.columns}
 
 :::{.column width="52%"}
 
-**pandas**
+![](img/logo_pandas_full.svg){width="45%"}
 
 For historical reasons, depending on dtype, missing values are one of:
 
@@ -115,7 +119,7 @@ This leads to inconsistent behaviour and unexpected dtype changes
 
 :::{.column width="46%"}
 
-**Polars**
+<br>![](img/logo_polars_full.svg){width="50%"}
 
 One single missing value: `null`
 
@@ -129,11 +133,193 @@ Simple and consistent behaviour across all data types and better performance
 
 ::::
 
-## Group by {.center}
+# Group by
 
-[Here](https://labs.quansight.org/blog/dataframe-group-by) is a great blog comparing the ease of use of passing expressions to groups in Polars compared to pandas
+## {.center}
 
-*TL;DR Polars has a much more straightforward and efficient syntax*
+[Here](https://labs.quansight.org/blog/dataframe-group-by) is a great blog post by Marco Gorelli comparing the ease of use of passing expressions to groups in Polars compared to pandas
+
+I am using his code here and doing some timing on it to look at efficiency
+
+## Create DataFrames {.center}
+
+Import libraries:
+
+```{python}
+import pandas as pd
+import polars as pl
+```
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+The pandas DataFrame:
+
+```{python}
+df_pd = pd.DataFrame(
+    {
+        "id": [1, 1, 1, 2, 2, 2],
+        "sales": [4, 1, 2, 7, 6, 7],
+        "views": [3, 1, 2, 8, 6, 7]
+    }
+)
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+The Polars equivalent:
+
+```{python}
+df_pl = pl.DataFrame(
+    {
+        "id": [1, 1, 1, 2, 2, 2],
+        "sales": [4, 1, 2, 7, 6, 7],
+        "views": [3, 1, 2, 8, 6, 7]
+    }
+)
+```
+
+:::
+
+::::
+
+## {.center}
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+The pandas DataFrame:
+
+```{python}
+df_pd
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+The Polars equivalent:
+
+```{python}
+df_pl
+```
+
+:::
+
+::::
+
+## Marco Gorelli's example {.center}
+
+> Find the maximum value of `views`, where `sales` is greater than its mean, per `id`
+
+## Solutions in pandas {.center}
+
+The straightforward method most people will use:
+
+```{python}
+df_pd.groupby('id').apply(
+    lambda df_pd: df_pd[df_pd['sales'] > df_pd['sales'].mean()]['views'].max()
+)
+```
+
+## Solutions in pandas {.center}
+
+Another option, but it requires 2 `groupby` expressions:
+
+```{python}
+df_pd[
+    df_pd['sales'] > df_pd.groupby('id')['sales'].transform('mean')
+].groupby('id')['views'].max()
+```
+
+## Solutions in pandas {.center}
+
+A solution people are unlikely to come up with:
+
+```{python}
+gb = df_pd.groupby("id")
+mask = df_pd["sales"] > gb["sales"].transform("mean")
+df_pd["result"] = df_pd["views"].where(mask)
+gb["result"].max()
+```
+
+## The solution in Polars {.center}
+
+```{python}
+df_pl.group_by('id').agg(
+    pl.col('views').filter(pl.col('sales') > pl.mean('sales')).max()
+)
+```
+
+Much simpler ...
+
+## Timing of pandas solutions {.center}
+
+```{python}
+%%timeit
+
+df_pd.groupby('id').apply(
+    lambda df_pd: df_pd[df_pd['sales'] > df_pd['sales'].mean()]['views'].max()
+)
+```
+
+The solution most people are likely to use is by far the slowest
+
+## Timing of pandas solutions {.center}
+
+```{python}
+%%timeit
+
+df_pd[
+    df_pd['sales'] > df_pd.groupby('id')['sales'].transform('mean')
+].groupby('id')['views'].max()
+```
+
+The best solution uses 2 `groupby` expressions
+
+## Timing of pandas solutions {.center}
+
+```{python}
+%%timeit
+
+gb = df_pd.groupby("id")
+mask = df_pd["sales"] > gb["sales"].transform("mean")
+df_pd["result"] = df_pd["views"].where(mask)
+gb["result"].max()
+```
+
+This is almost as fast as the best solution
+
+## Timing of the Polars solution {.center}
+
+```{python}
+%%timeit
+
+df_pl.group_by('id').agg(
+    pl.col('views').filter(pl.col('sales') > pl.mean('sales')).max()
+)
+```
+
+Polars is and much faster
+
+## Conclusion {.center}
+
+Speedup of Polars compared to the best pandas method: **6** \
+Compared to the method most people are likely to use: **9**
+
+To pass expressions to groups, Polars has a more straightforward and efficient syntax
+
+# General performance comparisons
 
 ## A note on my comparisons {.center}
 
@@ -141,9 +327,7 @@ The performance of tools can only be evaluated on optimized code: poorly written
 
 To ensure fairness towards pandas, I use the best pandas code from [Alex Razoumov pandas course](https://wgpages.netlify.app/python2/python-13-pandas/) in which he benchmarks various syntaxes
 
-# Example 1: a classic
-
-## FizzBuzz {.center}
+## Example 1: FizzBuzz {.center}
 
 [FizzBuzz](https://en.wikipedia.org/wiki/Fizz_buzz#Programming) is a programming exercise based on a children game which consists of counting to `n`, replacing:
 
@@ -154,10 +338,8 @@ To ensure fairness towards pandas, I use the best pandas code from [Alex Razoumo
 Let's do it:
 
 ```{python}
-# Load libraries
-import pandas as pd
+# Load additional library
 import numpy as np
-import polars as pl
 
 # Set series length
 n = 10_000
@@ -165,7 +347,7 @@ n = 10_000
 
 ## Code {.center}
 
-![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
 
 ```{python}
 df_pd = pd.DataFrame()
@@ -178,13 +360,8 @@ df_pd.loc[df_pd["Count"] % 3 == 0, "FizzBuzz"] = "Fizz"
 df_pd.loc[df_pd["Count"] % 5 == 0, "FizzBuzz"] = "Buzz"
 df_pd.loc[df_pd["Count"] % 15 == 0, "FizzBuzz"] = "FizzBuzz"
 ```
+
 ## {.center}
-
-```{python}
-df_pd
-```
-
-## Code {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
@@ -203,16 +380,12 @@ df_pl = df_pl.with_columns(
 
 ## {.center}
 
-```{python}
-df_pl
-```
-
-## Code {.center}
-
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
 ```{python}
-#| code-line-numbers: "1-10|12"
+#| code-line-numbers: "1-12|14"
+
+# LazyFrame API
 
 df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, n+1)})
 
@@ -228,15 +401,34 @@ df_pl_lazy = df_pl_lazy.with_columns(
 df_pl_lazy_collected = df_pl_lazy.collect()
 ```
 
-## {.center}
+## Results {.center}
+
+::::{.columns}
+
+:::{.column width="49%"}
 
 ```{python}
-df_pl_lazy_collected
+df_pd   # pandas
 ```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+```{python}
+df_pl   # and df_pl_lazy_collected
+```
+
+:::
+
+::::
 
 ## Timing {.center}
 
-![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
 
 ```{python}
 %%timeit
@@ -252,7 +444,7 @@ df_pd.loc[df_pd["Count"] % 5 == 0, "FizzBuzz"] = "Buzz"
 df_pd.loc[df_pd["Count"] % 15 == 0, "FizzBuzz"] = "FizzBuzz"
 ```
 
-## Timing {.center}
+## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
@@ -271,12 +463,14 @@ df_pl.with_columns(
 )
 ```
 
-## Timing {.center}
+## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
 ```{python}
 %%timeit
+
+# Lazy API
 
 df_pl_lazy = pl.LazyFrame({"Count": np.arange(1, n+1)})
 
@@ -294,8 +488,8 @@ df_pl = df_pl_lazy.collect()
 
 ## Speedup {.center}
 
-Speedup with Polars DataFrame around **6** \
-With Polars LazyFrame around **8**
+Speedup with Polars DataFrame: **6** \
+With Polars LazyFrame: **8**
 
 These speedups highly depend on the types and sizes of the problems
 
@@ -352,15 +546,17 @@ if you collect the entire DataFrame as we did here, the lazy API does not reduce
 
 ::::
 
-# Example 2: medium dataset
+## Example 2: medium dataset {.center}
 
-## Data characteristics {.center}
+Here I am using [a jeopardy dataset](https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv) that Alex uses in his pandas course
 
 Shape: 216,930 rows, 7 columns
 
+The goal is to subset this DataFrame for the history category and get the shape of the resulting DataFrame
+
 ## Code {.center}
 
-![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
 
 ```{python}
 df_pd = pd.read_csv(
@@ -372,7 +568,7 @@ df_pd_subset = df_pd.loc[df_pd["Category"] == "HISTORY"]
 df_pd_subset.shape
 ```
 
-## Code {.center}
+## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
@@ -386,11 +582,13 @@ df_pl_subset = df_pl.filter(pl.col("Category") == "HISTORY")
 df_pl_subset.shape
 ```
 
-## Code {.center}
+## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
 ```{python}
+# Lazy API
+
 df_pl_lazy = pl.scan_csv(
     "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
 )
@@ -404,7 +602,7 @@ df_pl_lazy_subset_collected.shape
 
 ## Timing {.center}
 
-![](img/logo_pandas_full.svg){width="10%" fig-align="right"}
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
 
 ```{python}
 %%timeit
@@ -416,7 +614,7 @@ df_pd = pd.read_csv(
 df_pd.loc[df_pd["Category"] == "HISTORY"].shape
 ```
 
-## Timing {.center}
+## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
@@ -430,12 +628,14 @@ df_pl = pl.read_csv(
 df_pl.filter(pl.col("Category") == "HISTORY").shape
 ```
 
-## Timing {.center}
+## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
 ```{python}
 %%timeit
+
+# Lazy API
 
 df_pl_lazy = pl.scan_csv(
     "https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv"
@@ -446,7 +646,7 @@ df_pl_lazy.filter(pl.col("Category") == "HISTORY").collect().shape
 
 ## Speedup {.center}
 
-Polars here brings a speedup around **1.5**
+Polars here brings a speedup of **1.5**
 
 The Lazy API ramps that up to a speedup of **17**
 
@@ -504,13 +704,13 @@ If you only collect a subset of the data, the memory footprint drops dramaticall
 
 ::::
 
-# Example 3:<br>data too big to fit in memory
+# Data too big to fit in memory
 
-## Example dataset {.center}
+## Example of large dataset {.center}
 
 Let's play with data from the [GBIF](https://www.gbif.org/) website for free and open access to biodiversity data
 
-The [Southern African Bird Atlas Project 2](https://www.gbif.org/dataset/906e6978-e292-4a8b-9c39-adf6bb0f3323) contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let's look at the latter:
+The [Southern African Bird Atlas Project 2](https://www.gbif.org/dataset/906e6978-e292-4a8b-9c39-adf6bb0f3323) [@https://doi.org/10.15468/dl.gqwnm2] contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let's look at the latter:
 
 Shape: 25,687,526 rows, 50 columns
 
@@ -600,3 +800,12 @@ print(passer_ls)
 With this method, as long as the data itself fits on a drive and the queries don't return huge subsets of data, you can run queries on giant datasets such as the 3 TB [eBird dataset](https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e) with a small amount of RAM
 
 Note that the queries can contain complex expressions. What matters is the size of the subset you need to collect at the end
+
+## {.center}
+
+<br><br><br><br><br><br><br><br>
+
+<b><span style="font-size: 3rem;">Reference</span></b>
+
+::: {#refs}
+:::
