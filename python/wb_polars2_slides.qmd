@@ -716,6 +716,47 @@ Shape: 25,687,526 rows, 50 columns
 
 From that dataset, I want a list of species from the genus *Passer* (Old World sparrows)
 
+## Side note: the importance of file format {.center}
+
+Text-based formats (CSV, JSON) are not suitable for large files
+
+[Apache Parquet](https://parquet.apache.org/) is a binary, machine-optimized, column-oriented file format with efficient encoding and compression and it is considered the industry-standard file format for large tabular data <br>
+
+|  ||| File type ||| Size |
+| -- | -- | -- | -- | -- | -- | -- |
+| File downloaded from GBIF ||| Zipped CSV ||| 2.2 GB |
+| Uncompressed file ||| CSV ||| 12.3 GB |
+| Ideal file format ||| Parquet ||| [0.5 GB]{.emph} |
+
+<br>In addition to being **15 times (!!) smaller**, the Parquet file is **a lot faster to read and write**
+
+## Format conversion {.center}
+
+<br>Here is a way to convert this file if it fits in memory:
+
+```{.python}
+# Read in the CSV file in a Polars DataFrame
+df = pl.read_csv("sa_birds.csv", separator="\t")
+
+# Export the DataFrame in a Parquet file
+df.write_parquet("sa_birds.parquet")
+```
+<br>
+
+:::{.note}
+
+If the file doesn't fit in memory, you can use Dask (which also uses Apache Arrow) on a distributed system
+
+:::
+
+## Native Apache Arrow support {.center}
+
+Polars, with its native support for the columnar Apache Arrow format, is ideal to work with Parquet files
+
+pandas can work with Parquet files but this can lead to issues due to the inconsistent way it handles missing data (e.g. see [this SO question](https://stackoverflow.com/q/54866522/9210961), [this issue](https://github.com/pandas-dev/pandas/issues/55721), [this post](https://learn.microsoft.com/en-au/answers/questions/5534487/timestamp-column-from-parquet-file-(created-with-p#:~:text=Venkat%20Reddy%20Navari,you%20have%20any%20further%20queries.)))
+
+Reading and writing Parquet files from pandas is also a lot slower
+
 ## RAM required {.center}
 
 ::::{.columns}
@@ -764,7 +805,7 @@ If you only need to run queries on the data however, the Polars Lazy API is the 
 You can create a LazyFrame (no impact on memory, LazyFrame returned instantly):
 
 ```{python}
-df_pl_lazy = pl.scan_csv("sa_birds.csv", separator="\t")
+df_pl_lazy = pl.scan_parquet("sa_birds.parquet")
 ```
 
 Run a query on it (no impact on memory, LazyFrame returned instantly):
@@ -801,11 +842,33 @@ With this method, as long as the data itself fits on a drive and the queries don
 
 Note that the queries can contain complex expressions. What matters is the size of the subset you need to collect at the end
 
+## Conclusion {.center}
+
+Polars:
+
+- Handles missing data in a consistent and sensible way
+- Has a clear syntax
+- Allows passing expressions to group by in a convenient way
+- Is very fast
+- Uses multithreading automatically
+- Is extremely memory efficient with the Lazy API
+- Uses the industry standard Apache Arrow columnar format
+- Works perfectly with Parquet files
+- Works out-of-core with the Lazy API
+
+## Conclusion {.center}
+
+<center>**Start using Polars now!**</center>
+
+![](img/lazy_polar_bear.jpg){fig-align="center"}
+
+<center>**And use the Lazy API!**</center>
+
 ## {.center}
 
 <br><br><br><br><br><br><br><br>
 
-<b><span style="font-size: 3rem;">Reference</span></b>
+<span style="font-size: 3rem;">**Reference**</span>
 
 ::: {#refs}
 :::
