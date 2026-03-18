@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-
+If you plan on using GPUs on the Alliance clusters, there are a number of things you need to be aware of.
 
 :::
 
@@ -21,10 +21,27 @@ sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq
 
 You should also visit the wiki page for that cluster for additional information ([here is an example for Fir](https://docs.alliancecan.ca/wiki/Fir#GPU_instances)).
 
-## Multi-instance GPUs
+## Multi-instance GPU (MIG)
 
-[](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU)
+[Multi-instance GPU (MIG)](https://www.nvidia.com/en-us/technologies/multi-instance-gpu/) is an [Nvidia](https://en.wikipedia.org/wiki/Nvidia) technology that partitions GPUs into multiple isolated and independent instances (virtual GPUs), each with its dedicated compute and memory resources.
 
+:::{.note}
+
+This technology only works for GPGPUs (general-purpose GPUs) and not for graphic rendering.
+
+:::
+
+If your jobs cannot fully utilize the modern and high-performing GPUs that are present in the Alliance clusters, using GPU instances allows you to use less of your job priority and have your jobs start sooner.
+
+To use a GPU instance instead of a full GPU, you select the profile name of the instance size that corresponds to the size of your job.
+
+Refer to [the Alliance wiki](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU) for more details on this.
+
+## GPU farming
+
+If you want to run multiple instances of a CUDA application, but the application is too small to saturate a modern GPU, consider using GPU farming using [CUDA Multi Process Service (MPS)](https://docs.nvidia.com/deploy/mps/index.html). Multiple instances will then be processed concurrently no the same GPU.
+
+Refer to [the Alliance wiki](https://docs.alliancecan.ca/wiki/Hyper-Q_/_MPS) for more details on this as well.
 
 ## CPUs/GPU ratio
 
@@ -47,15 +64,124 @@ You also need to pay attention to the vRAM of the GPU(s) you are using and pair 
 
 ## Requesting GPUs from Slurm
 
+Below is the general syntax, however make sure to look at cluster-specific instructions.
+
 ### GPUs spread anywhere
 
 ```{.bash}
+--gpus=<type>:<number>
+```
 
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+--gpus=h100:2
 ```
 
 ### GPUs per node
 
 ```{.bash}
-
+--gpus-per-node=<type>:<number>
 ```
 
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+--gpus-per-node=h100:6
+```
+
+## Monitoring GPUs
+
+### Metrix portal
+
+A growing number of Alliance clusters (as of March 2026, this includes Rorqual, Narval, and Nibi) have a [Metrix](https://docs.alliancecan.ca/wiki/Metrix/en) portal that allows to monitor resource usage (CPU, GPU, memory, filesystem) in real time in a graphical and intuitive fashion from your browser.
+
+### Logging metrics
+
+For clusters that don't have a monitoring portal yet, you can run [nvidia-smi](https://docs.nvidia.com/deploy/nvidia-smi/) on the compute nodes with GPU(s) to get a snapshot of GPU(s) usage while the job is running by adding the command `nvidia-smi` to your job script.
+
+If you want to log the monitoring to a file, run instead:
+
+```{.bash}
+nvidia-smi -l 30 > gpu_log.txt
+```
+
+:::{.note}
+
+Replace `30` by the number of seconds that is appropriate for the monitoring of your job (based on the length of your job).
+
+:::
+
+You can also query specific metrics with, for instance:
+
+```{.bash}
+nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv
+```
+
+This will return information on the GPU(s) utilization and memory used.
+
+### Live monitoring
+
+If you want live monitoring, you can use `watch` to run `nvidia-smi` periodically and use `srun` to access the compute node of your choice.
+
+:::{.example}
+
+Example to monitor the GPU(s) every second if you have a single GPU node:
+
+:::
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --pty watch -n 1 nvidia-smi
+```
+
+:::{.note}
+
+You can find the job ID with `sq`.
+
+:::
+
+This will create a static dashboard in your terminal with values updated every second.
+
+If you have multiple GPU nodes, you need to specify the node name:
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --nodelist=<node_name> --pty watch -n 1 nvidia-smi
+```
+
+:::{.note}
+
+You can find the node name with:
+
+```{.bash}
+srun --jobid=<your_running_job_id> -n1 -c1 scontrol show hostname
+```
+
+:::
+
+Even better than `nvidia-smi` for this however is [nvtop](https://github.com/Syllo/nvtop).
+
+:::{.example}
+
+Example to monitor the GPU(s) every second if you have a single GPU node:
+
+:::
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --pty nvtop
+```
+
+If you have multiple GPU nodes, you need to specify the node name:
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --nodelist=<node_name> --pty nvtop
+```
+
+Refer to [our wiki page](https://docs.alliancecan.ca/wiki/NVTOP) for more information on `nvtop`.
