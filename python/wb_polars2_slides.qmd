@@ -265,7 +265,7 @@ Much simpler ...
 
 ## Timing of pandas solutions {.center}
 
-```{python}
+```{.python}
 %%timeit
 
 df_pd.groupby('id').apply(
@@ -273,11 +273,15 @@ df_pd.groupby('id').apply(
 )
 ```
 
+```
+1.04 ms ± 1.33 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
 The solution most people are likely to use is by far the slowest
 
 ## Timing of pandas solutions {.center}
 
-```{python}
+```{.python}
 %%timeit
 
 df_pd[
@@ -285,11 +289,15 @@ df_pd[
 ].groupby('id')['views'].max()
 ```
 
+```
+678 μs ± 4.04 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
 The best solution uses 2 `groupby` expressions
 
 ## Timing of pandas solutions {.center}
 
-```{python}
+```{.python}
 %%timeit
 
 gb = df_pd.groupby("id")
@@ -298,16 +306,24 @@ df_pd["result"] = df_pd["views"].where(mask)
 gb["result"].max()
 ```
 
+```
+711 μs ± 952 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
 This is almost as fast as the best solution
 
 ## Timing of the Polars solution {.center}
 
-```{python}
+```{.python}
 %%timeit
 
 df_pl.group_by('id').agg(
     pl.col('views').filter(pl.col('sales') > pl.mean('sales')).max()
 )
+```
+
+```
+110 μs ± 3.6 μs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
 ```
 
 Polars is and much faster
@@ -430,7 +446,7 @@ df_pl   # and df_pl_lazy_collected
 
 ![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
 
-```{python}
+```{.python}
 %%timeit
 
 df_pd = pd.DataFrame()
@@ -444,11 +460,15 @@ df_pd.loc[df_pd["Count"] % 5 == 0, "FizzBuzz"] = "Buzz"
 df_pd.loc[df_pd["Count"] % 15 == 0, "FizzBuzz"] = "FizzBuzz"
 ```
 
+```
+3.4 ms ± 65.4 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+```
+
 ## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
-```{python}
+```{.python}
 %%timeit
 
 df_pl = pl.DataFrame({"Count": np.arange(1, n+1)})
@@ -463,11 +483,15 @@ df_pl.with_columns(
 )
 ```
 
+```
+648 μs ± 2.21 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
 ## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
-```{python}
+```{.python}
 %%timeit
 
 # Lazy API
@@ -486,10 +510,14 @@ df_pl_lazy = df_pl_lazy.with_columns(
 df_pl = df_pl_lazy.collect()
 ```
 
+```
+462 μs ± 4.05 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
 ## Speedup {.center}
 
-Speedup with Polars DataFrame: **6** \
-With Polars LazyFrame: **8**
+Speedup with Polars DataFrame: **5** \
+With Polars LazyFrame: **7**
 
 These speedups highly depend on the types and sizes of the problems
 
@@ -604,7 +632,7 @@ df_pl_lazy_subset_collected.shape
 
 ![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
 
-```{python}
+```{.python}
 %%timeit
 
 df_pd = pd.read_csv(
@@ -614,11 +642,15 @@ df_pd = pd.read_csv(
 df_pd.loc[df_pd["Category"] == "HISTORY"].shape
 ```
 
+```
+1.17 s ± 5.2 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
 ## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
-```{python}
+```{.python}
 %%timeit
 
 df_pl = pl.read_csv(
@@ -628,11 +660,15 @@ df_pl = pl.read_csv(
 df_pl.filter(pl.col("Category") == "HISTORY").shape
 ```
 
+```
+778 ms ± 30.5 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
 ## {.center}
 
 ![](img/logo_polars_full.svg){width="12%" fig-align="right"}
 
-```{python}
+```{.python}
 %%timeit
 
 # Lazy API
@@ -642,6 +678,10 @@ df_pl_lazy = pl.scan_csv(
 )
 
 df_pl_lazy.filter(pl.col("Category") == "HISTORY").collect().shape
+```
+
+```
+67.7 ms ± 3.87 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
 ```
 
 ## Speedup {.center}
@@ -726,9 +766,9 @@ Text-based formats (CSV, JSON) are not suitable for large files
 | -- | -- | -- | -- | -- | -- | -- |
 | File downloaded from GBIF ||| Zipped CSV ||| 2.2 GB |
 | Uncompressed file ||| CSV ||| 12.3 GB |
-| Ideal file format ||| Parquet ||| [0.5 GB]{.emph} |
+| Ideal file format ||| [Parquet]{.emph} ||| [0.5 GB]{.emph} |
 
-<br>In addition to being **15 times (!!) smaller**, the Parquet file is **a lot faster to read and write**
+<br>In addition to being **15 times (!!) smaller**, the Parquet file is **a lot faster to read & write**
 
 ## Format conversion {.center}
 
@@ -751,11 +791,52 @@ If the file doesn't fit in memory, you can use Dask (which also uses Apache Arro
 
 ## Native Apache Arrow support {.center}
 
-Polars, with its native support for the columnar Apache Arrow format, is ideal to work with Parquet files
+With its native support for the columnar Apache Arrow format, Polars is ideal to work with Parquet files
 
 pandas can work with Parquet files but this can lead to issues due to the inconsistent way it handles missing data (e.g. see [this SO question](https://stackoverflow.com/q/54866522/9210961), [this issue](https://github.com/pandas-dev/pandas/issues/55721), [this post](https://learn.microsoft.com/en-au/answers/questions/5534487/timestamp-column-from-parquet-file-(created-with-p#:~:text=Venkat%20Reddy%20Navari,you%20have%20any%20further%20queries.)))
 
-Reading and writing Parquet files from pandas is also a lot slower
+::::{.columns}
+
+:::{.column width="49%"}
+
+```{.python}
+%%timeit
+
+# pandas
+sa_birds_pd = pd.read_parquet(
+    "sa_birds.parquet"
+)
+```
+
+```
+1min 10s ± 7.76 s per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+```{.python}
+%%timeit
+
+# Polars
+sa_birds_pl = pl.read_parquet(
+    "sa_birds.parquet"
+)
+```
+
+```
+2.47 s ± 756 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+:::
+
+::::
+
+Speedup: 70 / 2.47 ≈ **28** &emsp;&emsp;&emsp;[Reading Parquet files in pandas is also A LOT slower!]{.emph}
 
 ## RAM required {.center}
 
@@ -765,7 +846,24 @@ Reading and writing Parquet files from pandas is also a lot slower
 
 **pandas**
 
-132 + 205500208 * 50 = \
+```{.python}
+sa_birds_pd.memory_usage()
+```
+
+```
+Index                          132
+gbifID                   205500208
+datasetKey               205500208
+occurrenceID             205500208
+kingdom                  205500208
+phylum                   205500208
+class                    205500208
+order                    205500208
+...
+dtype: int64
+```
+
+132 + 205,500,208 * 50 = \
 10,275,010,532 bytes \
 **≈ 10 GB**
 
@@ -778,27 +876,37 @@ Reading and writing Parquet files from pandas is also a lot slower
 
 **Polars**
 
-12,291,024,224 bytes \
+```{.python}
+sa_birds_pl.estimated_size()
+```
+
+```
+12291023880
+```
+
+12,291,023,880 bytes \
 **≈ 12 GB**
 
 :::
 
 ::::
 
+## RAM required {.center}
+
 Let's image that you have only 16 GB of RAM on your machine
 
 Running a browser and a few small applications take about 6 GB out of that. This dataset is already too big to process on your laptop
 
-If you need to play with the raw data or a larger dataset such as the [eBird dataset](https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e) of 1,775,781,186 rows and 50 columns (**CSV file of 3 TB for the raw data**), you will need A LOT of memory if you use pandas
+If you need to play with the raw data or a larger dataset such as the [eBird dataset](https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e) of 1,775,781,186 rows and 50 columns (**CSV file of 3 TB for the raw data**), you will need A LOT of memory
 
-## Options {.center}
+## What are your options? {.center}
 
 In pandas or Polars:
 
-- you can select only the columns you are interested
-- you can read and process the file in chunks and try to combine the results
+- You can select only the columns you are interested
+- You can read and process the file in chunks and try to combine the results
 
-If you only need to run queries on the data however, the Polars Lazy API is the answer
+[If you only need to run queries on the data however, the Polars Lazy API is the answer]{.emph}
 
 ## Create a LazyFrame {.center}
 
@@ -808,7 +916,7 @@ You can create a LazyFrame (no impact on memory, LazyFrame returned instantly):
 df_pl_lazy = pl.scan_parquet("sa_birds.parquet")
 ```
 
-Run a query on it (no impact on memory, LazyFrame returned instantly):
+<br>Run a query on it (no impact on memory, LazyFrame returned instantly):
 
 ```{python}
 passer_df_lazy = df_pl_lazy.filter(
@@ -824,9 +932,7 @@ Now, you collect the result (this uses memory and takes time to compute) and tur
 passer_ls = passer_df_lazy.collect().get_column("species").to_list()
 ```
 
-Depending on the subset returned by your query, the memory usage will vary
-
-Here, it is minuscule (79 bytes):
+<br>Depending on the subset returned by your query, the memory usage will vary. Here, it is minuscule (79 bytes):
 
 ```{python}
 passer_df_lazy.collect().estimated_size()
