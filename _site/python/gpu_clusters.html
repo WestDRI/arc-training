@@ -21,6 +21,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -623,8 +658,26 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </nav>
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-        
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title"><em>On this page:</em></h2>
+   
+  <ul>
+  <li><a href="#available-gpu-models" id="toc-available-gpu-models" class="nav-link active" data-scroll-target="#available-gpu-models">Available GPU models</a></li>
+  <li><a href="#multi-instance-gpu-mig" id="toc-multi-instance-gpu-mig" class="nav-link" data-scroll-target="#multi-instance-gpu-mig">Multi-instance GPU (MIG)</a></li>
+  <li><a href="#gpu-farming" id="toc-gpu-farming" class="nav-link" data-scroll-target="#gpu-farming">GPU farming</a></li>
+  <li><a href="#cpusgpu-ratio" id="toc-cpusgpu-ratio" class="nav-link" data-scroll-target="#cpusgpu-ratio">CPUs/GPU ratio</a>
+  <ul>
+  <li><a href="#ram-to-vram-ratio" id="toc-ram-to-vram-ratio" class="nav-link" data-scroll-target="#ram-to-vram-ratio">RAM to vRAM ratio</a></li>
+  </ul></li>
+  <li><a href="#requesting-gpus-from-slurm" id="toc-requesting-gpus-from-slurm" class="nav-link" data-scroll-target="#requesting-gpus-from-slurm">Requesting GPUs from Slurm</a>
+  <ul>
+  <li><a href="#gpus-spread-anywhere" id="toc-gpus-spread-anywhere" class="nav-link" data-scroll-target="#gpus-spread-anywhere">GPUs spread anywhere</a></li>
+  <li><a href="#gpus-per-node" id="toc-gpus-per-node" class="nav-link" data-scroll-target="#gpus-per-node">GPUs per node</a></li>
+  </ul></li>
+  <li><a href="#monitoring-gpus" id="toc-monitoring-gpus" class="nav-link" data-scroll-target="#monitoring-gpus">Monitoring GPUs</a></li>
+  </ul>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
@@ -654,39 +707,69 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </header>
 
 
-<p><em>Coming up on April 9.</em></p>
-<!-- :::{.def} -->
-<!-- If you plan on using GPUs on the Alliance clusters, there are a number of things you need to be aware of. -->
-<!-- ::: -->
-<!-- ## Available GPU models -->
-<!-- You can find a [list of GPU models for each cluster on the Alliance wiki](https://docs.alliancecan.ca/wiki/Using_GPUs_with_Slurm#Available_GPUs). -->
-<!-- While logged on any cluster, you can print a list of available GPU models for that cluster with: -->
-<!-- ```{.bash} -->
-<!-- sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq -->
-<!-- ``` -->
-<!-- You should also visit the wiki page for that cluster for additional information ([here is an example for Fir](https://docs.alliancecan.ca/wiki/Fir#GPU_instances)). -->
-<!-- ## Multi-instance GPUs -->
-<!-- [](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU) -->
-<!-- ## CPUs/GPU ratio -->
-<!-- Ideally, you want that neither the GPUs nor the CPUs become a bottleneck for your job by having a balanced approach, both in terms of their respective computing powers and in terms of their memory. -->
-<!-- A balanced ratio highly depends on the type of task your code performs as well as the type of GPU you are using. Typical ratios vary from 4:1 to 12:1, but if your code contains heavy steps that can only be performed on CPUs (e.g. I/O, data preprocessing), you will want more CPUs per GPU. More powerful GPUs also require more CPUs to handle the increased data throughput. -->
-<!-- The Alliance wiki maximum recommendations are (per GPU): -->
-<!-- - on Fir, no more than 12 CPU cores -->
-<!-- - on Narval, no more than 12 CPU cores -->
-<!-- - on Nibi, no more than 14 CPU cores -->
-<!-- - on Rorqual, no more than 16 CPU cores -->
-<!-- ### RAM to vRAM ratio -->
-<!-- You also need to pay attention to the vRAM of the GPU(s) you are using and pair this appropriately with RAM on your CPUs. Here too, the type of task you are performing and the GPU model you are using will dictate the ideal ratio. -->
-<!-- 2:1 to 4:1 RAM to vRAM works for most applications. -->
-<!-- ## Requesting GPUs from Slurm -->
-<!-- ### GPUs spread anywhere -->
-<!-- ```{.bash} -->
-<!-- ``` -->
-<!-- ### GPUs per node -->
-<!-- ```{.bash} -->
-<!-- ``` -->
+<div class="def">
+<p>If you plan on using GPUs on the Alliance clusters, there are a number of things you need to be aware of.</p>
+</div>
+<section id="available-gpu-models" class="level2">
+<h2 class="anchored" data-anchor-id="available-gpu-models">Available GPU models</h2>
+<p>You can find a <a href="https://docs.alliancecan.ca/wiki/Using_GPUs_with_Slurm#Available_GPUs">list of GPU models for each cluster on the Alliance wiki</a>.</p>
+<p>While logged on any cluster, you can print a list of available GPU models for that cluster with:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sinfo</span> <span class="at">-o</span> <span class="st">"%G"</span><span class="kw">|</span><span class="fu">grep</span> gpu<span class="kw">|</span><span class="fu">sed</span> <span class="st">'s/gpu://g'</span><span class="kw">|</span><span class="fu">sed</span> <span class="st">'s/),/\n/g'</span><span class="kw">|</span><span class="fu">cut</span> <span class="at">-d:</span> <span class="at">-f1</span><span class="kw">|</span><span class="fu">sort</span><span class="kw">|</span><span class="fu">uniq</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You should also visit the wiki page for that cluster for additional information (<a href="https://docs.alliancecan.ca/wiki/Fir#GPU_instances">here is an example for Fir</a>).</p>
+</section>
+<section id="multi-instance-gpu-mig" class="level2">
+<h2 class="anchored" data-anchor-id="multi-instance-gpu-mig">Multi-instance GPU (MIG)</h2>
+<p><a href="https://www.nvidia.com/en-us/technologies/multi-instance-gpu/">Multi-instance GPU (MIG)</a> is an <a href="https://en.wikipedia.org/wiki/Nvidia">Nvidia</a> technology that partitions GPUs into multiple isolated and independent instances (virtual GPUs), each with its dedicated compute and memory resources.</p>
+<p>Refer to <a href="https://docs.alliancecan.ca/wiki/Multi-Instance_GPU">the Alliance wiki</a> for more details on this.</p>
+</section>
+<section id="gpu-farming" class="level2">
+<h2 class="anchored" data-anchor-id="gpu-farming">GPU farming</h2>
+<p>If you want to run multiple instances of a CUDA application, but the application is too small to saturate a modern GPU, consider using GPU farming using <a href="https://docs.nvidia.com/deploy/mps/index.html">CUDA Multi Process Service (MPS)</a>. Multiple instances will then be processed concurrently no the same GPU.</p>
+<p>Refer to <a href="https://docs.alliancecan.ca/wiki/Hyper-Q_/_MPS">the Alliance wiki</a> for more details on this as well.</p>
+</section>
+<section id="cpusgpu-ratio" class="level2">
+<h2 class="anchored" data-anchor-id="cpusgpu-ratio">CPUs/GPU ratio</h2>
+<p>Ideally, you want that neither the GPUs nor the CPUs become a bottleneck for your job by having a balanced approach, both in terms of their respective computing powers and in terms of their memory.</p>
+<p>A balanced ratio highly depends on the type of task your code performs as well as the type of GPU you are using. Typical ratios vary from 4:1 to 12:1, but if your code contains heavy steps that can only be performed on CPUs (e.g.&nbsp;I/O, data preprocessing), you will want more CPUs per GPU. More powerful GPUs also require more CPUs to handle the increased data throughput.</p>
+<p>The Alliance wiki maximum recommendations are (per GPU):</p>
+<ul>
+<li>on Fir, no more than 12 CPU cores</li>
+<li>on Narval, no more than 12 CPU cores</li>
+<li>on Nibi, no more than 14 CPU cores</li>
+<li>on Rorqual, no more than 16 CPU cores</li>
+</ul>
+<section id="ram-to-vram-ratio" class="level3">
+<h3 class="anchored" data-anchor-id="ram-to-vram-ratio">RAM to vRAM ratio</h3>
+<p>You also need to pay attention to the vRAM of the GPU(s) you are using and pair this appropriately with RAM on your CPUs. Here too, the type of task you are performing and the GPU model you are using will dictate the ideal ratio.</p>
+<p>2:1 to 4:1 RAM to vRAM works for most applications.</p>
+</section>
+</section>
+<section id="requesting-gpus-from-slurm" class="level2">
+<h2 class="anchored" data-anchor-id="requesting-gpus-from-slurm">Requesting GPUs from Slurm</h2>
+<p>Below is the general syntax, however make sure to look at cluster-specific instructions.</p>
+<section id="gpus-spread-anywhere" class="level3">
+<h3 class="anchored" data-anchor-id="gpus-spread-anywhere">GPUs spread anywhere</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--gpus=</span><span class="op">&lt;</span>type<span class="op">&gt;</span>:<span class="op">&lt;</span>number<span class="op">&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="example">
+<p>Example:</p>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--gpus=h100:2</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="gpus-per-node" class="level3">
+<h3 class="anchored" data-anchor-id="gpus-per-node">GPUs per node</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--gpus-per-node=</span><span class="op">&lt;</span>type<span class="op">&gt;</span>:<span class="op">&lt;</span>number<span class="op">&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="example">
+<p>Example:</p>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--gpus-per-node=h100:6</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="monitoring-gpus" class="level2">
+<h2 class="anchored" data-anchor-id="monitoring-gpus">Monitoring GPUs</h2>
+<p>A growing number of Alliance clusters have a <a href="https://docs.alliancecan.ca/wiki/Metrix/en">Metrix</a> portal that allows to monitor resource usage (CPU, GPU, memory, filesystem) in real time in a graphical and intuitive fashion.</p>
 
 
+</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
