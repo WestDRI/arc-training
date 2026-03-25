@@ -4844,11 +4844,76 @@
     ]
   },
   {
-    "objectID": "python/polars_pandas.html#performance",
-    "href": "python/polars_pandas.html#performance",
+    "objectID": "python/polars_pandas.html#missing-data",
+    "href": "python/polars_pandas.html#missing-data",
     "title": "Comparison with pandas",
-    "section": "Performance",
-    "text": "Performance\n\nExample 1\nLet’s use the FizzBuzz problem.\nIn his pandas course, Alex compares multiple methods and shows that the best method uses masks. Let’s see how Polars fares in comparison to pandas’ best method.\nFirst, let’s load the packages we will need:\n\nimport pandas as pd\nimport numpy as np\nimport polars as pl\n\nAnd let’s make sure that the code works.\nWith pandas:\n\ndf_pd = pd.DataFrame()\nsize = 10_000\ndf_pd[\"number\"] = np.arange(1, size+1)\ndf_pd[\"response\"] = df_pd[\"number\"].astype(str)\ndf_pd.loc[df_pd[\"number\"] % 3 == 0, \"response\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"number\"] % 5 == 0, \"response\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"number\"] % 15 == 0, \"response\"] = \"FizzBuzz\"\n\nprint(df_pd)\n\n      number response\n0          1        1\n1          2        2\n2          3     Fizz\n3          4        4\n4          5     Buzz\n...      ...      ...\n9995    9996     Fizz\n9996    9997     9997\n9997    9998     9998\n9998    9999     Fizz\n9999   10000     Buzz\n\n[10000 rows x 2 columns]\n\n\nWith Polars:\n\nsize = 10_000\ndf_pl = pl.DataFrame({\"number\": np.arange(1, size+1)})\ndf_pl.with_columns(pl.col(\"number\").cast(pl.String).alias(\"response\"))\ndf_pl = df_pl.with_columns(\n    pl.when(pl.col(\"number\") % 3 == 0)\n    .then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"number\") % 5 == 0)\n    .then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"number\") % 15 == 0)\n    .then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"number\"))\n    .alias(\"response\")\n)\n\nprint(df_pl)\n\nshape: (10_000, 2)\n┌────────┬──────────┐\n│ number ┆ response │\n│ ---    ┆ ---      │\n│ i64    ┆ str      │\n╞════════╪══════════╡\n│ 1      ┆ 1        │\n│ 2      ┆ 2        │\n│ 3      ┆ Fizz     │\n│ 4      ┆ 4        │\n│ 5      ┆ Buzz     │\n│ …      ┆ …        │\n│ 9996   ┆ Fizz     │\n│ 9997   ┆ 9997     │\n│ 9998   ┆ 9998     │\n│ 9999   ┆ Fizz     │\n│ 10000  ┆ Buzz     │\n└────────┴──────────┘\n\n\nNow, let’s time them.\npandas:\n\n%%timeit\n\ndf_pd = pd.DataFrame()\nsize = 10_000\ndf_pd[\"number\"] = np.arange(1, size+1)\ndf_pd[\"response\"] = df_pd[\"number\"].astype(str)\ndf_pd.loc[df_pd[\"number\"] % 3 == 0, \"response\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"number\"] % 5 == 0, \"response\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"number\"] % 15 == 0, \"response\"] = \"FizzBuzz\"\n\n3.4 ms ± 28.6 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)\n\n\nPolars:\n\n%%timeit\n\nsize = 10_000\ndf_pl = pl.DataFrame({\"number\": np.arange(1, size+1)})\ndf_pl.with_columns(pl.col(\"number\").cast(pl.String).alias(\"response\"))\ndf_pl.with_columns(\n    pl.when(pl.col(\"number\") % 3 == 0)\n    .then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"number\") % 5 == 0)\n    .then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"number\") % 15 == 0)\n    .then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"number\"))\n    .alias(\"response\")\n)\n\n657 μs ± 5.24 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\n\n\nThat’s a speedup of 9 (the longer the series, the larger this speedup will be).\n\n\nExample 2\nFor a second example, let’s go back to the jeopardy example with a large file and compare the timing of pandas and Polar.\nFirst, let’s make sure that the code works.\npandas:\n\ndf_pd = pd.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n\n(349, 7)\n\n\nPolars:\n\ndf_pl = pl.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n\n(349, 7)\n\n\nAnd now for timings.\npandas:\n\n%%timeit\n\ndf_pd = pd.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n\n1.17 s ± 5.2 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n\n\nPolars:\n\n%%timeit\n\ndf_pl = pl.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n\n841 ms ± 36.8 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n\n\nThat’s a speedup of 2.\nBut it gets much better with lazy evaluation. First, we create a LazyFrame instead of a DataFrame by using scan_csv instead of read_csv. The query is not evaluated but a graph is created. This allows the query optimizer to combine operations and perform optimizations where possible, very much the way compilers work. To evaluate the query and get a result, we use the collect method.\nLet’s make sure that the lazy Polars code gives us the same result:\n\ndf_pl = pl.scan_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").collect().shape\n\n(349, 7)\n\n\nLazy timing:\n\n%%timeit\n\ndf_pl = pl.scan_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").collect().shape\n\n69.1 ms ± 5.86 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\n\n\nThat’s a speedup of 20 (the larger the file, the larger this speedup will be).\n\nPandas is trying to fight back: v 2.0 came with optional Arrow support instead of NumPy, then it became the default engine, but performance remains way below that of Polars (e.g. in DataCamp benchmarks, official benchmarks, many blog posts for whole scripts or individual tasks).\n\n\nComparison with other frameworks\nComparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren’t the most pertinent since they can be used in combination with Polars and the benefits can thus be combined.\nIt only makes sense to compare Polars with other libraries occupying the same “niche” such as pandas or Vaex.\nFor Vaex, some benchmark found it twice slower, but this could have changed with recent developments.\nOne framework performing better than Polars in some benchmarks is datatable (derived from the R package data.table), but it hasn’t been developed for a year—a sharp contrast with the fast development of Polars.",
+    "section": "Missing data",
+    "text": "Missing data\n\n\n\nFor historical reasons, depending on dtype, missing values are one of:\n\nNaN (numpy.nan, dtype float),\nNone,\nNaT (Not-a-Time, dtype datetime),\npandas.NA (nullable scalar).\n\nThis leads to inconsistent behaviour and unexpected dtype changes.\nThere has been an ongoing open issue since 2020.\n\n\n\n\nOne single missing value: null.\nSimple and consistent behaviour across all data types and better performance.\nNaN exists and is a float. It is not missing data, but the result of mathematical operations that don’t return numbers.\nHere is a blog that goes into this in details.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "Polars: faster DataFrames",
+      "Comparison with pandas"
+    ]
+  },
+  {
+    "objectID": "python/polars_pandas.html#group-by",
+    "href": "python/polars_pandas.html#group-by",
+    "title": "Comparison with pandas",
+    "section": "Group by",
+    "text": "Group by\nHere is a great blog post by Marco Gorelli comparing the ease of use of passing expressions to groups in Polars compared to pandas. I am using his code here and doing some timing on it to look at efficiency.\n\nCreate DataFrames\nImport libraries:\n\nimport pandas as pd\nimport polars as pl\n\n\n\nThe pandas DataFrame:\n\ndf_pd = pd.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)\n\n\n\n\nThe Polars equivalent:\n\ndf_pl = pl.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)\n\n\n\n\n\nThe pandas DataFrame:\n\nprint(df_pd)\n\n   id  sales  views\n0   1      4      3\n1   1      1      1\n2   1      2      2\n3   2      7      8\n4   2      6      6\n5   2      7      7\n\n\n\n\n\nThe Polars equivalent:\n\nprint(df_pl)\n\nshape: (6, 3)\n┌─────┬───────┬───────┐\n│ id  ┆ sales ┆ views │\n│ --- ┆ ---   ┆ ---   │\n│ i64 ┆ i64   ┆ i64   │\n╞═════╪═══════╪═══════╡\n│ 1   ┆ 4     ┆ 3     │\n│ 1   ┆ 1     ┆ 1     │\n│ 1   ┆ 2     ┆ 2     │\n│ 2   ┆ 7     ┆ 8     │\n│ 2   ┆ 6     ┆ 6     │\n│ 2   ┆ 7     ┆ 7     │\n└─────┴───────┴───────┘\n\n\n\n\n\n\nMarco Gorelli’s example\n\nFind the maximum value of views, where sales is greater than its mean, per id.\n\n\n\nSolutions in pandas\nThe straightforward method most people will use:\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max(),\n    include_groups=False\n)\n\nid\n1    3\n2    8\ndtype: int64\n\n\nAnother option, but it requires 2 groupby expressions:\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n\nid\n1    3\n2    8\nName: views, dtype: int64\n\n\nA solution people are unlikely to come up with:\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n\nid\n1    3.0\n2    8.0\nName: result, dtype: float64\n\n\n\n\nThe solution in Polars\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n\n\nshape: (2, 2)\n┌─────┬───────┐\n│ id  ┆ views │\n│ --- ┆ ---   │\n│ i64 ┆ i64   │\n╞═════╪═══════╡\n│ 2   ┆ 8     │\n│ 1   ┆ 3     │\n└─────┴───────┘\n\n\nMuch simpler …\n\n\nTiming of pandas solutions\n%%timeit\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max(),\n    include_groups=False\n)\n1.04 ms ± 1.33 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe solution most people are likely to use is by far the slowest.\n%%timeit\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n678 μs ± 4.04 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe best solution uses 2 groupby expressions.\n%%timeit\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n711 μs ± 952 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThis is almost as fast as the best solution.\n\n\nTiming of the Polars solution\n%%timeit\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n110 μs ± 3.6 μs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)\nPolars is more straightforward and much faster.\n\n\nConclusion\nSpeedup of Polars compared to the best pandas method: 6.\nSpeedup compared to the method most people are likely to use: 9.\nTo pass expressions to groups, Polars has a more straightforward and efficient syntax.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "Polars: faster DataFrames",
+      "Comparison with pandas"
+    ]
+  },
+  {
+    "objectID": "python/polars_pandas.html#general-performance-comparisons",
+    "href": "python/polars_pandas.html#general-performance-comparisons",
+    "title": "Comparison with pandas",
+    "section": "General performance comparisons",
+    "text": "General performance comparisons\n\nThe performance of tools can only be evaluated on optimized code: poorly written pandas code is a lot slower than efficient pandas code.\nTo ensure fairness towards pandas, I use the best pandas code from Alex Razoumov pandas course in which he benchmarks various syntaxes.\n\n\nExample 1: FizzBuzz\nFizzBuzz is a programming exercise based on a children game which consists of counting to n, replacing:\n\nany number divisible by 3 with Fizz,\nany number divisible by 5 with Buzz,\nany number divisible by both 3 and 5 with FizzBuzz.\n\nIn his pandas course, Alex compares multiple methods and shows that the best method uses masks. Let’s see how Polars fares in comparison to pandas’ best method.\nFirst, let’s load the packages we need and set the length of the series:\n\nimport pandas as pd\nimport numpy as np\nimport polars as pl\nn = 10_000\n\nAnd let’s make sure that the code works.\nWith pandas:\n\ndf_pd = pd.DataFrame()\ndf_pd[\"Count\"] = np.arange(1, n+1)\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\"\n\nprint(df_pd)\n\n      Count FizzBuzz\n0         1        1\n1         2        2\n2         3     Fizz\n3         4        4\n4         5     Buzz\n...     ...      ...\n9995   9996     Fizz\n9996   9997     9997\n9997   9998     9998\n9998   9999     Fizz\n9999  10000     Buzz\n\n[10000 rows x 2 columns]\n\n\nWith Polars:\n\ndf_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl = df_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\nprint(df_pl)\n\nshape: (10_000, 2)\n┌───────┬──────────┐\n│ Count ┆ FizzBuzz │\n│ ---   ┆ ---      │\n│ i64   ┆ str      │\n╞═══════╪══════════╡\n│ 1     ┆ 1        │\n│ 2     ┆ 2        │\n│ 3     ┆ Fizz     │\n│ 4     ┆ 4        │\n│ 5     ┆ Buzz     │\n│ …     ┆ …        │\n│ 9996  ┆ Fizz     │\n│ 9997  ┆ 9997     │\n│ 9998  ┆ 9998     │\n│ 9999  ┆ Fizz     │\n│ 10000 ┆ Buzz     │\n└───────┴──────────┘\n\n\nBut it gets much better with lazy evaluation. First, we create a LazyFrame instead of a DataFrame. The query is not evaluated but a graph is created. This allows the query optimizer to combine operations and perform optimizations where possible, very much the way compilers work. To evaluate the query and get a result, we use the collect method.\nLet’s make sure that the lazy Polars code gives us the same result:\nWith the Polars lazy API:\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\ndf_pl_lazy_collected = df_pl_lazy.collect()\n\nprint(df_pl_lazy_collected)\n\nshape: (10_000, 2)\n┌───────┬──────────┐\n│ Count ┆ FizzBuzz │\n│ ---   ┆ ---      │\n│ i64   ┆ str      │\n╞═══════╪══════════╡\n│ 1     ┆ 1        │\n│ 2     ┆ 2        │\n│ 3     ┆ Fizz     │\n│ 4     ┆ 4        │\n│ 5     ┆ Buzz     │\n│ …     ┆ …        │\n│ 9996  ┆ Fizz     │\n│ 9997  ┆ 9997     │\n│ 9998  ┆ 9998     │\n│ 9999  ┆ Fizz     │\n│ 10000 ┆ Buzz     │\n└───────┴──────────┘\n\n\n\nTiming\npandas:\n%%timeit\n\ndf_pd = pd.DataFrame()\ndf_pd[\"Count\"] = np.arange(1, n+1)\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\"\n3.4 ms ± 65.4 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)\nPolars:\n%%timeit\n\ndf_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n648 μs ± 2.21 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nPolars lazy API:\n%%timeit\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\ndf_pl_lazy_collected = df_pl_lazy.collect()\n460 μs ± 1.79 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThat’s a speedup of 5 for the Eager API and a speedup of 7 for the lazy API.\nThese speedups highly depend on the types and sizes of the problems. How much faster Polars is does vary, what doesn’t vary is that it is always much faster.\n\n\nMemory usage\n\n\npandas\n\ndf_pd.memory_usage()\n\nIndex         132\nCount       80000\nFizzBuzz    80000\ndtype: int64\n\n\n132 + 80,000 * 2 =\n160,132 bytes\n≈ 160 KB\n\n\n\nPolars\n\ndf_pl.estimated_size()\n\n119409\n\n\n119,409 bytes\n≈ 119 KB\n160,132 / 119,409 ≈ 1.3\nFootprint 1.3 times smaller.\n\n\n\nPolars lazy API\nSame as Polars eager:\nif you collect the entire DataFrame as we did here, the lazy API does not reduce the memory footprint.\n\n\n\n\n\nExample 2: medium dataset\nHere I am using a jeopardy dataset that Alex uses in his pandas course.\nShape: 216,930 rows, 7 columns.\nThe goal is to subset this DataFrame for the history category and get the shape of the resulting DataFrame.\nFirst, let’s make sure that the code works.\npandas:\n\ndf_pd = pd.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n\n(349, 7)\n\n\nPolars:\n\ndf_pl = pl.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n\n(349, 7)\n\n\nPolars lazy API:\n\ndf_pl_lazy = pl.scan_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl_lazy_subset_collected = df_pl_lazy.filter(pl.col(\"Category\") == \"HISTORY\").collect()\ndf_pl_lazy_subset_collected.shape\n\n(349, 7)\n\n\n\nTo create a LazyFrame from a file you use one of the scan_* methods instead of the read_* methods.\n\n\nTiming\npandas:\n%%timeit\n\ndf_pd = pd.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n1.17 s ± 5.2 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\nPolars:\n%%timeit\n\ndf_pl = pl.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n778 ms ± 30.5 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\nThat’s a speedup of 1.5.\nPolars lazy API timing:\n%%timeit\n\ndf_pl_lazy = pl.scan_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl_lazy.filter(pl.col(\"Category\") == \"HISTORY\").collect().shape\n67.7 ms ± 3.87 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWith the lazy API, the speedup ramps up to 17.\n\n\nMemory usage\n\n\n\ndf_pd.memory_usage()\n\nIndex              132\nShow Number    1735440\nAir Date       1735440\nRound          1735440\nCategory       1735440\nValue          1735440\nQuestion       1735440\nAnswer         1735440\ndtype: int64\n\n\n132 + 1,735,440 * 7 =\n12,148,212 bytes\n≈ 12 MB\n\n\n\n\ndf_pl.estimated_size()\n\n31606250\n\n\n31,606,250 bytes\n≈ 31 MB\n31,606,250 / 12,148,212 ≈ 2.6\nFootprint 2.6 times bigger.\n\n\n\n\ndf_pl_lazy_subset_collected.estimated_size()\n\n48774\n\n\n48,774 bytes\n≈ 49 KB\n12,148,212 / 48,774 ≈ 249\nFootprint 249 times smaller.\nIf you only collect a subset of the data, the memory footprint drops dramatically.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "Polars: faster DataFrames",
+      "Comparison with pandas"
+    ]
+  },
+  {
+    "objectID": "python/polars_pandas.html#data-too-big-to-fit-in-memory",
+    "href": "python/polars_pandas.html#data-too-big-to-fit-in-memory",
+    "title": "Comparison with pandas",
+    "section": "Data too big to fit in memory",
+    "text": "Data too big to fit in memory\n\nExample of large dataset\nLet’s play with data from the GBIF website for free and open access to biodiversity data.\nThe Southern African Bird Atlas Project 2 [1] contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let’s look at the latter:\nShape: 25,687,526 rows, 50 columns.\nFrom that dataset, I want a list of species from the genus Passer (Old World sparrows).\n\n\nThe importance of file format\nText-based formats (CSV, JSON) are not suitable for large files.\nApache Parquet is a binary, machine-optimized, column-oriented file format with efficient encoding and compression and it is considered the industry-standard file format for large tabular data.\n\n\n\n\n\n\nFile type\n\n\nSize\n\n\n\n\nFile downloaded from GBIF\n\n\nZipped CSV\n\n\n2.2 GB\n\n\nUncompressed file\n\n\nCSV\n\n\n12.3 GB\n\n\nIdeal file format\n\n\nParquet\n\n\n0.5 GB\n\n\n\nIn addition to being 15 times (!!) smaller, the Parquet file is a lot faster to read & write.\n\n\nFormat conversion\nHere is a way to convert this file if it fits in memory:\n# Read in the CSV file in a Polars DataFrame\ndf = pl.read_csv(\"sa_birds.csv\", separator=\"\\t\")\n\n# Export the DataFrame in a Parquet file\ndf.write_parquet(\"sa_birds.parquet\")\n\nIf the file doesn’t fit in memory, you can use Dask (which also uses Apache Arrow) on a distributed system.\n\n\n\nNative Apache Arrow support\nWith its native support for the columnar Apache Arrow format, Polars is ideal to work with Parquet files.\npandas can work with Parquet files but this can lead to issues due to the inconsistent way it handles missing data (e.g. see this SO question, this issue, this post).\n%%timeit\n\n# pandas\nsa_birds_pd = pd.read_parquet(\n    \"sa_birds.parquet\"\n)\n1min 10s ± 7.76 s per loop (mean ± std. dev. of 7 runs, 1 loop each)\n%%timeit\n\n# Polars\nsa_birds_pl = pl.read_parquet(\n    \"sa_birds.parquet\"\n)\n2.47 s ± 756 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\nSpeedup: 70 / 2.47 ≈ 28.\nReading Parquet files in pandas is also A LOT slower!\n\n\nRAM required\n\n\npandas\nsa_birds_pd.memory_usage()\nIndex                          132\ngbifID                   205500208\ndatasetKey               205500208\noccurrenceID             205500208\nkingdom                  205500208\nphylum                   205500208\nclass                    205500208\norder                    205500208\n...\ndtype: int64\n132 + 205,500,208 * 50 =\n10,275,010,532 bytes\n≈ 10 GB\n\n\n\nPolars\nsa_birds_pl.estimated_size()\n12291023880\n12,291,023,880 bytes\n≈ 12 GB\n\n\nLet’s image that you have only 16 GB of RAM on your machine.\nRunning a browser and a few small applications take about 6 GB out of that. This dataset is already too big to process on your laptop.\nIf you need to play with the raw data or a larger dataset such as the eBird dataset of 1,775,781,186 rows and 50 columns (CSV file of 3 TB for the raw data), you will need A LOT of memory.\n\n\nWhat are your options?\nIn pandas or Polars:\n\nyou can select only the columns you are interested,\nyou can read and process the file in chunks and try to combine the results.\n\nIf you only need to run queries on the data however, the Polars lazy API is the answer.\n\n\nCreate a LazyFrame\nYou can create a LazyFrame (no impact on memory, LazyFrame returned instantly):\n\ndf_pl_lazy = pl.scan_parquet(\"sa_birds.parquet\")\n\nRun a query on it (no impact on memory, LazyFrame returned instantly):\n\npasser_df_lazy = df_pl_lazy.filter(\n    pl.col(\"genus\") == \"Passer\"\n).select(pl.col(\"species\")).unique()\n\n\n\nCollect result\nNow, you collect the result (this uses memory and takes time to compute) and turn the DataFrame into a Python list:\n\npasser_ls = passer_df_lazy.collect().get_column(\"species\").to_list()\n\nDepending on the subset returned by your query, the memory usage will vary. Here, it is minuscule (79 bytes):\n\npasser_df_lazy.collect().estimated_size()\n\n79\n\n\n\n\nEt voilà\n\nprint(passer_ls)\n\n['Passer diffusus', 'Passer motitensis', 'Passer griseus', 'Passer domesticus', 'Passer melanurus']\n\n\nWith this method, as long as the data itself fits on a drive and the queries don’t return huge subsets of data, you can run queries on giant datasets such as the 3 TB eBird dataset with a small amount of RAM.\nNote that the queries can contain complex expressions. What matters is the size of the subset you need to collect at the end.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "Polars: faster DataFrames",
+      "Comparison with pandas"
+    ]
+  },
+  {
+    "objectID": "python/polars_pandas.html#pandas-v2",
+    "href": "python/polars_pandas.html#pandas-v2",
+    "title": "Comparison with pandas",
+    "section": "Pandas v2",
+    "text": "Pandas v2\nPandas is trying to fight back: v 2.0 came with optional Arrow support instead of NumPy, then it became the default engine, but performance remains way below that of Polars (e.g. in DataCamp benchmarks, official benchmarks, many blog posts for whole scripts or individual tasks).\nAnd the problems with missing data and syntax remains. Not to mention the lack of lazy API.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "Polars: faster DataFrames",
+      "Comparison with pandas"
+    ]
+  },
+  {
+    "objectID": "python/polars_pandas.html#comparison-with-other-frameworks",
+    "href": "python/polars_pandas.html#comparison-with-other-frameworks",
+    "title": "Comparison with pandas",
+    "section": "Comparison with other frameworks",
+    "text": "Comparison with other frameworks\n\nComparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren’t the most pertinent since they can be used in combination with Polars and the benefits can thus be combined.\nIt only makes sense to compare Polars with other libraries occupying the same “niche” such as pandas or Vaex.\nFor Vaex, some benchmark found it twice slower, but this could have changed with recent developments.\nOne framework performing better than Polars in some benchmarks is datatable (derived from the R package data.table), but it hasn’t been developed for a year—a sharp contrast with the fast development of Polars.",
     "crumbs": [
       "Python",
       "<b><em>Faster Python</em></b>",
@@ -4862,6 +4927,19 @@
     "title": "Comparison with pandas",
     "section": "Migrating from Pandas",
     "text": "Migrating from Pandas\nRead the migration guide: it will help you write Polars code rather than “literally translated” Pandas code that runs, but doesn’t make use of Polars’ strengths. The differences in style mostly come from the fact that Polars runs in parallel.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "Polars: faster DataFrames",
+      "Comparison with pandas"
+    ]
+  },
+  {
+    "objectID": "python/polars_pandas.html#conclusion-1",
+    "href": "python/polars_pandas.html#conclusion-1",
+    "title": "Comparison with pandas",
+    "section": "Conclusion",
+    "text": "Conclusion\nPolars:\n\nhandles missing data in a consistent and sensible way,\nhas a clear syntax,\nallows passing expressions to group by in a convenient way,\nis very fast,\nuses multithreading automatically,\nis extremely memory efficient with the lazy API,\nuses the industry standard Apache Arrow columnar format,\nworks perfectly with Parquet files,\nworks out-of-core with the lazy API.\n\nStart using Polars now!\nAnd use the lazy API.",
     "crumbs": [
       "Python",
       "<b><em>Faster Python</em></b>",
@@ -5871,11 +5949,11 @@
     ]
   },
   {
-    "objectID": "python/gpu_cupy.html#load-module",
-    "href": "python/gpu_cupy.html#load-module",
+    "objectID": "python/gpu_cupy.html#setup-on-your-computer",
+    "href": "python/gpu_cupy.html#setup-on-your-computer",
     "title": "Arrays on GPUs with ",
-    "section": "Load module",
-    "text": "Load module\nmodule spider python\nmodule spider python/3.14.2\nmodule list\nmodule load python/3.14.2",
+    "section": "Setup on your computer",
+    "text": "Setup on your computer\nThis is for your future information only. During the course, we will use a temporary training cluster.\nAssuming that you have at least one dedicated GPU, you can run CuPy on your computer.\nI suggest installing it with uv:\n\nIf you already have CUDA 13, you can install CuPy with uv with:\n\nuv init --bare                        # Initiate project\nuv add cupy-cuda13x                   # Install CuPy\n\nReplace cupy-cuda13x by cupy-cuda12x if you have CUDA 12.\n\n\nIf you don’t have CUDA, install CuPy with a CUDA toolkit as a dependency with:\n\nuv add \"cupy-cuda13x[ctk]\"",
     "crumbs": [
       "Python",
       "<b><em>Faster Python</em></b>",
@@ -5884,24 +5962,11 @@
     ]
   },
   {
-    "objectID": "python/gpu_cupy.html#create-a-virtual-env",
-    "href": "python/gpu_cupy.html#create-a-virtual-env",
+    "objectID": "python/gpu_cupy.html#setup-on-alliance-clusters",
+    "href": "python/gpu_cupy.html#setup-on-alliance-clusters",
     "title": "Arrays on GPUs with ",
-    "section": "Create a virtual env",
-    "text": "Create a virtual env\npython -m venv ~/cupy_env\nsource ~/cupy_env/bin/activate\npython -m pip install --upgrade --no-index pip\npython -m pip install --no-index cupy\n\nOn your own computer (assuming that you have a dedicated GPU), if you already have CUDA 13, you can install CuPy with uv with:\nuv init --bare                        # Initiate project\nuv add cupy-cuda13x                   # Install CuPy\nReplace cupy-cuda13x by cupy-cuda12x if you have CUDA 12.\nIf you don’t have CUDA, install CuPy with a CUDA toolkit as a dependency with:\nuv add \"cupy-cuda13x[ctk]\"",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "GPU-accelerated Python",
-      "Arrays with CuPy"
-    ]
-  },
-  {
-    "objectID": "python/gpu_cupy.html#launch-interactive-job",
-    "href": "python/gpu_cupy.html#launch-interactive-job",
-    "title": "Arrays on GPUs with ",
-    "section": "Launch interactive job",
-    "text": "Launch interactive job\nsalloc --time=10",
+    "section": "Setup on Alliance clusters",
+    "text": "Setup on Alliance clusters\n\nLoad module\nCheck available Python versions:\nmodule spider python\nCheck requirements to load Python 3.14:\nmodule spider python/3.14.2\nDouble-check that you already have StdEnv/2023:\nmodule list\nLoad Python 3.14:\nmodule load python/3.14.2\n\n\nVirtual environment\n\nFor this courseOn production clusters\n\n\nFor this course, we have already installed cupy in a virtual environment everybody has access to. All you need to do is to activate it:\nsource /project/def-sponsor00/cupy_env/bin/activate\n\n\nCreate a virtual env:\npython -m venv ~/cupy_env\nActivate it:\nsource ~/cupy_env/bin/activate\nUpdate pip from our wheel:\npython -m pip install --upgrade --no-index pip\nInstall cupy from our wheel:\npython -m pip install --no-index cupy\n\n\n\n\n\nLaunch interactive job\nsalloc --time=10",
     "crumbs": [
       "Python",
       "<b><em>Faster Python</em></b>",
@@ -7618,7 +7683,7 @@
     "href": "emacs/wb_python.html",
     "title": "Full Python IDE in Emacs",
     "section": "",
-    "text": "There are quite a few packages that can turn Emacs into a Python IDE (a classic example is elpy and since version 29, eglot—an LSP client—comes shipped with Emacs).\nAfter playing with many of the options, I settled on a selection of packages that turn Emacs into a truly impressive Python IDE:\n\nlsp-mode, lsp-ui, and lsp-pyright provide astounding code completion, debugging, code navigation, and many helpers,\npy-vterm-interaction.el runs your favourite Python shell (Python REPL, ipython, ptpython, or ptipython) in a much improved Emacs terminal emulator,\nemacs-reformatter reformats your code with the linter of your choice (e.g. black or the much faster ruff).\n\n\nComing up in fall 2026.",
+    "text": "There are quite a few options to turn Emacs into a Python IDE.\nelpy, now unmaintained, was a popular but heavy do-it-all package until LSP (Language Server Protocol) became the norm.\nlsp-mode (and the optional lsp-ui for a more exciting interface) is a good option to get code completion, debugging, code navigation, and many helpers. To use it with Python, one can use lsp-pyright which brings the static type checkers for Python pyright or basedpyright.\nSince version 29 however, Emacs comes with a built-in LSP client: eglot (Emacs Polyglot). And when it comes to Python type checkers and language servers, ty—written in Rust—is currently by far the fastest. Good news: ty works very well with eglot.\nYou can add to this the modern and ultra fast Python linter and code formatter ruff (also written in Rust of course and much faster than flake8, black, etc.). ruff also runs nicely in eglot.\nFinally, on the REPL side, py-vterm-interaction.el runs your favourite Python shell (Python REPL, ipython, ptpython, or ptipython) in a much improved Emacs terminal emulator.\nIn this webinar, I will demo running ty and ruff in eglot and give tips on how to set it all up with flycheck (nicely styled with flyover) and eldoc-box to tame eldoc.\n\nComing up in fall 2026.",
     "crumbs": [
       "Emacs",
       "<b><em>Webinars</em></b>",
@@ -16138,7 +16203,7 @@
     "href": "ai/pt/pt_mnist.html#prepare-data",
     "title": "Example: classifying the MNIST dataset",
     "section": "Prepare data",
-    "text": "Prepare data\nFirst we need to download, unzip, and transform the data.\n\nWhere to store data in clusters\nWe will all use the same data. It would make little sense to all download it in our home directory.\nOn the Alliance clusters, a good place to store data shared amongst members of a project is in the /project file system.\nYou usually belong to /project/def-&lt;group&gt;, where &lt;group&gt; is the name of your PI. You can access it from your home directory through the symbolic link ~/projects/def-&lt;group&gt;.\nIn our training cluster, we are all part of the group def-sponsor00, accessible through /project/def-sponsor00 (or the hyperlink ~/projects/def-sponsor00).\nWe will thus all access the MNIST data in ~/projects/def-sponsor00/data.\n\n\nHow to obtain the data?\nThe dataset can be downloaded directly from the MNIST website, but the PyTorch package TorchVision has tools to download and transform several classic vision datasets, including the MNIST.\nhelp(torchvision.datasets.MNIST)\nHelp on class MNIST in module torchvision.datasets.mnist:\n\nclass MNIST(torchvision.datasets.vision.VisionDataset)\n\n |  MNIST(root: str, train: bool = True, \n |    transform: Optional[Callable] = None,\n |    target_transform: Optional[Callable] = None, \n |    download: bool = False) -&gt; None\n |   \n |  Args:\n |    root (string): Root directory of dataset where \n |      MNIST/raw/train-images-idx3-ubyte and \n |      MNIST/raw/t10k-images-idx3-ubyte exists.\n |    train (bool, optional): If True, creates dataset from \n |      train-images-idx3-ubyte, otherwise from t10k-images-idx3-ubyte.\n |    download (bool, optional): If True, downloads the dataset from the \n |      internet and puts it in root directory. If dataset is already \n |      downloaded, it is not downloaded again.\n |    transform (callable, optional): A function/transform that takes in \n |      an PIL image and returns a transformed version.\n |      E.g, transforms.RandomCrop\n |    target_transform (callable, optional): A function/transform that \n |      takes in the target and transforms it.\nNote that here too, the root argument sets the location of the downloaded data and we will use /project/def-sponsor00/data/.\n\n\nPrepare the data\nFirst, let’s load the needed libraries:\n\nimport torch\nfrom torchvision import datasets, transforms\nfrom matplotlib import pyplot as plt\n\nThe MNIST dataset already consists of a training and a testing sets, so we don’t have to split the data manually. Instead, we can directly create 2 different objects with the same function (train=True selects the train set and train=False selects the test set).\nWe will transform the raw data to tensors and normalize them using the mean and standard deviation of the MNIST training set: 0.1307 and 0.3081 respectively (even though the mean and standard deviation of the test data are slightly different, it is important to normalize the test data with the values of the training data to apply the same treatment to both sets).\nSo we first need to define a transformation:\n\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])\n\n\n\nWe can now create our data objects\n\nTraining data\n\nRemember that train=True selects the training set of the MNIST.\n\n\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\n\n0.3%0.7%1.0%1.3%1.7%2.0%2.3%2.6%3.0%3.3%3.6%4.0%4.3%4.6%5.0%5.3%5.6%6.0%6.3%6.6%6.9%7.3%7.6%7.9%8.3%8.6%8.9%9.3%9.6%9.9%10.2%10.6%10.9%11.2%11.6%11.9%12.2%12.6%12.9%13.2%13.6%13.9%14.2%14.5%14.9%15.2%15.5%15.9%16.2%16.5%16.9%17.2%17.5%17.9%18.2%18.5%18.8%19.2%19.5%19.8%20.2%20.5%20.8%21.2%21.5%21.8%22.1%22.5%22.8%23.1%23.5%23.8%24.1%24.5%24.8%25.1%25.5%25.8%26.1%26.4%26.8%27.1%27.4%27.8%28.1%28.4%28.8%29.1%29.4%29.8%30.1%30.4%30.7%31.1%31.4%31.7%32.1%32.4%32.7%33.1%33.4%33.7%34.0%34.4%34.7%35.0%35.4%35.7%36.0%36.4%36.7%37.0%37.4%37.7%38.0%38.3%38.7%39.0%39.3%39.7%40.0%40.3%40.7%41.0%41.3%41.7%42.0%42.3%42.6%43.0%43.3%43.6%44.0%44.3%44.6%45.0%45.3%45.6%45.9%46.3%46.6%46.9%47.3%47.6%47.9%48.3%48.6%48.9%49.3%49.6%49.9%50.2%50.6%50.9%51.2%51.6%51.9%52.2%52.6%52.9%53.2%53.6%53.9%54.2%54.5%54.9%55.2%55.5%55.9%56.2%56.5%56.9%57.2%57.5%57.9%58.2%58.5%58.8%59.2%59.5%59.8%60.2%60.5%60.8%61.2%61.5%61.8%62.1%62.5%62.8%63.1%63.5%63.8%64.1%64.5%64.8%65.1%65.5%65.8%66.1%66.4%66.8%67.1%67.4%67.8%68.1%68.4%68.8%69.1%69.4%69.8%70.1%70.4%70.7%71.1%71.4%71.7%72.1%72.4%72.7%73.1%73.4%73.7%74.0%74.4%74.7%75.0%75.4%75.7%76.0%76.4%76.7%77.0%77.4%77.7%78.0%78.3%78.7%79.0%79.3%79.7%80.0%80.3%80.7%81.0%81.3%81.7%82.0%82.3%82.6%83.0%83.3%83.6%84.0%84.3%84.6%85.0%85.3%85.6%85.9%86.3%86.6%86.9%87.3%87.6%87.9%88.3%88.6%88.9%89.3%89.6%89.9%90.2%90.6%90.9%91.2%91.6%91.9%92.2%92.6%92.9%93.2%93.6%93.9%94.2%94.5%94.9%95.2%95.5%95.9%96.2%96.5%96.9%97.2%97.5%97.9%98.2%98.5%98.8%99.2%99.5%99.8%100.0%\n100.0%\n2.0%4.0%6.0%7.9%9.9%11.9%13.9%15.9%17.9%19.9%21.9%23.8%25.8%27.8%29.8%31.8%33.8%35.8%37.8%39.7%41.7%43.7%45.7%47.7%49.7%51.7%53.7%55.6%57.6%59.6%61.6%63.6%65.6%67.6%69.6%71.5%73.5%75.5%77.5%79.5%81.5%83.5%85.5%87.4%89.4%91.4%93.4%95.4%97.4%99.4%100.0%\n100.0%\n\n\n\n\nTest data\n\ntrain=False selects the test set.\n\n\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)",
+    "text": "Prepare data\nFirst we need to download, unzip, and transform the data.\n\nWhere to store data in clusters\nWe will all use the same data. It would make little sense to all download it in our home directory.\nOn the Alliance clusters, a good place to store data shared amongst members of a project is in the /project file system.\nYou usually belong to /project/def-&lt;group&gt;, where &lt;group&gt; is the name of your PI. You can access it from your home directory through the symbolic link ~/projects/def-&lt;group&gt;.\nIn our training cluster, we are all part of the group def-sponsor00, accessible through /project/def-sponsor00 (or the hyperlink ~/projects/def-sponsor00).\nWe will thus all access the MNIST data in ~/projects/def-sponsor00/data.\n\n\nHow to obtain the data?\nThe dataset can be downloaded directly from the MNIST website, but the PyTorch package TorchVision has tools to download and transform several classic vision datasets, including the MNIST.\nhelp(torchvision.datasets.MNIST)\nHelp on class MNIST in module torchvision.datasets.mnist:\n\nclass MNIST(torchvision.datasets.vision.VisionDataset)\n\n |  MNIST(root: str, train: bool = True, \n |    transform: Optional[Callable] = None,\n |    target_transform: Optional[Callable] = None, \n |    download: bool = False) -&gt; None\n |   \n |  Args:\n |    root (string): Root directory of dataset where \n |      MNIST/raw/train-images-idx3-ubyte and \n |      MNIST/raw/t10k-images-idx3-ubyte exists.\n |    train (bool, optional): If True, creates dataset from \n |      train-images-idx3-ubyte, otherwise from t10k-images-idx3-ubyte.\n |    download (bool, optional): If True, downloads the dataset from the \n |      internet and puts it in root directory. If dataset is already \n |      downloaded, it is not downloaded again.\n |    transform (callable, optional): A function/transform that takes in \n |      an PIL image and returns a transformed version.\n |      E.g, transforms.RandomCrop\n |    target_transform (callable, optional): A function/transform that \n |      takes in the target and transforms it.\nNote that here too, the root argument sets the location of the downloaded data and we will use /project/def-sponsor00/data/.\n\n\nPrepare the data\nFirst, let’s load the needed libraries:\n\nimport torch\nfrom torchvision import datasets, transforms\nfrom matplotlib import pyplot as plt\n\nThe MNIST dataset already consists of a training and a testing sets, so we don’t have to split the data manually. Instead, we can directly create 2 different objects with the same function (train=True selects the train set and train=False selects the test set).\nWe will transform the raw data to tensors and normalize them using the mean and standard deviation of the MNIST training set: 0.1307 and 0.3081 respectively (even though the mean and standard deviation of the test data are slightly different, it is important to normalize the test data with the values of the training data to apply the same treatment to both sets).\nSo we first need to define a transformation:\n\ntransform = transforms.Compose([\n    transforms.ToTensor(),\n    transforms.Normalize((0.1307,), (0.3081,))\n])\n\n\n\nWe can now create our data objects\n\nTraining data\n\nRemember that train=True selects the training set of the MNIST.\n\n\ntrain_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=True, download=True, transform=transform)\n\n\n0.3%\n0.7%\n1.0%\n1.3%\n1.7%\n2.0%\n2.3%\n2.6%\n3.0%\n3.3%\n3.6%\n4.0%\n4.3%\n4.6%\n5.0%\n5.3%\n5.6%\n6.0%\n6.3%\n6.6%\n6.9%\n7.3%\n7.6%\n7.9%\n8.3%\n8.6%\n8.9%\n9.3%\n9.6%\n9.9%\n10.2%\n10.6%\n10.9%\n11.2%\n11.6%\n11.9%\n12.2%\n12.6%\n12.9%\n13.2%\n13.6%\n13.9%\n14.2%\n14.5%\n14.9%\n15.2%\n15.5%\n15.9%\n16.2%\n16.5%\n16.9%\n17.2%\n17.5%\n17.9%\n18.2%\n18.5%\n18.8%\n19.2%\n19.5%\n19.8%\n20.2%\n20.5%\n20.8%\n21.2%\n21.5%\n21.8%\n22.1%\n22.5%\n22.8%\n23.1%\n23.5%\n23.8%\n24.1%\n24.5%\n24.8%\n25.1%\n25.5%\n25.8%\n26.1%\n26.4%\n26.8%\n27.1%\n27.4%\n27.8%\n28.1%\n28.4%\n28.8%\n29.1%\n29.4%\n29.8%\n30.1%\n30.4%\n30.7%\n31.1%\n31.4%\n31.7%\n32.1%\n32.4%\n32.7%\n33.1%\n33.4%\n33.7%\n34.0%\n34.4%\n34.7%\n35.0%\n35.4%\n35.7%\n36.0%\n36.4%\n36.7%\n37.0%\n37.4%\n37.7%\n38.0%\n38.3%\n38.7%\n39.0%\n39.3%\n39.7%\n40.0%\n40.3%\n40.7%\n41.0%\n41.3%\n41.7%\n42.0%\n42.3%\n42.6%\n43.0%\n43.3%\n43.6%\n44.0%\n44.3%\n44.6%\n45.0%\n45.3%\n45.6%\n45.9%\n46.3%\n46.6%\n46.9%\n47.3%\n47.6%\n47.9%\n48.3%\n48.6%\n48.9%\n49.3%\n49.6%\n49.9%\n50.2%\n50.6%\n50.9%\n51.2%\n51.6%\n51.9%\n52.2%\n52.6%\n52.9%\n53.2%\n53.6%\n53.9%\n54.2%\n54.5%\n54.9%\n55.2%\n55.5%\n55.9%\n56.2%\n56.5%\n56.9%\n57.2%\n57.5%\n57.9%\n58.2%\n58.5%\n58.8%\n59.2%\n59.5%\n59.8%\n60.2%\n60.5%\n60.8%\n61.2%\n61.5%\n61.8%\n62.1%\n62.5%\n62.8%\n63.1%\n63.5%\n63.8%\n64.1%\n64.5%\n64.8%\n65.1%\n65.5%\n65.8%\n66.1%\n66.4%\n66.8%\n67.1%\n67.4%\n67.8%\n68.1%\n68.4%\n68.8%\n69.1%\n69.4%\n69.8%\n70.1%\n70.4%\n70.7%\n71.1%\n71.4%\n71.7%\n72.1%\n72.4%\n72.7%\n73.1%\n73.4%\n73.7%\n74.0%\n74.4%\n74.7%\n75.0%\n75.4%\n75.7%\n76.0%\n76.4%\n76.7%\n77.0%\n77.4%\n77.7%\n78.0%\n78.3%\n78.7%\n79.0%\n79.3%\n79.7%\n80.0%\n80.3%\n80.7%\n81.0%\n81.3%\n81.7%\n82.0%\n82.3%\n82.6%\n83.0%\n83.3%\n83.6%\n84.0%\n84.3%\n84.6%\n85.0%\n85.3%\n85.6%\n85.9%\n86.3%\n86.6%\n86.9%\n87.3%\n87.6%\n87.9%\n88.3%\n88.6%\n88.9%\n89.3%\n89.6%\n89.9%\n90.2%\n90.6%\n90.9%\n91.2%\n91.6%\n91.9%\n92.2%\n92.6%\n92.9%\n93.2%\n93.6%\n93.9%\n94.2%\n94.5%\n94.9%\n95.2%\n95.5%\n95.9%\n96.2%\n96.5%\n96.9%\n97.2%\n97.5%\n97.9%\n98.2%\n98.5%\n98.8%\n99.2%\n99.5%\n99.8%\n100.0%\n\n100.0%\n\n2.0%\n4.0%\n6.0%\n7.9%\n9.9%\n11.9%\n13.9%\n15.9%\n17.9%\n19.9%\n21.9%\n23.8%\n25.8%\n27.8%\n29.8%\n31.8%\n33.8%\n35.8%\n37.8%\n39.7%\n41.7%\n43.7%\n45.7%\n47.7%\n49.7%\n51.7%\n53.7%\n55.6%\n57.6%\n59.6%\n61.6%\n63.6%\n65.6%\n67.6%\n69.6%\n71.5%\n73.5%\n75.5%\n77.5%\n79.5%\n81.5%\n83.5%\n85.5%\n87.4%\n89.4%\n91.4%\n93.4%\n95.4%\n97.4%\n99.4%\n100.0%\n\n100.0%\n\n\n\n\nTest data\n\ntrain=False selects the test set.\n\n\ntest_data = datasets.MNIST(\n    '~/projects/def-sponsor00/data',\n    train=False, transform=transform)",
     "crumbs": [
       "AI",
       "<b><em>Intro DL with PyTorch</em></b>",
@@ -21236,6 +21301,19 @@
     "text": "Video\nHere is a video covering this material slowly:"
   },
   {
+    "objectID": "python/gpu_clusters.html",
+    "href": "python/gpu_clusters.html",
+    "title": "GPUs on the Alliance clusters",
+    "section": "",
+    "text": "If you plan on using GPUs on the Alliance clusters, there are a number of things you need to be aware of.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "GPU-accelerated Python",
+      "GPUs on Alliance clusters"
+    ]
+  },
+  {
     "objectID": "python/gpu_clusters.html#available-gpu-models",
     "href": "python/gpu_clusters.html#available-gpu-models",
     "title": "GPUs on the Alliance clusters",
@@ -21249,11 +21327,24 @@
     ]
   },
   {
-    "objectID": "python/gpu_clusters.html#multi-instance-gpus",
-    "href": "python/gpu_clusters.html#multi-instance-gpus",
+    "objectID": "python/gpu_clusters.html#multi-instance-gpu-mig",
+    "href": "python/gpu_clusters.html#multi-instance-gpu-mig",
     "title": "GPUs on the Alliance clusters",
-    "section": "Multi-instance GPUs",
-    "text": "Multi-instance GPUs",
+    "section": "Multi-instance GPU (MIG)",
+    "text": "Multi-instance GPU (MIG)\nMulti-instance GPU (MIG) is an Nvidia technology that partitions GPUs into multiple isolated and independent instances (virtual GPUs), each with its dedicated compute and memory resources.\n\nThis technology only works for GPGPUs (general-purpose GPUs) and not for graphic rendering.\n\nIf your jobs cannot fully utilize the modern and high-performing GPUs that are present in the Alliance clusters, using GPU instances allows you to use less of your job priority and have your jobs start sooner.\nTo use a GPU instance instead of a full GPU, you select the profile name of the instance size that corresponds to the size of your job.\nRefer to the Alliance wiki for more details on this.",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "GPU-accelerated Python",
+      "GPUs on Alliance clusters"
+    ]
+  },
+  {
+    "objectID": "python/gpu_clusters.html#gpu-farming",
+    "href": "python/gpu_clusters.html#gpu-farming",
+    "title": "GPUs on the Alliance clusters",
+    "section": "GPU farming",
+    "text": "GPU farming\nIf you want to run multiple instances of a CUDA application, but the application is too small to saturate a modern GPU, consider using GPU farming using CUDA Multi Process Service (MPS). Multiple instances will then be processed concurrently no the same GPU.\nRefer to the Alliance wiki for more details on this as well.",
     "crumbs": [
       "Python",
       "<b><em>Faster Python</em></b>",
@@ -21280,6 +21371,19 @@
     "title": "GPUs on the Alliance clusters",
     "section": "Requesting GPUs from Slurm",
     "text": "Requesting GPUs from Slurm\nBelow is the general syntax, however make sure to look at cluster-specific instructions.\n\nGPUs spread anywhere\n--gpus=&lt;type&gt;:&lt;number&gt;\n\nExample:\n\n--gpus=h100:2\n\n\nGPUs per node\n--gpus-per-node=&lt;type&gt;:&lt;number&gt;\n\nExample:\n\n--gpus-per-node=h100:6",
+    "crumbs": [
+      "Python",
+      "<b><em>Faster Python</em></b>",
+      "GPU-accelerated Python",
+      "GPUs on Alliance clusters"
+    ]
+  },
+  {
+    "objectID": "python/gpu_clusters.html#monitoring-gpus",
+    "href": "python/gpu_clusters.html#monitoring-gpus",
+    "title": "GPUs on the Alliance clusters",
+    "section": "Monitoring GPUs",
+    "text": "Monitoring GPUs\n\nMetrix portal\nA growing number of Alliance clusters (as of March 2026, this includes Rorqual, Narval, and Nibi) have a Metrix portal that allows to monitor resource usage (CPU, GPU, memory, filesystem) in real time in a graphical and intuitive fashion from your browser.\n\n\nLogging metrics\nFor clusters that don’t have a monitoring portal yet, you can run nvidia-smi on the compute nodes with GPU(s) to get a snapshot of GPU(s) usage while the job is running by adding the command nvidia-smi to your job script.\nIf you want to log the monitoring to a file, run instead:\nnvidia-smi -l 30 &gt; gpu_log.txt\n\nReplace 30 by the number of seconds that is appropriate for the monitoring of your job (based on the length of your job).\n\nYou can also query specific metrics with, for instance:\nnvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv\nThis will return information on the GPU(s) utilization and memory used.\n\n\nLive monitoring\nIf you want live monitoring, you can use watch to run nvidia-smi periodically and use srun to access the compute node of your choice.\n\nExample to monitor the GPU(s) every second if you have a single GPU node:\n\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --pty watch -n 1 nvidia-smi\n\nYou can find the job ID with sq.\n\nThis will create a static dashboard in your terminal with values updated every second.\nIf you have multiple GPU nodes, you need to specify the node name:\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --nodelist=&lt;node_name&gt; --pty watch -n 1 nvidia-smi\n\nYou can find the node name with:\nsrun --jobid=&lt;your_running_job_id&gt; -n1 -c1 scontrol show hostname\n\nEven better than nvidia-smi for this however is nvtop.\n\nExample to monitor the GPU(s) every second if you have a single GPU node:\n\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --pty nvtop\nIf you have multiple GPU nodes, you need to specify the node name:\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --nodelist=&lt;node_name&gt; --pty nvtop\nRefer to our wiki page for more information on nvtop.",
     "crumbs": [
       "Python",
       "<b><em>Faster Python</em></b>",
@@ -22944,53 +23048,11 @@
     "text": "Overview\n\n\n\n\n\n\n\n\n\n\n\nAvailable for\nPython\n\nRust, Python, R, NodeJS\n\n\nWritten in\nCython\n\nRust\n\n\nMultithreading\nSome operations\n\nYes (GIL released)\n\n\nIndex\nRows are indexed\n\nInteger positions are used\n\n\nEvaluation\nEager\n\nEager and lazy\n\n\nQuery optimizer\nNo\n\nYes\n\n\nOut-of-core\nNo\n\nYes\n\n\nSIMD vectorization\nYes\n\nYes\n\n\nData in memory\nNumPy arrays\n\nApache Arrow arrays\n\n\nMemory efficiency\nPoor\n\nExcellent\n\n\nMissing data handling\nInconsistent\n\nConsistent; type stability"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#missing-data",
-    "href": "python/wb_polars2_slides.html#missing-data",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Missing data",
-    "text": "Missing data\n\n\npandas\nFor historical reasons, depending on dtype, missing values are one of:\n\nNaN (numpy.nan, dtype float)\nNone\nNaT (Not-a-Time, dtype datetime)\npandas.NA (nullable scalar)\n\nThis leads to inconsistent behaviour and unexpected dtype changes\nOngoing open issue since 2020\n\n\n\nPolars\nOne single missing value: null\nSimple and consistent behaviour across all data types and better performance\nNaN exists and is a float. It is not missing data, but the result of mathematical operations that don’t return numbers\nHere is a blog that goes into this in details"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by",
-    "href": "python/wb_polars2_slides.html#group-by",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\nHere is a great blog post by Marco Gorelli comparing the ease of use of passing expressions to groups in Polars compared to pandas\nI am using his code here and doing some timing on it to look at efficiency"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#a-note-on-my-comparisons",
-    "href": "python/wb_polars2_slides.html#a-note-on-my-comparisons",
-    "title": "RIP pandas, welcome Polars",
-    "section": "A note on my comparisons",
-    "text": "A note on my comparisons\nThe performance of tools can only be evaluated on optimized code: poorly written pandas code is a lot slower than efficient pandas code\nTo ensure fairness towards pandas, I use the best pandas code from Alex Razoumov pandas course in which he benchmarks various syntaxes"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#fizzbuzz",
-    "href": "python/wb_polars2_slides.html#fizzbuzz",
-    "title": "RIP pandas, welcome Polars",
-    "section": "FizzBuzz",
-    "text": "FizzBuzz\nFizzBuzz is a programming exercise based on a children game which consists of counting to n, replacing:\n\nany number divisible by 3 with Fizz\nany number divisible by 5 with Buzz\nany number divisible by both 3 and 5 with FizzBuzz\n\nLet’s do it:\n\n# Load additional library\nimport numpy as np\n\n# Set series length\nn = 10_000"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#code",
-    "href": "python/wb_polars2_slides.html#code",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Code",
-    "text": "Code\n\n\n\n\n\n\ndf_pd = pd.DataFrame()\n\ndf_pd[\"Count\"] = np.arange(1, n+1)\n\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\n\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\""
-  },
-  {
     "objectID": "python/wb_polars2_slides.html#section",
     "href": "python/wb_polars2_slides.html#section",
     "title": "RIP pandas, welcome Polars",
     "section": "",
     "text": "For historical reasons, depending on dtype, missing values are one of:\n\nNaN (numpy.nan, dtype float)\nNone\nNaT (Not-a-Time, dtype datetime)\npandas.NA (nullable scalar)\n\nThis leads to inconsistent behaviour and unexpected dtype changes\nOngoing open issue since 2020\n\n\n\n\nOne single missing value: null\nSimple and consistent behaviour across all data types and better performance\nNaN exists and is a float. It is not missing data, but the result of mathematical operations that don’t return numbers\nHere is a blog that goes into this in details"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#code-1",
-    "href": "python/wb_polars2_slides.html#code-1",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Code",
-    "text": "Code\n\n\n\n\n\n\ndf_pd = pd.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pd_subset = df_pd.loc[df_pd[\"Category\"] == \"HISTORY\"]\n\ndf_pd_subset.shape\n\n(349, 7)"
   },
   {
     "objectID": "python/wb_polars2_slides.html#section-1",
@@ -23000,11 +23062,11 @@
     "text": "Here is a great blog post by Marco Gorelli comparing the ease of use of passing expressions to groups in Polars compared to pandas\nI am using his code here and doing some timing on it to look at efficiency"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#code-2",
-    "href": "python/wb_polars2_slides.html#code-2",
+    "objectID": "python/wb_polars2_slides.html#create-dataframes",
+    "href": "python/wb_polars2_slides.html#create-dataframes",
     "title": "RIP pandas, welcome Polars",
-    "section": "Code",
-    "text": "Code\n\n\n\n\n\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\ndf_pl_lazy_collected = df_pl_lazy.collect()"
+    "section": "Create DataFrames",
+    "text": "Create DataFrames\nImport libraries:\n\nimport pandas as pd\nimport polars as pl\n\n\n\nThe pandas DataFrame:\n\ndf_pd = pd.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)\n\n\n\n\nThe Polars equivalent:\n\ndf_pl = pl.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)"
   },
   {
     "objectID": "python/wb_polars2_slides.html#section-2",
@@ -23014,6 +23076,125 @@
     "text": "The pandas DataFrame:\n\ndf_pd\n\n\n\n\n\n\n\n\nid\nsales\nviews\n\n\n\n\n0\n1\n4\n3\n\n\n1\n1\n1\n1\n\n\n2\n1\n2\n2\n\n\n3\n2\n7\n8\n\n\n4\n2\n6\n6\n\n\n5\n2\n7\n7\n\n\n\n\n\n\n\n\n\n\nThe Polars equivalent:\n\ndf_pl\n\n\nshape: (6, 3)\n\n\n\nid\nsales\nviews\n\n\ni64\ni64\ni64\n\n\n\n\n1\n4\n3\n\n\n1\n1\n1\n\n\n1\n2\n2\n\n\n2\n7\n8\n\n\n2\n6\n6\n\n\n2\n7\n7"
   },
   {
+    "objectID": "python/wb_polars2_slides.html#marco-gorellis-example",
+    "href": "python/wb_polars2_slides.html#marco-gorellis-example",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Marco Gorelli’s example",
+    "text": "Marco Gorelli’s example\n\nFind the maximum value of views, where sales is greater than its mean, per id"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#solutions-in-pandas",
+    "href": "python/wb_polars2_slides.html#solutions-in-pandas",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Solutions in pandas",
+    "text": "Solutions in pandas\nThe straightforward method most people will use:\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max()\n)\n\nid\n1    3\n2    8\ndtype: int64"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#solutions-in-pandas-1",
+    "href": "python/wb_polars2_slides.html#solutions-in-pandas-1",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Solutions in pandas",
+    "text": "Solutions in pandas\nAnother option, but it requires 2 groupby expressions:\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n\nid\n1    3\n2    8\nName: views, dtype: int64"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#solutions-in-pandas-2",
+    "href": "python/wb_polars2_slides.html#solutions-in-pandas-2",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Solutions in pandas",
+    "text": "Solutions in pandas\nA solution people are unlikely to come up with:\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n\nid\n1    3.0\n2    8.0\nName: result, dtype: float64"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#the-solution-in-polars",
+    "href": "python/wb_polars2_slides.html#the-solution-in-polars",
+    "title": "RIP pandas, welcome Polars",
+    "section": "The solution in Polars",
+    "text": "The solution in Polars\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n\n\nshape: (2, 2)\n\n\n\nid\nviews\n\n\ni64\ni64\n\n\n\n\n2\n8\n\n\n1\n3\n\n\n\n\n\n\nMuch simpler …"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#timing-of-pandas-solutions",
+    "href": "python/wb_polars2_slides.html#timing-of-pandas-solutions",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Timing of pandas solutions",
+    "text": "Timing of pandas solutions\n%%timeit\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max()\n)\n1.04 ms ± 1.33 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe solution most people are likely to use is by far the slowest"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#timing-of-pandas-solutions-1",
+    "href": "python/wb_polars2_slides.html#timing-of-pandas-solutions-1",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Timing of pandas solutions",
+    "text": "Timing of pandas solutions\n%%timeit\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n678 μs ± 4.04 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe best solution uses 2 groupby expressions"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#timing-of-pandas-solutions-2",
+    "href": "python/wb_polars2_slides.html#timing-of-pandas-solutions-2",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Timing of pandas solutions",
+    "text": "Timing of pandas solutions\n%%timeit\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n711 μs ± 952 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThis is almost as fast as the best solution"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#timing-of-the-polars-solution",
+    "href": "python/wb_polars2_slides.html#timing-of-the-polars-solution",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Timing of the Polars solution",
+    "text": "Timing of the Polars solution\n%%timeit\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n110 μs ± 3.6 μs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)\nPolars is more straightforward and much faster"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#conclusion",
+    "href": "python/wb_polars2_slides.html#conclusion",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Conclusion",
+    "text": "Conclusion\nSpeedup of Polars compared to the best pandas method: 6\nCompared to the method most people are likely to use: 9\nTo pass expressions to groups, Polars has a more straightforward and efficient syntax"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#a-note-on-my-comparisons",
+    "href": "python/wb_polars2_slides.html#a-note-on-my-comparisons",
+    "title": "RIP pandas, welcome Polars",
+    "section": "A note on my comparisons",
+    "text": "A note on my comparisons\nThe performance of tools can only be evaluated on optimized code: poorly written pandas code is a lot slower than efficient pandas code\nTo ensure fairness towards pandas, I use the best pandas code from Alex Razoumov pandas course in which he benchmarks various syntaxes"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#example-1-fizzbuzz",
+    "href": "python/wb_polars2_slides.html#example-1-fizzbuzz",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Example 1: FizzBuzz",
+    "text": "Example 1: FizzBuzz\nFizzBuzz is a programming exercise based on a children game which consists of counting to n, replacing:\n\nany number divisible by 3 with Fizz\nany number divisible by 5 with Buzz\nany number divisible by both 3 and 5 with FizzBuzz\n\nLet’s do it:\n\n# Load additional library\nimport numpy as np\n\n# Set series length\nn = 10_000"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#code",
+    "href": "python/wb_polars2_slides.html#code",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Code",
+    "text": "Code\n\n\n\n\n\n\ndf_pd = pd.DataFrame()\n\ndf_pd[\"Count\"] = np.arange(1, n+1)\n\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\n\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\""
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#section-3",
+    "href": "python/wb_polars2_slides.html#section-3",
+    "title": "RIP pandas, welcome Polars",
+    "section": "",
+    "text": "df_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl = df_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#lazy-evaluation",
+    "href": "python/wb_polars2_slides.html#lazy-evaluation",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Lazy evaluation",
+    "text": "Lazy evaluation\nBut it gets much better with lazy evaluation\nFirst, we create a LazyFrame instead of a DataFrame. The query is not evaluated but a graph is created. This allows the query optimizer to combine operations and perform optimizations where possible, very much the way compilers work\nTo evaluate the query and get a result, we use the collect method"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#section-4",
+    "href": "python/wb_polars2_slides.html#section-4",
+    "title": "RIP pandas, welcome Polars",
+    "section": "",
+    "text": "# Lazy API\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\ndf_pl_lazy_collected = df_pl_lazy.collect()"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#results",
+    "href": "python/wb_polars2_slides.html#results",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Results",
+    "text": "Results\n\n\n\ndf_pd   # pandas\n\n\n\n\n\n\n\n\nCount\nFizzBuzz\n\n\n\n\n0\n1\n1\n\n\n1\n2\n2\n\n\n2\n3\nFizz\n\n\n3\n4\n4\n\n\n4\n5\nBuzz\n\n\n...\n...\n...\n\n\n9995\n9996\nFizz\n\n\n9996\n9997\n9997\n\n\n9997\n9998\n9998\n\n\n9998\n9999\nFizz\n\n\n9999\n10000\nBuzz\n\n\n\n\n10000 rows × 2 columns\n\n\n\n\n\n\n\ndf_pl   # and df_pl_lazy_collected\n\n\nshape: (10_000, 2)\n\n\n\nCount\nFizzBuzz\n\n\ni64\nstr\n\n\n\n\n1\n\"1\"\n\n\n2\n\"2\"\n\n\n3\n\"Fizz\"\n\n\n4\n\"4\"\n\n\n5\n\"Buzz\"\n\n\n…\n…\n\n\n9996\n\"Fizz\"\n\n\n9997\n\"9997\"\n\n\n9998\n\"9998\"\n\n\n9999\n\"Fizz\"\n\n\n10000\n\"Buzz\""
+  },
+  {
     "objectID": "python/wb_polars2_slides.html#timing",
     "href": "python/wb_polars2_slides.html#timing",
     "title": "RIP pandas, welcome Polars",
@@ -23021,18 +23202,18 @@
     "text": "Timing\n\n\n\n\n\n%%timeit\n\ndf_pd = pd.DataFrame()\n\ndf_pd[\"Count\"] = np.arange(1, n+1)\n\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\n\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\"\n3.4 ms ± 65.4 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#timing-1",
-    "href": "python/wb_polars2_slides.html#timing-1",
+    "objectID": "python/wb_polars2_slides.html#section-5",
+    "href": "python/wb_polars2_slides.html#section-5",
     "title": "RIP pandas, welcome Polars",
-    "section": "Timing",
-    "text": "Timing\n\n\n\n\n\n%%timeit\n\ndf_pd = pd.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n1.17 s ± 5.2 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)"
+    "section": "",
+    "text": "%%timeit\n\ndf_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n648 μs ± 2.21 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#timing-2",
-    "href": "python/wb_polars2_slides.html#timing-2",
+    "objectID": "python/wb_polars2_slides.html#section-6",
+    "href": "python/wb_polars2_slides.html#section-6",
     "title": "RIP pandas, welcome Polars",
-    "section": "Timing",
-    "text": "Timing\n\n\n\n\n\n\n%%timeit\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\ndf_pl = df_pl_lazy.collect()\n\n491 μs ± 914 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)"
+    "section": "",
+    "text": "%%timeit\n\n# Lazy API\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\ndf_pl = df_pl_lazy.collect()\n462 μs ± 4.05 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)"
   },
   {
     "objectID": "python/wb_polars2_slides.html#speedup",
@@ -23049,53 +23230,53 @@
     "text": "Memory usage\n\n\npandas\n\ndf_pd.memory_usage()\n\nIndex         132\nCount       80000\nFizzBuzz    80000\ndtype: int64\n\n\n132 + 80,000 * 2 =\n160,132 bytes\n≈ 160 KB\n\n\n\nPolars\n\ndf_pl.estimated_size()\n\n119409\n\n\n119,409 bytes\n≈ 119 KB\n160,132 / 119,409 ≈ 1.3\nFootprint 1.3 times smaller\n\n\n\nPolars lazy API\nSame as Polars eager:\nif you collect the entire DataFrame as we did here, the lazy API does not reduce the memory footprint"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#data-characteristics",
-    "href": "python/wb_polars2_slides.html#data-characteristics",
+    "objectID": "python/wb_polars2_slides.html#example-2-medium-dataset",
+    "href": "python/wb_polars2_slides.html#example-2-medium-dataset",
     "title": "RIP pandas, welcome Polars",
-    "section": "Data characteristics",
-    "text": "Data characteristics\nShape: 216,930 rows, 7 columns"
+    "section": "Example 2: medium dataset",
+    "text": "Example 2: medium dataset\nHere I am using a jeopardy dataset that Alex uses in his pandas course\nShape: 216,930 rows, 7 columns\nThe goal is to subset this DataFrame for the history category and get the shape of the resulting DataFrame"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#code-3",
-    "href": "python/wb_polars2_slides.html#code-3",
+    "objectID": "python/wb_polars2_slides.html#code-1",
+    "href": "python/wb_polars2_slides.html#code-1",
     "title": "RIP pandas, welcome Polars",
     "section": "Code",
     "text": "Code\n\n\n\n\n\n\ndf_pd = pd.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pd_subset = df_pd.loc[df_pd[\"Category\"] == \"HISTORY\"]\n\ndf_pd_subset.shape\n\n(349, 7)"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#code-4",
-    "href": "python/wb_polars2_slides.html#code-4",
+    "objectID": "python/wb_polars2_slides.html#section-7",
+    "href": "python/wb_polars2_slides.html#section-7",
     "title": "RIP pandas, welcome Polars",
-    "section": "Code",
-    "text": "Code\n\n\n\n\n\n\ndf_pl = pl.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_subset = df_pl.filter(pl.col(\"Category\") == \"HISTORY\")\n\ndf_pl_subset.shape\n\n(349, 7)"
+    "section": "",
+    "text": "df_pl = pl.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_subset = df_pl.filter(pl.col(\"Category\") == \"HISTORY\")\n\ndf_pl_subset.shape\n\n(349, 7)"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#code-5",
-    "href": "python/wb_polars2_slides.html#code-5",
+    "objectID": "python/wb_polars2_slides.html#section-8",
+    "href": "python/wb_polars2_slides.html#section-8",
     "title": "RIP pandas, welcome Polars",
-    "section": "Code",
-    "text": "Code\n\n\n\n\n\n\ndf_pl_lazy = pl.scan_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_lazy_subset_collected = df_pl_lazy.filter(\n    pl.col(\"Category\") == \"HISTORY\"\n).collect()\n\ndf_pl_lazy_subset_collected.shape\n\n(349, 7)"
+    "section": "",
+    "text": "# Lazy API\n\ndf_pl_lazy = pl.scan_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_lazy_subset_collected = df_pl_lazy.filter(\n    pl.col(\"Category\") == \"HISTORY\"\n).collect()\n\ndf_pl_lazy_subset_collected.shape\n\n(349, 7)\n\n\n\nTo create a LazyFrame from file, use one of the scan_* instead of the read_* methods"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#timing-3",
-    "href": "python/wb_polars2_slides.html#timing-3",
+    "objectID": "python/wb_polars2_slides.html#timing-1",
+    "href": "python/wb_polars2_slides.html#timing-1",
     "title": "RIP pandas, welcome Polars",
     "section": "Timing",
-    "text": "Timing\n\n\n\n\n\n\n%%timeit\n\ndf_pd = pd.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n\n1.25 s ± 110 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)"
+    "text": "Timing\n\n\n\n\n\n%%timeit\n\ndf_pd = pd.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n1.17 s ± 5.2 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#timing-4",
-    "href": "python/wb_polars2_slides.html#timing-4",
+    "objectID": "python/wb_polars2_slides.html#section-9",
+    "href": "python/wb_polars2_slides.html#section-9",
     "title": "RIP pandas, welcome Polars",
-    "section": "Timing",
-    "text": "Timing\n\n\n\n\n\n\n%%timeit\n\ndf_pl = pl.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n\n807 ms ± 18.5 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)"
+    "section": "",
+    "text": "%%timeit\n\ndf_pl = pl.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n778 ms ± 30.5 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#timing-5",
-    "href": "python/wb_polars2_slides.html#timing-5",
+    "objectID": "python/wb_polars2_slides.html#section-10",
+    "href": "python/wb_polars2_slides.html#section-10",
     "title": "RIP pandas, welcome Polars",
-    "section": "Timing",
-    "text": "Timing\n\n\n\n\n\n\n%%timeit\n\ndf_pl_lazy = pl.scan_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_lazy.filter(pl.col(\"Category\") == \"HISTORY\").collect().shape\n\n71.3 ms ± 5.42 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)"
+    "section": "",
+    "text": "%%timeit\n\n# Lazy API\n\ndf_pl_lazy = pl.scan_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_lazy.filter(pl.col(\"Category\") == \"HISTORY\").collect().shape\n67.7 ms ± 3.87 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)"
   },
   {
     "objectID": "python/wb_polars2_slides.html#speedup-1",
@@ -23112,11 +23293,32 @@
     "text": "Memory usage\n\n\n\ndf_pd.memory_usage()\n\nIndex              132\nShow Number    1735440\nAir Date       1735440\nRound          1735440\nCategory       1735440\nValue          1735440\nQuestion       1735440\nAnswer         1735440\ndtype: int64\n\n\n132 + 1,735,440 * 7 =\n12,148,212 bytes\n≈ 12 MB\n\n\n\n\ndf_pl.estimated_size()\n\n31606250\n\n\n31,606,250 bytes\n≈ 31 MB\n31,606,250 / 12,148,212 ≈ 2.6\nFootprint 2.6 times bigger\n\n\n\n\ndf_pl_lazy_subset_collected.estimated_size()\n\n48774\n\n\n48,774 bytes\n≈ 49 KB\n12,148,212 / 48,774 ≈ 249\nFootprint 249 times smaller\nIf you only collect a subset of the data, the memory footprint drops dramatically"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#example-dataset",
-    "href": "python/wb_polars2_slides.html#example-dataset",
+    "objectID": "python/wb_polars2_slides.html#example-of-large-dataset",
+    "href": "python/wb_polars2_slides.html#example-of-large-dataset",
     "title": "RIP pandas, welcome Polars",
-    "section": "Example dataset",
-    "text": "Example dataset\nLet’s play with data from the GBIF website for free and open access to biodiversity data\nThe Southern African Bird Atlas Project 2 [1] contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let’s look at the latter:\nShape: 25,687,526 rows, 50 columns\nFrom that dataset, I want a list of species from the genus Passer (Old World sparrows)"
+    "section": "Example of large dataset",
+    "text": "Example of large dataset\nLet’s play with data from the GBIF website for free and open access to biodiversity data\nThe Southern African Bird Atlas Project 2 [1] contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let’s look at the latter:\nShape: 25,687,526 rows, 50 columns\nFrom that dataset, I want a list of species from the genus Passer (Old World sparrows)"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#side-note-the-importance-of-file-format",
+    "href": "python/wb_polars2_slides.html#side-note-the-importance-of-file-format",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Side note: the importance of file format",
+    "text": "Side note: the importance of file format\nText-based formats (CSV, JSON) are not suitable for large files\nApache Parquet is a binary, machine-optimized, column-oriented file format with efficient encoding and compression and it is considered the industry-standard file format for large tabular data \n\n\n\n\n\n\nFile type\n\n\nSize\n\n\n\n\nFile downloaded from GBIF\n\n\nZipped CSV\n\n\n2.2 GB\n\n\nUncompressed file\n\n\nCSV\n\n\n12.3 GB\n\n\nIdeal file format\n\n\nParquet\n\n\n0.5 GB\n\n\n\nIn addition to being 15 times (!!) smaller, the Parquet file is a lot faster to read & write"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#format-conversion",
+    "href": "python/wb_polars2_slides.html#format-conversion",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Format conversion",
+    "text": "Format conversion\nHere is a way to convert this file if it fits in memory:\n# Read in the CSV file in a Polars DataFrame\ndf = pl.read_csv(\"sa_birds.csv\", separator=\"\\t\")\n\n# Export the DataFrame in a Parquet file\ndf.write_parquet(\"sa_birds.parquet\")\n\n\nIf the file doesn’t fit in memory, you can use Dask (which also uses Apache Arrow) on a distributed system"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#native-apache-arrow-support",
+    "href": "python/wb_polars2_slides.html#native-apache-arrow-support",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Native Apache Arrow support",
+    "text": "Native Apache Arrow support\nWith its native support for the columnar Apache Arrow format, Polars is ideal to work with Parquet files\npandas can work with Parquet files but this can lead to issues due to the inconsistent way it handles missing data (e.g. see this SO question, this issue, this post)\n\n\n%%timeit\n\n# pandas\nsa_birds_pd = pd.read_parquet(\n    \"sa_birds.parquet\"\n)\n1min 10s ± 7.76 s per loop (mean ± std. dev. of 7 runs, 1 loop each)\n\n\n\n%%timeit\n\n# Polars\nsa_birds_pl = pl.read_parquet(\n    \"sa_birds.parquet\"\n)\n2.47 s ± 756 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n\nSpeedup: 70 / 2.47 ≈ 28    Reading Parquet files in pandas is also A LOT slower!"
   },
   {
     "objectID": "python/wb_polars2_slides.html#ram-required",
@@ -23126,11 +23328,18 @@
     "text": "RAM required\n\n\npandas\nsa_birds_pd.memory_usage()\nIndex                          132\ngbifID                   205500208\ndatasetKey               205500208\noccurrenceID             205500208\nkingdom                  205500208\nphylum                   205500208\nclass                    205500208\norder                    205500208\n...\ndtype: int64\n132 + 205,500,208 * 50 =\n10,275,010,532 bytes\n≈ 10 GB\n\n\n\nPolars\nsa_birds_pl.estimated_size()\n12291023880\n12,291,023,880 bytes\n≈ 12 GB"
   },
   {
-    "objectID": "python/wb_polars2_slides.html#options",
-    "href": "python/wb_polars2_slides.html#options",
+    "objectID": "python/wb_polars2_slides.html#ram-required-1",
+    "href": "python/wb_polars2_slides.html#ram-required-1",
     "title": "RIP pandas, welcome Polars",
-    "section": "Options",
-    "text": "Options\nIn pandas or Polars:\n\nyou can select only the columns you are interested\nyou can read and process the file in chunks and try to combine the results\n\nIf you only need to run queries on the data however, the Polars Lazy API is the answer"
+    "section": "RAM required",
+    "text": "RAM required\nLet’s image that you have only 16 GB of RAM on your machine\nRunning a browser and a few small applications take about 6 GB out of that. This dataset is already too big to process on your laptop\nIf you need to play with the raw data or a larger dataset such as the eBird dataset of 1,775,781,186 rows and 50 columns (CSV file of 3 TB for the raw data), you will need A LOT of memory"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#what-are-your-options",
+    "href": "python/wb_polars2_slides.html#what-are-your-options",
+    "title": "RIP pandas, welcome Polars",
+    "section": "What are your options?",
+    "text": "What are your options?\nIn pandas or Polars:\n\nYou can select only the columns you are interested\nYou can read and process the file in chunks and try to combine the results\n\nIf you only need to run queries on the data however, the Polars lazy API is the answer"
   },
   {
     "objectID": "python/wb_polars2_slides.html#create-a-lazyframe",
@@ -23152,6 +23361,27 @@
     "title": "RIP pandas, welcome Polars",
     "section": "Et voilà",
     "text": "Et voilà\n\nprint(passer_ls)\n\n['Passer griseus', 'Passer diffusus', 'Passer melanurus', 'Passer domesticus', 'Passer motitensis']\n\n\nWith this method, as long as the data itself fits on a drive and the queries don’t return huge subsets of data, you can run queries on giant datasets such as the 3 TB eBird dataset with a small amount of RAM\nNote that the queries can contain complex expressions. What matters is the size of the subset you need to collect at the end"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#conclusion-1",
+    "href": "python/wb_polars2_slides.html#conclusion-1",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Conclusion",
+    "text": "Conclusion\nPolars:\n\nHandles missing data in a consistent and sensible way\nHas a clear syntax\nAllows passing expressions to group by in a convenient way\nIs very fast\nUses multithreading automatically\nIs extremely memory efficient with the lazy API\nUses the industry standard Apache Arrow columnar format\nWorks perfectly with Parquet files\nWorks out-of-core with the lazy API"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#conclusion-2",
+    "href": "python/wb_polars2_slides.html#conclusion-2",
+    "title": "RIP pandas, welcome Polars",
+    "section": "Conclusion",
+    "text": "Conclusion\n\nStart using Polars now!\n\n\n\n\n\n\n\nAnd use the lazy API!"
+  },
+  {
+    "objectID": "python/wb_polars2_slides.html#section-11",
+    "href": "python/wb_polars2_slides.html#section-11",
+    "title": "RIP pandas, welcome Polars",
+    "section": "",
+    "text": "Reference\n\n\n1. GBIF.org (2026) Occurrence download"
   },
   {
     "objectID": "python/wb_polars_slides.html#tabular-data",
@@ -27891,504 +28121,5 @@
     "title": "A tool to rule them all",
     "section": "Use tools without installation",
     "text": "Use tools without installation\nTools can even be used without installation (from a temporary install)\nuvx ruff\n\nuvx is an alias for uv tool run"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by-1",
-    "href": "python/wb_polars2_slides.html#group-by-1",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\n\nimport pandas as pd\nimport polars as pl\n\ndf_pd = pd.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)\n\ndf_pl = pl.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by-2",
-    "href": "python/wb_polars2_slides.html#group-by-2",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max()\n)\n\nid\n1    3\n2    8\ndtype: int64\n\n\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n\nid\n1    3\n2    8\nName: views, dtype: int64"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by-3",
-    "href": "python/wb_polars2_slides.html#group-by-3",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n\nid\n1    3.0\n2    8.0\nName: result, dtype: float64"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by-4",
-    "href": "python/wb_polars2_slides.html#group-by-4",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n\n\nshape: (2, 2)\n\n\n\nid\nviews\n\n\ni64\ni64\n\n\n\n\n2\n8\n\n\n1\n3"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by-5",
-    "href": "python/wb_polars2_slides.html#group-by-5",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\n\n%%timeit\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max()\n)\n\n1.29 ms ± 164 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\n\n\n\n%%timeit\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n\n821 μs ± 118 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by-6",
-    "href": "python/wb_polars2_slides.html#group-by-6",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\n\n%%timeit\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n\n853 μs ± 38.5 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#group-by-7",
-    "href": "python/wb_polars2_slides.html#group-by-7",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Group by",
-    "text": "Group by\n\n%%timeit\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n\n148 μs ± 3.46 μs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-3",
-    "href": "python/wb_polars2_slides.html#section-3",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "df_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl = df_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-4",
-    "href": "python/wb_polars2_slides.html#section-4",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "# Lazy API\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\ndf_pl_lazy_collected = df_pl_lazy.collect()"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-5",
-    "href": "python/wb_polars2_slides.html#section-5",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "%%timeit\n\ndf_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n648 μs ± 2.21 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-6",
-    "href": "python/wb_polars2_slides.html#section-6",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "%%timeit\n\n# Lazy API\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\n\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\n\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\ndf_pl = df_pl_lazy.collect()\n462 μs ± 4.05 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-7",
-    "href": "python/wb_polars2_slides.html#section-7",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "df_pl = pl.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_subset = df_pl.filter(pl.col(\"Category\") == \"HISTORY\")\n\ndf_pl_subset.shape\n\n(349, 7)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-8",
-    "href": "python/wb_polars2_slides.html#section-8",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "# Lazy API\n\ndf_pl_lazy = pl.scan_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_lazy_subset_collected = df_pl_lazy.filter(\n    pl.col(\"Category\") == \"HISTORY\"\n).collect()\n\ndf_pl_lazy_subset_collected.shape\n\n(349, 7)\n\n\n\nTo create a LazyFrame from a file you use one of the scan_* methods instead of the read_* methods."
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-9",
-    "href": "python/wb_polars2_slides.html#section-9",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "%%timeit\n\ndf_pl = pl.read_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n778 ms ± 30.5 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-10",
-    "href": "python/wb_polars2_slides.html#section-10",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "%%timeit\n\n# Lazy API\n\ndf_pl_lazy = pl.scan_csv(\n    \"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\"\n)\n\ndf_pl_lazy.filter(pl.col(\"Category\") == \"HISTORY\").collect().shape\n67.7 ms ± 3.87 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-11",
-    "href": "python/wb_polars2_slides.html#section-11",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "Reference\n\n\n1. GBIF.org (2026) Occurrence download"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-12",
-    "href": "python/wb_polars2_slides.html#section-12",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "Reference\n\n\n1. GBIF.org (2026) Occurrence download"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-13",
-    "href": "python/wb_polars2_slides.html#section-13",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "Reference\n\n\n1. GBIF.org (2026) Occurrence download"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#speedup-2",
-    "href": "python/wb_polars2_slides.html#speedup-2",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Speedup",
-    "text": "Speedup\nPolars here brings a speedup around 1.5\nThe Lazy API ramps that up to a speedup of 17"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-14",
-    "href": "python/wb_polars2_slides.html#section-14",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "Conclusion\nTo pass expressions to groups, Polars has a much more straightforward and efficient syntax"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-15",
-    "href": "python/wb_polars2_slides.html#section-15",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "Code\n\n\n\n\n\n\ndf_pd = pd.DataFrame()\n\ndf_pd[\"Count\"] = np.arange(1, n+1)\n\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\n\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\""
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-16",
-    "href": "python/wb_polars2_slides.html#section-16",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "df_pd\n\n\n\n\n\n\n\n\nCount\nFizzBuzz\n\n\n\n\n0\n1\n1\n\n\n1\n2\n2\n\n\n2\n3\nFizz\n\n\n3\n4\n4\n\n\n4\n5\nBuzz\n\n\n...\n...\n...\n\n\n9995\n9996\nFizz\n\n\n9996\n9997\n9997\n\n\n9997\n9998\n9998\n\n\n9998\n9999\nFizz\n\n\n9999\n10000\nBuzz\n\n\n\n\n10000 rows × 2 columns"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-17",
-    "href": "python/wb_polars2_slides.html#section-17",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "df_pl\n\n\nshape: (10_000, 2)\n\n\n\nCount\nFizzBuzz\n\n\ni64\nstr\n\n\n\n\n1\n\"1\"\n\n\n2\n\"2\"\n\n\n3\n\"Fizz\"\n\n\n4\n\"4\"\n\n\n5\n\"Buzz\"\n\n\n…\n…\n\n\n9996\n\"Fizz\"\n\n\n9997\n\"9997\"\n\n\n9998\n\"9998\"\n\n\n9999\n\"Fizz\"\n\n\n10000\n\"Buzz\""
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#section-18",
-    "href": "python/wb_polars2_slides.html#section-18",
-    "title": "RIP pandas, welcome Polars",
-    "section": "",
-    "text": "df_pl_lazy_collected\n\n\nshape: (10_000, 2)\n\n\n\nCount\nFizzBuzz\n\n\ni64\nstr\n\n\n\n\n1\n\"1\"\n\n\n2\n\"2\"\n\n\n3\n\"Fizz\"\n\n\n4\n\"4\"\n\n\n5\n\"Buzz\"\n\n\n…\n…\n\n\n9996\n\"Fizz\"\n\n\n9997\n\"9997\"\n\n\n9998\n\"9998\"\n\n\n9999\n\"Fizz\"\n\n\n10000\n\"Buzz\""
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#create-dataframes",
-    "href": "python/wb_polars2_slides.html#create-dataframes",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Create DataFrames",
-    "text": "Create DataFrames\nImport libraries:\n\nimport pandas as pd\nimport polars as pl\n\n\n\nThe pandas DataFrame:\n\ndf_pd = pd.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)\n\n\n\n\nThe Polars equivalent:\n\ndf_pl = pl.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#marco-gorellis-example",
-    "href": "python/wb_polars2_slides.html#marco-gorellis-example",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Marco Gorelli’s example",
-    "text": "Marco Gorelli’s example\n\nFind the maximum value of views, where sales is greater than its mean, per id"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#solutions-in-pandas",
-    "href": "python/wb_polars2_slides.html#solutions-in-pandas",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Solutions in pandas",
-    "text": "Solutions in pandas\nThe straightforward method most people will use:\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max()\n)\n\nid\n1    3\n2    8\ndtype: int64"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#solutions-in-pandas-1",
-    "href": "python/wb_polars2_slides.html#solutions-in-pandas-1",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Solutions in pandas",
-    "text": "Solutions in pandas\nAnother option, but it requires 2 groupby expressions:\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n\nid\n1    3\n2    8\nName: views, dtype: int64"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#solutions-in-pandas-2",
-    "href": "python/wb_polars2_slides.html#solutions-in-pandas-2",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Solutions in pandas",
-    "text": "Solutions in pandas\nA solution people are unlikely to come up with:\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n\nid\n1    3.0\n2    8.0\nName: result, dtype: float64"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#the-solution-in-polars",
-    "href": "python/wb_polars2_slides.html#the-solution-in-polars",
-    "title": "RIP pandas, welcome Polars",
-    "section": "The solution in Polars",
-    "text": "The solution in Polars\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n\n\nshape: (2, 2)\n\n\n\nid\nviews\n\n\ni64\ni64\n\n\n\n\n2\n8\n\n\n1\n3\n\n\n\n\n\n\nMuch simpler …"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#timing-of-pandas-solutions",
-    "href": "python/wb_polars2_slides.html#timing-of-pandas-solutions",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Timing of pandas solutions",
-    "text": "Timing of pandas solutions\n%%timeit\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max()\n)\n1.04 ms ± 1.33 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe solution most people are likely to use is by far the slowest"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#timing-of-pandas-solutions-1",
-    "href": "python/wb_polars2_slides.html#timing-of-pandas-solutions-1",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Timing of pandas solutions",
-    "text": "Timing of pandas solutions\n%%timeit\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n678 μs ± 4.04 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe best solution uses 2 groupby expressions"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#timing-of-pandas-solutions-2",
-    "href": "python/wb_polars2_slides.html#timing-of-pandas-solutions-2",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Timing of pandas solutions",
-    "text": "Timing of pandas solutions\n%%timeit\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n711 μs ± 952 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThis is almost as fast as the best solution"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#timing-of-the-polars-solution",
-    "href": "python/wb_polars2_slides.html#timing-of-the-polars-solution",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Timing of the Polars solution",
-    "text": "Timing of the Polars solution\n%%timeit\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n110 μs ± 3.6 μs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)\nPolars is more straightforward and much faster"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#conclusion",
-    "href": "python/wb_polars2_slides.html#conclusion",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Conclusion",
-    "text": "Conclusion\nSpeedup of Polars compared to the best pandas method: 6\nCompared to the method most people are likely to use: 9\nTo pass expressions to groups, Polars has a more straightforward and efficient syntax"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#example-1-fizzbuzz",
-    "href": "python/wb_polars2_slides.html#example-1-fizzbuzz",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Example 1: FizzBuzz",
-    "text": "Example 1: FizzBuzz\nFizzBuzz is a programming exercise based on a children game which consists of counting to n, replacing:\n\nany number divisible by 3 with Fizz\nany number divisible by 5 with Buzz\nany number divisible by both 3 and 5 with FizzBuzz\n\nLet’s do it:\n\n# Load additional library\nimport numpy as np\n\n# Set series length\nn = 10_000"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#example-2-medium-dataset",
-    "href": "python/wb_polars2_slides.html#example-2-medium-dataset",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Example 2: medium dataset",
-    "text": "Example 2: medium dataset\nHere I am using a jeopardy dataset that Alex uses in his pandas course\nShape: 216,930 rows, 7 columns\nThe goal is to subset this DataFrame for the history category and get the shape of the resulting DataFrame"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#result",
-    "href": "python/wb_polars2_slides.html#result",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Result",
-    "text": "Result\n\n\n\ndf_pd   # pandas\n\n\n\n\n\n\n\n\nCount\nFizzBuzz\n\n\n\n\n0\n1\n1\n\n\n1\n2\n2\n\n\n2\n3\nFizz\n\n\n3\n4\n4\n\n\n4\n5\nBuzz\n\n\n...\n...\n...\n\n\n9995\n9996\nFizz\n\n\n9996\n9997\n9997\n\n\n9997\n9998\n9998\n\n\n9998\n9999\nFizz\n\n\n9999\n10000\nBuzz\n\n\n\n\n10000 rows × 2 columns\n\n\n\n\n\n\n\ndf_pl   # same for df_pl_lazy_collected\n\n\nshape: (10_000, 2)\n\n\n\nCount\nFizzBuzz\n\n\ni64\nstr\n\n\n\n\n1\n\"1\"\n\n\n2\n\"2\"\n\n\n3\n\"Fizz\"\n\n\n4\n\"4\"\n\n\n5\n\"Buzz\"\n\n\n…\n…\n\n\n9996\n\"Fizz\"\n\n\n9997\n\"9997\"\n\n\n9998\n\"9998\"\n\n\n9999\n\"Fizz\"\n\n\n10000\n\"Buzz\""
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#example-of-large-dataset",
-    "href": "python/wb_polars2_slides.html#example-of-large-dataset",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Example of large dataset",
-    "text": "Example of large dataset\nLet’s play with data from the GBIF website for free and open access to biodiversity data\nThe Southern African Bird Atlas Project 2 [1] contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let’s look at the latter:\nShape: 25,687,526 rows, 50 columns\nFrom that dataset, I want a list of species from the genus Passer (Old World sparrows)"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#references",
-    "href": "python/wb_polars2_slides.html#references",
-    "title": "RIP pandas, welcome Polars",
-    "section": "References",
-    "text": "References\n\n\n1. GBIF.org (2026) Occurrence download"
-  },
-  {
-    "objectID": "python/gpu_cupy.html",
-    "href": "python/gpu_cupy.html",
-    "title": "Arrays on GPUs with ",
-    "section": "",
-    "text": "Coming up on April 9.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "GPU-accelerated Python",
-      "Arrays with CuPy"
-    ]
-  },
-  {
-    "objectID": "python/gpu_clusters.html",
-    "href": "python/gpu_clusters.html",
-    "title": "GPUs on the Alliance clusters",
-    "section": "",
-    "text": "If you plan on using GPUs on the Alliance clusters, there are a number of things you need to be aware of.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "GPU-accelerated Python",
-      "GPUs on Alliance clusters"
-    ]
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#results",
-    "href": "python/wb_polars2_slides.html#results",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Results",
-    "text": "Results\n\n\n\ndf_pd   # pandas\n\n\n\n\n\n\n\n\nCount\nFizzBuzz\n\n\n\n\n0\n1\n1\n\n\n1\n2\n2\n\n\n2\n3\nFizz\n\n\n3\n4\n4\n\n\n4\n5\nBuzz\n\n\n...\n...\n...\n\n\n9995\n9996\nFizz\n\n\n9996\n9997\n9997\n\n\n9997\n9998\n9998\n\n\n9998\n9999\nFizz\n\n\n9999\n10000\nBuzz\n\n\n\n\n10000 rows × 2 columns\n\n\n\n\n\n\n\ndf_pl   # and df_pl_lazy_collected\n\n\nshape: (10_000, 2)\n\n\n\nCount\nFizzBuzz\n\n\ni64\nstr\n\n\n\n\n1\n\"1\"\n\n\n2\n\"2\"\n\n\n3\n\"Fizz\"\n\n\n4\n\"4\"\n\n\n5\n\"Buzz\"\n\n\n…\n…\n\n\n9996\n\"Fizz\"\n\n\n9997\n\"9997\"\n\n\n9998\n\"9998\"\n\n\n9999\n\"Fizz\"\n\n\n10000\n\"Buzz\""
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#side-note-the-importance-of-file-format",
-    "href": "python/wb_polars2_slides.html#side-note-the-importance-of-file-format",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Side note: the importance of file format",
-    "text": "Side note: the importance of file format\nText-based formats (CSV, JSON) are not suitable for large files\nApache Parquet is a binary, machine-optimized, column-oriented file format with efficient encoding and compression and it is considered the industry-standard file format for large tabular data \n\n\n\n\n\n\nFile type\n\n\nSize\n\n\n\n\nFile downloaded from GBIF\n\n\nZipped CSV\n\n\n2.2 GB\n\n\nUncompressed file\n\n\nCSV\n\n\n12.3 GB\n\n\nIdeal file format\n\n\nParquet\n\n\n0.5 GB\n\n\n\nIn addition to being 15 times (!!) smaller, the Parquet file is a lot faster to read & write"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#format-conversion",
-    "href": "python/wb_polars2_slides.html#format-conversion",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Format conversion",
-    "text": "Format conversion\nHere is a way to convert this file if it fits in memory:\n# Read in the CSV file in a Polars DataFrame\ndf = pl.read_csv(\"sa_birds.csv\", separator=\"\\t\")\n\n# Export the DataFrame in a Parquet file\ndf.write_parquet(\"sa_birds.parquet\")\n\n\nIf the file doesn’t fit in memory, you can use Dask (which also uses Apache Arrow) on a distributed system"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#native-apache-arrow-support",
-    "href": "python/wb_polars2_slides.html#native-apache-arrow-support",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Native Apache Arrow support",
-    "text": "Native Apache Arrow support\nWith its native support for the columnar Apache Arrow format, Polars is ideal to work with Parquet files\npandas can work with Parquet files but this can lead to issues due to the inconsistent way it handles missing data (e.g. see this SO question, this issue, this post)\n\n\n%%timeit\n\n# pandas\nsa_birds_pd = pd.read_parquet(\n    \"sa_birds.parquet\"\n)\n1min 10s ± 7.76 s per loop (mean ± std. dev. of 7 runs, 1 loop each)\n\n\n\n%%timeit\n\n# Polars\nsa_birds_pl = pl.read_parquet(\n    \"sa_birds.parquet\"\n)\n2.47 s ± 756 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\n\nSpeedup: 70 / 2.47 ≈ 28    Reading Parquet files in pandas is also A LOT slower!"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#conclusion-1",
-    "href": "python/wb_polars2_slides.html#conclusion-1",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Conclusion",
-    "text": "Conclusion\nPolars:\n\nHandles missing data in a consistent and sensible way\nHas a clear syntax\nAllows passing expressions to group by in a convenient way\nIs very fast\nUses multithreading automatically\nIs extremely memory efficient with the lazy API\nUses the industry standard Apache Arrow columnar format\nWorks perfectly with Parquet files\nWorks out-of-core with the lazy API"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#conclusion-2",
-    "href": "python/wb_polars2_slides.html#conclusion-2",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Conclusion",
-    "text": "Conclusion\n\nStart using Polars now!\n\n\n\n\n\n\n\nAnd use the lazy API!"
-  },
-  {
-    "objectID": "python/gpu_clusters.html#multi-instance-gpu-mig",
-    "href": "python/gpu_clusters.html#multi-instance-gpu-mig",
-    "title": "GPUs on the Alliance clusters",
-    "section": "Multi-instance GPU (MIG)",
-    "text": "Multi-instance GPU (MIG)\nMulti-instance GPU (MIG) is an Nvidia technology that partitions GPUs into multiple isolated and independent instances (virtual GPUs), each with its dedicated compute and memory resources.\n\nThis technology only works for GPGPUs (general-purpose GPUs) and not for graphic rendering.\n\nIf your jobs cannot fully utilize the modern and high-performing GPUs that are present in the Alliance clusters, using GPU instances allows you to use less of your job priority and have your jobs start sooner.\nTo use a GPU instance instead of a full GPU, you select the profile name of the instance size that corresponds to the size of your job.\nRefer to the Alliance wiki for more details on this.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "GPU-accelerated Python",
-      "GPUs on Alliance clusters"
-    ]
-  },
-  {
-    "objectID": "python/gpu_clusters.html#gpu-farming",
-    "href": "python/gpu_clusters.html#gpu-farming",
-    "title": "GPUs on the Alliance clusters",
-    "section": "GPU farming",
-    "text": "GPU farming\nIf you want to run multiple instances of a CUDA application, but the application is too small to saturate a modern GPU, consider using GPU farming using CUDA Multi Process Service (MPS). Multiple instances will then be processed concurrently no the same GPU.\nRefer to the Alliance wiki for more details on this as well.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "GPU-accelerated Python",
-      "GPUs on Alliance clusters"
-    ]
-  },
-  {
-    "objectID": "python/gpu_clusters.html#monitoring-gpus",
-    "href": "python/gpu_clusters.html#monitoring-gpus",
-    "title": "GPUs on the Alliance clusters",
-    "section": "Monitoring GPUs",
-    "text": "Monitoring GPUs\n\nMetrix portal\nA growing number of Alliance clusters (as of March 2026, this includes Rorqual, Narval, and Nibi) have a Metrix portal that allows to monitor resource usage (CPU, GPU, memory, filesystem) in real time in a graphical and intuitive fashion from your browser.\n\n\nLogging metrics\nFor clusters that don’t have a monitoring portal yet, you can run nvidia-smi on the compute nodes with GPU(s) to get a snapshot of GPU(s) usage while the job is running by adding the command nvidia-smi to your job script.\nIf you want to log the monitoring to a file, run instead:\nnvidia-smi -l 30 &gt; gpu_log.txt\n\nReplace 30 by the number of seconds that is appropriate for the monitoring of your job (based on the length of your job).\n\nYou can also query specific metrics with, for instance:\nnvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv\nThis will return information on the GPU(s) utilization and memory used.\n\n\nLive monitoring\nIf you want live monitoring, you can use watch to run nvidia-smi periodically and use srun to access the compute node of your choice.\n\nExample to monitor the GPU(s) every second if you have a single GPU node:\n\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --pty watch -n 1 nvidia-smi\n\nYou can find the job ID with sq.\n\nThis will create a static dashboard in your terminal with values updated every second.\nIf you have multiple GPU nodes, you need to specify the node name:\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --nodelist=&lt;node_name&gt; --pty watch -n 1 nvidia-smi\n\nYou can find the node name with:\nsrun --jobid=&lt;your_running_job_id&gt; -n1 -c1 scontrol show hostname\n\nEven better than nvidia-smi for this however is nvtop.\n\nExample to monitor the GPU(s) every second if you have a single GPU node:\n\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --pty nvtop\nIf you have multiple GPU nodes, you need to specify the node name:\nsrun --jobid=&lt;your_running_job_id&gt; --overlap --nodelist=&lt;node_name&gt; --pty nvtop\nRefer to our wiki page for more information on nvtop.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "GPU-accelerated Python",
-      "GPUs on Alliance clusters"
-    ]
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#ram-required-1",
-    "href": "python/wb_polars2_slides.html#ram-required-1",
-    "title": "RIP pandas, welcome Polars",
-    "section": "RAM required",
-    "text": "RAM required\nLet’s image that you have only 16 GB of RAM on your machine\nRunning a browser and a few small applications take about 6 GB out of that. This dataset is already too big to process on your laptop\nIf you need to play with the raw data or a larger dataset such as the eBird dataset of 1,775,781,186 rows and 50 columns (CSV file of 3 TB for the raw data), you will need A LOT of memory"
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#what-are-your-options",
-    "href": "python/wb_polars2_slides.html#what-are-your-options",
-    "title": "RIP pandas, welcome Polars",
-    "section": "What are your options?",
-    "text": "What are your options?\nIn pandas or Polars:\n\nYou can select only the columns you are interested\nYou can read and process the file in chunks and try to combine the results\n\nIf you only need to run queries on the data however, the Polars lazy API is the answer"
-  },
-  {
-    "objectID": "python/polars_pandas.html#missing-data",
-    "href": "python/polars_pandas.html#missing-data",
-    "title": "Comparison with pandas",
-    "section": "Missing data",
-    "text": "Missing data\n\n\n\nFor historical reasons, depending on dtype, missing values are one of:\n\nNaN (numpy.nan, dtype float),\nNone,\nNaT (Not-a-Time, dtype datetime),\npandas.NA (nullable scalar).\n\nThis leads to inconsistent behaviour and unexpected dtype changes.\nThere has been an ongoing open issue since 2020.\n\n\n\n\nOne single missing value: null.\nSimple and consistent behaviour across all data types and better performance.\nNaN exists and is a float. It is not missing data, but the result of mathematical operations that don’t return numbers.\nHere is a blog that goes into this in details.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "Polars: faster DataFrames",
-      "Comparison with pandas"
-    ]
-  },
-  {
-    "objectID": "python/polars_pandas.html#group-by",
-    "href": "python/polars_pandas.html#group-by",
-    "title": "Comparison with pandas",
-    "section": "Group by",
-    "text": "Group by\nHere is a great blog post by Marco Gorelli comparing the ease of use of passing expressions to groups in Polars compared to pandas. I am using his code here and doing some timing on it to look at efficiency.\n\nCreate DataFrames\nImport libraries:\n\nimport pandas as pd\nimport polars as pl\n\n\n\nThe pandas DataFrame:\n\ndf_pd = pd.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)\n\n\n\n\nThe Polars equivalent:\n\ndf_pl = pl.DataFrame(\n    {\n        \"id\": [1, 1, 1, 2, 2, 2],\n        \"sales\": [4, 1, 2, 7, 6, 7],\n        \"views\": [3, 1, 2, 8, 6, 7]\n    }\n)\n\n\n\n\n\nThe pandas DataFrame:\n\nprint(df_pd)\n\n   id  sales  views\n0   1      4      3\n1   1      1      1\n2   1      2      2\n3   2      7      8\n4   2      6      6\n5   2      7      7\n\n\n\n\n\nThe Polars equivalent:\n\nprint(df_pl)\n\nshape: (6, 3)\n┌─────┬───────┬───────┐\n│ id  ┆ sales ┆ views │\n│ --- ┆ ---   ┆ ---   │\n│ i64 ┆ i64   ┆ i64   │\n╞═════╪═══════╪═══════╡\n│ 1   ┆ 4     ┆ 3     │\n│ 1   ┆ 1     ┆ 1     │\n│ 1   ┆ 2     ┆ 2     │\n│ 2   ┆ 7     ┆ 8     │\n│ 2   ┆ 6     ┆ 6     │\n│ 2   ┆ 7     ┆ 7     │\n└─────┴───────┴───────┘\n\n\n\n\n\n\nMarco Gorelli’s example\n\nFind the maximum value of views, where sales is greater than its mean, per id.\n\n\n\nSolutions in pandas\nThe straightforward method most people will use:\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max(),\n    include_groups=False\n)\n\nid\n1    3\n2    8\ndtype: int64\n\n\nAnother option, but it requires 2 groupby expressions:\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n\nid\n1    3\n2    8\nName: views, dtype: int64\n\n\nA solution people are unlikely to come up with:\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n\nid\n1    3.0\n2    8.0\nName: result, dtype: float64\n\n\n\n\nThe solution in Polars\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n\n\nshape: (2, 2)\n┌─────┬───────┐\n│ id  ┆ views │\n│ --- ┆ ---   │\n│ i64 ┆ i64   │\n╞═════╪═══════╡\n│ 2   ┆ 8     │\n│ 1   ┆ 3     │\n└─────┴───────┘\n\n\nMuch simpler …\n\n\nTiming of pandas solutions\n%%timeit\n\ndf_pd.groupby('id').apply(\n    lambda df_pd: df_pd[df_pd['sales'] &gt; df_pd['sales'].mean()]['views'].max(),\n    include_groups=False\n)\n1.04 ms ± 1.33 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe solution most people are likely to use is by far the slowest.\n%%timeit\n\ndf_pd[\n    df_pd['sales'] &gt; df_pd.groupby('id')['sales'].transform('mean')\n].groupby('id')['views'].max()\n678 μs ± 4.04 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThe best solution uses 2 groupby expressions.\n%%timeit\n\ngb = df_pd.groupby(\"id\")\nmask = df_pd[\"sales\"] &gt; gb[\"sales\"].transform(\"mean\")\ndf_pd[\"result\"] = df_pd[\"views\"].where(mask)\ngb[\"result\"].max()\n711 μs ± 952 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThis is almost as fast as the best solution.\n\n\nTiming of the Polars solution\n%%timeit\n\ndf_pl.group_by('id').agg(\n    pl.col('views').filter(pl.col('sales') &gt; pl.mean('sales')).max()\n)\n110 μs ± 3.6 μs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)\nPolars is more straightforward and much faster.\n\n\nConclusion\nSpeedup of Polars compared to the best pandas method: 6.\nSpeedup compared to the method most people are likely to use: 9.\nTo pass expressions to groups, Polars has a more straightforward and efficient syntax.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "Polars: faster DataFrames",
-      "Comparison with pandas"
-    ]
-  },
-  {
-    "objectID": "python/polars_pandas.html#general-performance-comparisons",
-    "href": "python/polars_pandas.html#general-performance-comparisons",
-    "title": "Comparison with pandas",
-    "section": "General performance comparisons",
-    "text": "General performance comparisons\n\nThe performance of tools can only be evaluated on optimized code: poorly written pandas code is a lot slower than efficient pandas code.\nTo ensure fairness towards pandas, I use the best pandas code from Alex Razoumov pandas course in which he benchmarks various syntaxes.\n\n\nExample 1: FizzBuzz\nFizzBuzz is a programming exercise based on a children game which consists of counting to n, replacing:\n\nany number divisible by 3 with Fizz,\nany number divisible by 5 with Buzz,\nany number divisible by both 3 and 5 with FizzBuzz.\n\nIn his pandas course, Alex compares multiple methods and shows that the best method uses masks. Let’s see how Polars fares in comparison to pandas’ best method.\nFirst, let’s load the packages we need and set the length of the series:\n\nimport pandas as pd\nimport numpy as np\nimport polars as pl\nn = 10_000\n\nAnd let’s make sure that the code works.\nWith pandas:\n\ndf_pd = pd.DataFrame()\ndf_pd[\"Count\"] = np.arange(1, n+1)\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\"\n\nprint(df_pd)\n\n      Count FizzBuzz\n0         1        1\n1         2        2\n2         3     Fizz\n3         4        4\n4         5     Buzz\n...     ...      ...\n9995   9996     Fizz\n9996   9997     9997\n9997   9998     9998\n9998   9999     Fizz\n9999  10000     Buzz\n\n[10000 rows x 2 columns]\n\n\nWith Polars:\n\ndf_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl = df_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n\nprint(df_pl)\n\nshape: (10_000, 2)\n┌───────┬──────────┐\n│ Count ┆ FizzBuzz │\n│ ---   ┆ ---      │\n│ i64   ┆ str      │\n╞═══════╪══════════╡\n│ 1     ┆ 1        │\n│ 2     ┆ 2        │\n│ 3     ┆ Fizz     │\n│ 4     ┆ 4        │\n│ 5     ┆ Buzz     │\n│ …     ┆ …        │\n│ 9996  ┆ Fizz     │\n│ 9997  ┆ 9997     │\n│ 9998  ┆ 9998     │\n│ 9999  ┆ Fizz     │\n│ 10000 ┆ Buzz     │\n└───────┴──────────┘\n\n\nBut it gets much better with lazy evaluation. First, we create a LazyFrame instead of a DataFrame. The query is not evaluated but a graph is created. This allows the query optimizer to combine operations and perform optimizations where possible, very much the way compilers work. To evaluate the query and get a result, we use the collect method.\nLet’s make sure that the lazy Polars code gives us the same result:\nWith the Polars lazy API:\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\ndf_pl_lazy_collected = df_pl_lazy.collect()\n\nprint(df_pl_lazy_collected)\n\nshape: (10_000, 2)\n┌───────┬──────────┐\n│ Count ┆ FizzBuzz │\n│ ---   ┆ ---      │\n│ i64   ┆ str      │\n╞═══════╪══════════╡\n│ 1     ┆ 1        │\n│ 2     ┆ 2        │\n│ 3     ┆ Fizz     │\n│ 4     ┆ 4        │\n│ 5     ┆ Buzz     │\n│ …     ┆ …        │\n│ 9996  ┆ Fizz     │\n│ 9997  ┆ 9997     │\n│ 9998  ┆ 9998     │\n│ 9999  ┆ Fizz     │\n│ 10000 ┆ Buzz     │\n└───────┴──────────┘\n\n\n\nTiming\npandas:\n%%timeit\n\ndf_pd = pd.DataFrame()\ndf_pd[\"Count\"] = np.arange(1, n+1)\ndf_pd[\"FizzBuzz\"] = df_pd[\"Count\"].astype(str)\ndf_pd.loc[df_pd[\"Count\"] % 3 == 0, \"FizzBuzz\"] = \"Fizz\"\ndf_pd.loc[df_pd[\"Count\"] % 5 == 0, \"FizzBuzz\"] = \"Buzz\"\ndf_pd.loc[df_pd[\"Count\"] % 15 == 0, \"FizzBuzz\"] = \"FizzBuzz\"\n3.4 ms ± 65.4 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)\nPolars:\n%%timeit\n\ndf_pl = pl.DataFrame({\"Count\": np.arange(1, n+1)})\ndf_pl.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\n648 μs ± 2.21 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nPolars lazy API:\n%%timeit\n\ndf_pl_lazy = pl.LazyFrame({\"Count\": np.arange(1, n+1)})\ndf_pl_lazy.with_columns(pl.col(\"Count\").cast(pl.String).alias(\"FizzBuzz\"))\ndf_pl_lazy = df_pl_lazy.with_columns(\n    pl.when(pl.col(\"Count\") % 3 == 0).then(pl.lit(\"Fizz\"))\n    .when(pl.col(\"Count\") % 5 == 0).then(pl.lit(\"Buzz\"))\n    .when(pl.col(\"Count\") % 15 == 0).then(pl.lit(\"FizzBuzz\"))\n    .otherwise(pl.col(\"Count\")).alias(\"FizzBuzz\")\n)\ndf_pl_lazy_collected = df_pl_lazy.collect()\n460 μs ± 1.79 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)\nThat’s a speedup of 5 for the Eager API and a speedup of 7 for the lazy API.\nThese speedups highly depend on the types and sizes of the problems. How much faster Polars is does vary, what doesn’t vary is that it is always much faster.\n\n\nMemory usage\n\n\npandas\n\ndf_pd.memory_usage()\n\nIndex         132\nCount       80000\nFizzBuzz    80000\ndtype: int64\n\n\n132 + 80,000 * 2 =\n160,132 bytes\n≈ 160 KB\n\n\n\nPolars\n\ndf_pl.estimated_size()\n\n119409\n\n\n119,409 bytes\n≈ 119 KB\n160,132 / 119,409 ≈ 1.3\nFootprint 1.3 times smaller.\n\n\n\nPolars lazy API\nSame as Polars eager:\nif you collect the entire DataFrame as we did here, the lazy API does not reduce the memory footprint.\n\n\n\n\n\nExample 2: medium dataset\nHere I am using a jeopardy dataset that Alex uses in his pandas course.\nShape: 216,930 rows, 7 columns.\nThe goal is to subset this DataFrame for the history category and get the shape of the resulting DataFrame.\nFirst, let’s make sure that the code works.\npandas:\n\ndf_pd = pd.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n\n(349, 7)\n\n\nPolars:\n\ndf_pl = pl.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n\n(349, 7)\n\n\nPolars lazy API:\n\ndf_pl_lazy = pl.scan_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl_lazy_subset_collected = df_pl_lazy.filter(pl.col(\"Category\") == \"HISTORY\").collect()\ndf_pl_lazy_subset_collected.shape\n\n(349, 7)\n\n\n\nTo create a LazyFrame from a file you use one of the scan_* methods instead of the read_* methods.\n\n\nTiming\npandas:\n%%timeit\n\ndf_pd = pd.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pd.loc[df_pd[\"Category\"] == \"HISTORY\"].shape\n1.17 s ± 5.2 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\nPolars:\n%%timeit\n\ndf_pl = pl.read_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl.filter(pl.col(\"Category\") == \"HISTORY\").shape\n778 ms ± 30.5 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\nThat’s a speedup of 1.5.\nPolars lazy API timing:\n%%timeit\n\ndf_pl_lazy = pl.scan_csv(\"https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv\")\ndf_pl_lazy.filter(pl.col(\"Category\") == \"HISTORY\").collect().shape\n67.7 ms ± 3.87 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)\nWith the lazy API, the speedup ramps up to 17.\n\n\nMemory usage\n\n\n\ndf_pd.memory_usage()\n\nIndex              132\nShow Number    1735440\nAir Date       1735440\nRound          1735440\nCategory       1735440\nValue          1735440\nQuestion       1735440\nAnswer         1735440\ndtype: int64\n\n\n132 + 1,735,440 * 7 =\n12,148,212 bytes\n≈ 12 MB\n\n\n\n\ndf_pl.estimated_size()\n\n31606250\n\n\n31,606,250 bytes\n≈ 31 MB\n31,606,250 / 12,148,212 ≈ 2.6\nFootprint 2.6 times bigger.\n\n\n\n\ndf_pl_lazy_subset_collected.estimated_size()\n\n48774\n\n\n48,774 bytes\n≈ 49 KB\n12,148,212 / 48,774 ≈ 249\nFootprint 249 times smaller.\nIf you only collect a subset of the data, the memory footprint drops dramatically.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "Polars: faster DataFrames",
-      "Comparison with pandas"
-    ]
-  },
-  {
-    "objectID": "python/polars_pandas.html#data-too-big-to-fit-in-memory",
-    "href": "python/polars_pandas.html#data-too-big-to-fit-in-memory",
-    "title": "Comparison with pandas",
-    "section": "Data too big to fit in memory",
-    "text": "Data too big to fit in memory\n\nExample of large dataset\nLet’s play with data from the GBIF website for free and open access to biodiversity data.\nThe Southern African Bird Atlas Project 2 [1] contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let’s look at the latter:\nShape: 25,687,526 rows, 50 columns.\nFrom that dataset, I want a list of species from the genus Passer (Old World sparrows).\n\n\nThe importance of file format\nText-based formats (CSV, JSON) are not suitable for large files.\nApache Parquet is a binary, machine-optimized, column-oriented file format with efficient encoding and compression and it is considered the industry-standard file format for large tabular data.\n\n\n\n\n\n\nFile type\n\n\nSize\n\n\n\n\nFile downloaded from GBIF\n\n\nZipped CSV\n\n\n2.2 GB\n\n\nUncompressed file\n\n\nCSV\n\n\n12.3 GB\n\n\nIdeal file format\n\n\nParquet\n\n\n0.5 GB\n\n\n\nIn addition to being 15 times (!!) smaller, the Parquet file is a lot faster to read & write.\n\n\nFormat conversion\nHere is a way to convert this file if it fits in memory:\n# Read in the CSV file in a Polars DataFrame\ndf = pl.read_csv(\"sa_birds.csv\", separator=\"\\t\")\n\n# Export the DataFrame in a Parquet file\ndf.write_parquet(\"sa_birds.parquet\")\n\nIf the file doesn’t fit in memory, you can use Dask (which also uses Apache Arrow) on a distributed system.\n\n\n\nNative Apache Arrow support\nWith its native support for the columnar Apache Arrow format, Polars is ideal to work with Parquet files.\npandas can work with Parquet files but this can lead to issues due to the inconsistent way it handles missing data (e.g. see this SO question, this issue, this post).\n%%timeit\n\n# pandas\nsa_birds_pd = pd.read_parquet(\n    \"sa_birds.parquet\"\n)\n1min 10s ± 7.76 s per loop (mean ± std. dev. of 7 runs, 1 loop each)\n%%timeit\n\n# Polars\nsa_birds_pl = pl.read_parquet(\n    \"sa_birds.parquet\"\n)\n2.47 s ± 756 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)\nSpeedup: 70 / 2.47 ≈ 28.\nReading Parquet files in pandas is also A LOT slower!\n\n\nRAM required\n\n\npandas\nsa_birds_pd.memory_usage()\nIndex                          132\ngbifID                   205500208\ndatasetKey               205500208\noccurrenceID             205500208\nkingdom                  205500208\nphylum                   205500208\nclass                    205500208\norder                    205500208\n...\ndtype: int64\n132 + 205,500,208 * 50 =\n10,275,010,532 bytes\n≈ 10 GB\n\n\n\nPolars\nsa_birds_pl.estimated_size()\n12291023880\n12,291,023,880 bytes\n≈ 12 GB\n\n\nLet’s image that you have only 16 GB of RAM on your machine.\nRunning a browser and a few small applications take about 6 GB out of that. This dataset is already too big to process on your laptop.\nIf you need to play with the raw data or a larger dataset such as the eBird dataset of 1,775,781,186 rows and 50 columns (CSV file of 3 TB for the raw data), you will need A LOT of memory.\n\n\nWhat are your options?\nIn pandas or Polars:\n\nyou can select only the columns you are interested,\nyou can read and process the file in chunks and try to combine the results.\n\nIf you only need to run queries on the data however, the Polars lazy API is the answer.\n\n\nCreate a LazyFrame\nYou can create a LazyFrame (no impact on memory, LazyFrame returned instantly):\n\ndf_pl_lazy = pl.scan_parquet(\"sa_birds.parquet\")\n\nRun a query on it (no impact on memory, LazyFrame returned instantly):\n\npasser_df_lazy = df_pl_lazy.filter(\n    pl.col(\"genus\") == \"Passer\"\n).select(pl.col(\"species\")).unique()\n\n\n\nCollect result\nNow, you collect the result (this uses memory and takes time to compute) and turn the DataFrame into a Python list:\n\npasser_ls = passer_df_lazy.collect().get_column(\"species\").to_list()\n\nDepending on the subset returned by your query, the memory usage will vary. Here, it is minuscule (79 bytes):\n\npasser_df_lazy.collect().estimated_size()\n\n79\n\n\n\n\nEt voilà\n\nprint(passer_ls)\n\n['Passer diffusus', 'Passer motitensis', 'Passer griseus', 'Passer domesticus', 'Passer melanurus']\n\n\nWith this method, as long as the data itself fits on a drive and the queries don’t return huge subsets of data, you can run queries on giant datasets such as the 3 TB eBird dataset with a small amount of RAM.\nNote that the queries can contain complex expressions. What matters is the size of the subset you need to collect at the end.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "Polars: faster DataFrames",
-      "Comparison with pandas"
-    ]
-  },
-  {
-    "objectID": "python/polars_pandas.html#conclusion-1",
-    "href": "python/polars_pandas.html#conclusion-1",
-    "title": "Comparison with pandas",
-    "section": "Conclusion",
-    "text": "Conclusion\nPolars:\n\nhandles missing data in a consistent and sensible way,\nhas a clear syntax,\nallows passing expressions to group by in a convenient way,\nis very fast,\nuses multithreading automatically,\nis extremely memory efficient with the lazy API,\nuses the industry standard Apache Arrow columnar format,\nworks perfectly with Parquet files,\nworks out-of-core with the lazy API.\n\nStart using Polars now!\nAnd use the lazy API.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "Polars: faster DataFrames",
-      "Comparison with pandas"
-    ]
-  },
-  {
-    "objectID": "python/polars_pandas.html#pandas-v2",
-    "href": "python/polars_pandas.html#pandas-v2",
-    "title": "Comparison with pandas",
-    "section": "Pandas v2",
-    "text": "Pandas v2\nPandas is trying to fight back: v 2.0 came with optional Arrow support instead of NumPy, then it became the default engine, but performance remains way below that of Polars (e.g. in DataCamp benchmarks, official benchmarks, many blog posts for whole scripts or individual tasks).\nAnd the problems with missing data and syntax remains. Not to mention the lack of lazy API.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "Polars: faster DataFrames",
-      "Comparison with pandas"
-    ]
-  },
-  {
-    "objectID": "python/polars_pandas.html#comparison-with-other-frameworks",
-    "href": "python/polars_pandas.html#comparison-with-other-frameworks",
-    "title": "Comparison with pandas",
-    "section": "Comparison with other frameworks",
-    "text": "Comparison with other frameworks\n\nComparisons between Polars and distributed (Dask, Ray, Spark) or GPU (RAPIDS) libraries aren’t the most pertinent since they can be used in combination with Polars and the benefits can thus be combined.\nIt only makes sense to compare Polars with other libraries occupying the same “niche” such as pandas or Vaex.\nFor Vaex, some benchmark found it twice slower, but this could have changed with recent developments.\nOne framework performing better than Polars in some benchmarks is datatable (derived from the R package data.table), but it hasn’t been developed for a year—a sharp contrast with the fast development of Polars.",
-    "crumbs": [
-      "Python",
-      "<b><em>Faster Python</em></b>",
-      "Polars: faster DataFrames",
-      "Comparison with pandas"
-    ]
-  },
-  {
-    "objectID": "python/wb_polars2_slides.html#lazy-evaluation",
-    "href": "python/wb_polars2_slides.html#lazy-evaluation",
-    "title": "RIP pandas, welcome Polars",
-    "section": "Lazy evaluation",
-    "text": "Lazy evaluation\nBut it gets much better with lazy evaluation\nFirst, we create a LazyFrame instead of a DataFrame. The query is not evaluated but a graph is created. This allows the query optimizer to combine operations and perform optimizations where possible, very much the way compilers work\nTo evaluate the query and get a result, we use the collect method"
   }
 ]
