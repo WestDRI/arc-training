@@ -113,7 +113,8 @@ train_batch_size = 8
 val_batch_size = 2 * train_batch_size
 
 train_sampler = grain.IndexSampler(
-    num_records=len(nabirds_train),
+    # num_records=len(nabirds_train),
+    num_records=10,
     shuffle=True,
     seed=seed,
     shard_options=grain.NoSharding(),
@@ -135,7 +136,8 @@ train_loader = grain.DataLoader(
 )
 
 val_sampler = grain.IndexSampler(
-    num_records=len(nabirds_val),
+    # num_records=len(nabirds_val),
+    num_records=10,
     shuffle=False,
     seed=seed,
     shard_options=grain.NoSharding(),
@@ -404,17 +406,22 @@ path = ocp.test_utils.erase_and_create_empty('/home/marie/parvus/prog/mint/ai/jx
 
 options = ocp.CheckpointManagerOptions(max_to_keep=3, save_interval_steps=1)
 
-mngr = ocp.CheckpointManager(path, options=options)
+mngr = ocp.CheckpointManager(path, options=options, item_names=('state', 'meta'))
+
+# def save_model(epoch):
+#     state = nnx.state(model)
+#     def get_key_data(x):
+#         if isinstance(x, jax._src.prng.PRNGKeyArray):
+#             if isinstance(x.dtype, jax._src.prng.KeyTy):
+#                 return jax.random.key_data(x)
+#         return x
+#     serializable_state = jax.tree.map(get_key_data, state)
+#     mngr.save(epoch, args=ocp.args.StandardSave(serializable_state))
+#     mngr.wait_until_finished()
 
 def save_model(epoch):
     state = nnx.state(model)
-    def get_key_data(x):
-        if isinstance(x, jax._src.prng.PRNGKeyArray):
-            if isinstance(x.dtype, jax._src.prng.KeyTy):
-                return jax.random.key_data(x)
-        return x
-    serializable_state = jax.tree.map(get_key_data, state)
-    mngr.save(epoch, args=ocp.args.StandardSave(serializable_state))
+    mngr.save(epoch, args=ocp.args.Composite(state=ocp.args.StandardSave(state)))
     mngr.wait_until_finished()
 
 for epoch in range(num_epochs):

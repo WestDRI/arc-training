@@ -49,7 +49,7 @@ def predict(image_path):
     """Restores model from checkpoint and runs prediction on a single image."""
     # Restore model from checkpoint
     options = ocp.CheckpointManagerOptions(max_to_keep=3)
-    mngr = ocp.CheckpointManager(path, options=options)
+    mngr = ocp.CheckpointManager(checkpoint_path, options=options)
     model = mngr.restore(mngr.latest_step())
     model.eval()
     mapping = load_species_mapping()
