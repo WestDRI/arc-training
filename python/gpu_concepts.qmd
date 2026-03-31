@@ -1,0 +1,76 @@
+---
+title: GPU programming concepts
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+This section covers a few basic concepts of GPU programming so that you get a better idea of what is going on behind the scene when you use high-level GPU frameworks.
+
+:::
+
+## CPU vs GPU architecture
+
+![from the [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html)](img/gpu_cpu_diagram.png){width="70%"}
+
+**SM**: *Streaming multiprocessors* \
+Collections of *thread blocks* (each *thread block* is itself a collection of *threads*).
+
+**GPC**: *Graphics Processing Clusters* \
+Collections of SMs.
+
+**[DRAM (dynamic random access memory or dynamic RAM)](https://en.wikipedia.org/wiki/Dynamic_random-access_memory) of a GPU**: *Global memory*
+
+:::{.note}
+
+It is called *global memory* because it is accessible to all SMs in that GPU, but it is only "global" to that GPU.
+
+:::
+
+### Caches
+
+Caches on chips are hierarchical:
+
+- **L1 caches** are the fastest. \
+In CPUs, they are located inside each CPU core (so there are as many L1 caches as there are CPU cores). \
+In GPUs, they are shared among all threads of an SM (so there are as many L1 caches as there are SMs).
+
+- **L2 caches** are a little slower. \
+In CPUs, they are located near each core and serve as a buffer between L1 and L2 (so there are as many L2 caches as there are CPU cores). \
+In GPUs, all SMs share the same L2 (so there is a single L2, shared  among all threads on that GPU).
+
+- The **L3 cache** is even slower (but still much faster than the DRAM). \
+In CPUs, it is shared among all cores (so there is a single L3 per CPU). \
+GPUs do not have an L3 cache.
+
+## Host/device
+
+The [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html) is a great place to learn the principles of CUDA programming. Alternative kernel-based frameworks (e.g. HIP, OpenCL), have a similar functioning.
+
+### Terminology
+
+| Terminology                  | Explanation              |
+|------------------------------|--------------------------|
+| Host                         | CPU                      |
+| Host memory or system memory | CPU memory               |
+| Current device               | GPU                      |
+| Device memory                | GPU memory               |
+| Device code                  | Code running on GPU      |
+| Kernel                       | Function executed on GPU |
+
+### Programming model
+
+CUDA follows a heterogeneous programming model in which it manages both CPU and GPU memory.
+
+Here is how execution happens:
+
+- The code starts on the host.
+- CUDA APIs copy data from the host memory to the current device memory.
+- Kernels (GPU functions) are executed in parallel on the device: many GPU threads run computations in an [SIMT (Single Instruction, Multiple Threads)](https://en.wikipedia.org/wiki/Single_instruction,_multiple_threads) fashion.
+- Finally, CUDA APIs copy the data back to the host memory.
+
+### Multiple GPUs
+
+When you have multiple GPUs on a computer or compute node, the NVIDIA driver queries the motherboard and orders the GPUs based on their [PCIe](https://en.wikipedia.org/wiki/PCI_Express) Bus ID (their physical slot on the motherboard). The GPU in the lowest PCIe slot becomes physical GPU 0, the next becomes 1, and so on.
+
+By default, the current device is GPU 0, but you can set the current device to another GPU programmatically.
