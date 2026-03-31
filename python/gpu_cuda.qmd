@@ -1,65 +1,157 @@
 ---
-title: CUDA
+title: A brief introduction to CUDA
 author: Marie-Hélène Burle
+reference-location: margin
 ---
 
 :::{.def}
 
-Concepts
+[NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit) (usually referred to as "CUDA") is a proprietary set of APIs, tools, and libraries by [NVIDIA](https://en.wikipedia.org/wiki/Nvidia) that allow to run parallel computing on [graphics processing units (GPUs)](https://en.wikipedia.org/wiki/Graphics_processing_unit).
+
+The toolkit includes a C/C++ compiler, debugging, benchmarking, and optimization tools, a [runtime library](https://en.wikipedia.org/wiki/Runtime_library), and many GPU-accelerated libraries.
+
+Many open-source tools build on CUDA to provide GPU-acceleration in languages such as Python or Julia.
 
 :::
 
-## CUDA kernel
+## History
 
-[CUDA](https://en.wikipedia.org/wiki/CUDA)
+The use of GPUs for mathematical calculations rather than image rendering ([general-purpose computing on GPUs or GPGPU)](https://en.wikipedia.org/wiki/General-purpose_computing_on_graphics_processing_units)) was a nice and difficult research endeavour involving passing data through graphics shaders.
 
-## Devices
+By providing a standard C++ programming model that removed the need to understand graphics APIs, [CUDA](https://en.wikipedia.org/wiki/CUDA) brought GPGPU to the mainstream.
 
-the [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html)
+## Support
 
-CPU = host
-CPU memory = system memory or host memory
+### Operating systems
 
-GPU = device
-GPU memory = device memory
-Code running on GPU = device code
-Function executed on GPU = kernel
+| OS      | CUDA support                                                                |
+|---------|-----------------------------------------------------------------------------|
+| Linux   | Yes                                                                         |
+| Windows | Yes, with limitations, provided Microsoft Visual Studio (MSVS) is installed |
+| WSL 2   | Yes, with limitations                                                       |
+| macOS   | No[^1]                                                                      |
 
-Code starts on the host. CUDA APIs copy data from host memory to device memory for computations on the device, then copy the data back to the host memory.
+: {tbl-colwidths="[25, 75]"}
 
-| | |
-| --  | -- |
-| Host | CPU |
-| Current device | |
+[^1]: Legacy experimental support on older systems was abandoned.
+
+### Accelerators
+
+| Accelerator | CUDA support              |
+|-------------|---------------------------|
+| NVIDIA GPUs | Yes                       |
+| Apple GPUs  | No                        |
+| AMD GPUs    | Yes, but not natively[^2] |
+| TPUs        | No[^3]                    |
+
+: {tbl-colwidths="[25, 75]"}
+
+[^2]: See below.
+[^3]: TPUs use XLA (Accelerated Linear Algebra) as their compiler backend.
+
+### Support for AMD GPUs
+
+3 tools with different approaches exist to run CUDA on AMD hardware:
+
+|                   | [HIP](https://github.com/ROCm/hip) | [ZLUDA](https://github.com/vosen/ZLUDA) | [SCALE tookit](https://docs.scale-lang.com/stable/) |
+|-------------------|------------------------------------|-----------------------------------------|-----------------------------------------------------|
+| Functioning       | `hipify` CUDA code into neutral language, then compile to target GPU (AMD or NVIDIA) | Translates compiled CUDA code at runtime to execute on AMD GPUs | Compiles CUDA code directly into AMD GPU binaries with SCALE compiler instead of `nvcc` |
+| Code modification required | Yes                       | No                                      | No                                                  |
+| Recompilation required     | Yes                       | No                                      | Yes                                                 |
+| Performance       | Native                             | Near-native                             | Native                                              |
+| Maturity          | Yes                                | Yes                                     | No                                                  |
+| Library gap       | Yes                                | Yes                                     | Yes                                                 |
+| Developer         | AMD (ROCm ecosystem)               | Community driven                        | Spectral Compute (startup)                          |
+| Open-source       | Yes                                | Yes                                     | No                                                  |
+
+: {tbl-colwidths="[10, 30, 30, 30]"}
+
+#### Summary
+
+|      | [HIP](https://github.com/ROCm/hip) | [ZLUDA](https://github.com/vosen/ZLUDA) | [SCALE tookit](https://docs.scale-lang.com/stable/) |
+|------|------------------------------------|-----------------------------------------|-----------------------------------------------------|
+| Pros | Native performance, officially supported | Very easy to use                  | Native performance, easier than HIP |
+| Cons | Requires a lot of work             | Lower performance, might violate NVIDIA’s End User License Agreement | Proprietary and less tested |
+
+: {tbl-colwidths="[10, 30, 30, 30]"}
+
+### On Alliance supercomputers
+
+**The good news is that the Alliance supercomputers use Linux and most GPUs are NVIDIA's (there are a few AMD's on the Nibi cluster).**
+
+CUDA is installed as an [Lmod](https://lmod.readthedocs.io/en/latest/index.html) module on the clusters:
+
+```{.bash}
+# To see available versions:
+module spider cuda
+
+# To check the needed dependencies of a specific version (e.g. 12.6):
+module spider cuda/12.6
+
+# To load a version:
+module load cuda/12.6
+```
+
+## Alternatives to CUDA
+
+**ROCm**: \
+The [AMD ROCm](https://github.com/ROCm/ROCm) stack is an open-source alternative to the proprietary CUDA toolkit for [AMD](https://simple.wikipedia.org/wiki/Advanced_Micro_Devices) GPUs.
+
+**Triton**: \
+Specifically for deep learning, [Triton](https://github.com/triton-lang/triton) by OpenAI is a Python-based [domain-specific language (DSL)](https://en.wikipedia.org/wiki/Domain-specific_language) and compiler.
+
+**OpenCL**: \
+[OpenCL](https://en.wikipedia.org/wiki/OpenCL) is an open-standard, cross-platform framework that runs on most hardware, but with lower performance and a smaller toolkit.
+
+**SYCL**: \
+[SYCL](https://en.wikipedia.org/wiki/SYCL) is another open-standard, cross-platform framework that runs on most hardware used and supported by [Intel](https://en.wikipedia.org/wiki/Intel).
+
+**Vulkan**: \
+[Vulkan](https://en.wikipedia.org/wiki/Vulkan) is yet another open-standard, cross-platform framework that runs on most hardware and does both graphics and GPGPU, but with much lower performance for GPGPU than CUDA.
+
+**OpenACC**: \
+[OpenACC](https://en.wikipedia.org/wiki/OpenACC) is a high-level open-standard that allows to offload loops to any GPU by inserting compiler hints in the code. However, it is restricted to C, C++, and Fortran code, and performance is lower. It is an easy solution for old codebase in compiled languages.
 
 ## CUDA for Python
 
 ### Low-level wrappers
 
-[PyCUDA](https://github.com/inducer/pycuda):  an older, community-driven wrapper. \
-[CUDA Python](https://github.com/NVIDIA/cuda-python): a newer wrapper by NVIDIA.
+There are two wrappers that provide low-level control of CUDA in Python:
+
+- [PyCUDA](https://github.com/inducer/pycuda):  an older, community-driven library.
+- [CUDA Python](https://github.com/NVIDIA/cuda-python): a newer stack by NVIDIA.
 
 For new projects and unless you are already familiar with PyCUDA, favour [CUDA Python](https://developer.nvidia.com/cuda/python).
 
+CUDA Python consists of [a collection of packages](https://nvidia.github.io/cuda-python/latest/).
+
+You write CUDA kernels in C++ `.cu` files, compile them using `nvcc`, then execute them using `cuda-python`.
+
 ### High-level for NumPy
 
-[CuPy](https://github.com/cupy/cupy) is a high-level drop-in replacement for NumPy.
+[CuPy](https://github.com/cupy/cupy) is a high-level drop-in replacement for [NumPy](https://github.com/numpy/numpy) and [SciPy](https://github.com/scipy/scipy). It also allows to pass custom kernels to CUDA.
 
 ### High-level for NumPy with JIT
 
-[Numba](https://github.com/numba/numba) is a NumPy optimizing using the [just-in-time (JIT)](https://en.wikipedia.org/wiki/Just-in-time_compilation) compiler [LLVM](https://github.com/llvm/llvm-project/).
+[Numba](https://github.com/numba/numba) is a NumPy optimizing library using the [just-in-time (JIT)](https://en.wikipedia.org/wiki/Just-in-time_compilation) compiler [LLVM](https://github.com/llvm/llvm-project/).
 
-The [numba-cuda](https://github.com/NVIDIA/numba-cuda) by NVIDIA allows to run Numba on GPUs using CUDA.
+The [numba-cuda](https://github.com/NVIDIA/numba-cuda) package by NVIDIA uses the low-level `cupy-python` bindings from CUDA Python under the hood and allows to run Numba on GPUs.
 
 ### High-level for DataFrames
 
-RAPIDS cuDF
+[RAPIDS cuDF](https://github.com/rapidsai/cudf) is a library allowing to run Python DataFrames operations on GPUs. It can be used in 3 ways:
+
+|               | cuDF                       | cuDF pandas module                                        | Polars with GPU engine                       |
+|---------------|-------------------------------------|-----------------------------------------------------|-------------------------------------------|
+| API           | Similar to pandas<br>Some differences | Exactly the same as pandas                          | Exactly the same as Polars lazy API       |
+| Performance   | **Very good** <br>Operations fully run on GPU           | **Good** <br>Automatic fallbacks to CPU for unsupported operations can lead to costly transfers between CPU and GPU  | **The best** <br>Lazy execution <br>Operations  fully run on GPU |
+
+: {tbl-colwidths="[10, 30, 30, 30]"}
 
 ### High-level for ML
 
-RAPIDS cuML
+[RAPIDS cuML](https://github.com/rapidsai/cuml) is a suite of libraries with an API similar to [scikit-learn](https://github.com/scikit-learn/scikit-learn)'s that allow to run tabular machine learning tasks on GPUs.
 
 ### High-level for DL
 
-JAX, PyTorch, TensorFlow
-
+Many deep learning frameworks come with CUDA integration. This allows to run code on GPU with no (e.g. JAX) or little (e.g. PyTorch, TensorFlow) effort.
