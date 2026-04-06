@@ -49,14 +49,15 @@ for i in range(0, n - 1):
 
 end = time()
 
-print(f"Primes sum array: {A}")
 print(f"Execution in {round(end - start, 6)} s")
+print(f"\nPrimes sum array: {A}")
 ```
 
 On GPU, using CuPy and a custom raw kernel:
 
 ```{.python}
 import cupy as cp
+from cupyx.profiler import benchmark
 
 # Define the CUDA kernel — each GPU thread handles one number
 primeFactorizationSum_kernel = cp.RawKernel(
@@ -90,7 +91,7 @@ void primeFactorizationSum(long long* A, int n) {
 )
 
 n = 1_000_000
-B = cp.empty(n - 1, dtype=cp.int64)
+A = cp.empty(n - 1, dtype=cp.int64)
 
 # Set the number of threads per block
 threads = 256
@@ -98,29 +99,12 @@ threads = 256
 # Set the number of blocks per grid
 blocks = (n - 1 + threads - 1) // threads
 
-print(f"Primes sum array: {B}")
-```
-
-:::{.note}
-
-Choosing 256 threads per block in GPU programming (specifically CUDA) is a widely adopted practice because it offers an optimal balance between latency hiding, high SM (Streaming Multiprocessor) occupancy, and efficient resource utilization. It provides enough threads to keep cores busy during long memory waits without exceeding register or shared memory limits.
-
-A 256-thread block comprises 8 warps (a warp is 32 threads in NVIDIA GPUs), which is generally sufficient to hide memory latency. When some threads stall on memory access, the GPU switches to other ready warps.
-
-:::
-
-Now let's benchmark the code and print the result:
-
-```{.python}
-from cupyx.profiler import benchmark
-
 print(
 	benchmark(
-        primeFactorizationSum_kernel, ((blocks,), (threads,), (B, n - 1)), n_repeat=20
+        primeFactorizationSum_kernel, ((blocks,), (threads,), (A, n - 1)), n_repeat=20
 	)
 )
-
-print(f"Primes sum array: {A}")
+print(f"\nPrimes sum array: {A}")
 ```
 
 ```
@@ -132,3 +116,11 @@ Primes sum array: [  2   3   4 ... 287  77  42]
 ```
 
 This gives a total time of 578 µs.
+
+:::{.note}
+
+Choosing 256 threads per block in GPU programming (specifically CUDA) is a widely adopted practice because it offers an optimal balance between latency hiding, high SM (Streaming Multiprocessor) occupancy, and efficient resource utilization. It provides enough threads to keep cores busy during long memory waits without exceeding register or shared memory limits.
+
+A 256-thread block comprises 8 warps (a warp is 32 threads in NVIDIA GPUs), which is generally sufficient to hide memory latency. When some threads stall on memory access, the GPU switches to other ready warps.
+
+:::
