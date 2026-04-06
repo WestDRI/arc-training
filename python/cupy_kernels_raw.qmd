@@ -1,0 +1,134 @@
+---
+title: Raw kernels
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+
+
+:::
+
+Alex Razoumov teaches [Numba](https://github.com/numba/numba) and [Numba-CUDA](https://github.com/NVIDIA/numba-cuda)
+
+On CPU with NumPy:
+
+```{python}
+import numpy as np
+from time import time
+
+def primeFactorizationSum(n):
+	num = n
+	total = 0
+	if num % 2 == 0:
+		count = 0
+		while num % 2 == 0:
+			num //= 2
+			count += 1
+		total += count * 2
+	i = 3
+	while i * i <= num:
+		if num % i == 0:
+			count = 0
+			while num % i == 0:
+				num //= i
+				count += 1
+			total += count * i
+		i += 2
+	if num > 1:
+		total += num
+	return total
+
+n = 1_000_000
+A = np.empty(n - 1, dtype=np.int64)
+
+start = time()
+
+for i in range(0, n - 1):
+	A[i] = primeFactorizationSum(i + 2)
+
+end = time()
+
+print(f"Primes sum array: {A}")
+print(f"Execution in {round(end - start, 6)} s")
+```
+
+On GPU, using CuPy and a custom raw kernel:
+
+```{.python}
+import cupy as cp
+
+# Define the CUDA kernel — each GPU thread handles one number
+primeFactorizationSum_kernel = cp.RawKernel(
+	r"""
+extern "C" __global__
+void primeFactorizationSum(long long* A, int n) {
+	int idx = blockDim.x * blockIdx.x + threadIdx.x;
+	if (idx >= n) return;
+
+	long long num = idx + 2;  // numbers 2..n
+	long long total = 0;
+
+	if (num % 2 == 0) {
+		int count = 0;
+		while (num % 2 == 0) { num /= 2; count++; }
+		total += count * 2;
+	}
+	for (long long i = 3; i * i <= num; i += 2) {
+		if (num % i == 0) {
+			int count = 0;
+			while (num % i == 0) { num /= i; count++; }
+			total += count * i;
+		}
+	}
+	if (num > 1) total += num;
+
+	A[idx] = total;
+}
+""",
+	"primeFactorizationSum",
+)
+
+n = 1_000_000
+B = cp.empty(n - 1, dtype=cp.int64)
+
+# Set the number of threads per block
+threads = 256
+
+# Set the number of blocks per grid
+blocks = (n - 1 + threads - 1) // threads
+
+print(f"Primes sum array: {B}")
+```
+
+:::{.note}
+
+Choosing 256 threads per block in GPU programming (specifically CUDA) is a widely adopted practice because it offers an optimal balance between latency hiding, high SM (Streaming Multiprocessor) occupancy, and efficient resource utilization. It provides enough threads to keep cores busy during long memory waits without exceeding register or shared memory limits.
+
+A 256-thread block comprises 8 warps (a warp is 32 threads in NVIDIA GPUs), which is generally sufficient to hide memory latency. When some threads stall on memory access, the GPU switches to other ready warps.
+
+:::
+
+Now let's benchmark the code and print the result:
+
+```{.python}
+from cupyx.profiler import benchmark
+
+print(
+	benchmark(
+        primeFactorizationSum_kernel, ((blocks,), (threads,), (B, n - 1)), n_repeat=20
+	)
+)
+
+print(f"Primes sum array: {A}")
+```
+
+```
+primeFactorizationSum:
+CPU:     4.499 us +/- 1.507 (min:   3.600 / max:  10.660) us
+GPU-0: 573.955 us +/- 1.951 (min: 571.520 / max: 580.832) us
+
+Primes sum array: [  2   3   4 ... 287  77  42]
+```
+
+This gives a total time of 578 µs.
