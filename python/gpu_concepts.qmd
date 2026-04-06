@@ -1,6 +1,7 @@
 ---
 title: GPU programming concepts
 author: Marie-Hélène Burle
+reference-location: margin
 ---
 
 :::{.def}
@@ -19,35 +20,28 @@ Collections of *thread blocks* (each *thread block* is itself a collection of *t
 **GPC**: *Graphics Processing Clusters* \
 Collections of SMs.
 
-**[DRAM (dynamic random access memory or dynamic RAM)](https://en.wikipedia.org/wiki/Dynamic_random-access_memory) of a GPU**: *Global memory*
-
-:::{.note}
-
-It is called *global memory* because it is accessible to all SMs in that GPU, but it is only "global" to that GPU.
-
-:::
+**DRAM**: [*Dynamic random access memory or dynamic RAM*](https://en.wikipedia.org/wiki/Dynamic_random-access_memory) \
+The DRAM of a GPU is called *the global memory* because it is accessible to all SMs in that GPU. \
+But it is only "global" to that GPU.
 
 ### Caches
 
-Caches on chips are hierarchical:
+Caches on chips are hierarchical.
 
-- **L1 caches** are the fastest. \
-In CPUs, they are located inside each CPU core (so there are as many L1 caches as there are CPU cores). \
-In GPUs, they are shared among all threads of an SM (so there are as many L1 caches as there are SMs).
+| Cache | Speed           | In CPUs                    | In GPUs                          |
+|-------|-----------------|----------------------------|----------------------------------|
+| L1    | Fastest         | One inside each CPU core   | One per SM                       |
+| L2    | A little slower | One near each CPU core[^1] | A single L2 shared among all SMs |
+| L3    | Even slower[^2] | One shared among all cores | GPUs do not have an L3 cache     |
 
-- **L2 caches** are a little slower. \
-In CPUs, they are located near each core and serve as a buffer between L1 and L2 (so there are as many L2 caches as there are CPU cores). \
-In GPUs, all SMs share the same L2 (so there is a single L2, shared  among all threads on that GPU).
+[^1]: They serve as a buffer between L1s and the L3.
+[^2]: But still much faster than the DRAM.
 
-- The **L3 cache** is even slower (but still much faster than the DRAM). \
-In CPUs, it is shared among all cores (so there is a single L3 per CPU). \
-GPUs do not have an L3 cache.
-
-## Host/device
+## Programming model
 
 The [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html) is a great place to learn the principles of CUDA programming. Alternative kernel-based frameworks (e.g. HIP, OpenCL), have a similar functioning.
 
-### Terminology
+### Host/device
 
 | Terminology                  | Explanation              |
 |------------------------------|--------------------------|
@@ -58,7 +52,7 @@ The [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide
 | Device code                  | Code running on GPU      |
 | Kernel                       | Function executed on GPU |
 
-### Programming model
+### Execution
 
 CUDA follows a heterogeneous programming model in which it manages both CPU and GPU memory.
 
@@ -68,6 +62,44 @@ Here is how execution happens:
 - CUDA APIs copy data from the host memory to the current device memory.
 - Kernels (GPU functions) are executed in parallel on the device: many GPU threads run computations in an [SIMT (Single Instruction, Multiple Threads)](https://en.wikipedia.org/wiki/Single_instruction,_multiple_threads) fashion.
 - Finally, CUDA APIs copy the data back to the host memory.
+
+### Threads/blocks/grids
+
+:::{layout="[40, 60]"}
+
+:::{.col1}
+
+Applications launch kernels on vast numbers of threads. These threads are organized into *thread blocks* which are optionally organized into *clusters* which are themselves organized into a *grid*.
+
+:::
+
+:::{.col2}
+
+![from the [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html)](img/gpu_grid.png)
+
+:::
+
+:::
+
+### Scheduling
+
+:::{layout="[40, 60]"}
+
+:::{.col1}
+
+All threads of a thread block are executed in the same SM and can thus communicate using that SM L1 cache.
+
+<br>All thread blocks in a cluster are executed in the same GPC and can communicate and synchronize with each other using CUDA software interfaces.
+
+:::
+
+:::{.col2}
+
+![from the [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html)](img/gpu_scheduling.png)
+
+:::
+
+:::
 
 ### Multiple GPUs
 
