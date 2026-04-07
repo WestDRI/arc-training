@@ -1,0 +1,290 @@
+---
+title: CuPy basics
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+The CuPy API comes with [many routines and functions](https://docs.cupy.dev/en/stable/reference/index.html) which allow to turn NumPy and SciPy code into CuPy (which runs on the GPU) extremely easily.
+
+:::
+
+## Our workflow
+
+Because GPUs are in high demand, for this course, we will learn how to use them optimally without letting them sit idle.
+
+The key is to write scripts and submit jobs to Slurm instead of using an interactive session such as Jupyter.
+
+### Writing scripts
+
+Use `nano` or the text editor of your choice to write both the Python scripts that will contain the code to run and the bash scripts that we will submit to Slurm to request resources.
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+nano my_script.py
+```
+
+## CuPy arrays
+
+CuPy implements a subset of the NumPy API.
+
+:::{.note}
+
+You can see the list of implemented functions and routines in the [CuPy API reference](https://docs.cupy.dev/en/stable/reference/index.html).
+
+:::
+
+This means that you can turn most NumPy code into CuPy simply by importing CuPy and replacing `numpy` by `cupy`.
+
+:::{.note}
+
+Of course, this means that you need to be familiar with NumPy. The [NumPy documentation](https://numpy.org/doc/stable/) and [API reference](https://numpy.org/doc/stable/reference/index.html) are great resources.
+
+:::
+
+### Array creation
+
+Simply use the CuPy equivalent of the classic NumPy function of your choice:
+
+```{.python}
+import cupy as cp
+
+A = cp.linspace(1.0, 10.0, 100)
+```
+
+This will create the array [on the current device](gpu_concepts.qmd#hostdevice) (GPU 0 by default).
+
+### Data type
+
+You can set the data type as you would in NumPy (but using the CuPy equivalent):
+
+```{.python}
+B = cp.arange(100, dtype=cp.float32)
+```
+
+:::{.note}
+
+Like NumPy, CuPy defaults to `float64` and `int64`.
+
+:::
+
+### Array operations
+
+Simply use the CuPy equivalent of the NumPy function you want to use:
+
+```{.python}
+cp.cos(cp.array([1.0, 2.0, 3.0])
+```
+
+The operation will be done on the currently active device (GPU 0 by default).
+
+Let's try it.
+
+### Our first job
+
+Create a Python script called `test.py`:
+
+```{.bash}
+nano test.py  # Use the text editor of your choice
+```
+
+In it, let's write the following:
+
+```{.python filename="test.py"}
+import cupy as cp
+
+A = cp.linspace(1.0, 10.0, 100)
+print("Our first CuPy array A:\n"A)
+print("A has a data type of "A.dtype)
+
+B = cp.arange(100, dtype=cp.float32)
+print(B)
+print(B.dtype)
+
+C = cp.cos(A)
+print(C)
+```
+
+Now, let's write a bash script for Slurm (let's call it `test.sh`) with:
+
+```{.bash filename="test.sh"}
+#!/bin/bash
+#SBATCH --time=5               # min
+#SBATCH --mem=3600             # MB
+#SBATCH --gpus=2g.10gb:1       # 1 MIG
+```
+
+:::{.notenoit}
+
+The training cluster we are using today has access to [MIG](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU) instances with a profile name of `2g.10gb`.
+
+[Remember that you can get this information with:](gpu_clusters.qmd#available-gpu-models)
+
+```{.bash}
+sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq
+```
+
+:::
+
+Now we can launch our job with:
+
+```{.bash}
+sbatch test.sh
+```
+
+## Multiple GPUs
+
+### Devices
+
+If you have a single GPU, the current device will always be GPU 0.
+
+If you have multiple GPUs however, GPU 0 is the default current device, but you can use other GPUs by setting them as the current device.
+
+To create an array on the GPU 4 (assuming you have at least 5 GPUs), you would run:
+
+```{.python}
+with cp.cuda.Device(4):
+   A = cp.zeros(10)
+```
+
+Of course, any code that is not in the body of the `with` statement has GPU 0 as the current device:
+
+```{.python}
+with cp.cuda.Device(4):
+   A = cp.identity(3)    # A is on device 4
+B = cp.eye(2)            # B is on device 0
+```
+
+You can see which device an array is on by printing the `device` attribute:
+
+```{.python}
+print(A.device)
+print(B.device)
+```
+
+You don't want to perform operations on arrays that are not on the current device. This would either lead to errors or be inefficient depending on your hardware.
+
+So this would not be good:
+
+```{.python}
+cp.linalg.norm(A)
+```
+
+Instead, you should run:
+
+```{.python}
+with cp.cuda.Device(4):
+	cp.linalg.norm(A)
+```
+
+### Data transfer
+
+NumPy arrays can be moved to a device and CuPy arrays can be moved between devices with `cupy.asarray`:
+
+```{.python}
+import numpy as np
+
+A_cpu = np.array([1.5, 2.9])
+A_gpu_0 = cp.asarray(A)
+with cp.cuda.Device(1):
+	A_gpu_1 = cp.asarray(A_gpu_0)
+```
+
+To move an array from a device to the host (CPU), you can use either of:
+
+```{.python}
+A_cpu = cp.asnumpy(A_gpu_1)
+```
+
+or:
+
+```{.python}
+A_cpu = A_gpu_1.get()
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Write a Bash script that will ask 2 MIG from Slurm and 
+
+:::
+
+## Streams
+
+CuPy send operations to [the queue of the *current stream*](gpu_concepts.qmd#streams), which, by default, is CUDA's Null Stream or Stream 0.
+
+### Asynchronous execution
+
+Assuming your GPU(s) have enough resources to run multiple CUDA streams, you can significantly speed up your program with asynchronous execution:
+
+CPU execution is independent of GPU execution. When CuPy puts an operation into a stream, the CPU moves on to the next line of Python code immediately, without waiting for the GPU to finish. By utilizing multiple streams, you can overlap computation and data transfers (e.g., copying data from CPU to GPU in Stream A while doing math on the GPU in Stream B).
+
+Here is the CuPy syntax to navigate streams:
+
+```{.python}
+# Create two streams
+stream_A = cp.cuda.Stream()
+stream_B = cp.cuda.Stream()
+
+# The current stream here is the Default Stream
+
+with stream_A:
+	# INSIDE THIS BLOCK: The "current stream" is stream_A
+	x = cp.ones((1000, 1000))
+	y = x * 2
+
+with stream_B:
+	# INSIDE THIS BLOCK: The "current stream" is stream_B
+	# These operations can run concurrently with the ones in stream_A
+	a = cp.zeros((1000, 1000))
+	b = a + 5
+
+# OUTSIDE THE BLOCKS: The current stream goes back to the Default Stream
+```
+
+### Synchronization
+
+Because the CPU moves on immediately, sometimes you need the CPU to stop and wait for the GPU to finish its work before printing a result or saving a file. You do this by synchronizing the current stream:
+
+```{.python}
+with stream_A:
+	x = cp.dot([[1, 0], [0, 1]], [[4, 1], [2, 2]])
+	y = x ** 2
+	# Force the CPU to wait until all operations in stream_A are done
+	stream_A.synchronize()
+
+print(y) # Now it is safe to print
+```
+
+## Benchmarking
+
+The standard practice to benchmark Python code is with the [`timeit` module](https://docs.python.org/3/library/timeit.html). This is what we will use to get reference execution times while only using CPUs.
+
+As we saw above however, GPU and CPU executions run asynchronously and classic benchmarking tools have no knowledge of the GPU runtime.
+
+In addition, it is best to benchmark code after a few warm-up runs to get the actual code performance, unimpeded by initialization overhead such as driver initialization, just-in-time compilations, cache loading, hardware waking up from low-power states, etc.
+
+To benchmark CuPy code, the best method is to use the `cupyx.profiler.benchmark` utility which measures the execution time of both CPUs and GPUs. By default, it performs 10 warm-up runs that are excluded from the timing and 10,000 repeats and it returns the mean, standard deviation, minimum, and maximum timings on CPU and GPU:
+
+```{.python}
+from cupyx.profiler import benchmark
+
+def mse_fn(y_true, y_pred):
+	mse_out = np.mean((y_true - y_pred)**2)
+	return mse_out
+
+y_true = np.array([1.0, 2.5, 3.5, 3.0], dtype=np.float32)
+y_pred = np.array([1.5, 2.0, 3.5, 4.0], dtype=np.float32)
+
+print(benchmark(mse_fn, (y_true, y_pred), n_warmup=5, n_repeat=100))
+```
