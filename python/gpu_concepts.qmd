@@ -63,13 +63,15 @@ Here is how execution happens:
 - Kernels (GPU functions) are executed in parallel on the device: many GPU threads run computations in an [SIMT (Single Instruction, Multiple Threads)](https://en.wikipedia.org/wiki/Single_instruction,_multiple_threads) fashion.
 - Finally, CUDA APIs copy the data back to the host memory.
 
-### Threads/blocks/grids
+### Threads/warps/blocks/grids
+
+Applications launch kernels on vast numbers of threads.
 
 :::{layout="[40, 60]"}
 
 :::{.col1}
 
-Applications launch kernels on vast numbers of threads. These threads are organized into *thread blocks* which are optionally organized into *clusters* which are themselves organized into a *grid*.
+These threads are organized into groups of 32 called *warps* which are themselves organized into *thread blocks* which are optionally organized into *clusters* which are themselves organized into a *grid*.
 
 :::
 
@@ -78,6 +80,18 @@ Applications launch kernels on vast numbers of threads. These threads are organi
 ![from the [CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html)](img/gpu_grid.png)
 
 :::
+
+:::
+
+Warps execute code following a *Single-Instruction Multiple-Threads (SIMT)* paradigm.
+
+Because there are 32 threads per warp, it is best to specify thread blocks with a number of threads which is a multiple of 32. Otherwise the last warp of the thread block will have some lanes that are unused, leading to suboptimal GPU utilization.
+
+:::{.note}
+
+This is why batch sizes in deep learning are often multiples of 32.
+
+This is also why choosing 256 threads per block is so common in GPU programming (256 is a multiple of 32).
 
 :::
 
@@ -106,3 +120,17 @@ All threads of a thread block are executed in the same SM and can thus communica
 When you have multiple GPUs on a computer or compute node, the NVIDIA driver queries the motherboard and orders the GPUs based on their [PCIe](https://en.wikipedia.org/wiki/PCI_Express) Bus ID (their physical slot on the motherboard). The GPU in the lowest PCIe slot becomes physical GPU 0, the next becomes 1, and so on.
 
 By default, the current device is GPU 0, but you can set the current device to another GPU programmatically.
+
+### Streams
+
+In CUDA, a stream is a queue of operations to perform on the GPU.
+
+Operations placed in the same stream execute sequentially, in the order in which they were added to the queue.
+
+:::{.note}
+
+Note that this does not mean that the code isn't running in parallel! Each operation within the queue runs on a vast number of threads.
+
+:::
+
+If you launch operations on multiple streams, they can be executed concurrently.
