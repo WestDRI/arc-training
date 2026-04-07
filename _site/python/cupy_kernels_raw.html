@@ -8,7 +8,7 @@
 
 <meta name="author" content="Marie-Hélène Burle">
 
-<title>Custom kernels – Research Computing</title>
+<title>Raw kernels – Research Computing</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -188,23 +188,15 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active">
-    <h2 id="toc-title"><em>On this page:</em></h2>
-   
-  <ul>
-  <li><a href="#general-concepts" id="toc-general-concepts" class="nav-link active" data-scroll-target="#general-concepts">General concepts</a></li>
-  <li><a href="#elementwise-kernels" id="toc-elementwise-kernels" class="nav-link" data-scroll-target="#elementwise-kernels">Elementwise kernels</a></li>
-  <li><a href="#reduction-kernels" id="toc-reduction-kernels" class="nav-link" data-scroll-target="#reduction-kernels">Reduction kernels</a></li>
-  </ul>
-</nav>
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
+        
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Custom kernels</h1>
+<h1 class="title">Raw kernels</h1>
 </div>
 
 
@@ -228,95 +220,70 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 
 
 <div class="def">
-<p>Remember that “kernel” is the term used for functions running on the GPU. In the same way that you need to define your own functions when you use a programming language, you need to write your own kernels.</p>
-<p>In this section, we cover how you can do this.</p>
-</div>
-<section id="general-concepts" class="level2">
-<h2 class="anchored" data-anchor-id="general-concepts">General concepts</h2>
-<div class="info">
-<p>Inputs and output format: type + name.</p>
-</div>
-<div class="example">
-<p>Examples:</p>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>float32 a   <span class="co"># NumPy data types can be used</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>T x         <span class="co"># T = generic type</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="elementwise-kernels" class="level2">
-<h2 class="anchored" data-anchor-id="elementwise-kernels">Elementwise kernels</h2>
-<pre><code>&lt;kernel name&gt; = cp.ElementwiseKernel(
-    '&lt;list of inputs&gt;',
-    '&lt;list of outputs&gt;',
-    '&lt;operation to perform&gt;',
-    '&lt;kernel name&gt;'
-)</code></pre>
-<div class="example">
-<p>Example:</p>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>squared_diff <span class="op">=</span> cp.ElementwiseKernel(</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>   <span class="st">'float32 x, float32 y'</span>,</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>   <span class="st">'float32 z'</span>,</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>   <span class="st">'z = (x - y) * (x - y)'</span>,</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>   <span class="st">'squared_diff'</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="reduction-kernels" class="level2">
-<h2 class="anchored" data-anchor-id="reduction-kernels">Reduction kernels</h2>
-<p>Let’s create a kernel that calculates the mean square error.</p>
-<p>This is how you would do this in NumPy:</p>
-<div id="32e4bc02" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Function to calculate MSE</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mse_fn(y_tree, y_pred):</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    mse_out <span class="op">=</span> np.mean((y_true <span class="op">-</span> y_pred)<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mse_out</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Dummy data</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>y_pred <span class="op">=</span> np.array([<span class="fl">1.5</span>, <span class="fl">2.0</span>, <span class="fl">3.5</span>, <span class="fl">4.0</span>], dtype<span class="op">=</span>np.float32)</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>y_true <span class="op">=</span> np.array([<span class="fl">1.0</span>, <span class="fl">2.5</span>, <span class="fl">3.5</span>, <span class="fl">3.0</span>], dtype<span class="op">=</span>np.float32)</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate MSE</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>mse <span class="op">=</span> mse_fn(y_pred, y_true)</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Predictions: </span><span class="sc">{</span>y_pred<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Targets:     </span><span class="sc">{</span>y_true<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MSE:         </span><span class="sc">{</span>mse<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-error">
-<div class="ansi-escaped-output">
-<pre><span class="ansi-bright-red-fg">---------------------------------------------------------------------------</span>
-<span class="ansi-bright-red-fg">NameError</span>                                 Traceback (most recent call last)
-<span class="ansi-bright-cyan-fg">Cell</span><span class="ansi-bright-cyan-fg"> </span><span class="ansi-green-fg">In[1]</span><span class="ansi-green-fg">, line 7</span>
-<span class="ansi-bright-green-fg">      4</span> <span class="ansi-bright-white-fg">    </span><span style="color:rgb(95,215,255)">return</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">mse_out</span>
-<span class="ansi-bright-green-fg">      6</span> <span style="color:rgb(138,138,138)"># Dummy data</span>
-<span class="ansi-bright-green-fg">----&gt; </span><span class="ansi-bright-green-fg">7</span> <span class="ansi-bright-white-fg">y_pred</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(255,95,135)">=</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg ansi-yellow-bg">np</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">array</span><span class="ansi-bright-white-fg">(</span><span class="ansi-bright-white-fg">[</span><span style="color:rgb(175,135,255)">1.5</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(175,135,255)">2.0</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(175,135,255)">3.5</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(175,135,255)">4.0</span><span class="ansi-bright-white-fg">]</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">dtype</span><span style="color:rgb(255,95,135)">=</span><span class="ansi-bright-white-fg">np</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">float32</span><span class="ansi-bright-white-fg">)</span>
-<span class="ansi-bright-green-fg">      8</span> <span class="ansi-bright-white-fg">y_true</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(255,95,135)">=</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">np</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">array</span><span class="ansi-bright-white-fg">(</span><span class="ansi-bright-white-fg">[</span><span style="color:rgb(175,135,255)">1.0</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(175,135,255)">2.5</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(175,135,255)">3.5</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span style="color:rgb(175,135,255)">3.0</span><span class="ansi-bright-white-fg">]</span><span class="ansi-bright-white-fg">,</span><span class="ansi-bright-white-fg"> </span><span class="ansi-bright-white-fg">dtype</span><span style="color:rgb(255,95,135)">=</span><span class="ansi-bright-white-fg">np</span><span style="color:rgb(255,95,135)">.</span><span class="ansi-bright-white-fg">float32</span><span class="ansi-bright-white-fg">)</span>
-<span class="ansi-bright-green-fg">     10</span> <span style="color:rgb(138,138,138)"># Calculate MSE</span>
 
-<span class="ansi-bright-red-fg">NameError</span>: name 'np' is not defined</pre>
 </div>
+<p>On GPU, using CuPy and a custom raw kernel:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> cupy <span class="im">as</span> cp</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> cupyx.profiler <span class="im">import</span> benchmark</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Define the CUDA kernel — each GPU thread handles one number</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>primeFactorizationSum_kernel <span class="op">=</span> cp.RawKernel(</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="vs">r"""</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="vs">extern "C" __global__</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="vs">void primeFactorizationSum</span><span class="kw">(</span><span class="vs">long long</span><span class="op">*</span><span class="vs"> A, int n</span><span class="kw">)</span><span class="vs"> {</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="vs">    int idx = blockDim</span><span class="dv">.</span><span class="vs">x </span><span class="op">*</span><span class="vs"> blockIdx</span><span class="dv">.</span><span class="vs">x </span><span class="op">+</span><span class="vs"> threadIdx</span><span class="dv">.</span><span class="vs">x;</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="vs">    if </span><span class="kw">(</span><span class="vs">idx &gt;= n</span><span class="kw">)</span><span class="vs"> return;</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="vs">    long long num = idx </span><span class="op">+</span><span class="vs"> 2;  // numbers 2</span><span class="dv">..</span><span class="vs">n</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="vs">    long long total = 0;</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="vs">    if </span><span class="kw">(</span><span class="vs">num % 2 == 0</span><span class="kw">)</span><span class="vs"> {</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="vs">        int count = 0;</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="vs">        while </span><span class="kw">(</span><span class="vs">num % 2 == 0</span><span class="kw">)</span><span class="vs"> { num /= 2; count</span><span class="op">++</span><span class="vs">; }</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="vs">        total </span><span class="op">+</span><span class="vs">= count </span><span class="op">*</span><span class="vs"> 2;</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="vs">    }</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="vs">    for </span><span class="kw">(</span><span class="vs">long long i = 3; i </span><span class="op">*</span><span class="vs"> i &lt;= num; i </span><span class="op">+</span><span class="vs">= 2</span><span class="kw">)</span><span class="vs"> {</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="vs">        if </span><span class="kw">(</span><span class="vs">num % i == 0</span><span class="kw">)</span><span class="vs"> {</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="vs">            int count = 0;</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="vs">            while </span><span class="kw">(</span><span class="vs">num % i == 0</span><span class="kw">)</span><span class="vs"> { num /= i; count</span><span class="op">++</span><span class="vs">; }</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="vs">            total </span><span class="op">+</span><span class="vs">= count </span><span class="op">*</span><span class="vs"> i;</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="vs">        }</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="vs">    }</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="vs">    if </span><span class="kw">(</span><span class="vs">num &gt; 1</span><span class="kw">)</span><span class="vs"> total </span><span class="op">+</span><span class="vs">= num;</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="vs">    A</span><span class="pp">[idx]</span><span class="vs"> = total;</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="vs">}</span></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="vs">"""</span>,</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"primeFactorizationSum"</span>,</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>n <span class="op">=</span> <span class="dv">1_000_000</span></span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>A <span class="op">=</span> cp.empty(n <span class="op">-</span> <span class="dv">1</span>, dtype<span class="op">=</span>cp.int64)</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a><span class="co"># Set the number of threads per block</span></span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>threads <span class="op">=</span> <span class="dv">256</span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Set the number of blocks per grid</span></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>blocks <span class="op">=</span> (n <span class="op">-</span> <span class="dv">1</span> <span class="op">+</span> threads <span class="op">-</span> <span class="dv">1</span>) <span class="op">//</span> threads</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    benchmark(</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>        primeFactorizationSum_kernel, ((blocks,), (threads,), (A, n <span class="op">-</span> <span class="dv">1</span>)), n_repeat<span class="op">=</span><span class="dv">20</span></span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Primes sum array: </span><span class="sc">{</span>A<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>primeFactorizationSum:
+CPU:     4.499 us +/- 1.507 (min:   3.600 / max:  10.660) us
+GPU-0: 573.955 us +/- 1.951 (min: 571.520 / max: 580.832) us
+
+Primes sum array: [  2   3   4 ... 287  77  42]</code></pre>
+<p>This gives a total time of 578 µs.</p>
+<div class="note">
+<p>Choosing 256 threads per block in GPU programming (specifically CUDA) is a widely adopted practice because it offers an optimal balance between latency hiding, high SM (Streaming Multiprocessor) occupancy, and efficient resource utilization. It provides enough threads to keep cores busy during long memory waits without exceeding register or shared memory limits.</p>
+<p>A 256-thread block comprises 8 warps (a warp is 32 threads in NVIDIA GPUs), which is generally sufficient to hide memory latency. When some threads stall on memory access, the GPU switches to other ready warps.</p>
 </div>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>mse_kernel <span class="op">=</span> cp.ReductionKernel(</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">'T y_pred, T y_true'</span>,</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">'T mse_out'</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">'(y_pred - y_true) * (y_pred - y_true)'</span>,</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">'a + b'</span>,</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">'mse_out = a / _in_ind.size()'</span>,</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">'0'</span>,</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">'mse_kernel'</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Dummy data</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>y_pred <span class="op">=</span> cp.array([<span class="fl">1.5</span>, <span class="fl">2.0</span>, <span class="fl">3.5</span>, <span class="fl">4.0</span>], dtype<span class="op">=</span>cp.float32)</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>y_true <span class="op">=</span> cp.array([<span class="fl">1.0</span>, <span class="fl">2.5</span>, <span class="fl">3.5</span>, <span class="fl">3.0</span>], dtype<span class="op">=</span>cp.float32)</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate MSE</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>mse <span class="op">=</span> mse_kernel(y_pred, y_true)</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Predictions: </span><span class="sc">{</span>y_pred<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Targets:     </span><span class="sc">{</span>y_true<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MSE:         </span><span class="sc">{</span>mse<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
-</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
