@@ -9,25 +9,45 @@ The CuPy API comes with [many routines and functions](https://docs.cupy.dev/en/s
 
 :::
 
-## Our workflow
+## JupyterHub
 
-Because GPUs are in high demand, for this course, we will learn how to use them optimally without letting them sit idle.
+We will use JupyterHub for this section: it will make it easier to get instant feedback from short commands as we are getting familiar with CuPy syntax.
 
-The key is to write scripts and submit jobs to Slurm instead of using an interactive session such as Jupyter.
+Change the following server option (leave the rest as is):
 
-### Writing scripts
+**- GPU configuration: 1 x 2G.10GB**
 
-Use `nano` or the text editor of your choice to write both the Python scripts that will contain the code to run and the bash scripts that we will submit to Slurm to request resources.
+Then press [Start]{.codelike}.
 
-:::{.example}
+## CuPy environment
 
-Example:
+If you want to get information about your CuPy environment, first load the CuPy package:
 
-:::
+```{.python}
+import cupy as cp
+```
+
+Then run:
+
+```{.python}
+cp.show_config()
+```
+
+Or, for a more detailed version:
+
+```{.python}
+cp.show_config(_full=True)
+```
+
+:::{.notenoit}
+
+If you want to run this from the command line, you can do so with:
 
 ```{.bash}
-nano my_script.py
+python -c "import cupy; cupy.show_config()"
 ```
+
+:::
 
 ## CuPy arrays
 
@@ -52,172 +72,76 @@ Of course, this means that you need to be familiar with NumPy. The [NumPy docume
 Simply use the CuPy equivalent of the classic NumPy function of your choice:
 
 ```{.python}
-import cupy as cp
-
 A = cp.linspace(1.0, 10.0, 100)
+print(A)
+```
+
+```
+[ 1.          1.09090909  1.18181818  1.27272727  1.36363636  1.45454545
+  1.54545455  1.63636364  1.72727273  1.81818182  1.90909091  2.
+  2.09090909  2.18181818  2.27272727  2.36363636  2.45454545  2.54545455
+  2.63636364  2.72727273  2.81818182  2.90909091  3.          3.09090909
+  3.18181818  3.27272727  3.36363636  3.45454545  3.54545455  3.63636364
+  3.72727273  3.81818182  3.90909091  4.          4.09090909  4.18181818
+  4.27272727  4.36363636  4.45454545  4.54545455  4.63636364  4.72727273
+  4.81818182  4.90909091  5.          5.09090909  5.18181818  5.27272727
+  5.36363636  5.45454545  5.54545455  5.63636364  5.72727273  5.81818182
+  5.90909091  6.          6.09090909  6.18181818  6.27272727  6.36363636
+  6.45454545  6.54545455  6.63636364  6.72727273  6.81818182  6.90909091
+  7.          7.09090909  7.18181818  7.27272727  7.36363636  7.45454545
+  7.54545455  7.63636364  7.72727273  7.81818182  7.90909091  8.
+  8.09090909  8.18181818  8.27272727  8.36363636  8.45454545  8.54545455
+  8.63636364  8.72727273  8.81818182  8.90909091  9.          9.09090909
+  9.18181818  9.27272727  9.36363636  9.45454545  9.54545455  9.63636364
+  9.72727273  9.81818182  9.90909091 10.        ]
 ```
 
 This will create the array [on the current device](gpu_concepts.qmd#hostdevice) (GPU 0 by default).
 
 ### Data type
 
+Like NumPy, CuPy defaults to `float64` and `int64`:
+
+```{.python}
+print(f"The data type of A is {A.dtype}.")
+```
+
+```
+The data type of A is float64.
+```
+
 You can set the data type as you would in NumPy (but using the CuPy equivalent):
 
 ```{.python}
 B = cp.arange(100, dtype=cp.float32)
+print(B)
+print(f"\nThe data type of B is {B.dtype}.")
 ```
 
-:::{.note}
+```
+[ 0.  1.  2.  3.  4.  5.  6.  7.  8.  9. 10. 11. 12. 13. 14. 15. 16. 17.
+ 18. 19. 20. 21. 22. 23. 24. 25. 26. 27. 28. 29. 30. 31. 32. 33. 34. 35.
+ 36. 37. 38. 39. 40. 41. 42. 43. 44. 45. 46. 47. 48. 49. 50. 51. 52. 53.
+ 54. 55. 56. 57. 58. 59. 60. 61. 62. 63. 64. 65. 66. 67. 68. 69. 70. 71.
+ 72. 73. 74. 75. 76. 77. 78. 79. 80. 81. 82. 83. 84. 85. 86. 87. 88. 89.
+ 90. 91. 92. 93. 94. 95. 96. 97. 98. 99.]
 
-Like NumPy, CuPy defaults to `float64` and `int64`.
-
-:::
+The data type of B is float32.
+```
 
 ### Array operations
 
 Simply use the CuPy equivalent of the NumPy function you want to use:
 
 ```{.python}
-cp.cos(cp.array([1.0, 2.0, 3.0])
+print(cp.cos(cp.array([1.0, 2.0, 3.0])))
+```
+
+```
+[ 0.54030231 -0.41614684 -0.9899925 ]
 ```
 
 The operation will be done on the currently active device (GPU 0 by default).
-
-Let's try it.
-
-### Our first job
-
-Create a Python script called `test.py`:
-
-```{.bash}
-nano test.py  # Use the text editor of your choice
-```
-
-In it, let's write the following:
-
-```{.python filename="test.py"}
-import cupy as cp
-
-A = cp.linspace(1.0, 10.0, 100)
-print("Our first CuPy array A:\n"A)
-print("A has a data type of "A.dtype)
-
-B = cp.arange(100, dtype=cp.float32)
-print(B)
-print(B.dtype)
-
-C = cp.cos(A)
-print(C)
-```
-
-Now, let's write a bash script for Slurm (let's call it `test.sh`) with:
-
-```{.bash filename="test.sh"}
-#!/bin/bash
-#SBATCH --time=5               # min
-#SBATCH --mem=3600             # MB
-#SBATCH --gpus=2g.10gb:1       # 1 MIG
-```
-
-:::{.notenoit}
-
-The training cluster we are using today has access to [MIG](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU) instances with a profile name of `2g.10gb`.
-
-[Remember that you can get this information with:](gpu_clusters.qmd#available-gpu-models)
-
-```{.bash}
-sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq
-```
-
-:::
-
-Now we can launch our job with:
-
-```{.bash}
-sbatch test.sh
-```
-
-## Multiple GPUs
-
-### Devices
-
-If you have a single GPU, the current device will always be GPU 0.
-
-If you have multiple GPUs however, GPU 0 is the default current device, but you can use other GPUs by setting them as the current device.
-
-To create an array on the GPU 4 (assuming you have at least 5 GPUs), you would run:
-
-```{.python}
-with cp.cuda.Device(4):
-   A = cp.zeros(10)
-```
-
-Of course, any code that is not in the body of the `with` statement has GPU 0 as the current device:
-
-```{.python}
-with cp.cuda.Device(4):
-   A = cp.identity(3)    # A is on device 4
-B = cp.eye(2)            # B is on device 0
-```
-
-You can see which device an array is on by printing the `device` attribute:
-
-```{.python}
-print(A.device)
-print(B.device)
-```
-
-You don't want to perform operations on arrays that are not on the current device. This would either lead to errors or be inefficient depending on your hardware.
-
-So this would not be good:
-
-```{.python}
-cp.linalg.norm(A)
-```
-
-Instead, you should run:
-
-```{.python}
-with cp.cuda.Device(4):
-	cp.linalg.norm(A)
-```
-
-### Data transfer
-
-NumPy arrays can be moved to a device and CuPy arrays can be moved between devices with `cupy.asarray`:
-
-```{.python}
-import numpy as np
-
-A_cpu = np.array([1.5, 2.9])
-A_gpu_0 = cp.asarray(A)
-with cp.cuda.Device(1):
-	A_gpu_1 = cp.asarray(A_gpu_0)
-```
-
-To move an array from a device to the host (CPU), you can use either of:
-
-```{.python}
-A_cpu = cp.asnumpy(A_gpu_1)
-```
-
-or:
-
-```{.python}
-A_cpu = A_gpu_1.get()
-```
-
-:::{.exo}
-
-:::{.yourturn}
-
-Your turn:
-
-:::
-
-Write a Bash script that will ask 2 MIG from Slurm and 
-
-:::
 
 ## Streams
 
@@ -239,17 +163,17 @@ stream_B = cp.cuda.Stream()
 # The current stream here is the Default Stream
 
 with stream_A:
-	# INSIDE THIS BLOCK: The "current stream" is stream_A
+	# Inside this block: the "current stream" is stream_A
 	x = cp.ones((1000, 1000))
 	y = x * 2
 
 with stream_B:
-	# INSIDE THIS BLOCK: The "current stream" is stream_B
+	# Inside this block: the "current stream" is stream_B
 	# These operations can run concurrently with the ones in stream_A
 	a = cp.zeros((1000, 1000))
 	b = a + 5
 
-# OUTSIDE THE BLOCKS: The current stream goes back to the Default Stream
+# Outside the blocks: the current stream goes back to the Default Stream
 ```
 
 ### Synchronization
@@ -258,12 +182,17 @@ Because the CPU moves on immediately, sometimes you need the CPU to stop and wai
 
 ```{.python}
 with stream_A:
-	x = cp.dot([[1, 0], [0, 1]], [[4, 1], [2, 2]])
+	x = cp.dot(cp.array([[1, 0], [0, 1]]), cp.array([[4, 1], [2, 2]]))
 	y = x ** 2
 	# Force the CPU to wait until all operations in stream_A are done
 	stream_A.synchronize()
 
 print(y) # Now it is safe to print
+```
+
+```
+[[16  1]
+ [ 4  4]]
 ```
 
 ## Benchmarking
@@ -280,11 +209,170 @@ To benchmark CuPy code, the best method is to use the `cupyx.profiler.benchmark`
 from cupyx.profiler import benchmark
 
 def mse_fn(y_true, y_pred):
-	mse_out = np.mean((y_true - y_pred)**2)
+	mse_out = cp.mean((y_true - y_pred)**2)
 	return mse_out
 
-y_true = np.array([1.0, 2.5, 3.5, 3.0], dtype=np.float32)
-y_pred = np.array([1.5, 2.0, 3.5, 4.0], dtype=np.float32)
+y_true = cp.array([1.0, 2.5, 3.5, 3.0], dtype=cp.float32)
+y_pred = cp.array([1.5, 2.0, 3.5, 4.0], dtype=cp.float32)
 
 print(benchmark(mse_fn, (y_true, y_pred), n_warmup=5, n_repeat=100))
+```
+
+```
+mse_fn              :    CPU:    90.796 us   +/- 141.655 (min:    72.086 / max:  1498.846) us     GPU-0:    96.123 us   +/- 141.797 (min:    75.776 / max:  1505.280) us
+```
+
+### Benchmarking in Jupyter
+
+When using the [IPython](https://github.com/ipython/ipython) shell or Jupyter notebooks, you can use the magic equivalent to `cupyx.profiler.benchmark`.
+
+First, you need to load the extension:
+
+```{.python}
+%load_ext cupyx.profiler
+```
+
+Then use `%gpu_timeit` for one-liner code and `%%gpu_timeit` to benchmark full code blocks (like any other IPython magic).
+
+You can pass the same options to the magic with `-n` (or `--n-repeat`) for repeats, `-w` (or `--n-warmup`) for number of warm-up runs, and `--max-duration` for the max duration:
+
+```{.python}
+def mse_fn(y_true, y_pred):
+	mse_out = cp.mean((y_true - y_pred)**2)
+	return mse_out
+
+y_true = cp.array([1.0, 2.5, 3.5, 3.0], dtype=cp.float32)
+y_pred = cp.array([1.5, 2.0, 3.5, 4.0], dtype=cp.float32)
+
+%gpu_timeit -w5 -n100 mse_fn(y_true, y_pred)
+```
+
+```
+run                 :    CPU:   107.952 us   +/- 34.662 (min:    96.953 / max:   441.021) us     GPU-0:   113.684 us   +/- 34.778 (min:   102.400 / max:   447.488) us
+```
+
+:::{.note}
+
+Of note, using the magic consistently gave me slightly longer times (by a factor of 1.2).
+
+:::
+
+## Multiple GPUs
+
+### JupyterHub new server options
+
+In this section, we need to have at least 2 GPUs or 2 MIG instances, so we need to change the server options for the JupyterHub session.
+
+Log out by clicking on [File]{.codelike} in the top menu, then selecting [Log out]{.codelike} at the very bottom.
+
+Then log back in and modify the following server option:
+
+**- GPU configuration: 2 x 2G.10GB**
+
+### Devices
+
+If you have a single GPU, the current device will always be GPU 0.
+
+If you have multiple GPUs however, GPU 0 is the default current device, but you can use other GPUs by setting them as the current device.
+
+To create an array on the GPU 1 (assuming you have at least 2 GPUs), you would run:
+
+```{.python}
+with cp.cuda.Device(1):
+   A = cp.zeros(10)
+```
+
+Of course, any code that is not in the body of the `with` statement has GPU 0 as the current device:
+
+```{.python}
+with cp.cuda.Device(1):
+   A = cp.identity(3)    # A is on device 1
+B = cp.eye(2)            # B is on device 0
+```
+
+You can see which device an array is on by printing the `device` attribute:
+
+```{.python}
+print(f'A is on {A.device}')
+print(f'B is on {B.device}')
+```
+
+```
+A is on <CUDA Device 1>
+B is on <CUDA Device 0>
+```
+
+You don't want to perform operations on arrays that are not on the current device. This would either lead to errors or be inefficient depending on your hardware.
+
+So this is not good:
+
+```{.python}
+print(cp.linalg.norm(A))
+```
+
+```
+PerformanceWarning: The device where the array resides (1) is different from the current device (0). Peer access has been activated automatically.
+  ret = cupy.sqrt((x * x).sum())
+
+1.7320508075688772
+```
+
+It runs but gives you a performance warning. In some cases, it won't run at all.
+
+This is what you want to run instead:
+
+```{.python}
+with cp.cuda.Device(1):
+	print(cp.linalg.norm(A))
+```
+
+```
+1.7320508075688772
+```
+
+### Data transfer
+
+NumPy arrays can be moved to a device and CuPy arrays can be moved between devices with `cupy.asarray`:
+
+```{.python}
+import numpy as np
+
+A_cpu = np.array([1.5, 2.9])
+
+A_gpu_0 = cp.asarray(A)
+
+with cp.cuda.Device(1):
+	A_gpu_1 = cp.asarray(A_gpu_0)
+
+print(f'A_cpu is on {A_cpu.device}')
+print(f'A_gpu_0 is on {A_gpu_0.device}')
+print(f'A_gpu_1 is on {A_gpu_1.device}')
+```
+
+```
+A_cpu is on cpu
+A_gpu_0 is on <CUDA Device 0>
+A_gpu_1 is on <CUDA Device 1>
+```
+
+To move an array from a device to the host (CPU), you can use either of:
+
+```{.python}
+A_cpu = cp.asnumpy(A_gpu_1)
+print(A_cpu.device)
+```
+
+```
+cpu
+```
+
+Or:
+
+```{.python}
+A_cpu = A_gpu_1.get()
+print(A_cpu.device)
+```
+
+```
+cpu
 ```
