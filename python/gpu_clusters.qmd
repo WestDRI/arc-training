@@ -25,15 +25,58 @@ You should also visit the wiki page for that cluster for additional information 
 
 [Multi-instance GPU (MIG)](https://www.nvidia.com/en-us/technologies/multi-instance-gpu/) is an [Nvidia](https://en.wikipedia.org/wiki/Nvidia) technology that partitions GPUs into multiple isolated and independent instances (virtual GPUs), each with its dedicated compute and memory resources.
 
-:::{.note}
+:::{.notenoit}
 
 This technology only works for GPGPUs (general-purpose GPUs) and not for graphic rendering.
 
+You can only request a single MIG per job. If you want more computing power, choose a bigger MIG, a full GPU, or have a look at [MPS](https://docs.alliancecan.ca/wiki/Hyper-Q_/_MPS), all of which are a lot more efficient than a multi-MIG setup.
+
 :::
 
-If your jobs cannot fully utilize the modern and high-performing GPUs that are present in the Alliance clusters, using GPU instances allows you to use less of your job priority and have your jobs start sooner.
+If your jobs cannot fully utilize the modern and high-performing GPUs that are present in the Alliance clusters, using a GPU instance allows you to use less of your job priority and have your jobs start sooner.
 
 To use a GPU instance instead of a full GPU, you select the profile name of the instance size that corresponds to the size of your job.
+
+:::{.notenoit}
+
+**Here is an example for the Fir cluster:**
+
+List all GPU and MIG flavours available:
+
+```{.bash}
+sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq
+```
+
+```
+h100
+nvidia_h100_80gb_hbm3_1g.10gb
+nvidia_h100_80gb_hbm3_2g.20gb
+nvidia_h100_80gb_hbm3_3g.40gb
+```
+
+`h100` is a full H100 GPU.
+
+The other flavours are MIGs:
+
+| Name                            | Memory | Compute                                         |
+|---------------------------------|--------|-------------------------------------------------|
+| `nvidia_h100_80gb_hbm3_1g.10gb` | 10 GB  | ≈ 1/8^th^ of a full `nvidia_h100_80gb_hbm3` GPU |
+| `nvidia_h100_80gb_hbm3_2g.20gb` | 20 GB  | ≈ 2/8^th^ of a full `nvidia_h100_80gb_hbm3` GPU |
+| `nvidia_h100_80gb_hbm3_3g.40gb` | 40 GB  | ≈ 3/8^th^ of a full `nvidia_h100_80gb_hbm3` GPU |
+
+You can refer to [NVIDIA MIG names](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/mig-device-names.html) and the [the full NVIDIA MIG user guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/index.html) for more details.
+
+<br>To request 1 instance of `nvidia_h100_80gb_hbm3_2g.20gb` in a Slurm batch job, you would use the Bash script:
+
+```{.bash filename="slurm_script.sh"}
+#!/bin/bash
+#SBATCH --time=xxx
+#SBATCH --mem=xxx
+#SBATCH --gpus=nvidia_h100_80gb_hbm3_2g.20gb:1
+#SBATCH --account=def-xxx
+```
+
+:::
 
 Refer to [the Alliance wiki](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU) for more details on this.
 
@@ -116,17 +159,17 @@ Loading a `cuda` or `nvhpc` module will add a launcher to start the graphical us
 
 For clusters that don't have a monitoring portal yet, you can run [nvidia-smi](https://docs.nvidia.com/deploy/nvidia-smi/) on the compute nodes with GPU(s) to get a snapshot of GPU(s) usage while the job is running by adding the command `nvidia-smi` to your job script.
 
-If you want to log the monitoring to a file, run instead:
+<!-- If you want to log the monitoring to a file, run instead: -->
 
-```{.bash}
-nvidia-smi -l 30 > gpu_log.txt
-```
+<!-- ```{.bash} -->
+<!-- nvidia-smi -l 30 > gpu_log.txt -->
+<!-- ``` -->
 
-:::{.note}
+<!-- :::{.note} -->
 
-Replace `30` by the number of seconds that is appropriate for the monitoring of your job (based on the length of your job).
+<!-- Replace `30` by the number of seconds that is appropriate for the monitoring of your job (based on the length of your job). -->
 
-:::
+<!-- ::: -->
 
 You can also query specific metrics with, for instance:
 
