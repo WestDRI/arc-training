@@ -1,0 +1,586 @@
+---
+title: Custom kernels
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+There are situations in which CuPy preset functions and routines aren't sufficient to port your code to the GPU. You will then have to write your own "GPU functions" called *kernels*.
+
+:::
+
+## Custom kernels
+
+CuPy provides various options to write custom kernels.
+
+In this table, I ordered them from the most pythonic to the most "C++ic" (close to CUDA C++). As you move down the table, the syntax might feel more foreign, but the performance gets better. Moreover, the more pythonic options at the top of the table are still experimental and only cover limited situations.
+
+Finally, only raw kernels give you full control over CUDA parameters such as memory size, stream, and of course number of threads per block and number of blocks per grid.
+
+|Name| Limitations |Need to define blocks & grid|Full control of CUDA parameters|
+|--|--|--|--|
+| Fusion kernels|Can fuse only simple elementwise & reduction operations|No|No|
+|JIT kernels|Does not work inside the REPL; CuPy functions which parallelize operations are not supported; Experimental, subject to change|Yes|No|
+|Element-wise/<br>reduction kernels|No|No|
+|Raw kernels|Yes|Yes|
+
+: {tbl-colwidths="[20, 50, 15, 15]"}
+
+<br>I don't have time in this course to explain the syntax of all custom kernels offered by CuPy, but you can see details [in the documentation](https://docs.cupy.dev/en/stable/user_guide/kernel.html#).
+
+Instead, I will focus here on when to use what.
+
+## When not to write kernels?
+
+When your problem benefits from NumPy/CuPy vectorization, you don't have to write your own kernels. You can simply use CuPy functions as we saw in the previous section: not only this is a lot simpler, but it is also often more efficient because those functions have already been optimized.
+
+Here is an example where writing your own kernels is not the way to go.
+
+**Problem: calculate the mean square error between 2 arrays.**
+
+This is how you would do this in NumPy:
+
+```{.python filename="mse_np.py"}
+import numpy as np
+import timeit
+
+# Function to calculate MSE
+def mse_fn(y_true, y_pred):
+    mse_out = np.mean((y_true - y_pred) ** 2)
+    return mse_out
+
+# Let's create realistic dummy data:
+
+# Define the shape
+n_samples = 10_000_000
+
+# 1. Generate "ground truth" values (e.g., target values ranging from 0 to 100)
+y_true = np.random.uniform(low=0.0, high=100.0, size=n_samples)
+
+# 2. Generate "predicted" values by adding Gaussian noise to the true values
+# Normally distributed random noise
+# A standard deviation (scale) of 5.0 means our model has an average error spread of ~5 units
+noise = np.random.normal(loc=0.0, scale=5.0, size=n_samples)
+y_pred = y_true + noise
+
+# Calculate MSE
+mse = mse_fn(y_true, y_pred)
+
+# Time the computation
+exec_time = timeit.timeit("mse_fn(y_true, y_pred)", number=20, globals=globals())
+
+print(f"Execution in {round(exec_time * 1_000, 3)} ms")
+print(f"MSE: {mse}")
+```
+
+```{.bash filename="mse_np.sh"}
+#!/bin/bash
+#SBATCH --time=5               # min
+#SBATCH --mem=2048             # MB
+
+python mse_np.py
+```
+
+```
+Execution in 415.996 ms
+MSE: 24.995514424333848
+```
+
+What is happening here? The NumPy functions we are using (`np.mean`, subtraction, exponentiation) are broadcast across the whole arrays. This is a perfect problem for CuPy and you can simply replace `numpy` by `cupy` to run this efficiently on the GPU:
+
+```{.python filename="mse_cp.py"}
+import cupy as cp
+from cupyx.profiler import benchmark
+
+# Function to calculate MSE
+def mse_fn(y_true, y_pred):
+    mse_out = cp.mean((y_true - y_pred)**2)
+    return mse_out
+
+# Dummy data
+n_samples = 10_000_000
+y_cp_true = cp.random.uniform(low=0.0, high=100.0, size=n_samples)
+noise = cp.random.normal(loc=0.0, scale=5.0, size=n_samples)
+y_cp_pred = y_cp_true + noise
+
+# Calculate MSE
+mse = mse_fn(y_true, y_pred)
+
+print(benchmark(mse_fn, (y_true, y_pred), n_repeat=20))
+print(f"MSE: {mse}")
+```
+
+```{.bash filename="mse_cp.sh"}
+#!/bin/bash
+#SBATCH --time=5               # min
+#SBATCH --mem=2048             # MB
+#SBATCH --gpus=2g.10gb:1
+
+python mse_cp.py
+```
+
+```
+mse_fn              :    CPU: 19169.195 us   +/- 2057.563 (min: 18494.142 / max: 28114.221) us     GPU-0: 19211.264 us   +/- 2057.926 (min: 18532.352 / max: 28157.951) us
+MSE: 24.995514424333848
+```
+
+Total execution time = 38.380 ms
+
+:::{.notenoit}
+
+The speedup of 11 is substantial, but not very big because this is not a huge problem.
+
+With a number of samples of 100_000_000 on Fir, using a full H100, I got a speedup of 1,814! (we don't have the resources on this training cluster to run this as we run out of memory).
+
+Here is the times I had there:
+
+NumPy:
+
+```
+Execution in 3.631 s
+```
+
+CuPy:
+
+```
+mse_fn           :    CPU:    59.070 us   +/- 12.387 (min:    50.529 / max:    96.729) us     GPU-0:  1942.669 us   +/-  5.152 (min:  1938.496 / max:  1963.328) us
+```
+
+:::
+
+Now, let's write a reduction kernel to compare the timing:
+
+```{.python filename="mse_reduc.py"}
+import cupy as cp
+from cupyx.profiler import benchmark
+
+mse_kernel = cp.ReductionKernel(
+    'T y_pred, T y_true',
+    'T mse_out',
+    '(y_pred - y_true) * (y_pred - y_true)',
+    'a + b',
+    'mse_out = a / _in_ind.size()',
+    '0',
+    'mse_kernel'
+)
+
+# Dummy data
+n_samples = 10_000_000
+y_cp_true = cp.random.uniform(low=0.0, high=100.0, size=n_samples)
+noise = cp.random.normal(loc=0.0, scale=5.0, size=n_samples)
+y_cp_pred = y_cp_true + noise
+
+# Calculate MSE
+mse = mse_kernel(y_cp_true, y_cp_pred)
+
+print(benchmark(mse_kernel, (y_cp_true, y_cp_pred), n_repeat=20))
+print(f"MSE: {mse}")
+```
+
+```{.bash filename="mse_reduc.sh"}
+#!/bin/bash
+#SBATCH --time=5               # min
+#SBATCH --mem=2048             # MB
+#SBATCH --gpus=2g.10gb:1
+
+python mse_reduc.py
+```
+
+```
+mse_kernel          :    CPU:    34.056 us   +/-  8.060 (min:    27.602 / max:    57.428) us     GPU-0:  8600.986 us   +/- 394.769 (min:  8388.608 / max:  9666.560) us
+MSE: 24.991217024426913
+```
+
+Total execution time = 8.635 ms
+
+The time is better here. However, on the bigger problem with 100_000_000 samples I ran on Fir, this solution was actually *slower*:
+
+```
+mse_kernel          :    CPU:    96.817 us   +/- 34.535 (min:    78.919 / max:   235.107) us     GPU-0: 82526.621 us   +/- 41.380 (min: 82478.722 / max: 82680.672) us
+```
+
+Vs the CuPy easy solution:
+
+```
+mse_fn           :    CPU:    59.070 us   +/- 12.387 (min:    50.529 / max:    96.729) us     GPU-0:  1942.669 us   +/-  5.152 (min:  1938.496 / max:  1963.328) us
+```
+
+## When to write kernels?
+
+Alex Razoumov uses an example in his [Chapel](https://en.wikipedia.org/wiki/Chapel_(programming_language)) GPU, [Numba](https://github.com/numba/numba), and [Numba-CUDA](https://github.com/NVIDIA/numba-cuda) courses.
+
+For each integer from 2 to n in a one dimensional array, he computes the sum of its [prime numbers](https://en.wikipedia.org/wiki/Prime_number) (he starts at 2 since 1 doesn't have any prime factor).
+
+First, we will write this code in NumPy (for the CPU) and time it. Then we will try to port the code to the GPU.
+
+### NumPy implementation
+
+Create a Python script called `prime_np.py`:
+
+```{.bash}
+nano prime_np.py  # Use the text editor of your choice
+```
+
+In it, we write a NumPy implementation of Alex's example:
+
+```{.python filename="prime_np.py"}
+import numpy as np
+import timeit
+
+def primeFactorizationSum(n):
+    num = n
+    total = 0
+    if num % 2 == 0:
+        count = 0
+        while num % 2 == 0:
+            num //= 2
+            count += 1
+        total += count * 2
+    i = 3
+    while i * i <= num:
+        if num % i == 0:
+            count = 0
+            while num % i == 0:
+                num //= i
+                count += 1
+            total += count * i
+        i += 2
+    if num > 1:
+        total += num
+    return total
+
+n = 1_000_000
+A = np.empty(n - 1, dtype=np.int64)
+
+exec_time = timeit.timeit(
+    "for i in range(0, n - 1): A[i] = primeFactorizationSum(i + 2)",
+    number=20,
+    globals=globals()
+)
+
+print(f"Execution in {round(exec_time, 3)} s")
+print(f"Primes sum array: {A}")
+```
+
+Now, let's write a bash script for Slurm (let's call it `prime_np.sh`) with:
+
+```{.bash filename="prime_np.sh"}
+#!/bin/bash
+#SBATCH --time=10              # min
+#SBATCH --mem=2048             # MB
+
+python prime_np.py
+```
+
+Now we can launch the job with:
+
+```{.bash}
+sbatch prime_np.sh
+```
+
+Once the code has finished running, you can access the result by printing the output file (using, for instance, [`bat`](https://github.com/sharkdp/bat)):
+
+```{.bash}
+bat slurm-xx.out
+```
+
+:::{.note}
+
+Replace `xx` by the number of the job automatically given by Slurm.
+
+:::
+
+```
+Execution in 229.118 s
+Primes sum array: [  2   3   4 ... 287  77  42]
+```
+
+### Option 1: reformulate entirely
+
+Replacing `numpy` by `cupy` in this code would not create any speedup: GPUs are designed for massive parallelization (doing thousands of calculations at the same time). If you use a Python `for` loop with a CuPy array, the CPU has to tell the GPU what to do one number at a time, which is actually slower than running it entirely on the CPU.
+
+In addition, our `primeFactorizationSum` function contains `while` loops and `if` statements, which standard CuPy array operations cannot vectorize easily.
+
+So this code cannot be ported as is to the GPU.
+
+:::{.note}
+
+You can run it to double-check if you want and you will get:
+
+```
+Execution in 415.161 s
+Primes sum array: [  2   3   4 ... 287  77  42]
+```
+
+Twice as long!
+
+:::
+
+One option is to reformulate the code entirely to make use of CuPy array broadcasting and boolean masking:
+
+```{.python filename="prime_cp.py"}
+import cupy as cp
+import math
+from cupyx.profiler import benchmark
+
+def get_small_primes(limit):
+    """Simple CPU sieve to get primes up to sqrt(N)"""
+    is_prime = [True] * (limit + 1)
+    primes = []
+    for p in range(2, limit + 1):
+        if is_prime[p]:
+            primes.append(p)
+            for i in range(p * p, limit + 1, p):
+                is_prime[i] = False
+    return primes
+
+n = 1_000_000
+
+def primeFactorizationSum(n):
+    # 1. Get primes up to sqrt(1,000,000) which is 1000.
+    # There are only 168 primes up to 1000.
+    small_primes = get_small_primes(int(math.sqrt(n)))
+
+    # 2. Initialize the main arrays on the GPU
+    # nums represents the numbers [2, 3, 4 ... 1,000,000]
+    nums = cp.arange(2, n + 1, dtype=cp.int64)
+    totals = cp.zeros(n - 1, dtype=cp.int64)
+
+    # 3. Apply broadcasting to divide out the small primes
+    for p in small_primes:
+        # Calculate how many times 'p' could possibly divide into 'n'
+        power = p
+        max_iter = 0
+        while power <= n:
+            max_iter += 1
+            power *= p
+
+        # Repeatedly divide out the prime and add to total where applicable
+        for _ in range(max_iter):
+            mask = (nums % p == 0)      # Find all elements divisible by p
+            totals[mask] += p           # Add p to their totals
+            nums[mask] //= p            # Divide them by p
+
+    # 4. Any numbers left in 'nums' greater than 1 are primes themselves
+    # (e.g. for number 14, after dividing by 2, 'nums' holds 7)
+    mask = (nums > 1)
+    totals[mask] += nums[mask]
+    return totals
+
+    # Wait for GPU to finish
+    cp.cuda.Stream.null.synchronize()
+
+print(benchmark(primeFactorizationSum, (n,), n_repeat=20))
+print(f"Primes sum array: {primeFactorizationSum(n)}")
+```
+
+You can run this with the following batch script:
+
+```{.bash filename="prime_cp.sh"}
+#!/bin/bash
+#SBATCH --time=10              # min
+#SBATCH --mem=2048             # MB
+#SBATCH --gpus=2g.10gb:1
+
+python prime_cp.py
+```
+
+:::{.notenoit}
+
+The training cluster we are using today has access to [MIG](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU) instances with a profile name of `2g.10gb`.
+
+[Remember that you can get this information with:](gpu_clusters.qmd#available-gpu-models)
+
+```{.bash}
+sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq
+```
+
+:::
+
+And you get:
+
+```
+primeFactorizationSum:    CPU: 258578.903 us   +/- 21422.387 (min: 240268.862 / max: 298884.403) us     GPU-0: 258645.655 us   +/- 21422.557 (min: 240334.854 / max: 298952.698) us
+Primes sum array: [  2   3   4 ... 287  77  42]
+```
+
+Total time ≈ 259 + 259 = 518 ms \
+Speedup = 229,118 / 518 = 442
+
+That's a huge speedup!
+
+But, in fact, we can do a lot better than this by sticking to the initial code in its design, but porting it to CuPy by writing custom kernels.
+
+### Option 2: easier kernels
+
+Because this exercise is not a reduction (you don't end up with a single output, but instead each input is matched to an output), you can't use a reduction kernel. Instead, you could use an [element-wise kernel](https://docs.cupy.dev/en/stable/user_guide/kernel.html#basics-of-elementwise-kernels) with `cupy.ElementwiseKernel`.
+
+Alternatively, you can use a [JIT kernel](https://docs.cupy.dev/en/stable/user_guide/kernel.html#jit-kernel-definition) with `cupyx.jit.rawkernel` or the equivalent decorator `@jit.rawkernel()`.
+
+[JIT kernels](https://docs.cupy.dev/en/stable/user_guide/kernel.html#jit-kernel-definition) are an experimental feature and, indeed, the code works while using the latest Python and CuPy versions (I tested it on Fir). However, the training cluster we have access to has an old Python version (3.11) which requires an older CuPy version and the code doesn't run...
+
+Here it is however, for reference (and you can run it on your machine—assuming you have the appropriate hardware—or an Alliance cluster) after the course.
+
+On Fir, using a full H100, I got the following:
+
+```
+primeFactorizationSum:     CPU:    27.653 us      +/- 5.814 (min:  23.670 / max:  51.359) us        GPU-0: 896.531 us      +/- 6.597 (min: 891.456 / max: 923.136) us
+Primes sum array: [  2   3   4 ... 287  77  42]
+```
+
+Total time: 924 µs.
+
+`cupyx.jit.rawkernel` makes creating a custom kernel easier, but you still have to define the number of threads per blocks and the number of blocks per grid.
+
+Choosing 256 threads per block in GPU programming (specifically CUDA) is a widely adopted practice because it offers an optimal balance between latency hiding, high SM (Streaming Multiprocessor) occupancy, and efficient resource utilization. It provides enough threads to keep cores busy during long memory waits without exceeding register or shared memory limits.
+
+A 256-thread block comprises 8 warps (a warp is 32 threads in NVIDIA GPUs), which is generally sufficient to hide memory latency. When some threads stall on memory access, the GPU switches to other ready warps.
+
+```{.python filename="prime_jit.py"}
+import cupy as cp
+from cupyx import jit
+from cupyx.profiler import benchmark
+
+
+@jit.rawkernel()
+def primeFactorizationSum(A, n):
+    # Calculate global thread ID
+    idx = jit.blockDim.x * jit.blockIdx.x + jit.threadIdx.x
+    if idx >= n:
+        return
+
+    # Use cp.int64 to explicitly enforce 'long long' C++ types
+    num = cp.int64(idx) + 2
+    total = cp.int64(0)
+
+    if num % 2 == 0:
+        count = 0
+        while num % 2 == 0:
+            num //= 2
+            count += 1
+        total += count * 2
+
+    i = cp.int64(3)
+    while i * i <= num:
+        if num % i == 0:
+            count = 0
+            while num % i == 0:
+                num //= i
+                count += 1
+            total += count * i
+        i += 2
+
+    if num > 1:
+        total += num
+
+    A[idx] = total
+
+
+n = 1_000_000
+A = cp.empty(n - 1, dtype=cp.int64)
+
+threads = 256
+blocks = (n - 1 + threads - 1) // threads
+
+print(
+    benchmark(primeFactorizationSum, ((blocks,), (threads,), (A, n - 1)), n_repeat=20)
+)
+
+print(f"Primes sum array: {A}")
+```
+
+And a batch script:
+
+```{.bash filename="prime_jit.sh"}
+#!/bin/bash
+#SBATCH --time=10              # min
+#SBATCH --mem=2048             # MB
+#SBATCH --gpus=2g.10gb:1
+
+python prime_jit.py
+```
+
+### Option 3: raw kernel
+
+Writing a raw kernel is the option that gives you the best result.
+
+Python script:
+
+```{.python filename="prime_raw.py"}
+import cupy as cp
+from cupyx.profiler import benchmark
+
+# Define the CUDA kernel — each GPU thread handles one number
+primeFactorizationSum_kernel = cp.RawKernel(
+    r"""
+extern "C" __global__
+void primeFactorizationSum(long long* A, int n) {
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+    if (idx >= n) return;
+
+    long long num = idx + 2;  // numbers 2..n
+    long long total = 0;
+
+    if (num % 2 == 0) {
+        int count = 0;
+        while (num % 2 == 0) { num /= 2; count++; }
+        total += count * 2;
+    }
+    for (long long i = 3; i * i <= num; i += 2) {
+        if (num % i == 0) {
+            int count = 0;
+            while (num % i == 0) { num /= i; count++; }
+            total += count * i;
+        }
+    }
+    if (num > 1) total += num;
+
+    A[idx] = total;
+}
+""",
+    "primeFactorizationSum",
+)
+
+n = 1_000_000
+A = cp.empty(n - 1, dtype=cp.int64)
+
+threads = 256
+blocks = (n - 1 + threads - 1) // threads
+
+print(
+    benchmark(
+        primeFactorizationSum_kernel, ((blocks,), (threads,), (A, n - 1)), n_repeat=20
+    )
+)
+
+print(f"Primes sum array: {A}")
+```
+
+Batch script:
+
+```{.bash filename="prime_raw.sh"}
+#!/bin/bash
+#SBATCH --time=10              # min
+#SBATCH --mem=2048             # MB
+#SBATCH --gpus=2g.10gb:1
+
+python prime_raw.py
+```
+
+Result:
+
+```
+primeFactorizationSum:    CPU:    13.646 us   +/- 12.120 (min:     6.723 / max:    63.260) us     GPU-0:  4535.910 us   +/- 12.861 (min:  4524.032 / max:  4586.496) us
+Primes sum array: [  2   3   4 ... 287  77  42]
+```
+
+:::{.note}
+
+Using a full H100 GPU on Fir, I got a total speed of 578 µs.
+
+:::
+
+Total time ≈ 0.013 + 4.536 = 4.550 ms \
+Speedup = 229,118 / 4.550 = [50,356]{.emph}
+
+What a speedup!
