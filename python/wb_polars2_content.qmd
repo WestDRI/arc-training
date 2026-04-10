@@ -1,6 +1,8 @@
 ---
 title: RIP pandas, welcome Polars
 author: Marie-Hélène Burle
+bibliography: python.bib
+csl: ../diabetologia.csl
 ---
 
 :::{.def}
@@ -9,3 +11,914 @@ author: Marie-Hélène Burle
 
 :::
 
+## Goal of this webinar
+
+There is a new and much better library for Python DataFrames. There are no downsides to using it, beside the effort of changing habits. For new users who don't have habits yet, there are just no downsides. Yet, most Python intro courses still teach the old tool.
+
+In this webinar, I will not teach Polars and its syntax. Instead I will demo why it is better.
+
+[My goal is to help shift the culture towards a wider adoption of Polars.]{.emph}
+
+## A brief history of DataFrames
+
+```{dot}
+//| echo: false
+//| fig-height: 300px
+
+strict graph {
+
+bgcolor="transparent"
+graph [fontname="Inconsolata, sans-serif"]
+node [fontname="Inconsolata, sans-serif", fontsize=15]
+
+y1 [label=1990, shape=plaintext, group=g1, group=g1]
+y2 [label=2000, shape=plaintext, group=g1, group=g1]
+y3 [label=2008, shape=plaintext, group=g1]
+y4 [label=2020, shape=plaintext, group=g1]
+
+l1 [label="S language introduces concept of DataFrames", href="https://en.wikipedia.org/wiki/S_(programming_language)", shape=plaintext, group=g2]
+l2 [label="R supercedes S and inherits DataFrames", href="https://en.wikipedia.org/wiki/R_(programming_language)", shape=plaintext, group=g2]
+l3 [label="DataFrames ported to Python with pandas", href="https://github.com/pandas-dev/pandas", shape=plaintext, group=g2, fontcolor="#e84c44"]
+l4 [label="Better DataFrames library for Python: Polars", href="https://github.com/pola-rs/polars", shape=plaintext, group=g2, fontcolor="#69c9e6"]
+
+{rank=same; y1 l1}
+
+y1 -- y2 -- y3 -- y4
+l1 -- l2 -- l3 -- l4 [style=invis]
+
+}
+```
+
+## Overview
+
+| | ![](img/logo_pandas_full.svg){width="55%"} || ![](img/logo_polars_full.svg){width="50%"} |
+|--|--|--|--|
+| Available for | Python || Rust, Python, R, NodeJS |
+| Written in | Cython || Rust |
+| Multithreading | Some operations || [Yes]{.emph} (GIL released) |
+| Index | Rows are indexed || Integer positions are used |
+| Evaluation | Eager || Eager and [lazy]{.emph} |
+| Query optimizer | No || [Yes]{.emph} |
+| Out-of-core | No || [Yes]{.emph} |
+| [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) vectorization | Yes || Yes |
+| Data in memory | [NumPy](https://github.com/numpy/numpy) arrays || [Apache Arrow]{.emph} arrays |
+| Memory efficiency | Poor || [Excellent]{.emph} |
+| Missing data handling | Inconsistent || [Consistent]{.emph}; type stability |
+
+## Missing data
+
+::::{.columns}
+
+:::{.column width="52%"}
+
+![](img/logo_pandas_full.svg){width="45%"}
+
+For historical reasons, depending on dtype, missing values are one of:
+
+- `NaN` (`numpy.nan`, dtype float)
+- `None`
+- `NaT` (Not-a-Time, dtype datetime)
+- `pandas.NA` (nullable scalar)
+
+This leads to inconsistent behaviour and unexpected dtype changes.
+
+[Ongoing open issue since 2020.](https://github.com/pandas-dev/pandas/issues/32265)
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="46%"}
+
+<br>![](img/logo_polars_full.svg){width="50%"}
+
+One single value for missing data: `null` (dtype `polars.Null`).
+
+Simple and consistent behaviour across all data types and better performance.
+
+`NaN` exists and is a float. It is **not** missing data, but the result of mathematical operations that don't return numbers.
+
+[Here](https://www.dontusethiscode.com/blog/2025-01-22_null_vs_nan_applied.html) is a blog that goes into this in details.
+
+:::
+
+::::
+
+## Group by
+
+[Here](https://labs.quansight.org/blog/dataframe-group-by) is a great blog post by Marco Gorelli comparing the ease of use of passing expressions to groups in Polars compared to pandas. I am using his code here and doing some timing on it to look at efficiency.
+
+### Create DataFrames
+
+Import libraries:
+
+```{python}
+import pandas as pd
+import polars as pl
+```
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+The pandas DataFrame:
+
+```{python}
+df_pd = pd.DataFrame(
+    {
+        'id': [1, 1, 1, 2, 2, 2],
+        'sales': [4, 1, 2, 7, 6, 7],
+        'views': [3, 1, 2, 8, 6, 7]
+    }
+)
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+The Polars equivalent:
+
+```{python}
+df_pl = pl.DataFrame(
+    {
+        'id': [1, 1, 1, 2, 2, 2],
+        'sales': [4, 1, 2, 7, 6, 7],
+        'views': [3, 1, 2, 8, 6, 7]
+    }
+)
+```
+
+:::
+
+::::
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+The pandas DataFrame:
+
+```{python}
+df_pd
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+The Polars equivalent:
+
+```{python}
+df_pl
+```
+
+:::
+
+::::
+
+### Marco Gorelli's example
+
+For simple group by operations, both libraries have an easy syntax. Where it gets interesting is for more complex ones such as:
+
+> Find the maximum value of `views`, where `sales` is greater than its mean, per `id`.
+
+### Solutions in pandas
+
+The straightforward method involves an anonymous function passed to `apply`:
+
+```{python}
+df_pd.groupby('id').apply(
+    lambda df_pd: df_pd[df_pd['sales'] > df_pd['sales'].mean()]['views'].max()
+)
+```
+
+Another option, quite tortuous and requiring 2 `groupby` expressions:
+
+```{python}
+df_pd[
+    df_pd['sales'] > df_pd.groupby('id')['sales'].transform('mean')
+].groupby('id')['views'].max()
+```
+
+A third solution involving masks:
+
+```{python}
+gb = df_pd.groupby('id')
+mask = df_pd['sales'] > gb['sales'].transform('mean')
+df_pd['result'] = df_pd['views'].where(mask)
+gb['result'].max()
+```
+
+### The solution in Polars
+
+```{python}
+df_pl.group_by('id').agg(
+    pl.col('views').filter(pl.col('sales') > pl.mean('sales')).max()
+)
+```
+
+A lot easier to wrap one's head around ...
+
+### Timing of pandas solutions
+
+```{.python}
+%%timeit
+
+df_pd.groupby('id').apply(
+    lambda df_pd: df_pd[df_pd['sales'] > df_pd['sales'].mean()]['views'].max()
+)
+```
+
+```
+1.04 ms ± 1.33 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
+The solution most people are likely to use is by far the slowest.
+
+```{.python}
+%%timeit
+
+df_pd[
+    df_pd['sales'] > df_pd.groupby('id')['sales'].transform('mean')
+].groupby('id')['views'].max()
+```
+
+```
+678 μs ± 4.04 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
+The best solution is the tortuous one with 2 `groupby` expressions.
+
+```{.python}
+%%timeit
+
+gb = df_pd.groupby('id')
+mask = df_pd['sales'] > gb['sales'].transform('mean')
+df_pd['result'] = df_pd['views'].where(mask)
+gb['result'].max()
+```
+
+```
+711 μs ± 952 ns per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
+Masking is almost as fast as the best solution.
+
+### Timing of the Polars solution
+
+```{.python}
+%%timeit
+
+df_pl.group_by('id').agg(
+    pl.col('views').filter(pl.col('sales') > pl.mean('sales')).max()
+)
+```
+
+```
+110 μs ± 3.6 μs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
+```
+
+In addition to be more straightforward, Polars is also much faster.
+
+### Conclusion
+
+Speedup of Polars compared to the best pandas method: **6**. \
+Compared to the method most people are likely to use: **9**.
+
+To pass expressions to groups, Polars has a more straightforward and efficient syntax.
+
+## Performance comparisons
+
+:::{.info}
+
+**A note on my comparisons**
+
+The performance of tools can only be evaluated on optimized code: poorly written pandas code is a lot slower than efficient pandas code.
+
+To ensure fairness towards pandas, I use the best pandas code from [Alex Razoumov pandas course](https://wgpages.netlify.app/python2/python-13-pandas/) in which he benchmarks various syntaxes.
+
+:::
+
+### Example 1: FizzBuzz
+
+[FizzBuzz](https://en.wikipedia.org/wiki/Fizz_buzz#Programming) is a programming exercise based on a children game which consists of counting to `n`, replacing:
+
+- any number divisible by `3` with `Fizz`,
+- any number divisible by `5` with `Buzz`,
+- any number divisible by both `3` and `5` with `FizzBuzz`.
+
+Let's do it:
+
+```{python}
+# Load additional library
+import numpy as np
+
+# Set series length
+n = 10_000
+```
+
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
+
+```{python}
+df_pd = pd.DataFrame()
+
+df_pd['Count'] = np.arange(1, n+1)
+
+df_pd['FizzBuzz'] = df_pd['Count'].astype(str)
+
+df_pd.loc[df_pd['Count'] % 3 == 0, 'FizzBuzz'] = 'Fizz'
+df_pd.loc[df_pd['Count'] % 5 == 0, 'FizzBuzz'] = 'Buzz'
+df_pd.loc[df_pd['Count'] % 15 == 0, 'FizzBuzz'] = 'FizzBuzz'
+```
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+df_pl = pl.DataFrame({'Count': np.arange(1, n+1)})
+
+df_pl.with_columns(pl.col('Count').cast(pl.String).alias('FizzBuzz'))
+
+df_pl = df_pl.with_columns(
+    pl.when(pl.col('Count') % 3 == 0).then(pl.lit('Fizz'))
+    .when(pl.col('Count') % 5 == 0).then(pl.lit('Buzz'))
+    .when(pl.col('Count') % 15 == 0).then(pl.lit('FizzBuzz'))
+    .otherwise(pl.col('Count')).alias('FizzBuzz')
+)
+```
+
+#### Lazy evaluation
+
+But it gets much better with [lazy evaluation](polars_lazy.qmd).
+
+First, we create a LazyFrame instead of a DataFrame. The query is not evaluated but a graph is created. This allows the query optimizer to fuse operations and perform [optimizations](https://docs.pola.rs/user-guide/lazy/optimizations/) where possible the way compilers do.
+
+To evaluate the query and get a result, we use the `collect` method:
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+# Lazy API
+
+df_pl_lazy = pl.LazyFrame({'Count': np.arange(1, n+1)})
+
+df_pl_lazy.with_columns(pl.col('Count').cast(pl.String).alias('FizzBuzz'))
+
+df_pl_lazy = df_pl_lazy.with_columns(
+    pl.when(pl.col('Count') % 3 == 0).then(pl.lit('Fizz'))
+    .when(pl.col('Count') % 5 == 0).then(pl.lit('Buzz'))
+    .when(pl.col('Count') % 15 == 0).then(pl.lit('FizzBuzz'))
+    .otherwise(pl.col('Count')).alias('FizzBuzz')
+)
+
+df_pl_lazy_collected = df_pl_lazy.collect()
+```
+
+#### Results
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+```{python}
+df_pd   # pandas
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+```{python}
+df_pl # same for df_pl_lazy_collected
+```
+
+:::
+
+::::
+
+#### Timing
+
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
+
+```{.python}
+%%timeit
+
+df_pd = pd.DataFrame()
+
+df_pd['Count'] = np.arange(1, n+1)
+
+df_pd['FizzBuzz'] = df_pd['Count'].astype(str)
+
+df_pd.loc[df_pd['Count'] % 3 == 0, 'FizzBuzz'] = 'Fizz'
+df_pd.loc[df_pd['Count'] % 5 == 0, 'FizzBuzz'] = 'Buzz'
+df_pd.loc[df_pd['Count'] % 15 == 0, 'FizzBuzz'] = 'FizzBuzz'
+```
+
+```
+3.4 ms ± 65.4 μs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+```
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{.python}
+%%timeit
+
+df_pl = pl.DataFrame({'Count': np.arange(1, n+1)})
+
+df_pl.with_columns(pl.col('Count').cast(pl.String).alias('FizzBuzz'))
+
+df_pl.with_columns(
+    pl.when(pl.col('Count') % 3 == 0).then(pl.lit('Fizz'))
+    .when(pl.col('Count') % 5 == 0).then(pl.lit('Buzz'))
+    .when(pl.col('Count') % 15 == 0).then(pl.lit('FizzBuzz'))
+    .otherwise(pl.col('Count')).alias('FizzBuzz')
+)
+```
+
+```
+648 μs ± 2.21 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{.python}
+%%timeit
+
+# Lazy API
+
+df_pl_lazy = pl.LazyFrame({'Count': np.arange(1, n+1)})
+
+df_pl_lazy.with_columns(pl.col('Count').cast(pl.String).alias('FizzBuzz'))
+
+df_pl_lazy = df_pl_lazy.with_columns(
+    pl.when(pl.col('Count') % 3 == 0).then(pl.lit('Fizz'))
+    .when(pl.col('Count') % 5 == 0).then(pl.lit('Buzz'))
+    .when(pl.col('Count') % 15 == 0).then(pl.lit('FizzBuzz'))
+    .otherwise(pl.col('Count')).alias('FizzBuzz')
+)
+
+df_pl = df_pl_lazy.collect()
+```
+
+```
+462 μs ± 4.05 μs per loop (mean ± std. dev. of 7 runs, 1,000 loops each)
+```
+
+#### Speedup
+
+Speedup with Polars DataFrame: **5**. \
+With Polars LazyFrame: **7**.
+
+These speedups highly depend on the types and sizes of the problems. How much faster Polars is does vary, what doesn't vary is that it is always much faster.
+
+#### Memory usage
+
+::::{.columns}
+
+:::{.column width="32%"}
+
+**pandas**
+
+```{python}
+df_pd.memory_usage()
+```
+
+132 + 80,000 * 2 = \
+160,132 bytes \
+**≈ 160 KB**
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="32%"}
+
+**Polars**
+
+```{python}
+df_pl.estimated_size()
+```
+
+119,409 bytes \
+**≈ 119 KB**
+
+160,132 / 119,409 ≈ 1.3 \
+Footprint 1.3 times smaller.
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="32%"}
+
+**Polars lazy API**
+
+Same as Polars eager: \
+if you collect the entire DataFrame as we did here, the lazy API does not reduce the memory footprint.
+
+:::
+
+::::
+
+### Example 2: medium dataset
+
+Here I am using [a jeopardy dataset](https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv) that Alex uses in his pandas course.
+
+Shape: 216,930 rows, 7 columns.
+
+The goal is to subset this DataFrame for the history category and get the shape of the resulting DataFrame:
+
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
+
+```{python}
+df_pd = pd.read_csv(
+    'https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv'
+)
+
+df_pd_subset = df_pd.loc[df_pd['Category'] == 'HISTORY']
+
+df_pd_subset.shape
+```
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+df_pl = pl.read_csv(
+    'https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv'
+)
+
+df_pl_subset = df_pl.filter(pl.col('Category') == 'HISTORY')
+
+df_pl_subset.shape
+```
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{python}
+# Lazy API
+
+df_pl_lazy = pl.scan_csv(
+    'https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv'
+)
+
+df_pl_lazy_subset_collected = df_pl_lazy.filter(
+    pl.col('Category') == 'HISTORY'
+).collect()
+
+df_pl_lazy_subset_collected.shape
+```
+
+:::{.note}
+
+To create a LazyFrame from file, use one of the `scan_*` instead of the `read_*` methods.
+
+:::
+
+#### Timing
+
+![](img/logo_pandas_full.svg){width="11%" fig-align="right"}
+
+```{.python}
+%%timeit
+
+df_pd = pd.read_csv(
+    'https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv'
+)
+
+df_pd.loc[df_pd['Category'] == 'HISTORY'].shape
+```
+
+```
+1.17 s ± 5.2 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{.python}
+%%timeit
+
+df_pl = pl.read_csv(
+    'https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv'
+)
+
+df_pl.filter(pl.col('Category') == 'HISTORY').shape
+```
+
+```
+778 ms ± 30.5 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+![](img/logo_polars_full.svg){width="12%" fig-align="right"}
+
+```{.python}
+%%timeit
+
+# Lazy API
+
+df_pl_lazy = pl.scan_csv(
+    'https://raw.githubusercontent.com/razoumov/publish/master/jeopardy.csv'
+)
+
+df_pl_lazy.filter(pl.col('Category') == 'HISTORY').collect().shape
+```
+
+```
+67.7 ms ± 3.87 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+```
+
+#### Speedup
+
+Polars here brings a speedup of **1.5**. The lazy API ramps that up to a speedup of **17**.
+
+#### Memory usage
+
+::::{.columns}
+
+:::{.column width="30%"}
+
+**pandas**
+
+```{python}
+df_pd.memory_usage()
+```
+
+132 + 1,735,440 * 7 = \
+12,148,212 bytes \
+**≈ 12 MB**
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="33%"}
+
+**Polars**
+
+```{python}
+df_pl.estimated_size()
+```
+
+31,606,250 bytes \
+**≈ 31 MB**
+
+31,606,250 / 12,148,212 ≈ 2.6 \
+Footprint 2.6 times *bigger*.
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="33%"}
+
+**Polars lazy API**
+
+```{python}
+df_pl_lazy_subset_collected.estimated_size()
+```
+
+48,774 bytes \
+**≈ 49 KB**
+
+12,148,212 / 48,774 ≈ 249 \
+Footprint **249 times smaller**.
+
+If you only collect a subset of the data, the memory footprint drops dramatically.
+
+:::
+
+::::
+
+## Data too big to fit in memory
+
+### Example of large dataset
+
+Let's play with data from the [GBIF](https://www.gbif.org/) website (free and open access biodiversity database). The [Southern African Bird Atlas Project 2](https://www.gbif.org/dataset/906e6978-e292-4a8b-9c39-adf6bb0f3323) [@https://doi.org/10.15468/dl.gqwnm2] contains a raw CSV file of 42 GB and an interpreted CSV file of 12.3 GB. Let's look at the latter:
+
+Shape: 25,687,526 rows, 50 columns.
+
+From that dataset, I want a list of species from the genus *Passer* (Old World sparrows).
+
+### The importance of file format
+
+Text-based formats (CSV, JSON) are not suitable for large files. [Apache Parquet](https://parquet.apache.org/) is a binary, machine-optimized, column-oriented file format with efficient encoding and compression and it is considered the industry-standard file format for large tabular data.
+
+|  ||| File type ||| Size |
+| -- | -- | -- | -- | -- | -- | -- |
+| File downloaded from GBIF ||| Zipped CSV ||| 2.2 GB |
+| Uncompressed file ||| CSV ||| 12.3 GB |
+| Ideal file format ||| [Parquet]{.emph} ||| [0.5 GB]{.emph} |
+
+In addition to being **15 times (!!) smaller**, the Parquet file is **a lot faster to read & write**.
+
+### Format conversion
+
+Here is a way to convert this file if it fits in memory:
+
+```{.python}
+# Read in the CSV file in a Polars DataFrame
+df = pl.read_csv('sa_birds.csv', separator='\t')
+
+# Export the DataFrame in a Parquet file
+df.write_parquet('sa_birds.parquet')
+```
+
+:::{.note}
+
+If the file doesn't fit in memory, you can use Dask (which also uses Apache Arrow) on a distributed system.
+
+:::
+
+### Native Apache Arrow support
+
+With its native support for the columnar Apache Arrow format, Polars is ideal to work with Parquet files. pandas can work with Parquet files but this can lead to issues due to the inconsistent way it handles missing data (e.g. see [this SO question](https://stackoverflow.com/q/54866522/9210961), [this issue](https://github.com/pandas-dev/pandas/issues/55721), [this post](https://learn.microsoft.com/en-au/answers/questions/5534487/timestamp-column-from-parquet-file-(created-with-p#:~:text=Venkat%20Reddy%20Navari,you%20have%20any%20further%20queries.))).
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+```{.python}
+%%timeit
+
+# pandas
+sa_birds_pd = pd.read_parquet(
+    'sa_birds.parquet'
+)
+```
+
+```
+1min 10s ± 7.76 s per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+```{.python}
+%%timeit
+
+# Polars
+sa_birds_pl = pl.read_parquet(
+    'sa_birds.parquet'
+)
+```
+
+```
+2.47 s ± 756 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+:::
+
+::::
+
+Speedup: 70 / 2.47 ≈ **28** &emsp;&emsp;&emsp;[Reading Parquet files in pandas is also A LOT slower!]{.emph}
+
+### DataFrames in memory
+
+::::{.columns}
+
+:::{.column width="49%"}
+
+**pandas**
+
+```{.python}
+sa_birds_pd.memory_usage()
+```
+
+```
+Index                          132
+gbifID                   205500208
+datasetKey               205500208
+occurrenceID             205500208
+kingdom                  205500208
+phylum                   205500208
+class                    205500208
+order                    205500208
+...
+dtype: int64
+```
+
+132 + 205,500,208 * 50 = \
+10,275,010,532 bytes \
+**≈ 10 GB**
+
+:::
+
+:::{.column width="2%"}
+:::
+
+:::{.column width="49%"}
+
+**Polars**
+
+```{.python}
+sa_birds_pl.estimated_size()
+```
+
+```
+12291023880
+```
+
+12,291,023,880 bytes \
+**≈ 12 GB**
+
+:::
+
+::::
+
+Let's image that you have only 16 GB of RAM on your machine. Running a browser and a few small applications take about 6 GB out of that. This dataset is already too big to process on your laptop. If you need to play with the raw data or a larger dataset such as the [eBird dataset](https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e) of 1,775,781,186 rows and 50 columns (**CSV file of 3 TB for the raw data**), you will need A LOT of memory.
+
+### What are your options?
+
+In pandas or Polars:
+
+- Read in data only for the columns you are interested in.
+- Read and process the file in chunks and try to combine the results.
+
+[If you only need to run queries on the data however, the Polars lazy API is the answer.]{.emph}
+
+### Create a LazyFrame
+
+You can create a LazyFrame (no impact on memory, LazyFrame returned instantly):
+
+```{python}
+df_pl_lazy = pl.scan_parquet('sa_birds.parquet')
+```
+
+Run a query on it (no impact on memory, LazyFrame returned instantly):
+
+```{python}
+passer_df_lazy = df_pl_lazy.filter(
+    pl.col('genus') == 'Passer'
+).select(pl.col('species')).unique()
+```
+
+### Collect result
+
+Now, you collect the result (this uses memory and takes time to compute) and turn the DataFrame into a Python list:
+
+```{python}
+passer_ls = passer_df_lazy.collect().get_column('species').to_list()
+```
+
+Depending on the subset returned by your query, the memory usage will vary. Here, the collected result is minuscule (79 bytes):
+
+```{python}
+passer_df_lazy.collect().estimated_size()
+```
+
+You need more than that to actually run the code, but not that much more (see later).
+
+### Et voilà
+
+```{python}
+print(passer_ls)
+```
+
+With this method, as long as the data itself fits on a drive and the queries don't return huge subsets of data, you can run queries on giant datasets such as the 3 TB [eBird dataset](https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e) with a very small amount of RAM.
+
+Note that the queries can contain complex expressions. What matters is the size of the subset you need to collect at the end.
+
+### RAM actually needed
+
+I did a little experiment on a cluster: I ran the previous code on a single CPU core and gradually reduced the amount of memory asked from Slurm until I got an OOM error.
+
+[I got the result with as little as 150 MB of memory.]{.emph}
+
+*Remember that this DataFrame would require 10 GB of RAM just to be read in pandas, not counting for any computation.*
+
+### Conclusion
+
+Polars:
+
+- Handles missing data in a consistent and sensible way.
+- Has a clear syntax.
+- Allows passing expressions to group by in a convenient way.
+- Is very fast.
+- Uses multithreading automatically.
+- Is extremely memory efficient with the lazy API.
+- Uses the industry standard Apache Arrow columnar format.
+- Works perfectly with Parquet files.
+- Works out-of-core with the lazy API.
+
+<br><center>**Start using Polars now!**</center>
+
+![](img/lazy_polar_bear.jpg){fig-align="center"}
+
+<center>**And use the lazy API!**</center>
