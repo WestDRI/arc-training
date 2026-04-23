@@ -8,7 +8,7 @@
 
 <meta name="author" content="Marie-Hélène Burle">
 
-<title>Polars GPU engine basics – Research Computing</title>
+<title>Polars GPU engine – Research Computing</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -24,16 +24,72 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-</style>
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
 
 
-<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../site_libs/quarto-nav/quarto-nav.js"></script>
 <script src="../site_libs/quarto-nav/headroom.min.js"></script>
 <script src="../site_libs/clipboard/clipboard.min.js"></script>
 <script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
+<link href="../python/hpc_jax.html" rel="next">
+<link href="../python/cudf_setup.html" rel="prev">
 <link href="..//img/favicon_sfu.png" rel="icon" type="image/png">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -46,9 +102,9 @@ ul.task-list li input[type="checkbox"] {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-91a2596f664d37c5642781ae2007de11.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-8f1e6155fda1da151afe638c554109e3.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../site_libs/bootstrap/bootstrap-dark-910fa6bbf10d34f165882521440cc31c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="../site_libs/bootstrap/bootstrap-8f1e6155fda1da151afe638c554109e3.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-4cbd24615de6576f0b97376f7f2577b1.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-15e4432b1bab339c0196f579bc8c6596.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-4cbd24615de6576f0b97376f7f2577b1.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -85,12 +141,15 @@ function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </script>
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
 
 
 <link rel="stylesheet" href="../styles.css">
 </head>
 
-<body class="nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+<body class="nav-sidebar floating nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
     const toggleBodyColorMode = (bsSheetEl) => {
       const mode = bsSheetEl.getAttribute("data-mode");
       const bodyEl = window.document.querySelector("body");
@@ -279,7 +338,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span class="menu-text">R</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../python/index.html"> 
+    <a class="nav-link active" href="../python/index.html" aria-current="page"> 
 <span class="menu-text">Python</span></a>
   </li>  
   <li class="nav-item">
@@ -315,13 +374,587 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
       </div> <!-- /container-fluid -->
     </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <a class="flex-grow-1 no-decor" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+          <h1 class="quarto-secondary-nav-title">Polars GPU engine</h1>
+        </a>     
+    </div>
+  </nav>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><br>&nbsp;<img src="img/logo_python.svg" class="img-fluid" style="width:1.55em" alt="noshadow"><br><br></span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Getting started</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_python.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A few words about Python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_run.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Running Python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_doc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Help and documentation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_syntax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Syntax</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_objects.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Python objects</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_collections.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Collections</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_control_flow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control flow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Writing functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_pkg.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Modules, pkgs, and libraries</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_df.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DataFrames in Python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_numpy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Array computing with NumPy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/intro_plot.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Plotting in Python</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_matplotlib.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">matplotlib</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_seaborn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">seaborn</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_oop.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Object-oriented programming</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_hpc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Python at scale</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/intro_resources.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resources</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_llm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Learning with LLMs</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_why.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LLMs and coding</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_first_dab.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">First dab at playing with an LLM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_webscraping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Webscraping with an LLM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/llm_takeaways.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Takeaways on coding with LLMs</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_nlp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Text analysis</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_install.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Package installation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_data.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting the data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_processing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Text processing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_normalization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Text normalization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/nlp_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sentiment analysis</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/hpc_polars.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Polars: faster DataFrames</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_dataframes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The world of DataFrames</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_install.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Installation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_types.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data types</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_structures.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data structures</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_inspection.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DataFrames inspection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_subset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Subsetting data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_lazy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Lazy evaluation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_pandas.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Comparison with pandas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/polars_resources.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resources</span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/hpc_gpu.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>GPU-accelerated Python</em></b></span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/gpu_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>A few notes about GPUs</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/gpu_clusters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GPUs on Alliance clusters</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/gpu_cuda.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A brief intro to CUDA</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/gpu_concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GPU programming concepts</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/gpu_cupy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Arrays with CuPy</em></b></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cupy_setup.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using CuPy after this course</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cupy_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Our workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cupy_basics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CuPy basics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cupy_kernels.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom kernels</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/gpu_cudf.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>Dataframes with cuDF</em></b></span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cudf_ecosystem.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The RAPIDS cuDF ecosystem</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cudf_install.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Installation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cudf_setup.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setup for this course</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/cudf_basics.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Polars GPU engine</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/hpc_jax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><b><em>JAX: accelerated arrays &amp; AD</em></b></span></a>
+  </div>
+</li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_wb.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em><b>Webinars</b></em></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_uv.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">uv package manager</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_uv_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_marimo.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Next-gen Python notebooks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_marimo_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_shiny.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dashboards: Shiny vs Dash</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_polars2.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RIP pandas, welcome Polars</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_polars2_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_polars.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Faster DataFrames</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_polars_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_jax.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Accelerated arrays &amp; AD</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_jax_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/wb_hss_prog.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Intro programming for HSS</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/wb_hss_prog_content.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em>Slides content</em></span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="px-0"><hr class="sidebar-divider hi "></li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../python/top_ws.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><em><b>Workshops</b></em></span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/ws_webscraping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Web scraping with bs4</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/ws_pandas.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DataFrames with pandas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../python/ws_text.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Playing with text</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-        
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title"><em>On this page:</em></h2>
+   
+  <ul>
+  <li><a href="#polars" id="toc-polars" class="nav-link active" data-scroll-target="#polars">Polars</a></li>
+  <li><a href="#polars-lazy-api" id="toc-polars-lazy-api" class="nav-link" data-scroll-target="#polars-lazy-api">Polars lazy API</a></li>
+  <li><a href="#polars-on-gpu" id="toc-polars-on-gpu" class="nav-link" data-scroll-target="#polars-on-gpu">Polars on GPU</a></li>
+  <li><a href="#configurations" id="toc-configurations" class="nav-link" data-scroll-target="#configurations">Configurations</a>
+  <ul>
+  <li><a href="#default-configuration" id="toc-default-configuration" class="nav-link" data-scroll-target="#default-configuration">Default configuration</a></li>
+  <li><a href="#configuration-options" id="toc-configuration-options" class="nav-link" data-scroll-target="#configuration-options">Configuration options</a></li>
+  </ul></li>
+  <li><a href="#executors" id="toc-executors" class="nav-link" data-scroll-target="#executors">Executors</a>
+  <ul>
+  <li><a href="#streaming" id="toc-streaming" class="nav-link" data-scroll-target="#streaming">Streaming</a>
+  <ul>
+  <li><a href="#single-gpu" id="toc-single-gpu" class="nav-link" data-scroll-target="#single-gpu">Single GPU</a></li>
+  <li><a href="#multiple-gpus" id="toc-multiple-gpus" class="nav-link" data-scroll-target="#multiple-gpus">Multiple GPUs</a></li>
+  </ul></li>
+  <li><a href="#in-memory" id="toc-in-memory" class="nav-link" data-scroll-target="#in-memory">In-memory</a></li>
+  </ul></li>
+  </ul>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
@@ -329,7 +962,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Polars GPU engine basics</h1>
+<h1 class="title d-none d-lg-block">Polars GPU engine</h1>
 </div>
 
 
@@ -353,17 +986,1044 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 
 
 <div class="def">
-
+<p>In this section, we look at the basics of using Polars on GPU with RAPIDS cuDF.</p>
 </div>
+<section id="polars" class="level2">
+<h2 class="anchored" data-anchor-id="polars">Polars</h2>
+<p>Polars is an <a href="https://en.wikipedia.org/wiki/Online_analytical_processing">online analytical processing (OLAP)</a> query engine for DataFrames in Python.</p>
+<p>It is a newer, faster, and better option than pandas: it allows automatic multithreading and lazy evaluation, it builds on <a href="https://github.com/apache/arrow">Apache Arrow</a> to store data in memory, it has a clearer syntax and a consistent handling of missing data.</p>
+<p>You can find more information in <a href="../python/hpc_polars.html">our introductory course</a> and <a href="../python/wb_polars.html">webinar</a> on Polars as well as our <a href="../python/wb_polars2.html">webinar comparing it to pandas</a>.</p>
+<p>Below is an example with data from the <a href="https://www.gbif.org/">GBIF</a> website (free and open access biodiversity database). The <a href="https://www.gbif.org/dataset/906e6978-e292-4a8b-9c39-adf6bb0f3323">Southern African Bird Atlas Project 2</a> <span class="citation" data-cites="https://doi.org/10.15468/dl.gqwnm2">[<a href="#ref-https://doi.org/10.15468/dl.gqwnm2" role="doc-biblioref">1</a>]</span> contains a CSV file of 12.3 GB.</p>
+<p>Shape of the DataFrame: 25,687,526 rows, 50 columns.</p>
+<p>I converted the CSV file into a (much!) better file format: <a href="https://parquet.apache.org/">Apache Parquet</a>, a binary, machine-optimized, column-oriented file format with efficient encoding and compression, ideal for large tabular data. And I copied it to the training cluster, in a directory we can all read from.</p>
+<p>Because of the size of the data and the small amount of memory available in our training cluster, if you try to read in the file into a Polars DataFrame, the kernel will die because of an out of memory (OOM) error (you can try to see what an OOM problem looks like in a Jupyter notebook: there is not a lot of feedback!).</p>
+<p>The timing and result below are on my machine:</p>
+<div id="70c1aba2" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (25_687_526, 50)</small>
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">gbifID</th>
+<th data-quarto-table-cell-role="th">datasetKey</th>
+<th data-quarto-table-cell-role="th">occurrenceID</th>
+<th data-quarto-table-cell-role="th">kingdom</th>
+<th data-quarto-table-cell-role="th">phylum</th>
+<th data-quarto-table-cell-role="th">class</th>
+<th data-quarto-table-cell-role="th">order</th>
+<th data-quarto-table-cell-role="th">family</th>
+<th data-quarto-table-cell-role="th">genus</th>
+<th data-quarto-table-cell-role="th">species</th>
+<th data-quarto-table-cell-role="th">infraspecificEpithet</th>
+<th data-quarto-table-cell-role="th">taxonRank</th>
+<th data-quarto-table-cell-role="th">scientificName</th>
+<th data-quarto-table-cell-role="th">verbatimScientificName</th>
+<th data-quarto-table-cell-role="th">verbatimScientificNameAuthorship</th>
+<th data-quarto-table-cell-role="th">countryCode</th>
+<th data-quarto-table-cell-role="th">locality</th>
+<th data-quarto-table-cell-role="th">stateProvince</th>
+<th data-quarto-table-cell-role="th">occurrenceStatus</th>
+<th data-quarto-table-cell-role="th">individualCount</th>
+<th data-quarto-table-cell-role="th">publishingOrgKey</th>
+<th data-quarto-table-cell-role="th">decimalLatitude</th>
+<th data-quarto-table-cell-role="th">decimalLongitude</th>
+<th data-quarto-table-cell-role="th">coordinateUncertaintyInMeters</th>
+<th data-quarto-table-cell-role="th">coordinatePrecision</th>
+<th data-quarto-table-cell-role="th">elevation</th>
+<th data-quarto-table-cell-role="th">elevationAccuracy</th>
+<th data-quarto-table-cell-role="th">depth</th>
+<th data-quarto-table-cell-role="th">depthAccuracy</th>
+<th data-quarto-table-cell-role="th">eventDate</th>
+<th data-quarto-table-cell-role="th">day</th>
+<th data-quarto-table-cell-role="th">month</th>
+<th data-quarto-table-cell-role="th">year</th>
+<th data-quarto-table-cell-role="th">taxonKey</th>
+<th data-quarto-table-cell-role="th">speciesKey</th>
+<th data-quarto-table-cell-role="th">basisOfRecord</th>
+<th data-quarto-table-cell-role="th">institutionCode</th>
+<th data-quarto-table-cell-role="th">collectionCode</th>
+<th data-quarto-table-cell-role="th">catalogNumber</th>
+<th data-quarto-table-cell-role="th">recordNumber</th>
+<th data-quarto-table-cell-role="th">identifiedBy</th>
+<th data-quarto-table-cell-role="th">dateIdentified</th>
+<th data-quarto-table-cell-role="th">license</th>
+<th data-quarto-table-cell-role="th">rightsHolder</th>
+<th data-quarto-table-cell-role="th">recordedBy</th>
+<th data-quarto-table-cell-role="th">typeStatus</th>
+<th data-quarto-table-cell-role="th">establishmentMeans</th>
+<th data-quarto-table-cell-role="th">lastInterpreted</th>
+<th data-quarto-table-cell-role="th">mediaType</th>
+<th data-quarto-table-cell-role="th">issue</th>
+</tr>
+<tr class="even">
+<td>i64</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>f64</td>
+<td>f64</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>i64</td>
+<td>i64</td>
+<td>i64</td>
+<td>i64</td>
+<td>i64</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+<td>str</td>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>3867289255</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid18…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Passeriformes"</td>
+<td>"Muscicapidae"</td>
+<td>"Bradornis"</td>
+<td>"Bradornis pallidus"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Bradornis pallidus (J.W.von Mü…</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"Mpumalanga"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-24.79125</td>
+<td>31.457917</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2022-07-21"</td>
+<td>21</td>
+<td>7</td>
+<td>2022</td>
+<td>2492639</td>
+<td>2492639</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid18…</td>
+<td>null</td>
+<td>"Mr L Hes"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mr L Hes"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:26.735Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="even">
+<td>2341252758</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid25…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Charadriiformes"</td>
+<td>"Burhinidae"</td>
+<td>"Burhinus"</td>
+<td>"Burhinus capensis"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Burhinus capensis (M.H.K.Licht…</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"Limpopo"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-23.874583</td>
+<td>29.457917</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2011-01-07"</td>
+<td>7</td>
+<td>1</td>
+<td>2011</td>
+<td>2482097</td>
+<td>2482097</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid25…</td>
+<td>null</td>
+<td>"Prof J Pretorius"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Prof J Pretorius"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:53.556Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="odd">
+<td>3867442137</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid18…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Passeriformes"</td>
+<td>"Platysteiridae"</td>
+<td>"Batis"</td>
+<td>"Batis molitor"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Batis molitor (Kuster, 1836)"</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"Limpopo"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-23.957917</td>
+<td>31.124583</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2022-07-20"</td>
+<td>20</td>
+<td>7</td>
+<td>2022</td>
+<td>5231186</td>
+<td>5231186</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid18…</td>
+<td>null</td>
+<td>"Mr P Verster"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mr P Verster"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:26.735Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="even">
+<td>2347570158</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid88…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Coraciiformes"</td>
+<td>"Alcedinidae"</td>
+<td>"Halcyon"</td>
+<td>"Halcyon leucocephala"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Halcyon leucocephala (P.L.S.Mü…</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"Limpopo"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-24.29125</td>
+<td>30.624583</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2016-10-17"</td>
+<td>17</td>
+<td>10</td>
+<td>2016</td>
+<td>5228304</td>
+<td>5228304</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid88…</td>
+<td>null</td>
+<td>"Mr R Hawkins"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mr R Hawkins"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:47:07.113Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="odd">
+<td>3867442155</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid18…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Passeriformes"</td>
+<td>"Malaconotidae"</td>
+<td>"Chlorophoneus"</td>
+<td>"Chlorophoneus sulfureopectus"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Chlorophoneus sulfureopectus (…</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"Limpopo"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-22.374583</td>
+<td>31.207917</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2022-07-18"</td>
+<td>18</td>
+<td>7</td>
+<td>2022</td>
+<td>5845131</td>
+<td>5845131</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid18…</td>
+<td>null</td>
+<td>"Mr R Hawkins"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mr R Hawkins"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:26.736Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="even">
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+</tr>
+<tr class="odd">
+<td>2342365420</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid35…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Passeriformes"</td>
+<td>"Alaudidae"</td>
+<td>"Mirafra"</td>
+<td>"Mirafra africana"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Mirafra africana A.Smith, 1836"</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"North West"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-26.874583</td>
+<td>26.707917</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2012-02-24"</td>
+<td>24</td>
+<td>2</td>
+<td>2012</td>
+<td>9389539</td>
+<td>9389539</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid35…</td>
+<td>null</td>
+<td>"Mrs W Strauss"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mrs W Strauss"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:22.798Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="even">
+<td>2345700071</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid68…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Passeriformes"</td>
+<td>"Cisticolidae"</td>
+<td>"Apalis"</td>
+<td>"Apalis flavida"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Apalis flavida (Strickland, 18…</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"KwaZulu-Natal"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-27.957917</td>
+<td>32.374583</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2015-06-14"</td>
+<td>14</td>
+<td>6</td>
+<td>2015</td>
+<td>2492725</td>
+<td>2492725</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid68…</td>
+<td>null</td>
+<td>"Mr E Marais"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mr E Marais"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:21.251Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="odd">
+<td>2342366813</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid35…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Passeriformes"</td>
+<td>"Turdidae"</td>
+<td>"Turdus"</td>
+<td>"Turdus olivaceus"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Turdus olivaceus Linnaeus, 176…</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"Western Cape"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-34.124583</td>
+<td>19.54125</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2012-02-27"</td>
+<td>27</td>
+<td>2</td>
+<td>2012</td>
+<td>9363452</td>
+<td>9363452</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid35…</td>
+<td>null</td>
+<td>"Dr S Shearer"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Dr S Shearer"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:22.798Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="even">
+<td>2345703248</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid68…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Coraciiformes"</td>
+<td>"Alcedinidae"</td>
+<td>"Ceryle"</td>
+<td>"Ceryle rudis"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Ceryle rudis (Linnaeus, 1758)"</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"KwaZulu-Natal"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-28.79125</td>
+<td>31.957917</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2015-05-09"</td>
+<td>9</td>
+<td>5</td>
+<td>2015</td>
+<td>2475679</td>
+<td>2475679</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid68…</td>
+<td>null</td>
+<td>"Mr JA Gouws"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mr JA Gouws"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:21.252Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+<tr class="odd">
+<td>2342367593</td>
+<td>"906e6978-e292-4a8b-9c39-adf6bb…</td>
+<td>"urn:fiao:sabap2:fullprot:rid35…</td>
+<td>"Animalia"</td>
+<td>"Chordata"</td>
+<td>"Aves"</td>
+<td>"Passeriformes"</td>
+<td>"Cisticolidae"</td>
+<td>"Cisticola"</td>
+<td>"Cisticola juncidis"</td>
+<td>null</td>
+<td>"SPECIES"</td>
+<td>"Cisticola juncidis (Rafinesque…</td>
+<td>null</td>
+<td>null</td>
+<td>"ZA"</td>
+<td>null</td>
+<td>"Mpumalanga"</td>
+<td>"PRESENT"</td>
+<td>null</td>
+<td>"dd862d06-e6e9-4ab9-bc86-c875cc…</td>
+<td>-25.79125</td>
+<td>30.124583</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>null</td>
+<td>"2012-02-24"</td>
+<td>24</td>
+<td>2</td>
+<td>2012</td>
+<td>2492822</td>
+<td>2492822</td>
+<td>"HUMAN_OBSERVATION"</td>
+<td>"FIAO"</td>
+<td>"SABAP2"</td>
+<td>"urn:fiao:sabap2:fullprot:rid35…</td>
+<td>null</td>
+<td>"Mr G Lockwood"</td>
+<td>null</td>
+<td>"CC_BY_4_0"</td>
+<td>null</td>
+<td>"Mr G Lockwood"</td>
+<td>null</td>
+<td>null</td>
+<td>"2026-03-07T10:46:22.799Z"</td>
+<td>null</td>
+<td>"COORDINATE_ROUNDED;GEODETIC_DA…</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.read_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>df</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>From that dataset, I want a list of species from the genus <em>Passer</em> (Old World sparrows):</p>
+<div id="18e5d52e" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="2">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 1)</small>
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">species</th>
+</tr>
+<tr class="even">
+<td>str</td>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>"Passer griseus"</td>
+</tr>
+<tr class="even">
+<td>"Passer domesticus"</td>
+</tr>
+<tr class="odd">
+<td>"Passer motitensis"</td>
+</tr>
+<tr class="even">
+<td>"Passer melanurus"</td>
+</tr>
+<tr class="odd">
+<td>"Passer diffusus"</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<p>Now, we can time this query:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>234 ms ± 15.4 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)</code></pre>
+</section>
+<section id="polars-lazy-api" class="level2">
+<h2 class="anchored" data-anchor-id="polars-lazy-api">Polars lazy API</h2>
+<p>One of the great strengths of Polars is its lazy API: when you create a LazyFrame, Polars doesn’t run the code eagerly, one operation at a time; instead, it creates a query plan (a graph) that only gets resolved when you collect the result (in the form of a classic Polars DataFrame).</p>
+<p>This allows for optimizations and fusions of operations. It also prevents the creation of intermediate objects that take space in memory. Finally, it allows to run queries on datasets <a href="wb_polars2_content#data-too-big-to-fit-in-memory.qmd">too big to fit in memory</a>.</p>
+<p>Here is what it looks like (this one runs without any issue on the training cluster!):</p>
+<div id="70ea9271" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display" data-execution_count="3">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 1)</small>
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">species</th>
+</tr>
+<tr class="even">
+<td>str</td>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>"Passer griseus"</td>
+</tr>
+<tr class="even">
+<td>"Passer diffusus"</td>
+</tr>
+<tr class="odd">
+<td>"Passer motitensis"</td>
+</tr>
+<tr class="even">
+<td>"Passer domesticus"</td>
+</tr>
+<tr class="odd">
+<td>"Passer melanurus"</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.scan_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    .collect()</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>We can time it too:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    .collect()</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>79 ms ± 2.21 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)</code></pre>
+<p>We have a small speedup (factor of 3), but the main advantage is the memory required.</p>
 <div class="info">
-<p>As of March 2026, this project is in open beta, meaning that it is available for testing before the official launch. This means that it is still in development and there could be bugs or breaking changes.</p>
-<p>Polars with the GPU engine also currently only works on Linux or Windows Subsystem for Linux 2 (WSL2).</p>
-<p>Currently, not all data types and expressions are supported. For an up to date of what is supported, have a look at the <a href="https://docs.pola.rs/user-guide/gpu-support/#supported">official documentation</a>.</p>
+<p><strong>When to use the lazy API?</strong></p>
+<ul>
+<li>Use it whenever you are dealing with large datasets.</li>
+<li>The only option to work out-of-core (data too big to fit in memory).</li>
+</ul>
+<p>Here, it makes perfect sense to use the lazy API: the data is very big.</p>
+<p><strong>Should you always try to use the lazy API?</strong></p>
+<p>Yes! Unless you are dealing with tiny DataFrames, it is always advantageous to use the lazy API. It will either speed computations up or save you memory, or both, depending on the situation. And as we just saw, it will allow you to run queries that you would otherwise not be able to run with the available memory).</p>
 </div>
+</section>
+<section id="polars-on-gpu" class="level2">
+<h2 class="anchored" data-anchor-id="polars-on-gpu">Polars on GPU</h2>
+<p>The GPU engine builds on the lazy API: Polars dispatches the query plan to RAPIDS cuDF for execution on the GPU (if possible). The collected result is returned in the form of a classic Polars DataFrame on the CPU:</p>
+<div id="f79a4b22" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display" data-execution_count="4">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 1)</small>
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">species</th>
+</tr>
+<tr class="even">
+<td>str</td>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>"Passer domesticus"</td>
+</tr>
+<tr class="even">
+<td>"Passer motitensis"</td>
+</tr>
+<tr class="odd">
+<td>"Passer diffusus"</td>
+</tr>
+<tr class="even">
+<td>"Passer melanurus"</td>
+</tr>
+<tr class="odd">
+<td>"Passer griseus"</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.scan_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    .collect(engine<span class="op">=</span><span class="st">'gpu'</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>And the timing:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    .collect(engine<span class="op">=</span><span class="st">'gpu'</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<pre><code>95.7 ms ± 378 μs per loop (mean ± std. dev. of 7 runs, 10 loops each)</code></pre>
+<p>As you can see, the result is actually <em>slower</em> here.</p>
+<p>Did the query actually run on the GPU? (Remember that Polars cuDF will, by default, quietly fallback on the CPU for queries that are not yet supported on the GPU).</p>
+<p>One way to check is to run the query in verbose mode:</p>
+<div id="cfaa3a09" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> pl.Config() <span class="im">as</span> cfg:</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    cfg.set_verbose(<span class="va">True</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    (</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>        df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        .unique()</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        .collect(engine<span class="op">=</span><span class="st">'gpu'</span>)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="note">
+<p>No warning means that the query was run on the GPU.</p>
+</div>
+<p>We will discuss the other method in the next section.</p>
+<div class="info">
+<p><strong>When to use GPUs?</strong></p>
+<ul>
+<li>When the computations are intensive and can benefit from vast parallelization.</li>
+<li>Simple queries on very large data won’t benefit from GPUs because the cost of transferring the data to and from the GPU is large and the benefit is small (particularly since Polars already runs computations on multiple threads, so there is already some parallelization).</li>
+</ul>
+<p><strong>Should you always try to use GPUs?</strong></p>
+<p>No! Benchmarks done by the Polars team show that queries heavy in grouped aggregations and joins benefit most from the GPU engine. By contrast, queries dominated by I/O show similar speeds on CPU and GPU (as we just saw).</p>
+</div>
+<!-- ## xxx -->
+<!-- ```{.python} -->
+<!-- ( -->
+<!--     df.group_by(pl.col("family")) -->
+<!--     .agg(pl.col("species").sum()) -->
+<!--     .collect() -->
+<!-- ) -->
+<!-- ``` -->
+</section>
+<section id="configurations" class="level2">
+<h2 class="anchored" data-anchor-id="configurations">Configurations</h2>
+<section id="default-configuration" class="level3">
+<h3 class="anchored" data-anchor-id="default-configuration">Default configuration</h3>
+<p>The default configuration Works in most cases. To use it, as we saw, simply pass <code>engine="cpu"</code> in the <code>collect</code> method.</p>
+</section>
+<section id="configuration-options" class="level3">
+<h3 class="anchored" data-anchor-id="configuration-options">Configuration options</h3>
+<p>You can create a GPU engine thanks to <code>polars.GPUEngine</code> and pass options to it.</p>
+<div class="example">
+<p>Example:</p>
+</div>
+<ul>
+<li>Use the <code>in-memory</code> executor (default is <code>streaming</code>),</li>
+<li>select device 1 (if you have at least 2 GPUs; default is <code>0</code>),</li>
+<li>raise an error if a query cannot run on GPU (default is to silently fall back to the CPU):</li>
+</ul>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    executor<span class="op">=</span><span class="st">"in-memory"</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    device<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    raise_on_fail<span class="op">=</span><span class="va">True</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You then pass this engine as the value of the <code>engine</code> argument of the <code>collect</code> method:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>your<span class="op">-</span>query<span class="op">-</span><span class="im">as</span><span class="op">-</span>a<span class="op">-</span>lazy<span class="op">-</span>frame<span class="op">&gt;</span>.collect(engine<span class="op">=</span>engine)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The second method to ensure that our computations ran on GPU (and did not silently fallback on CPU) is change the configuration options.</p>
+<div class="exo">
+<div class="yourturn">
+<p>Your turn:</p>
+</div>
+<p>Can you write the code that would test this?</p>
+</div>
+<!-- ```{.python} -->
+<!-- engine = pl.GPUEngine( -->
+<!--     raise_on_fail=True -->
+<!-- ) -->
+<!-- ( -->
+<!--     df.filter(pl.col('genus') == 'Passer') -->
+<!--     .select(pl.col('species')) -->
+<!--     .unique() -->
+<!--     .collect(engine=engine) -->
+<!-- ) -->
+<!-- ``` -->
+</section>
+</section>
+<section id="executors" class="level2">
+<h2 class="anchored" data-anchor-id="executors">Executors</h2>
+<section id="streaming" class="level3">
+<h3 class="anchored" data-anchor-id="streaming">Streaming</h3>
+<p>Streaming splits the data into partitions that are streamed through the query graph. Because it scales best and works very well on parquet files, this is what you want to use for large data.</p>
+<section id="single-gpu" class="level4">
+<h4 class="anchored" data-anchor-id="single-gpu">Single GPU</h4>
+<p>This is the default of the Polars GPU engine.</p>
+<p>Using <code>.collect(engine="gpu")</code> as we did earlier is equivalent to creating the following engines:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>engine<span class="op">=</span>pl.GPUEngine()</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># or</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>engine<span class="op">=</span>pl.GPUEngine(executor<span class="op">=</span><span class="st">"streaming"</span>, executor_options<span class="op">=</span>{<span class="st">"cluster"</span>: <span class="st">"single"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>and then using them with <code>.collect(engine=engine)</code>.</p>
+<p>You can pass additional options to the executor</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    executor_options<span class="op">=</span>{</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"max_rows_per_partition"</span>: <span class="dv">1_000_000</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>While using parquet files, you can pass additional parquet options:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> GPUEngine(</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    parquet_options<span class="op">=</span>{</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">'chunked'</span>: <span class="va">True</span>,</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">'chunk_read_limit'</span>: <span class="bu">int</span>(<span class="fl">1e9</span>),</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">'pass_read_limit'</span>: <span class="bu">int</span>(<span class="fl">4e9</span>)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="multiple-gpus" class="level4">
+<h4 class="anchored" data-anchor-id="multiple-gpus">Multiple GPUs</h4>
+<p>If you want to use multiple GPUs, you can create a distributed streaming executor:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    executor<span class="op">=</span><span class="st">"streaming"</span>,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    executor_options<span class="op">=</span>{<span class="st">"cluster"</span>: <span class="st">"distributed"</span>},</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="in-memory" class="level3">
+<h3 class="anchored" data-anchor-id="in-memory">In-memory</h3>
+<p>If you have small data that fits easily in memory, you can run the <code>in-memory</code> executor which will have less overhead. But careful that it will not scale well however:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(executor<span class="op">=</span><span class="st">"in-memory"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 
-</main> <!-- /main -->
+</section>
+</section>
+
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body" role="list">
+<div id="ref-https://doi.org/10.15468/dl.gqwnm2" class="csl-entry" role="listitem">
+<div class="csl-left-margin">1. </div><div class="csl-right-inline">GBIF.org (2026) <a href="https://doi.org/10.15468/DL.GQWNM2">Occurrence download</a></div>
+</div>
+</div></section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     // Ensure there is a toggle, if there isn't float one in the top right
@@ -782,6 +2442,18 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
     }
   });
   </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../python/cudf_setup.html" class="pagination-link" aria-label="Setup for this course">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Setup for this course</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../python/hpc_jax.html" class="pagination-link" aria-label="<b><em>JAX: accelerated arrays &amp; AD</em></b>">
+        <span class="nav-page-text"><b><em>JAX: accelerated arrays &amp; AD</em></b></span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
 </div> <!-- /content -->
 <footer class="footer">
   <div class="nav-footer">
