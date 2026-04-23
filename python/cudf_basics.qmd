@@ -1,0 +1,349 @@
+---
+title: Polars GPU engine
+author: Marie-Hélène Burle
+bibliography: python.bib
+csl: ../diabetologia.csl
+---
+
+:::{.def}
+
+In this section, we look at the basics of using Polars on GPU with RAPIDS cuDF.
+
+:::
+
+## Polars
+
+Polars is an [online analytical processing (OLAP)](https://en.wikipedia.org/wiki/Online_analytical_processing) query engine for DataFrames in Python.
+
+It is a newer, faster, and better option than pandas: it allows automatic multithreading and lazy evaluation, it builds on [Apache Arrow](https://github.com/apache/arrow) to store data in memory, it has a clearer syntax and a consistent handling of missing data.
+
+You can find more information in [our introductory course](hpc_polars.qmd) and [webinar](wb_polars.qmd) on Polars as well as our [webinar comparing it to pandas](wb_polars2.qmd).
+
+Below is an example with data from the [GBIF](https://www.gbif.org/) website (free and open access biodiversity database). The [Southern African Bird Atlas Project 2](https://www.gbif.org/dataset/906e6978-e292-4a8b-9c39-adf6bb0f3323) [@https://doi.org/10.15468/dl.gqwnm2] contains a CSV file of 12.3 GB.
+
+Shape of the DataFrame: 25,687,526 rows, 50 columns.
+
+I converted the CSV file into a (much!) better file format: [Apache Parquet](https://parquet.apache.org/), a binary, machine-optimized, column-oriented file format with efficient encoding and compression, ideal for large tabular data. And I copied it to the training cluster, in a directory we can all read from.
+
+Because of the size of the data and the small amount of memory available in our training cluster, if you try to read in the file into a Polars DataFrame, the kernel will die because of an out of memory (OOM) error (you can try to see what an OOM problem looks like in a Jupyter notebook: there is not a lot of feedback!).
+
+The timing and result below are on my machine:
+
+```{.python}
+import polars as pl
+
+df = pl.read_parquet('/project/def-sponsor00/data/sa_birds.parquet')
+
+df
+```
+
+```{python}
+#| echo: false
+
+import polars as pl
+
+df = pl.read_parquet('sa_birds.parquet')
+
+df
+```
+
+From that dataset, I want a list of species from the genus *Passer* (Old World sparrows):
+
+```{python}
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+)
+```
+
+Now, we can time this query:
+
+```{.python}
+%%timeit
+
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+)
+```
+
+```
+234 ms ± 15.4 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+## Polars lazy API
+
+One of the great strengths of Polars is its lazy API: when you create a LazyFrame, Polars doesn't run the code eagerly, one operation at a time; instead, it creates a query plan (a graph) that only gets resolved when you collect the result (in the form of a classic Polars DataFrame).
+
+This allows for optimizations and fusions of operations. It also prevents the creation of intermediate objects that take space in memory. Finally, it allows to run queries on datasets [too big to fit in memory](wb_polars2_content#data-too-big-to-fit-in-memory.qmd).
+
+Here is what it looks like (this one runs without any issue on the training cluster!):
+
+```{.python}
+import polars as pl
+
+df = pl.scan_parquet('/project/def-sponsor00/data/sa_birds.parquet')
+
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+    .collect()
+)
+```
+
+```{python}
+#| echo: false
+
+df = pl.scan_parquet('sa_birds.parquet')
+
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+    .collect()
+)
+```
+
+We can time it too:
+
+```{.python}
+%%timeit
+
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+    .collect()
+)
+```
+
+```
+79 ms ± 2.21 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+```
+
+We have a small speedup (factor of 3), but the main advantage is the memory required.
+
+:::{.info}
+
+**When to use the lazy API?**
+
+- Use it whenever you are dealing with large datasets.
+- The only option to work out-of-core (data too big to fit in memory).
+
+Here, it makes perfect sense to use the lazy API: the data is very big.
+
+**Should you always try to use the lazy API?**
+
+Yes! Unless you are dealing with tiny DataFrames, it is always advantageous to use the lazy API. It will either speed computations up or save you memory, or both, depending on the situation. And as we just saw, it will allow you to run queries that you would otherwise not be able to run with the available memory).
+
+:::
+
+## Polars on GPU
+
+The GPU engine builds on the lazy API: Polars dispatches the query plan to RAPIDS cuDF for execution on the GPU (if possible). The collected result is returned in the form of a classic Polars DataFrame on the CPU:
+
+```{.python}
+df = pl.scan_parquet('/project/def-sponsor00/data/sa_birds.parquet')
+
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+    .collect(engine='gpu')
+)
+```
+
+```{python}
+#| echo: false
+
+df = pl.scan_parquet('sa_birds.parquet')
+
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+    .collect(engine='gpu')
+)
+```
+
+And the timing:
+
+```{.python}
+%%timeit
+
+(
+    df.filter(pl.col('genus') == 'Passer')
+    .select(pl.col('species'))
+    .unique()
+    .collect(engine='gpu')
+)
+```
+
+```
+95.7 ms ± 378 μs per loop (mean ± std. dev. of 7 runs, 10 loops each)
+```
+
+As you can see, the result is actually *slower* here.
+
+Did the query actually run on the GPU? (Remember that Polars cuDF will, by default, quietly fallback on the CPU for queries that are not yet supported on the GPU).
+
+One way to check is to run the query in verbose mode:
+
+```{python}
+with pl.Config() as cfg:
+    cfg.set_verbose(True)
+    (
+        df.filter(pl.col('genus') == 'Passer')
+        .select(pl.col('species'))
+        .unique()
+        .collect(engine='gpu')
+    )
+```
+
+:::{.note}
+
+No warning means that the query was run on the GPU.
+
+:::
+
+We will discuss the other method in the next section.
+
+:::{.info}
+
+**When to use GPUs?**
+
+- When the computations are intensive and can benefit from vast parallelization.
+- Simple queries on very large data won't benefit from GPUs because the cost of transferring the data to and from the GPU is large and the benefit is small (particularly since Polars already runs computations on multiple threads, so there is already some parallelization).
+
+**Should you always try to use GPUs?**
+
+No! Benchmarks done by the Polars team show that queries heavy in grouped aggregations and joins benefit most from the GPU engine. By contrast, queries dominated by I/O show similar speeds on CPU and GPU (as we just saw).
+
+:::
+
+<!-- ## xxx -->
+
+<!-- ```{.python} -->
+<!-- ( -->
+<!--     df.group_by(pl.col("family")) -->
+<!--     .agg(pl.col("species").sum()) -->
+<!--     .collect() -->
+<!-- ) -->
+<!-- ``` -->
+
+## Configurations
+
+### Default configuration
+
+The default configuration Works in most cases. To use it, as we saw, simply pass `engine="cpu"` in the `collect` method.
+
+### Configuration options
+
+You can create a GPU engine thanks to `polars.GPUEngine` and pass options to it.
+
+:::{.example}
+
+Example:
+
+:::
+
+- Use the `in-memory` executor (default is `streaming`),
+- select device 1 (if you have at least 2 GPUs; default is `0`),
+- raise an error if a query cannot run on GPU (default is to silently fall back to the CPU):
+
+```{.python}
+engine = pl.GPUEngine(
+    executor="in-memory",
+    device=1,
+    raise_on_fail=True
+)
+```
+
+You then pass this engine as the value of the `engine` argument of the `collect` method: `<your-query-as-a-lazy-frame>.collect(engine=engine).`
+
+The second method to ensure that our computations ran on GPU (and did not silently fallback on CPU) is change the configuration options.
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Can you write the code that would test this?
+
+:::
+
+<!-- ```{.python} -->
+<!-- engine = pl.GPUEngine( -->
+<!--     raise_on_fail=True -->
+<!-- ) -->
+
+<!-- ( -->
+<!--     df.filter(pl.col('genus') == 'Passer') -->
+<!--     .select(pl.col('species')) -->
+<!--     .unique() -->
+<!--     .collect(engine=engine) -->
+<!-- ) -->
+<!-- ``` -->
+
+## Executors
+
+### Streaming
+
+Streaming splits the data into partitions that are streamed through the query graph. Because it scales best and works very well on parquet files, this is what you want to use for large data.
+
+#### Single GPU
+
+This is the default of the Polars GPU engine.
+
+Using `.collect(engine="gpu")` as we did earlier is equivalent to creating the following engines:
+
+```{.python}
+engine=pl.GPUEngine()
+
+# or the following with the default options
+engine=pl.GPUEngine(executor="streaming", executor_options={"cluster": "single"})
+```
+
+and then using them with `.collect(engine=engine)`.
+
+You can pass additional options to the executor
+
+```{.python}
+engine = pl.GPUEngine(
+    executor_options={"max_rows_per_partition": 1_000_000}
+)
+```
+
+While using parquet files, you can pass additional parquet options:
+
+```{.python}
+engine = GPUEngine(
+    parquet_options={
+        'chunked': True,
+        'chunk_read_limit': int(1e9),
+        'pass_read_limit': int(4e9)
+    }
+)
+```
+
+#### Multiple GPUs
+
+If you want to use multiple GPUs, you can create a distributed streaming executor:
+
+```{.python}
+engine = pl.GPUEngine(executor_options={"cluster": "distributed"})
+```
+
+### In-memory
+
+If you have small data that fits easily in memory, you can run the `in-memory` executor which will have less overhead. But careful that it will not scale well however:
+
+```{.python}
+engine = pl.GPUEngine(executor="in-memory")
+```
