@@ -102,9 +102,9 @@ div.csl-indent {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-91a2596f664d37c5642781ae2007de11.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-4cbd24615de6576f0b97376f7f2577b1.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../site_libs/bootstrap/bootstrap-dark-15e4432b1bab339c0196f579bc8c6596.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="../site_libs/bootstrap/bootstrap-4cbd24615de6576f0b97376f7f2577b1.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-6826ca7e73f8f71fe30f4fc4cd44d46d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-a387dbb93d9a4d552704efd7fcb62011.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-6826ca7e73f8f71fe30f4fc4cd44d46d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -998,6 +998,11 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <p>I converted the CSV file into a (much!) better file format: <a href="https://parquet.apache.org/">Apache Parquet</a>, a binary, machine-optimized, column-oriented file format with efficient encoding and compression, ideal for large tabular data. And I copied it to the training cluster, in a directory we can all read from.</p>
 <p>Because of the size of the data and the small amount of memory available in our training cluster, if you try to read in the file into a Polars DataFrame, the kernel will die because of an out of memory (OOM) error (you can try to see what an OOM problem looks like in a Jupyter notebook: there is not a lot of feedback!).</p>
 <p>The timing and result below are on my machine:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.read_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>df</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div id="70c1aba2" class="cell" data-execution_count="2">
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div><style>
@@ -1693,11 +1698,6 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.read_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>df</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>From that dataset, I want a list of species from the genus <em>Passer</em> (Old World sparrows):</p>
 <div id="18e5d52e" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>(</span>
@@ -1759,6 +1759,16 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <p>One of the great strengths of Polars is its lazy API: when you create a LazyFrame, Polars doesn’t run the code eagerly, one operation at a time; instead, it creates a query plan (a graph) that only gets resolved when you collect the result (in the form of a classic Polars DataFrame).</p>
 <p>This allows for optimizations and fusions of operations. It also prevents the creation of intermediate objects that take space in memory. Finally, it allows to run queries on datasets <a href="wb_polars2_content#data-too-big-to-fit-in-memory.qmd">too big to fit in memory</a>.</p>
 <p>Here is what it looks like (this one runs without any issue on the training cluster!):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.scan_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    .collect()</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div id="70ea9271" class="cell" data-execution_count="4">
 <div class="cell-output cell-output-display" data-execution_count="3">
 <div><style>
@@ -1799,16 +1809,6 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.scan_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>(</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    .collect()</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>We can time it too:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -1834,6 +1834,14 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <section id="polars-on-gpu" class="level2">
 <h2 class="anchored" data-anchor-id="polars-on-gpu">Polars on GPU</h2>
 <p>The GPU engine builds on the lazy API: Polars dispatches the query plan to RAPIDS cuDF for execution on the GPU (if possible). The collected result is returned in the form of a classic Polars DataFrame on the CPU:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.scan_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    .collect(engine<span class="op">=</span><span class="st">'gpu'</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div id="f79a4b22" class="cell" data-execution_count="5">
 <div class="cell-output cell-output-display" data-execution_count="4">
 <div><style>
@@ -1874,14 +1882,6 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pl.scan_parquet(<span class="st">'/project/def-sponsor00/data/sa_birds.parquet'</span>)</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>(</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    df.<span class="bu">filter</span>(pl.col(<span class="st">'genus'</span>) <span class="op">==</span> <span class="st">'Passer'</span>)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    .select(pl.col(<span class="st">'species'</span>))</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    .unique()</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    .collect(engine<span class="op">=</span><span class="st">'gpu'</span>)</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>And the timing:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>timeit</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -1949,8 +1949,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    device<span class="op">=</span><span class="dv">1</span>,</span>
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    raise_on_fail<span class="op">=</span><span class="va">True</span></span>
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>You then pass this engine as the value of the <code>engine</code> argument of the <code>collect</code> method:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>your<span class="op">-</span>query<span class="op">-</span><span class="im">as</span><span class="op">-</span>a<span class="op">-</span>lazy<span class="op">-</span>frame<span class="op">&gt;</span>.collect(engine<span class="op">=</span>engine)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You then pass this engine as the value of the <code>engine</code> argument of the <code>collect</code> method: <code>&lt;your-query-as-a-lazy-frame&gt;.collect(engine=engine).</code></p>
 <p>The second method to ensure that our computations ran on GPU (and did not silently fallback on CPU) is change the configuration options.</p>
 <div class="exo">
 <div class="yourturn">
@@ -1980,39 +1979,34 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <h4 class="anchored" data-anchor-id="single-gpu">Single GPU</h4>
 <p>This is the default of the Polars GPU engine.</p>
 <p>Using <code>.collect(engine="gpu")</code> as we did earlier is equivalent to creating the following engines:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>engine<span class="op">=</span>pl.GPUEngine()</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># or</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>engine<span class="op">=</span>pl.GPUEngine(executor<span class="op">=</span><span class="st">"streaming"</span>, executor_options<span class="op">=</span>{<span class="st">"cluster"</span>: <span class="st">"single"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>engine<span class="op">=</span>pl.GPUEngine()</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># or the following with the default options</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>engine<span class="op">=</span>pl.GPUEngine(executor<span class="op">=</span><span class="st">"streaming"</span>, executor_options<span class="op">=</span>{<span class="st">"cluster"</span>: <span class="st">"single"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>and then using them with <code>.collect(engine=engine)</code>.</p>
 <p>You can pass additional options to the executor</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    executor_options<span class="op">=</span>{</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"max_rows_per_partition"</span>: <span class="dv">1_000_000</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    executor_options<span class="op">=</span>{<span class="st">"max_rows_per_partition"</span>: <span class="dv">1_000_000</span>}</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>While using parquet files, you can pass additional parquet options:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> GPUEngine(</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    parquet_options<span class="op">=</span>{</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">'chunked'</span>: <span class="va">True</span>,</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">'chunk_read_limit'</span>: <span class="bu">int</span>(<span class="fl">1e9</span>),</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">'pass_read_limit'</span>: <span class="bu">int</span>(<span class="fl">4e9</span>)</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> GPUEngine(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    parquet_options<span class="op">=</span>{</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">'chunked'</span>: <span class="va">True</span>,</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">'chunk_read_limit'</span>: <span class="bu">int</span>(<span class="fl">1e9</span>),</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">'pass_read_limit'</span>: <span class="bu">int</span>(<span class="fl">4e9</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="multiple-gpus" class="level4">
 <h4 class="anchored" data-anchor-id="multiple-gpus">Multiple GPUs</h4>
 <p>If you want to use multiple GPUs, you can create a distributed streaming executor:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    executor<span class="op">=</span><span class="st">"streaming"</span>,</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    executor_options<span class="op">=</span>{<span class="st">"cluster"</span>: <span class="st">"distributed"</span>},</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(executor_options<span class="op">=</span>{<span class="st">"cluster"</span>: <span class="st">"distributed"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="in-memory" class="level3">
 <h3 class="anchored" data-anchor-id="in-memory">In-memory</h3>
 <p>If you have small data that fits easily in memory, you can run the <code>in-memory</code> executor which will have less overhead. But careful that it will not scale well however:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(executor<span class="op">=</span><span class="st">"in-memory"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>engine <span class="op">=</span> pl.GPUEngine(executor<span class="op">=</span><span class="st">"in-memory"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 
