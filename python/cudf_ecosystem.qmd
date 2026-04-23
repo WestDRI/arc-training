@@ -5,41 +5,44 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-
+This section covers a brief introduction to [RAPIDS cuDF](https://github.com/rapidsai/cudf)—an open-source library that allows to easily run Python DataFrames on the GPU.
 
 :::
 
 ## What is RAPIDS?
 
-CUDA needed
+[RAPIDS](https://github.com/rapidsai) is an open-source collection of libraries from [NVIDIA](https://www.nvidia.com/en-us/) that build on the extremely performant open-source, language-agnostic columnar memory format [Apache Arrow](https://github.com/apache/arrow) and on [CUDA](https://developer.nvidia.com/cuda/toolkit) (not open-source).
+
+RAPIDS include [cuML](https://github.com/rapidsai/cuml) for machine learning, [cuGraph](https://github.com/rapidsai/cugraph) and [nx-cugraph](https://github.com/rapidsai/nx-cugraph) for graph analytics, and [cuDF](https://github.com/rapidsai/cudf) for DataFrames.
 
 ## RAPIDS for dataframes
 
-[RAPIDS cuDF](https://docs.rapids.ai/api/cudf/stable/)
+### Using cuDF
 
-### Comparison
+There are 3 ways to use cuDF:
 
 |               | cuDF                                | pandas cuDF                                         | Polars cuDF                               |
 |---------------|-------------------------------------|-----------------------------------------------------|-------------------------------------------|
-| Documentation |                                     | [Link](https://docs.rapids.ai/api/cudf/stable/cudf_pandas/) |                                           |
 | API           | Similar to pandas<br>Some differences | Exactly the same as pandas                          | Exactly the same as Polars lazy API       |
-| Performance   | **Very good** <br>Operations fully run on GPU           | **Good** <br>Automatic fallbacks to CPU for unsupported operations can lead to costly transfers between CPU and GPU  | **The best** <br>Lazy execution + operations  fully run on GPU |
+| Performance   | **Very good** <br>Operations fully run on GPU           | **Good** <br>Automatic fallbacks to CPU for unsupported operations can lead to costly transfers between CPU and GPU  | **The best** <br>Lazy execution + automatic fallback on CPU |
 | Installation  | Install `cudf`                        | Install `cudf` <br>(`cudf.pandas` is a module)                  | Install `polars` with GPU engine extra <br>(`polars[gpu]`)      |
 
 : {tbl-colwidths="[10, 30, 30, 30]"}
 
 ### Which one to use?
 
-On CPU:
+Unless you are stuck with existing code, pipelines, and workflows that you cannot change, **Polars with the GPU engine** is a great option. It gives you the best of both worlds: lazy execution with its advantages (running out-of-core, better performance, reduced memory impact) as well as code running on GPU. If you are already using Polars with the lazy API on CPU, the code is virtually the same (you just need to pass `engine="gpu"` to `collect` and you can customize the GPU engine for finer control if you want).
 
-Unless you are stuck with existing code, pipelines, and workflows that you cannot change, you should use Polars instead of pandas and you should use the lazy API whenever you have large dataframes.
+**pandas cuDF** will speed up your pandas code to some extent and at no coding cost (if you come from pandas), but it is the least performant option since the pandas code that can't be run on GPU will be run on CPU. Additionally, copying the data back and forth between host and devices is costly. If you don't know pandas, don't learn it: learn Polars instead.
 
-On GPU:
+**cuDF** runs the code fully on GPU and is a much better option, but it requires learning a slightly new API since it only works on a subset of pandas command and has differences with the pandas API.
 
-Similarly, unless you don't have other options, when you turn towards GPUs, you should use Polars with the GPU engine. It gives you the best of both worlds: lazy execution and its advantages (running out-of-core, better performance, reduced memory impact) as well as code that fully runs on GPU. If you are already using Polars with the lazy API on CPU, the code is virtually the same (you just need to pass `engine="gpu"` to `collect` and you can customize the GPU engine for finer control if you want).
+In this course, we will focus on Polars with the GPU engine.
 
-pandas cuDF will speed up your pandas code to some extent and at no coding cost, but it is the lest performant option since the pandas code that can't be run on GPU will be run on CPU. Additionally, copying the data back and forth between host and devices is costly.
+:::{.info}
 
-cuDF runs the code fully on GPU and is a much better option, but it requires learning a new API since it only works on a subset of pandas command and has differences with the pandas API.
+As of April 2026, this project is in open beta, meaning that it is available for testing before the official launch. This means that it is still in development and there could be breaking changes. The multi-GPU engine is particularly experimental at this point.
 
-In this course, we will focus on the best option: Polars with the GPU engine.
+Not quite all data types and expressions are supported yet. For an up to date of what is supported, have a look at the [official documentation](https://docs.pola.rs/user-guide/gpu-support/#supported).
+
+:::
