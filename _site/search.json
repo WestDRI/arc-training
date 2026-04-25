@@ -7449,6 +7449,19 @@
     ]
   },
   {
+    "objectID": "python/cudf_basics.html",
+    "href": "python/cudf_basics.html",
+    "title": "Polars GPU engine",
+    "section": "",
+    "text": "In this section, we look at the basics of using Polars on GPU with RAPIDS cuDF.",
+    "crumbs": [
+      "Python",
+      "<b><em>GPU-accelerated Python</em></b>",
+      "<b><em>Dataframes with cuDF</em></b>",
+      "Polars GPU engine"
+    ]
+  },
+  {
     "objectID": "python/cudf_basics.html#polars",
     "href": "python/cudf_basics.html#polars",
     "title": "Polars GPU engine",
@@ -7480,19 +7493,6 @@
     "title": "Polars GPU engine",
     "section": "Polars on GPU",
     "text": "Polars on GPU\nThe GPU engine builds on the lazy API: Polars dispatches the query plan to RAPIDS cuDF for execution on the GPU (if possible). The collected result is returned in the form of a classic Polars DataFrame on the CPU:\ndf = pl.scan_parquet('/project/def-sponsor00/data/sa_birds.parquet')\n\n(\n    df.filter(pl.col('genus') == 'Passer')\n    .select(pl.col('species'))\n    .unique()\n    .collect(engine='gpu')\n)\n\n\n\nshape: (5, 1)\n\n\n\nspecies\n\n\nstr\n\n\n\n\n\"Passer domesticus\"\n\n\n\"Passer motitensis\"\n\n\n\"Passer diffusus\"\n\n\n\"Passer melanurus\"\n\n\n\"Passer griseus\"\n\n\n\n\n\n\nAnd the timing:\n%%timeit\n\n(\n    df.filter(pl.col('genus') == 'Passer')\n    .select(pl.col('species'))\n    .unique()\n    .collect(engine='gpu')\n)\n95.7 ms ± 378 μs per loop (mean ± std. dev. of 7 runs, 10 loops each)\nAs you can see, the result is actually slower here.\nDid the query actually run on the GPU? (Remember that Polars cuDF will, by default, quietly fallback on the CPU for queries that are not yet supported on the GPU).\nOne way to check is to run the query in verbose mode:\n\nwith pl.Config() as cfg:\n    cfg.set_verbose(True)\n    (\n        df.filter(pl.col('genus') == 'Passer')\n        .select(pl.col('species'))\n        .unique()\n        .collect(engine='gpu')\n    )\n\n\nNo warning means that the query was run on the GPU.\n\nWe will discuss the other method in the next section.\n\nWhen to use GPUs?\n\nWhen the computations are intensive and can benefit from vast parallelization.\nSimple queries on very large data won’t benefit from GPUs because the cost of transferring the data to and from the GPU is large and the benefit is small (particularly since Polars already runs computations on multiple threads, so there is already some parallelization).\n\nShould you always try to use GPUs?\nNo! Benchmarks done by the Polars team show that queries heavy in grouped aggregations and joins benefit most from the GPU engine. By contrast, queries dominated by I/O show similar speeds on CPU and GPU (as we just saw).",
-    "crumbs": [
-      "Python",
-      "<b><em>GPU-accelerated Python</em></b>",
-      "<b><em>Dataframes with cuDF</em></b>",
-      "Polars GPU engine"
-    ]
-  },
-  {
-    "objectID": "python/cudf_basics.html#xxx",
-    "href": "python/cudf_basics.html#xxx",
-    "title": "Polars GPU engine basics",
-    "section": "xxx",
-    "text": "xxx",
     "crumbs": [
       "Python",
       "<b><em>GPU-accelerated Python</em></b>",
@@ -22930,19 +22930,6 @@
     ]
   },
   {
-    "objectID": "python/cudf_setup.html#ssh",
-    "href": "python/cudf_setup.html#ssh",
-    "title": "Our workflow for this course",
-    "section": "SSH",
-    "text": "SSH\n\nWhy use SSH?\nBecause GPUs are in high demand, you need to learn how to use them optimally without letting them sit idle.\nThe key is to write scripts and submit jobs to Slurm instead of using an interactive session such as Jupyter: when you use Jupyter, the resources are made available to you during the whole session, but you are actually running them only when you execute code cells. While you are thinking, typing code, etc. they are poorly used.\nSo while Jupyter is fantastic to prototype code on small data, few samples, etc. using little resources, once your code is ready and you want to run it at scale, you have to submit batch jobs to the Slurm scheduler.\n\n\nLog in\n\nRun the ssh command\n\nLinux and macOS usersWindows users\n\n\nLinux users:   open the terminal emulator of your choice.\nmacOS users:   open “Terminal”.\nThen type:\nssh userxxx@hostname\nand press Enter.\n\n\nReplace userxxx by your username (e.g. user009).\nReplace hostname by the hostname we will give you the day of the workshop.\n\n\nWhen asked:\n\nAre you sure you want to continue connecting (yes/no/[fingerprint])?\n\nAnswer: “yes”.\n\n\nWe suggest using the free version of MobaXterm, a software that comes with a terminal emulator and a GUI interface for SSH sessions.\nHere is how to install MobaXterm:\n\ndownload the “Installer edition” to your computer (green button to the right),\nunzip the file,\ndouble-click on the .msi file to launch the installation.\n\nHere is how to log in with MobaXterm:\n\nopen MobaXterm,\nclick on Session (top left corner),\nclick on SSH (top left corner),\nfill in the Remote host * box with the cluster hostname we gave you,\ntick the box Specify username,\nfill in the box with the username you selected (e.g. user009),\npress OK,\nwhen asked Are you sure you want to continue connecting (yes/no/[fingerprint])?, answer: “yes”.\n\n\nHere is a live demo.\n\n\n\n\n\n\nEnter the password\nWhen prompted, enter the password we gave you.\nYou will not see anything happen as you type the password. This is normal and it is working, so keep on typing the password.\n\nThis is called blind typing and is a Linux safety feature. It can be unsettling at first not to get any feed-back while typing as it really looks like it is not working. Type slowly and make sure not to make typos.\n\nThen press Enter.\n\n\nAm I logged in?\nTo know whether or not you are logged in, look at your prompt: it should look like the following (with your actual username):\n[userxxx@login1 ~]$\n\n\nTroubleshooting\nProblems logging in are almost always due to typos. If you cannot log in, retry slowly, entering your password carefully.\n\n\nHow do I log out?\nYou can log out by pressing Ctl+d.\nFor this course, everything is already setup for you. So once you are logged in, you don’t need to install packages, activate virtual environments, or load modules.\n\n\n\nCreate a directory\nLet’s create a directory for this course and enter it:\nmkdir cudf\ncd cudf\n\n\nWriting scripts\nUse nano or the text editor of your choice to write both the Python scripts that will contain the code to run and the bash scripts that we will submit to Slurm to request resources.\n\nExample:\n\nnano my_script.py",
-    "crumbs": [
-      "Python",
-      "<b><em>GPU-accelerated Python</em></b>",
-      "<b><em>Dataframes with cuDF</em></b>",
-      "Setup for this course"
-    ]
-  },
-  {
     "objectID": "python/cupy_basics.html",
     "href": "python/cupy_basics.html",
     "title": "CuPy basics",
@@ -28972,18 +28959,5 @@
     "title": "A tool to rule them all",
     "section": "Use tools without installation",
     "text": "Use tools without installation\nTools can even be used without installation (from a temporary install)\nuvx ruff\n\nuvx is an alias for uv tool run"
-  },
-  {
-    "objectID": "python/cudf_basics.html",
-    "href": "python/cudf_basics.html",
-    "title": "Polars GPU engine",
-    "section": "",
-    "text": "In this section, we look at the basics of using Polars on GPU with RAPIDS cuDF.",
-    "crumbs": [
-      "Python",
-      "<b><em>GPU-accelerated Python</em></b>",
-      "<b><em>Dataframes with cuDF</em></b>",
-      "Polars GPU engine"
-    ]
   }
 ]
