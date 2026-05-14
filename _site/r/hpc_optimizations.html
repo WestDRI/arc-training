@@ -748,11 +748,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
    
   <ul>
   <li><a href="#toy-example" id="toc-toy-example" class="nav-link active" data-scroll-target="#toy-example">Toy example</a></li>
-  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a>
-  <ul>
-  <li><a href="#interactive-job" id="toc-interactive-job" class="nav-link" data-scroll-target="#interactive-job">Interactive job</a></li>
-  <li><a href="#batch-jobs" id="toc-batch-jobs" class="nav-link" data-scroll-target="#batch-jobs">Batch jobs</a></li>
-  </ul></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
   <li><a href="#optimizations" id="toc-optimizations" class="nav-link" data-scroll-target="#optimizations">Optimizations</a>
   <ul>
   <li><a href="#proper-memory-pre-allocation" id="toc-proper-memory-pre-allocation" class="nav-link" data-scroll-target="#proper-memory-pre-allocation">Proper memory pre-allocation</a></li>
@@ -826,43 +822,41 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<p>First of all, we need to load the necessary modules:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load StdEnv/2023 gcc/13.3 r/4.4.0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Then we need to launch a job. There are 2 options:</p>
-<section id="interactive-job" class="level3">
-<h3 class="anchored" data-anchor-id="interactive-job">Interactive job</h3>
-<p>If there are few of us, we will use an interactive session with one CPU each. To launch it, run the following (in the Bash terminal, not in R):</p>
+<p>If you haven’t done so yet, load the R module:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load r/4.5.0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Then we will launch an interactive job by requesting one CPU each:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">salloc</span> <span class="at">--time</span><span class="op">=</span>2:00:00 <span class="at">--mem-per-cpu</span><span class="op">=</span>3500M</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="note">
+<p>Run this in the Bash terminal, not in R.</p>
+</div>
 <p>We can then launch R:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">R</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Now, we load the benchmarking package that we will use throughout this section:</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bench)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-</section>
-<section id="batch-jobs" class="level3">
-<h3 class="anchored" data-anchor-id="batch-jobs">Batch jobs</h3>
-<p>If there are more of us than there are CPUs in the cluster, we will run batch jobs. In this Case:</p>
+<div class="notenoit">
+<p>It is ok to run an interactive job here because we are actively developing code and using very little resources. Remember that the way to run your code at scale while using resources optimally is to run a batch job instead. To do this you would:</p>
 <ul>
-<li>Create an R script called <code>optim.R</code> with the code to run (you can reuse the same script for all sections on this page by editing it). Don’t forget to load the package <code>bench</code> in your script.</li>
-<li>Create a bash script called <code>optim.sh</code> with the following:</li>
+<li>Create an R script (called for instance <code>optim.R</code>) with the code to run. Don’t forget to load the package <code>bench</code> in your script.</li>
+<li>Create a bash script (called for instance <code>optim.sh</code>) with the following:</li>
 </ul>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>optim.sh</strong></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" data-filename="optim.sh"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --time=15</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --time=5</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH --mem-per-cpu=3500M</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load StdEnv/2023 gcc/13.3 r/4.4.0</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load r/4.5.0</span>
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> optim.R</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <ul>
-<li>Run the jobs with:</li>
+<li>Run the job with:</li>
 </ul>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode sh code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sbatch</span> optim.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
+</div>
 </section>
 <section id="optimizations" class="level2">
 <h2 class="anchored" data-anchor-id="optimizations">Optimizations</h2>
@@ -937,8 +931,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f1(n)         306ms    311ms      3.22   16.55MB     11.3
-2 f2(n)         214ms    219ms      4.58    1.15MB     16.8</code></pre>
+1 f1(n)         181ms    184ms      5.31   16.55MB     15.9
+2 f2(n)         169ms    197ms      5.25    1.15MB     17.5</code></pre>
 </div>
 </div>
 <p><code>f2()</code> is consistently faster, although not by much (speedup of 1.4). In many cases, the difference you will find will be a lot greater.</p>
@@ -980,8 +974,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f2(n)         214ms    219ms      4.56    1.23MB     15.2
-2 f3(n)         217ms    219ms      4.51   863.8KB     16.5</code></pre>
+1 f2(n)         180ms    185ms      4.52    1.15MB     16.6
+2 f3(n)         177ms    183ms      5.37   863.8KB     17.9</code></pre>
 </div>
 </div>
 <p>You can see that there is no difference in timing, but that <code>f3()</code> is still slightly better because it uses a little less memory. This shows that type matters, but <strong>the most important thing you want to worry about in memory pre-allocation is the final length of your objects</strong>.</p>
@@ -1027,8 +1021,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression           min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;      &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f3(n)              262ms    267ms      3.75   781.3KB     16.9
-2 sapply(1:n, f4)    355ms    372ms      2.68    3.29MB     12.1</code></pre>
+1 f3(n)              187ms    202ms      5.06   781.3KB     16.9
+2 sapply(1:n, f4)    253ms    257ms      3.88    3.29MB     15.5</code></pre>
 </div>
 </div>
 <p>As you can see, the loop is faster (speed up of 1.4). On my laptop, it also used 4 times less memory.</p>
@@ -1202,8 +1196,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f3(n)         326ms    330ms      3.03     781KB     12.1
-2 f7(n)         311ms    311ms      3.22     852KB     11.3</code></pre>
+1 f3(n)         151ms    157ms      6.28     781KB     22.0
+2 f7(n)         143ms    172ms      5.25     852KB     17.5</code></pre>
 </div>
 </div>
 <p>But we can remove an additional modulo operation and equality test at each iteration by assigning <code>i %% 3 == 0</code> and <code>i %% 5 == 0</code> to variables:</p>
@@ -1237,8 +1231,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f7(n)         183ms    186ms      5.36     781KB     19.7
-2 f8(n)         173ms    175ms      5.72     856KB     17.2</code></pre>
+1 f7(n)         136ms    148ms      5.60     781KB     18.7
+2 f8(n)         122ms    124ms      8.08     856KB     21.0</code></pre>
 </div>
 </div>
 </section>
@@ -1283,8 +1277,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f8(n)         180ms    182ms      5.37   781.3KB     17.9
-2 f9(n)         130ms    134ms      7.47    1.15MB     18.7</code></pre>
+1 f8(n)       123.4ms  126.7ms      7.90   781.3KB     21.7
+2 f9(n)        83.1ms   84.7ms     11.9     1.15MB     25.7</code></pre>
 </div>
 </div>
 </section>
@@ -1324,8 +1318,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f9(n)       114.6ms  117.8ms      8.11    1.21MB    17.8 
-2 f10(n)       30.2ms   33.9ms     29.2     5.62MB     1.94</code></pre>
+1 f9(n)        83.9ms   88.5ms      11.3    1.15MB    24.5 
+2 f10(n)       35.8ms   37.5ms      26.4    5.62MB     1.88</code></pre>
 </div>
 </div>
 <p>The speedup of 3.5 shows the importance of using vectorization whenever possible.</p>
@@ -1353,8 +1347,8 @@ disabled.</code></pre>
 <pre><code># A tibble: 2 × 6
   expression      min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt; &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 f1(n)         279ms  289.6ms      3.45   16.63MB    13.8 
-2 f10(n)       34.7ms   36.6ms     26.9     5.57MB     1.92</code></pre>
+1 f1(n)       172.8ms  173.3ms      5.76   16.55MB    23.0 
+2 f10(n)       35.3ms   36.3ms     27.2     5.57MB     3.88</code></pre>
 </div>
 </div>
 <p>If we used a silly function such as <code>f6()</code> as our starting function, the speedup would be 333.</p>
