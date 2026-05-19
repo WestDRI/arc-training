@@ -22476,7 +22476,7 @@
     "href": "python/wb_shiny.html",
     "title": "Two paths to Python dashboards:",
     "section": "",
-    "text": "Interactive dashboards are a powerful way to explore data, communicate results, and build web applications directly from Python. Two popular frameworks for this purpose are Python Shiny and Plotly Dash, each offering different approaches to building reactive interfaces and interactive visualizations.\nIn this webinar, we will compare these two frameworks through a small set of practical examples. Rather than providing a comprehensive feature-by-feature review, we will implement the same simple dashboards in both frameworks and examine how their design philosophies translate into code structure and reactivity models, and how similar functionality can be implemented in each framework.\n\nComing up on May 19.",
+    "text": "Interactive dashboards are a powerful way to explore data, communicate results, and build web applications directly from Python. Two popular frameworks for this purpose are Python Shiny and Plotly Dash, each offering different approaches to building reactive interfaces and interactive visualizations.\nIn this webinar, we will compare these two frameworks through a small set of practical examples. Rather than providing a comprehensive feature-by-feature review, we will implement the same simple dashboards in both frameworks and examine how their design philosophies translate into code structure and reactivity models, and how similar functionality can be implemented in each framework.\n\nPlotly Dash webpage by Alex Razoumov\nPython Shiny slides (Click and wait: this reveal.js presentation may take a little time to load.)",
     "crumbs": [
       "Python",
       "<em><b>Webinars</b></em>",
@@ -26536,5 +26536,657 @@
     "title": "A tool to rule them all",
     "section": "Use tools without installation",
     "text": "Use tools without installation\nTools can even be used without installation (from a temporary install)\nuvx ruff\n\nuvx is an alias for uv tool run"
+  },
+  {
+    "objectID": "python/shiny/data_collection.html",
+    "href": "python/shiny/data_collection.html",
+    "title": "Dashboard for data collection",
+    "section": "",
+    "text": "from __future__ import annotations\n\nfrom datetime import UTC, datetime\nfrom pathlib import Path\nimport re\n\nimport plotly.graph_objects as go  # for the plot\nimport polars as pl                # to save the data in a DataFrame\n\n# The 2 key packages for the Shiny app:\nfrom shiny import App, reactive, render, ui\nfrom shinywidgets import output_widget, render_widget"
+  },
+  {
+    "objectID": "python/shiny/data_collection.html#style",
+    "href": "python/shiny/data_collection.html#style",
+    "title": "Dashboard for data collection",
+    "section": "Style",
+    "text": "Style\nCustomization\nseparate file to source\n\n\n\n\n\n\nNoteCSS code\n\n\n\n\n\nAPP_CSS = \"\"\"\n:root {\n    color-scheme: light;\n    --page-bg: #f4f7fb;\n    --panel-bg: #ffffff;\n    --panel-border: #cfd8e3;\n    --accent: #1f5a91;\n    --accent-soft: #e8f1fb;\n    --text: #17324d;\n    --muted: #5a7188;\n}\n\nbody {\n    background: var(--page-bg);\n    color: var(--text);\n    font-family: Inter, Arial, Helvetica, sans-serif;\n}\n\n.app-shell {\n    max-width: 1280px;\n    margin: 0 auto;\n    padding: 1.5rem;\n}\n\n.header-panel,\n.panel {\n    background: var(--panel-bg);\n    border: 1px solid var(--panel-border);\n    border-radius: 14px;\n    box-shadow: 0 10px 24px rgba(20, 43, 66, 0.06);\n}\n\n.header-panel {\n    padding: 1.4rem 1.6rem;\n    margin-bottom: 1.25rem;\n}\n\n.eyebrow {\n    color: var(--accent);\n    font-size: 0.82rem;\n    font-weight: 700;\n    letter-spacing: 0.08rem;\n    text-transform: uppercase;\n    margin-bottom: 0.4rem;\n}\n\n.header-title {\n    margin: 0;\n    font-size: 1.8rem;\n    font-weight: 700;\n}\n\n.header-copy {\n    margin: 0.55rem 0 0;\n    max-width: 54rem;\n    color: var(--muted);\n    line-height: 1.55;\n}\n\n.layout-grid {\n    display: grid;\n    gap: 1.25rem;\n    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);\n}\n\n.panel {\n    padding: 1.25rem;\n}\n\n.panel-title {\n    margin: 0 0 0.2rem;\n    font-size: 1.2rem;\n    font-weight: 700;\n}\n\n.panel-subtitle {\n    margin: 0 0 1rem;\n    color: var(--muted);\n    font-size: 0.95rem;\n}\n\n.form-group {\n    margin-bottom: 1rem;\n}\n\n.form-control,\n.btn,\n.shiny-input-container textarea {\n    border-radius: 10px;\n}\n\n.btn-primary {\n    background: var(--accent);\n    border-color: var(--accent);\n}\n\n.btn-outline-secondary {\n    color: var(--accent);\n    border-color: #a7bdd3;\n}\n\n.button-row {\n    display: grid;\n    gap: 0.75rem;\n    margin-top: 1rem;\n}\n\n.status-box {\n    margin-top: 1rem;\n    padding: 0.85rem 0.95rem;\n    border-radius: 10px;\n    background: var(--accent-soft);\n    border: 1px solid #d3e1f1;\n    font-size: 0.93rem;\n    color: var(--text);\n}\n\n.analytics-grid {\n    display: grid;\n    gap: 1rem;\n    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);\n    align-items: start;\n}\n\n.stats-grid {\n    display: grid;\n    gap: 0.85rem;\n}\n\n.metric-card-grid {\n    display: grid;\n    gap: 0.85rem;\n}\n\n.stat-card,\n.recent-card {\n    border: 1px solid var(--panel-border);\n    border-radius: 12px;\n    background: #fbfdff;\n    padding: 0.95rem;\n}\n\n.stat-label {\n    display: block;\n    color: var(--muted);\n    font-size: 0.78rem;\n    letter-spacing: 0.05rem;\n    text-transform: uppercase;\n    margin-bottom: 0.35rem;\n}\n\n.stat-value {\n    font-size: 1.rem;\n    font-weight: 700;\n}\n\n.recent-list {\n    display: grid;\n    gap: 0.75rem;\n    margin-top: 0.9rem;\n}\n\n.recent-title {\n    margin: 0;\n    font-size: 1rem;\n    font-weight: 600;\n}\n\n.recent-meta {\n    margin-top: 0.3rem;\n    color: var(--muted);\n    font-size: 0.88rem;\n}\n\n.empty-box {\n    border: 1px dashed #b9c8d8;\n    border-radius: 12px;\n    padding: 1rem;\n    color: var(--muted);\n    background: #fbfdff;\n}\n\n@media (max-width: 980px) {\n    .layout-grid,\n    .analytics-grid {\n        grid-template-columns: 1fr;\n    }\n}\n\"\"\"\n\n\n\ndef empty_requests() -&gt; pl.DataFrame:\n    return pl.DataFrame(schema=REQUEST_SCHEMA)\n\n\ndef normalize_course_name(course: str) -&gt; str:\n    return \" \".join(course.split())\n\n\ndef normalize_email(email: str) -&gt; str:\n    return email.strip().lower()\n\n\ndef load_requests(path: Path = DATA_PATH) -&gt; pl.DataFrame:\n    if not path.exists():\n        return empty_requests()\n    return pl.read_parquet(path).select(list(REQUEST_SCHEMA))\n\n\ndef write_requests(df: pl.DataFrame, path: Path = DATA_PATH) -&gt; None:\n    df.write_parquet(path)\n\n\ndef append_request(email: str, course: str, path: Path = DATA_PATH) -&gt; pl.DataFrame:\n    current = load_requests(path)\n    submission = pl.DataFrame(\n        [\n            {\n                \"submitted_at\": datetime.now(UTC).strftime(\"%Y-%m-%d %H:%M:%S UTC\"),\n                \"email\": normalize_email(email),\n                \"course\": normalize_course_name(course),\n            }\n        ],\n        schema=REQUEST_SCHEMA,\n    )\n    updated = pl.concat([current, submission], how=\"vertical_relaxed\")\n    write_requests(updated, path)\n    return updated\n\n\ndef validate_submission(email: str, course: str) -&gt; str | None:\n    normalized_email = normalize_email(email)\n    normalized_course = normalize_course_name(course)\n    if not normalized_email:\n        return \"Please enter an email address.\"\n    if not EMAIL_PATTERN.match(normalized_email):\n        return \"Please enter a valid email address.\"\n    if not normalized_course:\n        return \"Please enter the course you would like us to build.\"\n    return None\n\n\ndef summary_metrics(df: pl.DataFrame) -&gt; dict[str, str]:\n    if df.height == 0:\n        return {\n            \"total_requests\": \"0\",\n            \"unique_emails\": \"0\",\n            \"top_course\": \"No submissions\",\n        }\n\n    top_course = (\n        df.group_by(\"course\")\n        .len()\n        .sort([\"len\", \"course\"], descending=[True, False])\n        .row(0, named=True)[\"course\"]\n    )\n    unique_emails = df[\"email\"].n_unique()\n    return {\n        \"total_requests\": str(df.height),\n        \"unique_emails\": str(unique_emails),\n        \"top_course\": top_course,\n    }\n\n\ndef make_course_figure(df: pl.DataFrame) -&gt; go.Figure:\n    fig = go.Figure()\n\n    if df.height == 0:\n        fig.add_annotation(\n            text=\"No topic requests recorded yet\",\n            x=0.5,\n            y=0.5,\n            xref=\"paper\",\n            yref=\"paper\",\n            showarrow=False,\n            font=dict(size=18, color=\"#5a7188\"),\n        )\n        fig.update_xaxes(visible=False)\n        fig.update_yaxes(visible=False)\n    else:\n        counts = (\n            df.group_by(\"course\")\n            .len()\n            .sort([\"len\", \"course\"], descending=[True, False])\n            .head(8)\n        )\n        fig.add_trace(\n            go.Bar(\n                x=counts[\"len\"].to_list(),\n                y=counts[\"course\"].to_list(),\n                orientation=\"h\",\n                marker=dict(color=\"#2f6da3\", line=dict(color=\"#214d74\", width=1)),\n                hovertemplate=\"%{y}: %{x} request(s)&lt;extra&gt;&lt;/extra&gt;\",\n            )\n        )\n        fig.update_yaxes(\n            autorange=\"reversed\",\n            automargin=True,\n            ticklabelstandoff=14,\n        )\n        fig.update_xaxes(title=\"Number of requests\", dtick=1, gridcolor=\"#d8e2ee\")\n\n    fig.update_layout(\n        template=\"plotly_white\",\n        height=420,\n        margin=dict(l=40, r=20, t=40, b=20),\n        paper_bgcolor=\"#ffffff\",\n        plot_bgcolor=\"#ffffff\",\n        title_font=dict(size=20, color=\"#17324d\"),\n        font=dict(color=\"#17324d\"),\n    )\n    return fig\napp_ui = ui.page_fillable(\n    ui.tags.head(ui.tags.style(APP_CSS)),\n    ui.div(\n        ui.div(\n            ui.div(\"Research computing course planning\", class_=\"eyebrow\"),\n            ui.h1(\"Topics requests\", class_=\"header-title\"),\n            ui.p(\n                ui.HTML(\"\"\"\n                   Please make sure to look for courses in &lt;a href=\"https://explora.alliancecan.ca/\" target=\"_blank\"&gt;Explora&lt;/a&gt; before submitting a request.&lt;br&gt;Note that we can't promise that we will satisfy all requests!\n                \"\"\"),\n                class_=\"header-copy\",\n            ),\n            class_=\"header-panel\",\n        ),\n        ui.div(\n            ui.div(\n                ui.h2(\"Submit request\", class_=\"panel-title\"),\n                ui.p(\n                    \"Give us a suggestion of a topic you would like us to cover.\",\n                    class_=\"panel-subtitle\",\n                ),\n                ui.input_text(\n                    \"email\",\n                    \"Canadian academic email address\",\n                    placeholder=\"your.name@uni.ca\",\n                ),\n                ui.input_text(\n                    \"course\",\n                    \"Desired topic\",\n                    placeholder=\"Applied time series analysis in Julia\",\n                ),\n                ui.div(\n                    ui.input_action_button(\n                        \"save_request\",\n                        \"Save request\",\n                        class_=\"btn btn-primary\",\n                    ),\n                    class_=\"button-row\",\n                ),\n                class_=\"panel\",\n            ),\n            ui.div(\n                ui.h2(\"Requested topics\", class_=\"panel-title\"),\n                ui.div(\n                    ui.div(output_widget(\"course_plot\")),\n                    ui.div(\n                        ui.output_ui(\"metric_cards\"),\n                        ui.output_ui(\"recent_requests\"),\n                        class_=\"stats-grid\",\n                    ),\n                    class_=\"analytics-grid\",\n                ),\n                class_=\"panel\",\n            ),\n            class_=\"layout-grid\",\n        ),\n        class_=\"app-shell\",\n    ),\n    title=\"Topics requests\",\n)\ndef server(input, output, session):\n    requests_df = reactive.value(load_requests())\n\n    @reactive.effect\n    @reactive.event(input.save_request)\n    def _save_request():\n        email = input.email()\n        course = input.course()\n        error = validate_submission(email, course)\n        if error is not None:\n            ui.notification_show(error, type=\"warning\", duration=4)\n            return\n\n        updated = append_request(email=email, course=course)\n        requests_df.set(updated)\n        ui.update_text(\"email\", value=\"\")\n        ui.update_text(\"course\", value=\"\")\n        ui.notification_show(\n            f\"Saved request for {normalize_course_name(course)}.\",\n            type=\"message\",\n            duration=3,\n        )\n\n    @render_widget\n    def course_plot():\n        return make_course_figure(requests_df.get())\n\n    @render.ui\n    def metric_cards():\n        metrics = summary_metrics(requests_df.get())\n        return ui.div(\n            ui.div(\n                ui.span(\"Total requests\", class_=\"stat-label\"),\n                ui.div(metrics[\"total_requests\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Unique email addresses\", class_=\"stat-label\"),\n                ui.div(metrics[\"unique_emails\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Most requested topic\", class_=\"stat-label\"),\n                ui.div(metrics[\"top_course\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            class_=\"metric-card-grid\",\n        )\n\n    @render.ui\n    def recent_requests():\n        df = requests_df.get()\n        if df.height == 0:\n            return ui.div(\n                \"The most recent submission will appear here after the first request is submitted.\",\n                class_=\"empty-box\",\n            )\n\n        row = df.tail(1).row(0, named=True)\n        return ui.div(\n            ui.div(\n                ui.span(\"Most recent request\", class_=\"stat-label\"),\n                ui.div(row[\"course\"], class_=\"stat-value\"),\n                ui.div(\n                    row[\"submitted_at\"],\n                    class_=\"recent-meta\",\n                ),\n                class_=\"stat-card\",\n            ),\n        )\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/shiny/data_collection.html#load-packages",
+    "href": "python/shiny/data_collection.html#load-packages",
+    "title": "Dashboard for data collection",
+    "section": "",
+    "text": "from __future__ import annotations\n\nfrom datetime import UTC, datetime\nfrom pathlib import Path\nimport re\n\nimport plotly.graph_objects as go  # for the plot\nimport polars as pl                # to save the data in a DataFrame\n\n# The 2 key packages for the Shiny app:\nfrom shiny import App, reactive, render, ui\nfrom shinywidgets import output_widget, render_widget"
+  },
+  {
+    "objectID": "python/shiny/data_collection.html#set-variables",
+    "href": "python/shiny/data_collection.html#set-variables",
+    "title": "Dashboard for data collection",
+    "section": "Set variables",
+    "text": "Set variables\nDATA_PATH = Path(__file__).with_name(\"course_interest.parquet\")\nEMAIL_PATTERN = re.compile(r\"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\")\n\nREQUEST_SCHEMA = {\n    \"submitted_at\": pl.Utf8,\n    \"email\": pl.Utf8,\n    \"course\": pl.Utf8,\n}"
+  },
+  {
+    "objectID": "python/wb_shiny.html#shiny-for-python",
+    "href": "python/wb_shiny.html#shiny-for-python",
+    "title": "Two paths to Python dashboards:",
+    "section": "Shiny for Python",
+    "text": "Shiny for Python\nPython Shiny",
+    "crumbs": [
+      "Python",
+      "<em><b>Webinars</b></em>",
+      "Dashboards: Shiny vs Dash"
+    ]
+  },
+  {
+    "objectID": "python/wb_shiny.html#d-contour",
+    "href": "python/wb_shiny.html#d-contour",
+    "title": "Two paths to Python dashboards:",
+    "section": "3D contour",
+    "text": "3D contour\nfrom pathlib import Path\nfrom functools import lru_cache\n\nfrom netCDF4 import Dataset\nimport plotly.graph_objects as go\nfrom shiny import App, reactive, ui\nfrom shinywidgets import output_widget, render_widget\nfrom skimage import measure\n\nSLIDER_MIN = 0.05\nSLIDER_MAX = 1.95\nSLIDER_STEP = 0.05\nDEFAULT_LEVEL = 0.5\n\n\ndef load_density() -&gt; object:\n    data_path = Path(__file__).with_name(\"sineEnvelope.nc\")\n    with Dataset(data_path, \"r\", format=\"NETCDF4\") as root_group:\n        return root_group.variables[\"density\"][:]\n\n\nRHO = load_density()\n\n\ndef level_key(level: float) -&gt; int:\n    return int(round(level / SLIDER_STEP))\n\n\n@lru_cache(maxsize=16)\ndef make_figure_for_level(level_value: float) -&gt; go.Figure:\n    vertices, triangles, _, _ = measure.marching_cubes(RHO, level_value)\n    return go.Figure(\n        data=[\n            go.Mesh3d(\n                x=vertices[:, 0],\n                y=vertices[:, 1],\n                z=vertices[:, 2],\n                i=triangles[:, 0],\n                j=triangles[:, 1],\n                k=triangles[:, 2],\n                intensity=vertices[:, 2],\n                colorscale=\"Viridis\",\n                showscale=True,\n            )\n        ],\n        layout=dict(\n            height=600,\n            uirevision=\"keep-camera\",\n            scene=dict(aspectmode=\"data\", uirevision=\"keep-camera\"),\n            margin=dict(l=0, r=0, t=0, b=0),\n        ),\n    )\n\n\ndef make_figure(level: float) -&gt; go.Figure:\n    level_value = level_key(level) * SLIDER_STEP\n    level_value = min(max(level_value, SLIDER_MIN), SLIDER_MAX)\n    fig = make_figure_for_level(level_value)\n    return go.Figure(fig)\n\n\napp_ui = ui.page_sidebar(\n    ui.sidebar(\n        ui.input_slider(\n            \"level\",\n            \"Isovalue\",\n            min=SLIDER_MIN,\n            max=SLIDER_MAX,\n            value=DEFAULT_LEVEL,\n            step=SLIDER_STEP,\n            ticks=True,\n            width=\"100%\",\n        ),\n        width=220,\n    ),\n    ui.tags.style(\n        \"\"\"\n        .bslib-sidebar-layout {\n            height: 100vh;\n        }\n        .app-title {\n            padding-bottom: 0;\n            transform: translateY(0.12rem);\n        }\n        \"\"\"\n    ),\n    ui.div(\n        ui.div(\"Isosurface\", class_=\"app-title text-primary text-center fs-3\"),\n        output_widget(\"g1\"),\n        class_=\"p-2 h-100\",\n    ),\n    fillable=True,\n    title=\"Representation of points that share the same value from a 3D dataset in a unit cube\",\n    window_title=\"Isosurface\",\n)\n\n\ndef server(input, output, session):\n    fig = go.FigureWidget(make_figure(DEFAULT_LEVEL))\n\n    @render_widget\n    def g1():\n        return fig\n\n    @reactive.effect\n    def _update_figure():\n        source = make_figure(input.level())\n        mesh = source.data[0]\n\n        with fig.batch_update():\n            fig.data[0].x = mesh.x\n            fig.data[0].y = mesh.y\n            fig.data[0].z = mesh.z\n            fig.data[0].i = mesh.i\n            fig.data[0].j = mesh.j\n            fig.data[0].k = mesh.k\n            fig.data[0].intensity = mesh.intensity\n\n\napp = App(app_ui, server)\nApp (Click to open the app in a new tab. Be prepared to wait a bit: shinylive is great but it requires your browser to run the app.)",
+    "crumbs": [
+      "Python",
+      "<em><b>Webinars</b></em>",
+      "Dashboards: Shiny vs Dash"
+    ]
+  },
+  {
+    "objectID": "python/wb_shiny.html#data-collection",
+    "href": "python/wb_shiny.html#data-collection",
+    "title": "Two paths to Python dashboards:",
+    "section": "Data collection",
+    "text": "Data collection\nHere.",
+    "crumbs": [
+      "Python",
+      "<em><b>Webinars</b></em>",
+      "Dashboards: Shiny vs Dash"
+    ]
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#shiny-for-python",
+    "href": "python/wb_shiny_slides.html#shiny-for-python",
+    "title": "Two paths to Python dashboards:",
+    "section": "Shiny for Python",
+    "text": "Shiny for Python\nPython Shiny"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#d-contour",
+    "href": "python/wb_shiny_slides.html#d-contour",
+    "title": "Two paths to Python dashboards:",
+    "section": "3D contour",
+    "text": "3D contour\nfrom pathlib import Path\nfrom functools import lru_cache\n\nfrom netCDF4 import Dataset\nimport plotly.graph_objects as go\nfrom shiny import App, reactive, ui\nfrom shinywidgets import output_widget, render_widget\nfrom skimage import measure\n\nSLIDER_MIN = 0.05\nSLIDER_MAX = 1.95\nSLIDER_STEP = 0.05\nDEFAULT_LEVEL = 0.5\n\n\ndef load_density() -&gt; object:\n    data_path = Path(__file__).with_name(\"sineEnvelope.nc\")\n    with Dataset(data_path, \"r\", format=\"NETCDF4\") as root_group:\n        return root_group.variables[\"density\"][:]\n\n\nRHO = load_density()\n\n\ndef level_key(level: float) -&gt; int:\n    return int(round(level / SLIDER_STEP))\n\n\n@lru_cache(maxsize=16)\ndef make_figure_for_level(level_value: float) -&gt; go.Figure:\n    vertices, triangles, _, _ = measure.marching_cubes(RHO, level_value)\n    return go.Figure(\n        data=[\n            go.Mesh3d(\n                x=vertices[:, 0],\n                y=vertices[:, 1],\n                z=vertices[:, 2],\n                i=triangles[:, 0],\n                j=triangles[:, 1],\n                k=triangles[:, 2],\n                intensity=vertices[:, 2],\n                colorscale=\"Viridis\",\n                showscale=True,\n            )\n        ],\n        layout=dict(\n            height=600,\n            uirevision=\"keep-camera\",\n            scene=dict(aspectmode=\"data\", uirevision=\"keep-camera\"),\n            margin=dict(l=0, r=0, t=0, b=0),\n        ),\n    )\n\n\ndef make_figure(level: float) -&gt; go.Figure:\n    level_value = level_key(level) * SLIDER_STEP\n    level_value = min(max(level_value, SLIDER_MIN), SLIDER_MAX)\n    fig = make_figure_for_level(level_value)\n    return go.Figure(fig)\n\n\napp_ui = ui.page_sidebar(\n    ui.sidebar(\n        ui.input_slider(\n            \"level\",\n            \"Isovalue\",\n            min=SLIDER_MIN,\n            max=SLIDER_MAX,\n            value=DEFAULT_LEVEL,\n            step=SLIDER_STEP,\n            ticks=True,\n            width=\"100%\",\n        ),\n        width=220,\n    ),\n    ui.tags.style(\n        \"\"\"\n        .bslib-sidebar-layout {\n            height: 100vh;\n        }\n        .app-title {\n            padding-bottom: 0;\n            transform: translateY(0.12rem);\n        }\n        \"\"\"\n    ),\n    ui.div(\n        ui.div(\"Isosurface\", class_=\"app-title text-primary text-center fs-3\"),\n        output_widget(\"g1\"),\n        class_=\"p-2 h-100\",\n    ),\n    fillable=True,\n    title=\"Representation of points that share the same value from a 3D dataset in a unit cube\",\n    window_title=\"Isosurface\",\n)\n\n\ndef server(input, output, session):\n    fig = go.FigureWidget(make_figure(DEFAULT_LEVEL))\n\n    @render_widget\n    def g1():\n        return fig\n\n    @reactive.effect\n    def _update_figure():\n        source = make_figure(input.level())\n        mesh = source.data[0]\n\n        with fig.batch_update():\n            fig.data[0].x = mesh.x\n            fig.data[0].y = mesh.y\n            fig.data[0].z = mesh.z\n            fig.data[0].i = mesh.i\n            fig.data[0].j = mesh.j\n            fig.data[0].k = mesh.k\n            fig.data[0].intensity = mesh.intensity\n\n\napp = App(app_ui, server)\nClick to open the app (Be prepared to wait a bit.)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#data-collection",
+    "href": "python/wb_shiny_slides.html#data-collection",
+    "title": "Two paths to Python dashboards:",
+    "section": "Data collection",
+    "text": "Data collection\nfrom __future__ import annotations\n\nfrom datetime import UTC, datetime\nfrom pathlib import Path\nimport re\n\nimport plotly.graph_objects as go  # for the plot\nimport polars as pl                # to save the data in a DataFrame\n\n# The 2 key packages for the Shiny app:\nfrom shiny import App, reactive, render, ui\nfrom shinywidgets import output_widget, render_widget\n\n\nDATA_PATH = Path(__file__).with_name(\"course_interest.parquet\")\nEMAIL_PATTERN = re.compile(r\"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\")\n\nREQUEST_SCHEMA = {\n    \"submitted_at\": pl.Utf8,\n    \"email\": pl.Utf8,\n    \"course\": pl.Utf8,\n}\n\n\nAPP_CSS = \"\"\"\n:root {\n    color-scheme: light;\n    --page-bg: #f4f7fb;\n    --panel-bg: #ffffff;\n    --panel-border: #cfd8e3;\n    --accent: #1f5a91;\n    --accent-soft: #e8f1fb;\n    --text: #17324d;\n    --muted: #5a7188;\n}\n\nbody {\n    background: var(--page-bg);\n    color: var(--text);\n    font-family: Inter, Arial, Helvetica, sans-serif;\n}\n\n.app-shell {\n    max-width: 1280px;\n    margin: 0 auto;\n    padding: 1.5rem;\n}\n\n.header-panel,\n.panel {\n    background: var(--panel-bg);\n    border: 1px solid var(--panel-border);\n    border-radius: 14px;\n    box-shadow: 0 10px 24px rgba(20, 43, 66, 0.06);\n}\n\n.header-panel {\n    padding: 1.4rem 1.6rem;\n    margin-bottom: 1.25rem;\n}\n\n.eyebrow {\n    color: var(--accent);\n    font-size: 0.82rem;\n    font-weight: 700;\n    letter-spacing: 0.08rem;\n    text-transform: uppercase;\n    margin-bottom: 0.4rem;\n}\n\n.header-title {\n    margin: 0;\n    font-size: 1.8rem;\n    font-weight: 700;\n}\n\n.header-copy {\n    margin: 0.55rem 0 0;\n    max-width: 54rem;\n    color: var(--muted);\n    line-height: 1.55;\n}\n\n.layout-grid {\n    display: grid;\n    gap: 1.25rem;\n    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);\n}\n\n.panel {\n    padding: 1.25rem;\n}\n\n.panel-title {\n    margin: 0 0 0.2rem;\n    font-size: 1.2rem;\n    font-weight: 700;\n}\n\n.panel-subtitle {\n    margin: 0 0 1rem;\n    color: var(--muted);\n    font-size: 0.95rem;\n}\n\n.form-group {\n    margin-bottom: 1rem;\n}\n\n.form-control,\n.btn,\n.shiny-input-container textarea {\n    border-radius: 10px;\n}\n\n.btn-primary {\n    background: var(--accent);\n    border-color: var(--accent);\n}\n\n.btn-outline-secondary {\n    color: var(--accent);\n    border-color: #a7bdd3;\n}\n\n.button-row {\n    display: grid;\n    gap: 0.75rem;\n    margin-top: 1rem;\n}\n\n.status-box {\n    margin-top: 1rem;\n    padding: 0.85rem 0.95rem;\n    border-radius: 10px;\n    background: var(--accent-soft);\n    border: 1px solid #d3e1f1;\n    font-size: 0.93rem;\n    color: var(--text);\n}\n\n.analytics-grid {\n    display: grid;\n    gap: 1rem;\n    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);\n    align-items: start;\n}\n\n.stats-grid {\n    display: grid;\n    gap: 0.85rem;\n}\n\n.metric-card-grid {\n    display: grid;\n    gap: 0.85rem;\n}\n\n.stat-card,\n.recent-card {\n    border: 1px solid var(--panel-border);\n    border-radius: 12px;\n    background: #fbfdff;\n    padding: 0.95rem;\n}\n\n.stat-label {\n    display: block;\n    color: var(--muted);\n    font-size: 0.78rem;\n    letter-spacing: 0.05rem;\n    text-transform: uppercase;\n    margin-bottom: 0.35rem;\n}\n\n.stat-value {\n    font-size: 1.rem;\n    font-weight: 700;\n}\n\n.recent-list {\n    display: grid;\n    gap: 0.75rem;\n    margin-top: 0.9rem;\n}\n\n.recent-title {\n    margin: 0;\n    font-size: 1rem;\n    font-weight: 600;\n}\n\n.recent-meta {\n    margin-top: 0.3rem;\n    color: var(--muted);\n    font-size: 0.88rem;\n}\n\n.empty-box {\n    border: 1px dashed #b9c8d8;\n    border-radius: 12px;\n    padding: 1rem;\n    color: var(--muted);\n    background: #fbfdff;\n}\n\n@media (max-width: 980px) {\n    .layout-grid,\n    .analytics-grid {\n        grid-template-columns: 1fr;\n    }\n}\n\"\"\"\n\n\ndef empty_requests() -&gt; pl.DataFrame:\n    return pl.DataFrame(schema=REQUEST_SCHEMA)\n\n\ndef normalize_course_name(course: str) -&gt; str:\n    return \" \".join(course.split())\n\n\ndef normalize_email(email: str) -&gt; str:\n    return email.strip().lower()\n\n\ndef load_requests(path: Path = DATA_PATH) -&gt; pl.DataFrame:\n    if not path.exists():\n        return empty_requests()\n    return pl.read_parquet(path).select(list(REQUEST_SCHEMA))\n\n\ndef write_requests(df: pl.DataFrame, path: Path = DATA_PATH) -&gt; None:\n    df.write_parquet(path)\n\n\ndef append_request(email: str, course: str, path: Path = DATA_PATH) -&gt; pl.DataFrame:\n    current = load_requests(path)\n    submission = pl.DataFrame(\n        [\n            {\n                \"submitted_at\": datetime.now(UTC).strftime(\"%Y-%m-%d %H:%M:%S UTC\"),\n                \"email\": normalize_email(email),\n                \"course\": normalize_course_name(course),\n            }\n        ],\n        schema=REQUEST_SCHEMA,\n    )\n    updated = pl.concat([current, submission], how=\"vertical_relaxed\")\n    write_requests(updated, path)\n    return updated\n\n\ndef validate_submission(email: str, course: str) -&gt; str | None:\n    normalized_email = normalize_email(email)\n    normalized_course = normalize_course_name(course)\n    if not normalized_email:\n        return \"Please enter an email address.\"\n    if not EMAIL_PATTERN.match(normalized_email):\n        return \"Please enter a valid email address.\"\n    if not normalized_course:\n        return \"Please enter the course you would like us to build.\"\n    return None\n\n\ndef summary_metrics(df: pl.DataFrame) -&gt; dict[str, str]:\n    if df.height == 0:\n        return {\n            \"total_requests\": \"0\",\n            \"unique_emails\": \"0\",\n            \"top_course\": \"No submissions\",\n        }\n\n    top_course = (\n        df.group_by(\"course\")\n        .len()\n        .sort([\"len\", \"course\"], descending=[True, False])\n        .row(0, named=True)[\"course\"]\n    )\n    unique_emails = df[\"email\"].n_unique()\n    return {\n        \"total_requests\": str(df.height),\n        \"unique_emails\": str(unique_emails),\n        \"top_course\": top_course,\n    }\n\n\ndef make_course_figure(df: pl.DataFrame) -&gt; go.Figure:\n    fig = go.Figure()\n\n    if df.height == 0:\n        fig.add_annotation(\n            text=\"No topic requests recorded yet\",\n            x=0.5,\n            y=0.5,\n            xref=\"paper\",\n            yref=\"paper\",\n            showarrow=False,\n            font=dict(size=18, color=\"#5a7188\"),\n        )\n        fig.update_xaxes(visible=False)\n        fig.update_yaxes(visible=False)\n    else:\n        counts = (\n            df.group_by(\"course\")\n            .len()\n            .sort([\"len\", \"course\"], descending=[True, False])\n            .head(8)\n        )\n        fig.add_trace(\n            go.Bar(\n                x=counts[\"len\"].to_list(),\n                y=counts[\"course\"].to_list(),\n                orientation=\"h\",\n                marker=dict(color=\"#2f6da3\", line=dict(color=\"#214d74\", width=1)),\n                hovertemplate=\"%{y}: %{x} request(s)&lt;extra&gt;&lt;/extra&gt;\",\n            )\n        )\n        fig.update_yaxes(\n            autorange=\"reversed\",\n            automargin=True,\n            ticklabelstandoff=14,\n        )\n        fig.update_xaxes(title=\"Number of requests\", dtick=1, gridcolor=\"#d8e2ee\")\n\n    fig.update_layout(\n        template=\"plotly_white\",\n        height=420,\n        margin=dict(l=40, r=20, t=40, b=20),\n        paper_bgcolor=\"#ffffff\",\n        plot_bgcolor=\"#ffffff\",\n        title_font=dict(size=20, color=\"#17324d\"),\n        font=dict(color=\"#17324d\"),\n    )\n    return fig\n\n\napp_ui = ui.page_fillable(\n    ui.tags.head(ui.tags.style(APP_CSS)),\n    ui.div(\n        ui.div(\n            ui.div(\"Research computing course planning\", class_=\"eyebrow\"),\n            ui.h1(\"Topics requests\", class_=\"header-title\"),\n            ui.p(\n                ui.HTML(\"\"\"\n                   Please make sure to look for courses in &lt;a href=\"https://explora.alliancecan.ca/\" target=\"_blank\"&gt;Explora&lt;/a&gt; before submitting a request.&lt;br&gt;Note that we can't promise that we will satisfy all requests!\n                \"\"\"),\n                class_=\"header-copy\",\n            ),\n            class_=\"header-panel\",\n        ),\n        ui.div(\n            ui.div(\n                ui.h2(\"Submit request\", class_=\"panel-title\"),\n                ui.p(\n                    \"Give us a suggestion of a topic you would like us to cover.\",\n                    class_=\"panel-subtitle\",\n                ),\n                ui.input_text(\n                    \"email\",\n                    \"Canadian academic email address\",\n                    placeholder=\"your.name@uni.ca\",\n                ),\n                ui.input_text(\n                    \"course\",\n                    \"Desired topic\",\n                    placeholder=\"Applied time series analysis in Julia\",\n                ),\n                ui.div(\n                    ui.input_action_button(\n                        \"save_request\",\n                        \"Save request\",\n                        class_=\"btn btn-primary\",\n                    ),\n                    class_=\"button-row\",\n                ),\n                class_=\"panel\",\n            ),\n            ui.div(\n                ui.h2(\"Requested topics\", class_=\"panel-title\"),\n                ui.div(\n                    ui.div(output_widget(\"course_plot\")),\n                    ui.div(\n                        ui.output_ui(\"metric_cards\"),\n                        ui.output_ui(\"recent_requests\"),\n                        class_=\"stats-grid\",\n                    ),\n                    class_=\"analytics-grid\",\n                ),\n                class_=\"panel\",\n            ),\n            class_=\"layout-grid\",\n        ),\n        class_=\"app-shell\",\n    ),\n    title=\"Topics requests\",\n)\n\n\ndef server(input, output, session):\n    requests_df = reactive.value(load_requests())\n\n    @reactive.effect\n    @reactive.event(input.save_request)\n    def _save_request():\n        email = input.email()\n        course = input.course()\n        error = validate_submission(email, course)\n        if error is not None:\n            ui.notification_show(error, type=\"warning\", duration=4)\n            return\n\n        updated = append_request(email=email, course=course)\n        requests_df.set(updated)\n        ui.update_text(\"email\", value=\"\")\n        ui.update_text(\"course\", value=\"\")\n        ui.notification_show(\n            f\"Saved request for {normalize_course_name(course)}.\",\n            type=\"message\",\n            duration=3,\n        )\n\n    @render_widget\n    def course_plot():\n        return make_course_figure(requests_df.get())\n\n    @render.ui\n    def metric_cards():\n        metrics = summary_metrics(requests_df.get())\n        return ui.div(\n            ui.div(\n                ui.span(\"Total requests\", class_=\"stat-label\"),\n                ui.div(metrics[\"total_requests\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Unique email addresses\", class_=\"stat-label\"),\n                ui.div(metrics[\"unique_emails\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Most requested topic\", class_=\"stat-label\"),\n                ui.div(metrics[\"top_course\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            class_=\"metric-card-grid\",\n        )\n\n    @render.ui\n    def recent_requests():\n        df = requests_df.get()\n        if df.height == 0:\n            return ui.div(\n                \"The most recent submission will appear here after the first request is submitted.\",\n                class_=\"empty-box\",\n            )\n\n        row = df.tail(1).row(0, named=True)\n        return ui.div(\n            ui.div(\n                ui.span(\"Most recent request\", class_=\"stat-label\"),\n                ui.div(row[\"course\"], class_=\"stat-value\"),\n                ui.div(\n                    row[\"submitted_at\"],\n                    class_=\"recent-meta\",\n                ),\n                class_=\"stat-card\",\n            ),\n        )\n\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#section",
+    "href": "python/wb_shiny_slides.html#section",
+    "title": "Two paths to Python dashboards:",
+    "section": "",
+    "text": "Please find the Plotly Dash section by Alex Razoumov here"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#d-isosurface",
+    "href": "python/wb_shiny_slides.html#d-isosurface",
+    "title": "Two paths to Python dashboards:",
+    "section": "3D isosurface",
+    "text": "3D isosurface"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#d-isosurface-1",
+    "href": "python/wb_shiny_slides.html#d-isosurface-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "3D isosurface",
+    "text": "3D isosurface\nfrom pathlib import Path\nfrom functools import lru_cache\n\nfrom netCDF4 import Dataset\nimport plotly.graph_objects as go\nfrom shiny import App, reactive, ui\nfrom shinywidgets import output_widget, render_widget\nfrom skimage import measure\n\nSLIDER_MIN = 0.05\nSLIDER_MAX = 1.95\nSLIDER_STEP = 0.05\nDEFAULT_LEVEL = 0.5\n\n\ndef load_density() -&gt; object:\n    data_path = Path(__file__).with_name(\"sineEnvelope.nc\")\n    with Dataset(data_path, \"r\", format=\"NETCDF4\") as root_group:\n        return root_group.variables[\"density\"][:]\n\n\nRHO = load_density()\n\n\ndef level_key(level: float) -&gt; int:\n    return int(round(level / SLIDER_STEP))\n\n\n@lru_cache(maxsize=16)\ndef make_figure_for_level(level_value: float) -&gt; go.Figure:\n    vertices, triangles, _, _ = measure.marching_cubes(RHO, level_value)\n    return go.Figure(\n        data=[\n            go.Mesh3d(\n                x=vertices[:, 0],\n                y=vertices[:, 1],\n                z=vertices[:, 2],\n                i=triangles[:, 0],\n                j=triangles[:, 1],\n                k=triangles[:, 2],\n                intensity=vertices[:, 2],\n                colorscale=\"Viridis\",\n                showscale=True,\n            )\n        ],\n        layout=dict(\n            height=600,\n            uirevision=\"keep-camera\",\n            scene=dict(aspectmode=\"data\", uirevision=\"keep-camera\"),\n            margin=dict(l=0, r=0, t=0, b=0),\n        ),\n    )\n\n\ndef make_figure(level: float) -&gt; go.Figure:\n    level_value = level_key(level) * SLIDER_STEP\n    level_value = min(max(level_value, SLIDER_MIN), SLIDER_MAX)\n    fig = make_figure_for_level(level_value)\n    return go.Figure(fig)\n\n\napp_ui = ui.page_sidebar(\n    ui.sidebar(\n        ui.input_slider(\n            \"level\",\n            \"Isovalue\",\n            min=SLIDER_MIN,\n            max=SLIDER_MAX,\n            value=DEFAULT_LEVEL,\n            step=SLIDER_STEP,\n            ticks=True,\n            width=\"100%\",\n        ),\n        width=220,\n    ),\n    ui.tags.style(\n        \"\"\"\n        .bslib-sidebar-layout {\n            height: 100vh;\n        }\n        .app-title {\n            padding-bottom: 0;\n            transform: translateY(0.12rem);\n        }\n        \"\"\"\n    ),\n    ui.div(\n        ui.div(\"Isosurface\", class_=\"app-title text-primary text-center fs-3\"),\n        output_widget(\"g1\"),\n        class_=\"p-2 h-100\",\n    ),\n    fillable=True,\n    title=\"Representation of points that share the same value from a 3D dataset in a unit cube\",\n    window_title=\"Isosurface\",\n)\n\n\ndef server(input, output, session):\n    fig = go.FigureWidget(make_figure(DEFAULT_LEVEL))\n\n    @render_widget\n    def g1():\n        return fig\n\n    @reactive.effect\n    def _update_figure():\n        source = make_figure(input.level())\n        mesh = source.data[0]\n\n        with fig.batch_update():\n            fig.data[0].x = mesh.x\n            fig.data[0].y = mesh.y\n            fig.data[0].z = mesh.z\n            fig.data[0].i = mesh.i\n            fig.data[0].j = mesh.j\n            fig.data[0].k = mesh.k\n            fig.data[0].intensity = mesh.intensity\n\n\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#d-isosurface-2",
+    "href": "python/wb_shiny_slides.html#d-isosurface-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "3D isosurface",
+    "text": "3D isosurface"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#seaborn",
+    "href": "python/wb_shiny_slides.html#seaborn",
+    "title": "Two paths to Python dashboards:",
+    "section": "Seaborn",
+    "text": "Seaborn"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#components",
+    "href": "python/wb_shiny_slides.html#components",
+    "title": "Two paths to Python dashboards:",
+    "section": "Components",
+    "text": "Components"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#layouts",
+    "href": "python/wb_shiny_slides.html#layouts",
+    "title": "Two paths to Python dashboards:",
+    "section": "Layouts",
+    "text": "Layouts"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#templates",
+    "href": "python/wb_shiny_slides.html#templates",
+    "title": "Two paths to Python dashboards:",
+    "section": "Templates",
+    "text": "Templates"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#plots",
+    "href": "python/wb_shiny_slides.html#plots",
+    "title": "Two paths to Python dashboards:",
+    "section": "Plots",
+    "text": "Plots"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#maps",
+    "href": "python/wb_shiny_slides.html#maps",
+    "title": "Two paths to Python dashboards:",
+    "section": "Maps",
+    "text": "Maps"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#d-isosurface-3",
+    "href": "python/wb_shiny_slides.html#d-isosurface-3",
+    "title": "Two paths to Python dashboards:",
+    "section": "3D isosurface",
+    "text": "3D isosurface"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#section-1",
+    "href": "python/wb_shiny_slides.html#section-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "",
+    "text": "[ ## {.center}"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks",
+    "text": "Interactive web frameworks\n\n\n2011\n. . .\n2012\n2013\n2017\n2018\n2019\n2022\n\n\n\nD3.js, Leaflet\n. . .\nR \nBokeh and Plotly\n\nObservable\nHoloViz Panel, Gradio, Streamlit\nPython"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-1",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n\n\n\nD3.js, Leaflet"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-2",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n2012\n\n\n\nD3.js, Leaflet\nR Shiny (RStudio)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#input-slider",
+    "href": "python/wb_shiny_slides.html#input-slider",
+    "title": "Two paths to Python dashboards:",
+    "section": "Input: slider",
+    "text": "Input: slider"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#output-seaborn-plot",
+    "href": "python/wb_shiny_slides.html#output-seaborn-plot",
+    "title": "Two paths to Python dashboards:",
+    "section": "Output: Seaborn plot",
+    "text": "Output: Seaborn plot"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#the-code",
+    "href": "python/wb_shiny_slides.html#the-code",
+    "title": "Two paths to Python dashboards:",
+    "section": "The code",
+    "text": "The code\nfrom pathlib import Path\nfrom functools import lru_cache\n\nfrom netCDF4 import Dataset\nimport plotly.graph_objects as go\nfrom shiny import App, reactive, ui\nfrom shinywidgets import output_widget, render_widget\nfrom skimage import measure\n\nSLIDER_MIN = 0.05\nSLIDER_MAX = 1.95\nSLIDER_STEP = 0.05\nDEFAULT_LEVEL = 0.5\n\n\ndef load_density() -&gt; object:\n    data_path = Path(__file__).with_name(\"sineEnvelope.nc\")\n    with Dataset(data_path, \"r\", format=\"NETCDF4\") as root_group:\n        return root_group.variables[\"density\"][:]\n\n\nRHO = load_density()\n\n\ndef level_key(level: float) -&gt; int:\n    return int(round(level / SLIDER_STEP))\n\n\n@lru_cache(maxsize=16)\ndef make_figure_for_level(level_value: float) -&gt; go.Figure:\n    vertices, triangles, _, _ = measure.marching_cubes(RHO, level_value)\n    return go.Figure(\n        data=[\n            go.Mesh3d(\n                x=vertices[:, 0],\n                y=vertices[:, 1],\n                z=vertices[:, 2],\n                i=triangles[:, 0],\n                j=triangles[:, 1],\n                k=triangles[:, 2],\n                intensity=vertices[:, 2],\n                colorscale=\"Viridis\",\n                showscale=True,\n            )\n        ],\n        layout=dict(\n            height=600,\n            uirevision=\"keep-camera\",\n            scene=dict(aspectmode=\"data\", uirevision=\"keep-camera\"),\n            margin=dict(l=0, r=0, t=0, b=0),\n        ),\n    )\n\n\ndef make_figure(level: float) -&gt; go.Figure:\n    level_value = level_key(level) * SLIDER_STEP\n    level_value = min(max(level_value, SLIDER_MIN), SLIDER_MAX)\n    fig = make_figure_for_level(level_value)\n    return go.Figure(fig)\n\n\napp_ui = ui.page_sidebar(\n    ui.sidebar(\n        ui.input_slider(\n            \"level\",\n            \"Isovalue\",\n            min=SLIDER_MIN,\n            max=SLIDER_MAX,\n            value=DEFAULT_LEVEL,\n            step=SLIDER_STEP,\n            ticks=True,\n            width=\"100%\",\n        ),\n        width=220,\n    ),\n    ui.tags.style(\n        \"\"\"\n        .bslib-sidebar-layout {\n            height: 100vh;\n        }\n        .app-title {\n            padding-bottom: 0;\n            transform: translateY(0.12rem);\n        }\n        \"\"\"\n    ),\n    ui.div(\n        ui.div(\"Isosurface\", class_=\"app-title text-primary text-center fs-3\"),\n        output_widget(\"g1\"),\n        class_=\"p-2 h-100\",\n    ),\n    fillable=True,\n    title=\"Representation of points that share the same value from a 3D dataset in a unit cube\",\n    window_title=\"Isosurface\",\n)\n\n\ndef server(input, output, session):\n    fig = go.FigureWidget(make_figure(DEFAULT_LEVEL))\n\n    @render_widget\n    def g1():\n        return fig\n\n    @reactive.effect\n    def _update_figure():\n        source = make_figure(input.level())\n        mesh = source.data[0]\n\n        with fig.batch_update():\n            fig.data[0].x = mesh.x\n            fig.data[0].y = mesh.y\n            fig.data[0].z = mesh.z\n            fig.data[0].i = mesh.i\n            fig.data[0].j = mesh.j\n            fig.data[0].k = mesh.k\n            fig.data[0].intensity = mesh.intensity\n\n\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#the-app",
+    "href": "python/wb_shiny_slides.html#the-app",
+    "title": "Two paths to Python dashboards:",
+    "section": "The app",
+    "text": "The app"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-3",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-3",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n2012\n2013\n\n\n\nD3.js, Leaflet\nR Shiny (RStudio)\nBokeh and Plotly"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-4",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-4",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n2012\n2013\n2017\n\n\n\nD3.js, Leaflet\nR Shiny (RStudio)\nBokeh and Plotly\nPlotly Dash"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-5",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-5",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n2012\n2013\n2017\n2018\n\n\n\nD3.js, Leaflet\nR Shiny (RStudio)\nBokeh and Plotly\nPlotly Dash\nObservable"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-6",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-6",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n2012\n2013\n2017\n2018\n2019\n\n\n\nD3.js, Leaflet\nR Shiny (RStudio)\nBokeh and Plotly\nPlotly Dash\nObservable\nHoloViz Panel, Gradio, Streamlit"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-7",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-7",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n2012\n2013\n2017\n2018\n2019\n2022\n\n\n\nD3.js, Leaflet\nR Shiny (RStudio)\nBokeh and Plotly\nPlotly Dash\nObservable\nHoloViz Panel, Gradio, Streamlit\nPython Shiny (RStudio ➔ Posit), Kitware Trame"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#packages",
+    "href": "python/wb_shiny_slides.html#packages",
+    "title": "Two paths to Python dashboards:",
+    "section": "Packages",
+    "text": "Packages\n\n\nshiny\nshinywidgets\nnetcdf4\nplotly\npolars\nscikit-image\nshinylive\n\n\n\nCore Shiny functionality\nFor widget outputs (e.g. Plotly, Leaflet)\nData loading\nPlotting\nDataFrame to store collected data\nMeasurement of image property\nDeployment of Shiny app to static site"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#installation",
+    "href": "python/wb_shiny_slides.html#installation",
+    "title": "Two paths to Python dashboards:",
+    "section": "Installation",
+    "text": "Installation\nInitialize bare uv project:\nuv init --bare\nInstall packages:\nuv add shiny shinywidgets"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#packages-and-variables",
+    "href": "python/wb_shiny_slides.html#packages-and-variables",
+    "title": "Two paths to Python dashboards:",
+    "section": "Packages and variables",
+    "text": "Packages and variables\nfrom __future__ import annotations\n\nfrom datetime import UTC, datetime\nfrom pathlib import Path\nimport re\n\nimport plotly.graph_objects as go  # for the plot\nimport polars as pl                # to save the data in a DataFrame\n\n# The 2 key packages for the Shiny app:\nfrom shiny import App, reactive, render, ui\nfrom shinywidgets import output_widget, render_widget\n\n\nDATA_PATH = Path(__file__).with_name(\"course_interest.parquet\")\nEMAIL_PATTERN = re.compile(r\"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\")\n\nREQUEST_SCHEMA = {\n    \"submitted_at\": pl.Utf8,\n    \"email\": pl.Utf8,\n    \"course\": pl.Utf8,\n}"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#styling",
+    "href": "python/wb_shiny_slides.html#styling",
+    "title": "Two paths to Python dashboards:",
+    "section": "Styling",
+    "text": "Styling\nThis is a string of CSS styling for our app\nAPP_CSS = \"\"\"\n:root {\n    color-scheme: light;\n    --page-bg: #f4f7fb;\n    --panel-bg: #ffffff;\n    --panel-border: #cfd8e3;\n    --accent: #1f5a91;\n    --accent-soft: #e8f1fb;\n    --text: #17324d;\n    --muted: #5a7188;\n}\n\nbody {\n    background: var(--page-bg);\n    color: var(--text);\n    font-family: Inter, Arial, Helvetica, sans-serif;\n}\n\n.app-shell {\n    max-width: 1280px;\n    margin: 0 auto;\n    padding: 1.5rem;\n}\n\n.header-panel,\n.panel {\n    background: var(--panel-bg);\n    border: 1px solid var(--panel-border);\n    border-radius: 14px;\n    box-shadow: 0 10px 24px rgba(20, 43, 66, 0.06);\n}\n\n.header-panel {\n    padding: 1.4rem 1.6rem;\n    margin-bottom: 1.25rem;\n}\n\n.eyebrow {\n    color: var(--accent);\n    font-size: 0.82rem;\n    font-weight: 700;\n    letter-spacing: 0.08rem;\n    text-transform: uppercase;\n    margin-bottom: 0.4rem;\n}\n\n.header-title {\n    margin: 0;\n    font-size: 1.8rem;\n    font-weight: 700;\n}\n\n.header-copy {\n    margin: 0.55rem 0 0;\n    max-width: 54rem;\n    color: var(--muted);\n    line-height: 1.55;\n}\n\n.layout-grid {\n    display: grid;\n    gap: 1.25rem;\n    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);\n}\n\n.panel {\n    padding: 1.25rem;\n}\n\n.panel-title {\n    margin: 0 0 0.2rem;\n    font-size: 1.2rem;\n    font-weight: 700;\n}\n\n.panel-subtitle {\n    margin: 0 0 1rem;\n    color: var(--muted);\n    font-size: 0.95rem;\n}\n\n.form-group {\n    margin-bottom: 1rem;\n}\n\n.form-control,\n.btn,\n.shiny-input-container textarea {\n    border-radius: 10px;\n}\n\n.btn-primary {\n    background: var(--accent);\n    border-color: var(--accent);\n}\n\n.btn-outline-secondary {\n    color: var(--accent);\n    border-color: #a7bdd3;\n}\n\n.button-row {\n    display: grid;\n    gap: 0.75rem;\n    margin-top: 1rem;\n}\n\n.status-box {\n    margin-top: 1rem;\n    padding: 0.85rem 0.95rem;\n    border-radius: 10px;\n    background: var(--accent-soft);\n    border: 1px solid #d3e1f1;\n    font-size: 0.93rem;\n    color: var(--text);\n}\n\n.analytics-grid {\n    display: grid;\n    gap: 1rem;\n    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);\n    align-items: start;\n}\n\n.stats-grid {\n    display: grid;\n    gap: 0.85rem;\n}\n\n.metric-card-grid {\n    display: grid;\n    gap: 0.85rem;\n}\n\n.stat-card,\n.recent-card {\n    border: 1px solid var(--panel-border);\n    border-radius: 12px;\n    background: #fbfdff;\n    padding: 0.95rem;\n}\n\n.stat-label {\n    display: block;\n    color: var(--muted);\n    font-size: 0.78rem;\n    letter-spacing: 0.05rem;\n    text-transform: uppercase;\n    margin-bottom: 0.35rem;\n}\n\n.stat-value {\n    font-size: 1.rem;\n    font-weight: 700;\n}\n\n.recent-list {\n    display: grid;\n    gap: 0.75rem;\n    margin-top: 0.9rem;\n}\n\n.recent-title {\n    margin: 0;\n    font-size: 1rem;\n    font-weight: 600;\n}\n\n.recent-meta {\n    margin-top: 0.3rem;\n    color: var(--muted);\n    font-size: 0.88rem;\n}\n\n.empty-box {\n    border: 1px dashed #b9c8d8;\n    border-radius: 12px;\n    padding: 1rem;\n    color: var(--muted);\n    background: #fbfdff;\n}\n\n@media (max-width: 980px) {\n    .layout-grid,\n    .analytics-grid {\n        grid-template-columns: 1fr;\n    }\n}\n\"\"\""
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#helper-functions",
+    "href": "python/wb_shiny_slides.html#helper-functions",
+    "title": "Two paths to Python dashboards:",
+    "section": "Helper functions",
+    "text": "Helper functions\ndef make_scatter_widget(on_selection):\n    fig = px.scatter(\n        x=xpos,\n        y=ypos,\n        range_x=[0, 1],\n        range_y=[0, 1],\n        width=600,\n        height=600,\n    )\n    fig.update_traces(marker=dict(size=30, opacity=0.8))\n    fig.update_layout(dragmode=\"lasso\")\n\n    widget = go.FigureWidget(fig)\n    widget.data[0].on_selection(on_selection)\n    return widget\n\n\ndef make_histogram(values, title):\n    fig = px.histogram(x=values, nbins=10, width=400, height=280)\n    fig.update_traces(xbins=dict(start=0, end=1, size=0.1))\n    fig.update_xaxes(title_text=title, range=[0, 1])\n    return fig"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#section-4",
+    "href": "python/wb_shiny_slides.html#section-4",
+    "title": "Two paths to Python dashboards:",
+    "section": "",
+    "text": "app_ui = ui.page_fillable(\n    ui.tags.head(ui.tags.style(APP_CSS)),\n    ui.div(\n        ui.div(\n            ui.div(\"Research computing course planning\", class_=\"eyebrow\"),\n            ui.h1(\"Topics requests\", class_=\"header-title\"),\n            ui.p(\n                ui.HTML(\"\"\"\n                   Please make sure to look for courses in &lt;a href=\"https://explora.alliancecan.ca/\" target=\"_blank\"&gt;Explora&lt;/a&gt; before submitting a request.&lt;br&gt;Note that we can't promise that we will satisfy all requests!\n                \"\"\"),\n                class_=\"header-copy\",\n            ),\n            class_=\"header-panel\",\n        ),\n        ui.div(\n            ui.div(\n                ui.h2(\"Submit request\", class_=\"panel-title\"),\n                ui.p(\n                    \"Give us a suggestion of a topic you would like us to cover.\",\n                    class_=\"panel-subtitle\",\n                ),\n                ui.input_text(\n                    \"email\",\n                    \"Canadian academic email address\",\n                    placeholder=\"your.name@uni.ca\",\n                ),\n                ui.input_text(\n                    \"course\",\n                    \"Desired topic\",\n                    placeholder=\"Applied time series analysis in Julia\",\n                ),\n                ui.div(\n                    ui.input_action_button(\n                        \"save_request\",\n                        \"Save request\",\n                        class_=\"btn btn-primary\",\n                    ),\n                    class_=\"button-row\",\n                ),\n                class_=\"panel\",\n            ),\n            ui.div(\n                ui.h2(\"Requested topics\", class_=\"panel-title\"),\n                ui.div(\n                    ui.div(output_widget(\"course_plot\")),\n                    ui.div(\n                        ui.output_ui(\"metric_cards\"),\n                        ui.output_ui(\"recent_requests\"),\n                        class_=\"stats-grid\",\n                    ),\n                    class_=\"analytics-grid\",\n                ),\n                class_=\"panel\",\n            ),\n            class_=\"layout-grid\",\n        ),\n        class_=\"app-shell\",\n    ),\n    title=\"Topics requests\",\n)\n\n\ndef server(input, output, session):\n    requests_df = reactive.value(load_requests())\n\n    @reactive.effect\n    @reactive.event(input.save_request)\n    def _save_request():\n        email = input.email()\n        course = input.course()\n        error = validate_submission(email, course)\n        if error is not None:\n            ui.notification_show(error, type=\"warning\", duration=4)\n            return\n\n        updated = append_request(email=email, course=course)\n        requests_df.set(updated)\n        ui.update_text(\"email\", value=\"\")\n        ui.update_text(\"course\", value=\"\")\n        ui.notification_show(\n            f\"Saved request for {normalize_course_name(course)}.\",\n            type=\"message\",\n            duration=3,\n        )\n\n    @render_widget\n    def course_plot():\n        return make_course_figure(requests_df.get())\n\n    @render.ui\n    def metric_cards():\n        metrics = summary_metrics(requests_df.get())\n        return ui.div(\n            ui.div(\n                ui.span(\"Total requests\", class_=\"stat-label\"),\n                ui.div(metrics[\"total_requests\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Unique email addresses\", class_=\"stat-label\"),\n                ui.div(metrics[\"unique_emails\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Most requested topic\", class_=\"stat-label\"),\n                ui.div(metrics[\"top_course\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            class_=\"metric-card-grid\",\n        )\n\n    @render.ui\n    def recent_requests():\n        df = requests_df.get()\n        if df.height == 0:\n            return ui.div(\n                \"The most recent submission will appear here after the first request is submitted.\",\n                class_=\"empty-box\",\n            )\n\n        row = df.tail(1).row(0, named=True)\n        return ui.div(\n            ui.div(\n                ui.span(\"Most recent request\", class_=\"stat-label\"),\n                ui.div(row[\"course\"], class_=\"stat-value\"),\n                ui.div(\n                    row[\"submitted_at\"],\n                    class_=\"recent-meta\",\n                ),\n                class_=\"stat-card\",\n            ),\n        )\n\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#resources",
+    "href": "python/wb_shiny_slides.html#resources",
+    "title": "Two paths to Python dashboards:",
+    "section": "Resources",
+    "text": "Resources\nPython Shiny GitHub repo\nOfficial documentation\nComponents\nLayouts\nTemplates\nPlayground\nShinylive\nAI Shiny assistant\nShiny for AI\nIntegration with Quarto"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#comparison-with-dash",
+    "href": "python/wb_shiny_slides.html#comparison-with-dash",
+    "title": "Two paths to Python dashboards:",
+    "section": "Comparison with Dash",
+    "text": "Comparison with Dash"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-8",
+    "href": "python/wb_shiny_slides.html#interactive-web-frameworks-for-science-8",
+    "title": "Two paths to Python dashboards:",
+    "section": "Interactive web frameworks for science",
+    "text": "Interactive web frameworks for science\n\n\n2011\n2012\n2013\n2017\n2018\n2019\n2022\n2024\n\n\n\nD3.js, Leaflet\nR Shiny (RStudio)\nBokeh and Plotly\nPlotly Dash\nObservable\nHoloViz Panel, Gradio, Streamlit\nPython Shiny (RStudio ➔ Posit), Kitware Trame\nPython Shiny Express (initial syntax now called Shiny Core)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#installation-options",
+    "href": "python/wb_shiny_slides.html#installation-options",
+    "title": "Two paths to Python dashboards:",
+    "section": "Installation options",
+    "text": "Installation options\npip, conda, uv are options, but uv is by far the best method\nWith uv you can use the backward-compatible uv pip (if you are old-school), but I encourage you to use the superior uv project which is a complete environment and dependency manager (replacing Poetry, pip-tools, and pyenv)\nBenefits:\n\ncreates a pyproject.toml with dependencies and Python version\nno need to source the virtual env: just use uv run before commands\ncreates a lock file that can be shared for reproducibility\n\nThat’s what we will use here"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#installation-with-uv",
+    "href": "python/wb_shiny_slides.html#installation-with-uv",
+    "title": "Two paths to Python dashboards:",
+    "section": "Installation with uv",
+    "text": "Installation with uv\nInitialize bare uv project:\nuv init --bare\nInstall packages:\nuv add netcdf4 plotly polars scikit-image shiny shinylive shinywidgets\nYou can then source the virtual env, but we will instead use uv run &lt;command&gt;"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#problem",
+    "href": "python/wb_shiny_slides.html#problem",
+    "title": "Two paths to Python dashboards:",
+    "section": "Problem",
+    "text": "Problem\nLet’s look at the isosurface example presented by Alex\nWe generate the isosurface of a 3D dataset for an adjustable isovalue"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#packages-1",
+    "href": "python/wb_shiny_slides.html#packages-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Packages",
+    "text": "Packages\nimport numpy as np\nimport plotly.express as px\nimport plotly.graph_objects as go\nfrom plotly.callbacks import Points\nfrom shiny import App, reactive, ui\nfrom shinywidgets import output_widget, render_widget"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#variables",
+    "href": "python/wb_shiny_slides.html#variables",
+    "title": "Two paths to Python dashboards:",
+    "section": "Variables",
+    "text": "Variables\nBOOTSWATCH_CERULEAN = \"https://cdn.jsdelivr.net/npm/bootswatch@5.3.8/dist/cerulean/bootstrap.min.css\"\n\nnpoints = 100\nxpos = np.random.rand(npoints)\nypos = np.random.rand(npoints)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#load-data",
+    "href": "python/wb_shiny_slides.html#load-data",
+    "title": "Two paths to Python dashboards:",
+    "section": "Load data",
+    "text": "Load data\ndef load_density() -&gt; object:\n    data_path = Path(__file__).with_name(\"sineEnvelope.nc\")\n    with Dataset(data_path, \"r\", format=\"NETCDF4\") as root_group:\n        return root_group.variables[\"density\"][:]\n\nRHO = load_density()"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#ui-html",
+    "href": "python/wb_shiny_slides.html#ui-html",
+    "title": "Two paths to Python dashboards:",
+    "section": "UI (HTML)",
+    "text": "UI (HTML)\napp_ui = ui.page_sidebar(\n    ui.sidebar(\n        ui.input_slider(\n            \"level\",\n            \"Isovalue\",\n            min=SLIDER_MIN,\n            max=SLIDER_MAX,\n            value=DEFAULT_LEVEL,\n            step=SLIDER_STEP,\n            ticks=True,\n            width=\"100%\",\n        ),\n        width=220,\n    ),\n    ui.tags.style(\n        \"\"\"\n        .bslib-sidebar-layout {\n            height: 100vh;\n        }\n        .app-title {\n            padding-bottom: 0;\n            transform: translateY(0.12rem);\n        }\n        \"\"\"\n    ),\n    ui.div(\n        ui.div(\"Isosurface\", class_=\"app-title text-primary text-center fs-3\"),\n        output_widget(\"g1\"),\n        class_=\"p-2 h-100\",\n    ),\n    fillable=True,\n    title=\"Representation of points that share the same value from a 3D dataset in a unit cube\",\n    window_title=\"Isosurface\",\n)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#server-function-update-app-from-user-input",
+    "href": "python/wb_shiny_slides.html#server-function-update-app-from-user-input",
+    "title": "Two paths to Python dashboards:",
+    "section": "Server function (update app from user input)",
+    "text": "Server function (update app from user input)\ndef server(input, output, session):\n    fig = go.FigureWidget(make_figure(DEFAULT_LEVEL))\n\n    @render_widget\n    def g1():\n        return fig\n\n    @reactive.effect\n    def _update_figure():\n        source = make_figure(input.level())\n        mesh = source.data[0]\n\n        with fig.batch_update():\n            fig.data[0].x = mesh.x\n            fig.data[0].y = mesh.y\n            fig.data[0].z = mesh.z\n            fig.data[0].i = mesh.i\n            fig.data[0].j = mesh.j\n            fig.data[0].k = mesh.k\n            fig.data[0].intensity = mesh.intensity"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#generate-app",
+    "href": "python/wb_shiny_slides.html#generate-app",
+    "title": "Two paths to Python dashboards:",
+    "section": "Generate app",
+    "text": "Generate app\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#app",
+    "href": "python/wb_shiny_slides.html#app",
+    "title": "Two paths to Python dashboards:",
+    "section": "App",
+    "text": "App"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#helper-functions-1",
+    "href": "python/wb_shiny_slides.html#helper-functions-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Helper functions",
+    "text": "Helper functions\ndef level_key(level: float) -&gt; int:\n    return int(round(level / SLIDER_STEP))\n\n# @functools.lru_cache memoizes functions, caching up to maxsize\n# Speeds up repetitive, expensive, or I/O-bound tasks\n@lru_cache(maxsize=16)\ndef make_figure_for_level(level_value: float) -&gt; go.Figure:\n    vertices, triangles, _, _ = measure.marching_cubes(RHO, level_value)\n    return go.Figure(\n        data=[\n            go.Mesh3d(\n                x=vertices[:, 0],\n                y=vertices[:, 1],\n                z=vertices[:, 2],\n                i=triangles[:, 0],\n                j=triangles[:, 1],\n                k=triangles[:, 2],\n                intensity=vertices[:, 2],\n                colorscale=\"Viridis\",\n                showscale=True,\n            )\n        ],\n        layout=dict(\n            height=600,\n            uirevision=\"keep-camera\",\n            scene=dict(aspectmode=\"data\", uirevision=\"keep-camera\"),\n            margin=dict(l=0, r=0, t=0, b=0),\n        ),\n    )\n\ndef make_figure(level: float) -&gt; go.Figure:\n    level_value = level_key(level) * SLIDER_STEP\n    level_value = min(max(level_value, SLIDER_MIN), SLIDER_MAX)\n    fig = make_figure_for_level(level_value)\n    return go.Figure(fig)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#installation-with-uv-project",
+    "href": "python/wb_shiny_slides.html#installation-with-uv-project",
+    "title": "Two paths to Python dashboards:",
+    "section": "Installation with uv project",
+    "text": "Installation with uv project\nInitialize bare uv project:\nuv init --bare\nInstall packages:\nuv add netcdf4 plotly polars scikit-image shiny shinylive shinywidgets\nYou can then source the virtual env, but we will instead use uv run &lt;command&gt;"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#example-input-slider",
+    "href": "python/wb_shiny_slides.html#example-input-slider",
+    "title": "Two paths to Python dashboards:",
+    "section": "Example input: slider",
+    "text": "Example input: slider"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#example-output-seaborn-plot",
+    "href": "python/wb_shiny_slides.html#example-output-seaborn-plot",
+    "title": "Two paths to Python dashboards:",
+    "section": "Example output: Seaborn plot",
+    "text": "Example output: Seaborn plot"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#example-layout-left-sidebar",
+    "href": "python/wb_shiny_slides.html#example-layout-left-sidebar",
+    "title": "Two paths to Python dashboards:",
+    "section": "Example layout: left sidebar",
+    "text": "Example layout: left sidebar"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#ui",
+    "href": "python/wb_shiny_slides.html#ui",
+    "title": "Two paths to Python dashboards:",
+    "section": "UI",
+    "text": "UI\nThis is our app HTML as a string\napp_ui = ui.page_fluid(\n    ui.tags.h2(\n        \"Lasso selection with connected outputs\",\n        class_=\"text-primary text-center fs-3 my-3\",\n    ),\n    ui.div(\n        ui.div(output_widget(\"g1\"), class_=\"col-auto\"),\n        ui.div(\n            output_widget(\"g2\"),\n            output_widget(\"g3\"),\n            class_=\"col-auto\",\n        ),\n        class_=\"row justify-content-center g-3\",\n    ),\n    title=\"Lasso selection\",\n    theme=BOOTSWATCH_CERULEAN,\n)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#server-function",
+    "href": "python/wb_shiny_slides.html#server-function",
+    "title": "Two paths to Python dashboards:",
+    "section": "Server function",
+    "text": "Server function\nUpdates app from user inputs\ndef server(input, output, session):\n    selection = reactive.value(None)\n\n    def on_point_selection(trace, points: Points, state):\n        selection.set(points)\n\n    @render_widget\n    def g1():\n        return make_scatter_widget(on_point_selection)\n\n    @render_widget\n    def g2():\n        selected = selection.get()\n        if selected is None or not selected.point_inds:\n            values = []\n            title = \"Select points to see details\"\n        else:\n            values = list(selected.xs)\n            title = \"x-distribution\"\n        return make_histogram(values, title)\n\n    @render_widget\n    def g3():\n        selected = selection.get()\n        if selected is None or not selected.point_inds:\n            values = []\n            title = \"Select points to see details\"\n        else:\n            values = list(selected.ys)\n            title = \"y-distribution\"\n        return make_histogram(values, title)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#generate-app-object",
+    "href": "python/wb_shiny_slides.html#generate-app-object",
+    "title": "Two paths to Python dashboards:",
+    "section": "Generate app object",
+    "text": "Generate app object\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#resulting-app",
+    "href": "python/wb_shiny_slides.html#resulting-app",
+    "title": "Two paths to Python dashboards:",
+    "section": "Resulting app",
+    "text": "Resulting app"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#packages-2",
+    "href": "python/wb_shiny_slides.html#packages-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "Packages",
+    "text": "Packages\nfrom pathlib import Path\nfrom functools import lru_cache\n\nfrom netCDF4 import Dataset\nimport plotly.graph_objects as go\nfrom shiny import App, reactive, ui\nfrom shinywidgets import output_widget, render_widget\nfrom skimage import measure"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#variables-1",
+    "href": "python/wb_shiny_slides.html#variables-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Variables",
+    "text": "Variables\n# Slider values\nSLIDER_MIN = 0.05\nSLIDER_MAX = 1.95\nSLIDER_STEP = 0.05\nDEFAULT_LEVEL = 0.5"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#ui-1",
+    "href": "python/wb_shiny_slides.html#ui-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "UI",
+    "text": "UI\napp_ui = ui.page_sidebar(\n    ui.sidebar(\n        ui.input_slider(\n            \"level\",\n            \"Isovalue\",\n            min=SLIDER_MIN,\n            max=SLIDER_MAX,\n            value=DEFAULT_LEVEL,\n            step=SLIDER_STEP,\n            ticks=True,\n            width=\"100%\",\n        ),\n        width=220,\n    ),\n    ui.tags.style(\n        \"\"\"\n        .bslib-sidebar-layout {\n            height: 100vh;\n        }\n        .app-title {\n            padding-bottom: 0;\n            transform: translateY(0.12rem);\n        }\n        \"\"\"\n    ),\n    ui.div(\n        ui.div(\"Isosurface\", class_=\"app-title text-primary text-center fs-3\"),\n        output_widget(\"g1\"),\n        class_=\"p-2 h-100\",\n    ),\n    fillable=True,\n    title=\"Representation of points that share the same value from a 3D dataset in a unit cube\",\n    window_title=\"Isosurface\",\n)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#server-function-1",
+    "href": "python/wb_shiny_slides.html#server-function-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Server function",
+    "text": "Server function\ndef server(input, output, session):\n    fig = go.FigureWidget(make_figure(DEFAULT_LEVEL))\n\n    @render_widget\n    def g1():\n        return fig\n\n    @reactive.effect\n    def _update_figure():\n        source = make_figure(input.level())\n        mesh = source.data[0]\n\n        with fig.batch_update():\n            fig.data[0].x = mesh.x\n            fig.data[0].y = mesh.y\n            fig.data[0].z = mesh.z\n            fig.data[0].i = mesh.i\n            fig.data[0].j = mesh.j\n            fig.data[0].k = mesh.k\n            fig.data[0].intensity = mesh.intensity"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#app-object",
+    "href": "python/wb_shiny_slides.html#app-object",
+    "title": "Two paths to Python dashboards:",
+    "section": "App object",
+    "text": "App object\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#generate-app-object-1",
+    "href": "python/wb_shiny_slides.html#generate-app-object-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Generate app object",
+    "text": "Generate app object\napp = App(app_ui, server)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#resulting-app-1",
+    "href": "python/wb_shiny_slides.html#resulting-app-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Resulting app",
+    "text": "Resulting app"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#packages-3",
+    "href": "python/wb_shiny_slides.html#packages-3",
+    "title": "Two paths to Python dashboards:",
+    "section": "Packages",
+    "text": "Packages\nfrom __future__ import annotations\n\nfrom datetime import UTC, datetime\nfrom pathlib import Path\nimport re\n\nimport plotly.graph_objects as go  # for the plot\nimport polars as pl                # to save the data in a DataFrame\n\n# The 2 key packages for the Shiny app:\nfrom shiny import App, reactive, render, ui\nfrom shinywidgets import output_widget, render_widget"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#variables-2",
+    "href": "python/wb_shiny_slides.html#variables-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "Variables",
+    "text": "Variables\nDATA_PATH = Path(__file__).with_name(\"course_interest.parquet\")\nEMAIL_PATTERN = re.compile(r\"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\")\n\nREQUEST_SCHEMA = {\n    \"submitted_at\": pl.Utf8,\n    \"email\": pl.Utf8,\n    \"course\": pl.Utf8,\n}"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#helper-functions-2",
+    "href": "python/wb_shiny_slides.html#helper-functions-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "Helper functions",
+    "text": "Helper functions\ndef empty_requests() -&gt; pl.DataFrame:\n    return pl.DataFrame(schema=REQUEST_SCHEMA)\n\ndef normalize_course_name(course: str) -&gt; str:\n    return \" \".join(course.split())\n\ndef normalize_email(email: str) -&gt; str:\n    return email.strip().lower()\n\ndef load_requests(path: Path = DATA_PATH) -&gt; pl.DataFrame:\n    if not path.exists():\n        return empty_requests()\n    return pl.read_parquet(path).select(list(REQUEST_SCHEMA))\n\ndef write_requests(df: pl.DataFrame, path: Path = DATA_PATH) -&gt; None:\n    df.write_parquet(path)\n\ndef append_request(email: str, course: str, path: Path = DATA_PATH) -&gt; pl.DataFrame:\n    current = load_requests(path)\n    submission = pl.DataFrame(\n        [\n            {\n                \"submitted_at\": datetime.now(UTC).strftime(\"%Y-%m-%d %H:%M:%S UTC\"),\n                \"email\": normalize_email(email),\n                \"course\": normalize_course_name(course),\n            }\n        ],\n        schema=REQUEST_SCHEMA,\n    )\n    updated = pl.concat([current, submission], how=\"vertical_relaxed\")\n    write_requests(updated, path)\n    return updated\n\ndef validate_submission(email: str, course: str) -&gt; str | None:\n    normalized_email = normalize_email(email)\n    normalized_course = normalize_course_name(course)\n    if not normalized_email:\n        return \"Please enter an email address.\"\n    if not EMAIL_PATTERN.match(normalized_email):\n        return \"Please enter a valid email address.\"\n    if not normalized_course:\n        return \"Please enter the course you would like us to build.\"\n    return None\n\ndef summary_metrics(df: pl.DataFrame) -&gt; dict[str, str]:\n    if df.height == 0:\n        return {\n            \"total_requests\": \"0\",\n            \"unique_emails\": \"0\",\n            \"top_course\": \"No submissions\",\n        }\n\n    top_course = (\n        df.group_by(\"course\")\n        .len()\n        .sort([\"len\", \"course\"], descending=[True, False])\n        .row(0, named=True)[\"course\"]\n    )\n    unique_emails = df[\"email\"].n_unique()\n    return {\n        \"total_requests\": str(df.height),\n        \"unique_emails\": str(unique_emails),\n        \"top_course\": top_course,\n    }\n\ndef make_course_figure(df: pl.DataFrame) -&gt; go.Figure:\n    fig = go.Figure()\n\n    if df.height == 0:\n        fig.add_annotation(\n            text=\"No topic requests recorded yet\",\n            x=0.5,\n            y=0.5,\n            xref=\"paper\",\n            yref=\"paper\",\n            showarrow=False,\n            font=dict(size=18, color=\"#5a7188\"),\n        )\n        fig.update_xaxes(visible=False)\n        fig.update_yaxes(visible=False)\n    else:\n        counts = (\n            df.group_by(\"course\")\n            .len()\n            .sort([\"len\", \"course\"], descending=[True, False])\n            .head(8)\n        )\n        fig.add_trace(\n            go.Bar(\n                x=counts[\"len\"].to_list(),\n                y=counts[\"course\"].to_list(),\n                orientation=\"h\",\n                marker=dict(color=\"#2f6da3\", line=dict(color=\"#214d74\", width=1)),\n                hovertemplate=\"%{y}: %{x} request(s)&lt;extra&gt;&lt;/extra&gt;\",\n            )\n        )\n        fig.update_yaxes(\n            autorange=\"reversed\",\n            automargin=True,\n            ticklabelstandoff=14,\n        )\n        fig.update_xaxes(title=\"Number of requests\", dtick=1, gridcolor=\"#d8e2ee\")\n\n    fig.update_layout(\n        template=\"plotly_white\",\n        height=420,\n        margin=dict(l=40, r=20, t=40, b=20),\n        paper_bgcolor=\"#ffffff\",\n        plot_bgcolor=\"#ffffff\",\n        title_font=dict(size=20, color=\"#17324d\"),\n        font=dict(color=\"#17324d\"),\n    )\n    return fig"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#ui-2",
+    "href": "python/wb_shiny_slides.html#ui-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "UI",
+    "text": "UI\napp_ui = ui.page_fillable(\n    ui.tags.head(ui.tags.style(APP_CSS)),\n    ui.div(\n        ui.div(\n            ui.div(\"Research computing course planning\", class_=\"eyebrow\"),\n            ui.h1(\"Topics requests\", class_=\"header-title\"),\n            ui.p(\n                ui.HTML(\"\"\"\n                   Please make sure to look for courses in &lt;a href=\"https://explora.alliancecan.ca/\" target=\"_blank\"&gt;Explora&lt;/a&gt; before submitting a request.&lt;br&gt;Note that we can't promise that we will satisfy all requests!\n                \"\"\"),\n                class_=\"header-copy\",\n            ),\n            class_=\"header-panel\",\n        ),\n        ui.div(\n            ui.div(\n                ui.h2(\"Submit request\", class_=\"panel-title\"),\n                ui.p(\n                    \"Give us a suggestion of a topic you would like us to cover.\",\n                    class_=\"panel-subtitle\",\n                ),\n                ui.input_text(\n                    \"email\",\n                    \"Canadian academic email address\",\n                    placeholder=\"your.name@uni.ca\",\n                ),\n                ui.input_text(\n                    \"course\",\n                    \"Desired topic\",\n                    placeholder=\"Applied time series analysis in Julia\",\n                ),\n                ui.div(\n                    ui.input_action_button(\n                        \"save_request\",\n                        \"Save request\",\n                        class_=\"btn btn-primary\",\n                    ),\n                    class_=\"button-row\",\n                ),\n                class_=\"panel\",\n            ),\n            ui.div(\n                ui.h2(\"Requested topics\", class_=\"panel-title\"),\n                ui.div(\n                    ui.div(output_widget(\"course_plot\")),\n                    ui.div(\n                        ui.output_ui(\"metric_cards\"),\n                        ui.output_ui(\"recent_requests\"),\n                        class_=\"stats-grid\",\n                    ),\n                    class_=\"analytics-grid\",\n                ),\n                class_=\"panel\",\n            ),\n            class_=\"layout-grid\",\n        ),\n        class_=\"app-shell\",\n    ),\n    title=\"Topics requests\",\n)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#server-function-2",
+    "href": "python/wb_shiny_slides.html#server-function-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "Server function",
+    "text": "Server function\ndef server(input, output, session):\n    requests_df = reactive.value(load_requests())\n\n    @reactive.effect\n    @reactive.event(input.save_request)\n    def _save_request():\n        email = input.email()\n        course = input.course()\n        error = validate_submission(email, course)\n        if error is not None:\n            ui.notification_show(error, type=\"warning\", duration=4)\n            return\n\n        updated = append_request(email=email, course=course)\n        requests_df.set(updated)\n        ui.update_text(\"email\", value=\"\")\n        ui.update_text(\"course\", value=\"\")\n        ui.notification_show(\n            f\"Saved request for {normalize_course_name(course)}.\",\n            type=\"message\",\n            duration=3,\n        )\n\n    @render_widget\n    def course_plot():\n        return make_course_figure(requests_df.get())\n\n    @render.ui\n    def metric_cards():\n        metrics = summary_metrics(requests_df.get())\n        return ui.div(\n            ui.div(\n                ui.span(\"Total requests\", class_=\"stat-label\"),\n                ui.div(metrics[\"total_requests\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Unique email addresses\", class_=\"stat-label\"),\n                ui.div(metrics[\"unique_emails\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            ui.div(\n                ui.span(\"Most requested topic\", class_=\"stat-label\"),\n                ui.div(metrics[\"top_course\"], class_=\"stat-value\"),\n                class_=\"stat-card\",\n            ),\n            class_=\"metric-card-grid\",\n        )\n\n    @render.ui\n    def recent_requests():\n        df = requests_df.get()\n        if df.height == 0:\n            return ui.div(\n                \"The most recent submission will appear here after the first request is submitted.\",\n                class_=\"empty-box\",\n            )\n\n        row = df.tail(1).row(0, named=True)\n        return ui.div(\n            ui.div(\n                ui.span(\"Most recent request\", class_=\"stat-label\"),\n                ui.div(row[\"course\"], class_=\"stat-value\"),\n                ui.div(\n                    row[\"submitted_at\"],\n                    class_=\"recent-meta\",\n                ),\n                class_=\"stat-card\",\n            ),\n        )"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#goal",
+    "href": "python/wb_shiny_slides.html#goal",
+    "title": "Two paths to Python dashboards:",
+    "section": "Goal",
+    "text": "Goal\nHere we match Alex’s connected plot app:\nWe draw a scatter plot of 100 random values sampled from a uniform distribution\nA lasso lets us select a number of values (input) and the app returns histograms of the selected values along both axes\nFirst, let’s look at the code"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#run-app-locally",
+    "href": "python/wb_shiny_slides.html#run-app-locally",
+    "title": "Two paths to Python dashboards:",
+    "section": "Run app locally",
+    "text": "Run app locally\nSave the code to a script called app.py and run it with shiny run app.py\nIf you use uv project, prepend it with uv run\nUse --reload for hot reloading upon edits\nThe file can be in a subdirectory (to have several apps in the same project)\nuv run shiny run --reload lasso/app.py\nYou can now watch the app in a browser at 127.0.0.1:8000"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#goal-1",
+    "href": "python/wb_shiny_slides.html#goal-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Goal",
+    "text": "Goal\nLet’s look at the isosurface example presented by Alex\nWe generate the isosurface of a 3D dataset for an adjustable isovalue"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#resulting-app-link-to-app",
+    "href": "python/wb_shiny_slides.html#resulting-app-link-to-app",
+    "title": "Two paths to Python dashboards:",
+    "section": "Resulting app (link to app)",
+    "text": "Resulting app (link to app)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#run-app-locally-1",
+    "href": "python/wb_shiny_slides.html#run-app-locally-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Run app locally",
+    "text": "Run app locally\nSame as above:\nSave code to app.py file\nRun:\nuv run shiny run --reload 3d_contour/app.py\nWatch your app at 127.0.0.1:8000"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#goal-2",
+    "href": "python/wb_shiny_slides.html#goal-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "Goal",
+    "text": "Goal\nCreate a dashboard to collect data on training topic requests\nValidate and store the data in a course_interest.parquet file\nDisplay data analytics"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#usage",
+    "href": "python/wb_shiny_slides.html#usage",
+    "title": "Two paths to Python dashboards:",
+    "section": "Usage",
+    "text": "Usage\nPut your app.py file in a directory and run shinylive export &lt;your-app-dir&gt; site\nIf you use uv project, prepend it with uv run:\nuv run shinylive export 3d_contour site\n\nMake sure not to have other Python scripts in your app directory or it will mess things up\nYou can add a requirements.txt file to the app"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#resulting-app-link-to-app-1",
+    "href": "python/wb_shiny_slides.html#resulting-app-link-to-app-1",
+    "title": "Two paths to Python dashboards:",
+    "section": "Resulting app (link to app)",
+    "text": "Resulting app (link to app)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#resulting-app-link-to-app-2",
+    "href": "python/wb_shiny_slides.html#resulting-app-link-to-app-2",
+    "title": "Two paths to Python dashboards:",
+    "section": "Resulting app (link to app)",
+    "text": "Resulting app (link to app)"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#apps-running-in-browser",
+    "href": "python/wb_shiny_slides.html#apps-running-in-browser",
+    "title": "Two paths to Python dashboards:",
+    "section": "Apps running in browser",
+    "text": "Apps running in browser"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#note-on-this-app",
+    "href": "python/wb_shiny_slides.html#note-on-this-app",
+    "title": "Two paths to Python dashboards:",
+    "section": "Note on this app",
+    "text": "Note on this app\n\nThe apps in this talk are running with shinylive (see next)\nShinylive is extremely convenient, but it has limitations\nOne of them is the delay in launching the app\nAnother is that you can’t collect data. This app is thus for demo only and cannot be used unless deployed in a standard Shiny server"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#standard",
+    "href": "python/wb_shiny_slides.html#standard",
+    "title": "Two paths to Python dashboards:",
+    "section": "Standard",
+    "text": "Standard\n\nYour own server (VM in Alliance cloud or commercial cloud, lab web server)\nPosit Connect Cloud (free tier/paid plans)\nQuarto dashboard"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#shinylive",
+    "href": "python/wb_shiny_slides.html#shinylive",
+    "title": "Two paths to Python dashboards:",
+    "section": "Shinylive",
+    "text": "Shinylive\n\n\nShiny\n\nA server runs the app\nUsers are clients connecting to the server\n\n\n\nShinylive\n\n\n\nfrom shinylive documentation\n\n\nA website hosting service serves the files\nUsers run the app in their browser"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#shinylive-usage",
+    "href": "python/wb_shiny_slides.html#shinylive-usage",
+    "title": "Two paths to Python dashboards:",
+    "section": "Shinylive usage",
+    "text": "Shinylive usage\nPut your app.py file in a directory and run shinylive export &lt;your-app-dir&gt; site\nIf you use uv project, prepend it with uv run:\nuv run shinylive export 3d_contour site\n\nMake sure not to have other Python scripts in your app directory or it will mess things up\n\n\nYou can add a requirements.txt file to the app if needed\n\nDeploy to GitHub pages, Netlify, your own website…"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#section-5",
+    "href": "python/wb_shiny_slides.html#section-5",
+    "title": "Two paths to Python dashboards:",
+    "section": "",
+    "text": "The apps in this talk are running with shinylive (see next)\nShinylive is extremely convenient, but it has limitations\nOne of them is the delay in launching apps\nAnother is that you can’t collect data. This app is thus for demo only and cannot be used unless deployed in a standard Shiny server"
+  },
+  {
+    "objectID": "python/wb_shiny_slides.html#standard-deployment",
+    "href": "python/wb_shiny_slides.html#standard-deployment",
+    "title": "Two paths to Python dashboards:",
+    "section": "Standard deployment",
+    "text": "Standard deployment\nYour own server (VM in Alliance cloud or commercial cloud, lab server)\nPosit Connect Cloud (free tier/paid plans)\nQuarto dashboard"
   }
 ]
