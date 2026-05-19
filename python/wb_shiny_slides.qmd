@@ -320,7 +320,7 @@ HoloViz Panel, Gradio, Streamlit
 
 ::::
 
-# Setup
+# Setup for this webinar
 
 ## Packages {.center}
 
@@ -361,7 +361,7 @@ DataFrame to store collected data
 
 Measurement of image property
 
-Deployment of Shiny app to static site
+Deployment of Shiny apps to static sites
 
 :::
 
@@ -383,7 +383,7 @@ That's what we will use here
 
 ## Installation with uv project {.center}
 
-Initialize bare [uv](https://github.com/astral-sh/uv) project:
+Initialize a bare [uv](https://github.com/astral-sh/uv) project:
 
 ```{.bash}
 uv init --bare
@@ -403,11 +403,11 @@ You could then source the virtual env, but we will instead use `uv run <command>
 
 <iframe width="900" height="600" src="https://shiny.posit.co/py/components/" data-external="1"></iframe>
 
-## Example input: slider {.center}
+## Example input {.center}
 
 <iframe width="900" height="600" src="https://shiny.posit.co/py/components/inputs/slider/" data-external="1"></iframe>
 
-## Example output: Seaborn plot {.center}
+## Example output {.center}
 
 <iframe width="900" height="600" src="https://shiny.posit.co/py/components/outputs/plot-seaborn/" data-external="1"></iframe>
 
@@ -415,7 +415,7 @@ You could then source the virtual env, but we will instead use `uv run <command>
 
 <iframe width="900" height="600" src="https://shiny.posit.co/py/layouts/" data-external="1"></iframe>
 
-## Example layout: left sidebar {.center}
+## Example layout {.center}
 
 <iframe width="900" height="600" src="https://shiny.posit.co/py/layouts/sidebars/#sidebar-on-the-left" data-external="1"></iframe>
 
@@ -427,6 +427,46 @@ You could then source the virtual env, but we will instead use `uv run <command>
 
 <iframe width="900" height="600" src="https://gallery.shinyapps.io/assistant/" data-external="1"></iframe>
 
+## Syntax {.center}
+
+:::{.panel-tabset}
+
+### Shiny Core
+
+```{.python}
+from shiny import ui, render, App
+
+app_ui = ui.page_fluid(
+    ui.input_slider("slider", "Slider", 0, 100, 50),  
+    ui.output_text_verbatim("value"),
+)
+
+def server(input, output, session):
+    @render.text
+    def value():
+        return f"{input.slider()}"
+
+app = App(app_ui, server)
+```
+
+Compact, works in most situations
+
+### Express
+
+```{.python}
+from shiny.express import input, render, ui
+
+ui.input_slider("slider", "Slider", 0, 100, 50)  
+
+@render.text
+def value():
+    return f"{input.slider()}"
+```
+
+More verbose, allows for more complex apps
+
+:::
+
 # Example 1: Lasso selection
 
 ## Goal {.center}
@@ -435,17 +475,22 @@ Here we match Alex's [connected plot app](https://folio.vastcloud.org/plotly1/pl
 
 We draw a scatter plot of 100 random values sampled from a uniform distribution
 
-A lasso lets us select a number of values (input) and the app returns histograms of the selected values along both axes
+A lasso lets us select a number of values (user input) and the app returns histograms of the selected values along both axes
 
 First, let's look at the code
 
 ## Packages {.center}
 
 ```{.python}
+# Generate random data
 import numpy as np
+
+# Draw plot
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.callbacks import Points
+
+# The 2 key packages for the Shiny app
 from shiny import App, reactive, ui
 from shinywidgets import output_widget, render_widget
 ```
@@ -453,8 +498,10 @@ from shinywidgets import output_widget, render_widget
 ## Variables {.center}
 
 ```{.python}
+# Set theme
 BOOTSWATCH_CERULEAN = "https://cdn.jsdelivr.net/npm/bootswatch@5.3.8/dist/cerulean/bootstrap.min.css"
 
+# Variables for the scatter plot
 npoints = 100
 xpos = np.random.rand(npoints)
 ypos = np.random.rand(npoints)
@@ -478,7 +525,6 @@ def make_scatter_widget(on_selection):
     widget = go.FigureWidget(fig)
     widget.data[0].on_selection(on_selection)
     return widget
-
 
 def make_histogram(values, title):
     fig = px.histogram(x=values, nbins=10, width=400, height=280)
@@ -587,13 +633,20 @@ We generate the isosurface of a 3D dataset for an adjustable isovalue
 
 ```{.python}
 from pathlib import Path
+
+# Memoisation
 from functools import lru_cache
 
+# Load data
 from netCDF4 import Dataset
+
+# Draw plot
 import plotly.graph_objects as go
+from skimage import measure
+
+# Create app
 from shiny import App, reactive, ui
 from shinywidgets import output_widget, render_widget
-from skimage import measure
 ```
 
 ## Variables {.center}
@@ -759,15 +812,19 @@ Display data analytics
 
 ```{.python}
 from __future__ import annotations
-
 from datetime import UTC, datetime
 from pathlib import Path
+
+# For data validation
 import re
 
-import plotly.graph_objects as go  # for the plot
-import polars as pl                # to save the data in a DataFrame
+# Draw plot
+import plotly.graph_objects as go
 
-# The 2 key packages for the Shiny app:
+# Save the data in a DataFrame
+import polars as pl
+
+# Create app
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget
 ```
