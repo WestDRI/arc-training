@@ -36,20 +36,34 @@ rf <- randomForest(Species ~ ., data = bigger_iris)
 rf
 ```
 
-on a single core, you will get:
+... on a single core:
+
+```{.bash filename="single_core.sh"}
+#!/bin/bash
+#SBATCH --time=10
+#SBATCH --mem-per-cpu=3500M
+
+Rscript bigger.R
+```
+
+```{.bash}
+sbatch single_core.sh
+```
+
+... you will get:
 
 ```
-randomForest 4.7-1.1
+randomForest 4.7-1.2
 Type rfNews() to see new features/changes/bug fixes.
-/var/spool/slurmd/job00016/slurm_script: line 5: 74451 Killed                  Rscript data_partition.R
-slurmstepd: error: Detected 1 oom-kill event(s) in StepId=16.batch. Some of your processes may have been killed by the cgroup out-of-memory handler.
+/var/spool/slurmd/job00021/slurm_script: line 5: 133216 Killed                  Rscript bigger.R
+slurmstepd: error: Detected 1 oom_kill event in StepId=21.batch. Some of the step tasks have been OOM Killed.
 ```
 
-You have ran out of memory.
+You have run out of memory.
 
 Reducing the number of trees won't help as the problem comes from the size of the data frame.
 
-Similarly, using `foreach` and `doFuture` as we did previously won't help either because that spreads the number of trees on various cores, but again, the problem doesn't come from the number of trees, but for the size of the dataset.
+Similarly, using `foreach` and `doFuture` as we did previously won't help either because that spreads the number of trees on various cores, but again, the problem doesn't come from the number of trees, but from the size of the dataset.
 
 :::{.note}
 
@@ -104,17 +118,21 @@ Of course, you could also simply run the code on a subset of your data. In many 
 
 :::
 
-You could split the data manually and run the code on each chunk, but it would be tedious and very lengthy. And to run the code on all the chunks in parallel, you could implement that yourself. There is a much simpler option provided by the [multidplyr](https://cran.r-project.org/web/packages/multidplyr/index.html) package.
+You could split the data manually and run the code on each chunk, but it would be tedious and very lengthy. You could also implement running the code on all chunks in parallel, but there is a much simpler option provided by the [multidplyr](https://cran.r-project.org/web/packages/multidplyr/index.html) package.
 
 ### Using multidplyr
 
-To see what happens as we use `multidplyr`, let's first run the code in an interactive session on one node with 4 cores:
+To see what happens as we use `multidplyr`, let's first run the code in an interactive session on one node with 4 cores.
+
+Launch the interactive job:
 
 ```{.bash}
-# Launch the interactive job
-salloc --time=50 --mem-per-cpu=7500M --cpus-per-task=4
+salloc --time=50 --mem-per-cpu=3500M --cpus-per-task=4
+```
 
-# Then launch R
+Then launch R:
+
+```{.bash}
 R
 ```
 
@@ -147,7 +165,7 @@ cluster_library(cl, "randomForest")
 ```
 
 ```
-randomForest 4.7-1.1
+randomForest 4.7-1.2
 Type rfNews() to see new features/changes/bug fixes.
 
 Attaching package: ‘randomForest’
@@ -173,7 +191,7 @@ If you group observations by some variable (with `dplyr::group_by()`) beforehand
 set.seed(11)
 bigger_iris_shuffled <- bigger_iris[sample(nrow(bigger_iris)), ]
 
-# You can check that they are shuffled
+# You can check that the rows are shuffled
 head(bigger_iris_shuffled)
 ```
 
@@ -238,7 +256,7 @@ Shards: 4 [1--1 rows]
 4 <rndmFrs.>
 ```
 
-Now we need to bring the partitioned results in the main process:
+Now we need to bring the partitioned results to the main process:
 
 ```{.r}
 rfs <- split_rfs %>% collect()
@@ -338,19 +356,7 @@ versicolor      0      12500         0           0
 virginica       0          0     12500           0
 ```
 
-:::{.note}
-
-If you don't need to explore the intermediate objects, you can combine the commands as:
-
-```{.r}
-rfs <- split_iris %>%
-  do(rf = randomForest(Species ~ ., data = .)) %>%
-  collect()
-```
-
-:::
-
-Finally, we need to combine the 4 randomForest models into a single one. This can be done with the `combine()` function from the `randomForest` package (the same function we already used in our foreach expressions):
+Finally, we combine the 4 randomForest models into a single one. This can be done with the `combine()` function from the `randomForest` package (the same function we already used in our foreach expressions):
 
 ```{.r}
 rf_all <- do.call(combine, rfs$rf)
@@ -358,7 +364,7 @@ rf_all <- do.call(combine, rfs$rf)
 
 :::{.note}
 
-Be careful that `randomForest` and `dplyr` both have a `combine()` function. The one we want here is the one from the `randomForest` package. To avoid all conflict and confusion, you can use `randomForest::combine()`. `combine()` is ok if you make sure to load `dplyr` **before** `randomForest` since latest loaded functions overwrite earlier loaded ones.
+Be careful that `randomForest` and `dplyr` both have a `combine()` function. The one we want here is the one from the `randomForest` package. To avoid all conflict and confusion, you can use `randomForest::combine()`. `combine()` is ok if you make sure to load `dplyr` **before** `randomForest` since functions loaded later overwrite those loaded first.
 
 :::
 
@@ -391,7 +397,7 @@ Call:
 No. of variables tried at each split: 2
 ```
 
-This is it: by splitting our data frame on 4 cores, we could run the code and create a randomForest model using whole of the data.
+This is it: by splitting our data frame on 4 cores, we could run the code and create a randomForest model using the whole dataset.
 
 We can test our model:
 
@@ -448,7 +454,7 @@ And run it with a Bash `partition.sh` script:
 ```{.bash filename="partition.sh"}
 #!/bin/bash
 #SBATCH --time=10
-#SBATCH --mem-per-cpu=7500M
+#SBATCH --mem-per-cpu=3500M
 #SBATCH --cpus-per-task=4
 
 Rscript partition.R
@@ -462,7 +468,7 @@ Rscript partition.R
 
 Beside the memory advantage, are we getting any speedup from data parallelization? i.e. how does this code compare with the parallelization we did as regard the number of trees with `foreach` and `doFuture`?
 
-We want to make sure to compare the same things. So we go back to our smaller `big_iris` and we up the number of trees back to 2000.
+We want to make sure to compare the same things. So we go back to our smaller `big_iris` and we increase the number of trees back to 2000.
 
 We will compare it with the plans `multisession` and `multicore` that [we performed earlier](hpc_foreach#multisession.qmd). The minimum and median times for these two options for shared memory parallelism were of 2.72s and 3.15s respectively.
 
@@ -493,7 +499,7 @@ mark(rf_all <- part_rf(big_iris, cl))
 ```{.bash filename="partition_bench.sh"}
 #!/bin/bash
 #SBATCH --time=10
-#SBATCH --mem-per-cpu=7500M
+#SBATCH --mem-per-cpu=3500M
 #SBATCH --cpus-per-task=4
 
 Rscript partition_bench.R
@@ -504,7 +510,7 @@ sbatch partition_bench.sh
 ```
 
 ```
-randomForest 4.7-1.1
+randomForest 4.7-1.2
 Type rfNews() to see new features/changes/bug fixes.
 
 Attaching package: ‘randomForest’
@@ -528,19 +534,19 @@ Some expressions had a GC in every iteration; so filtering is disabled.
 
 Can `multidplyr` run in distributed memory? There is nothing on this in the documentation, so I tried it.
 
-I upped the number of workers to 8 and ran the code on 2 nodes with 4 cores per node and got no speedup. I also created a dataset 10 times bigger (with `each = 1e4`), which creates an OOM on 4 cores one a single node and tried it on 11 nodes with 4 cores (10 to match the 10 times size increase, plus one to play safe). This didn't solve the OOM issue. I tried various other tests, all with no success.
+I increased the number of workers to 8 and ran the code on 2 nodes with 4 cores per node and got no speedup. I also created a dataset 10 times bigger (with `each = 1e4`), which creates an OOM on 4 cores one a single node and tried it on 11 nodes with 4 cores (10 to match the 10 times size increase, plus one to play safe). This didn't solve the OOM issue. I tried various other tests, all with no success.
 
 In conclusion, it seems that `multidply`'s way of creating a cluster of workers doesn't have a mechanism to spread them across nodes and that the package thus does not allow to split data across nodes.
 
-In cases where your data is so big that it doesn't fit in the memory of a single node, it doesn't seem that any R package currently allow to split the data automatically for you.
+In cases where your data is so big that it doesn't fit in the memory of a single node, it doesn't seem that any R package currently allows to split the data automatically for you.
 
 :::
 
 ### Conclusion
 
-As we could see, we got similar results: in this case, it is the same to spread the number of trees running on the full data on 4 cores (as we did with `foreach` and `doFuture` or to run all the trees on the data spread on 4 cores.
+As we could see, we got similar results: in this case, it is the same to spread the number of trees running on the full data on 4 cores or to run all the trees on the data spread across 4 cores.
 
-The difference being that `foreach` and `doFuture` allowed us to spread the trees across nodes while `multidplyr` does not allow this for the data.
+One difference however is that `foreach` and `doFuture` allowed us to spread the trees across nodes while `multidplyr` does not allow this for the data.
 
 ## Direct data loading
 
