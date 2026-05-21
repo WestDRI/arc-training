@@ -53,12 +53,23 @@ head(iris)
 levels(iris$Species)
 ```
 
-The goal is to create a random forest model (let's call it `rf`) that can classify an iris flower in one of the 3 species based on the 4 measurements of its sepals and petals.
+The goal is to create a random forest model (let's call it `rf`) that can classify an iris flower as one of the 3 species based on its sepals and petals measurements.
+
+First, of course, we need to load the package:
 
 ```{r}
 library(randomForest)
+```
 
+Because randomForest relies on random sampling, we need to set a seed if we want to make our code reproducible.
+
+```{r}
 set.seed(123)
+```
+
+Now we create our model:
+
+```{r}
 rf <- randomForest(Species ~ ., data=iris)
 ```
 
@@ -66,7 +77,7 @@ rf <- randomForest(Species ~ ., data=iris)
 
 Our response variable (`Species`) is a factor, so classification is assumed.
 
-The `.` on the right side of the formula represents all other variables (so we are using all variables, except for the response variable `Species` of course, as feature variables).
+The `.` on the right side of the formula represents all other variables (so we are using all other variables as feature variables).
 
 :::
 
@@ -93,7 +104,7 @@ predict(rf, new_data)
 
 ### Let's make it big
 
-Now, the iris dataset only has 150 observations and we used the default number of trees (500) of the `randomForest()` function, so things ran fast. Often, random forests are run on large datasets. Let's artificially increase the iris dataset and use more trees to create a situation in which parallelization would make sense.
+The iris dataset only has 150 observations and we used the default number of trees (500) of the `randomForest()` function, so things ran fast. Often, random forests are run on large datasets. Let's artificially increase the iris dataset and use more trees to create a situation in which parallelization would make sense.
 
 One easy way is to replicate each row 100 times (and we can then delete the row names that get created by this operation):
 
@@ -121,7 +132,7 @@ On my machine I ran:
 ```{.r}
 library(randomForest)
 
-big_iris <- iris[rep(seq_len(nrow(iris)), each = 1e2), ]
+big_iris <- iris[rep(seq_len(nrow(iris)), each = 2e2), ]
 rownames(big_iris) <- NULL
 
 set.seed(123)
@@ -134,13 +145,13 @@ So let's parallelize this code.
 
 ## The foreach package
 
-The [foreach](https://cran.r-project.org/web/packages/foreach/index.html) package provides a construct for repeated executions, i.e. it can replace for loops, while loops, repeat loops, and functional programming code written with the *apply functions or the [purrr](https://cran.r-project.org/web/packages/purrr/index.html) package. The [foreach vignette](https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html) gives many examples.
+The [foreach](https://cran.r-project.org/web/packages/foreach/index.html) package provides a construct for repeated executions, i.e. it can replace for loops, while loops, repeat loops, and functional programming code written with the `*apply` functions or the [purrr](https://cran.r-project.org/web/packages/purrr/index.html) package. The [foreach vignette](https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html) gives many examples.
 
 ## The doFuture package
 
-The most useful part of `foreach` is that it allows for easily parallelization with countless backends: `doFuture`, `doMC`, `doMPI`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
+The most useful part of `foreach` is that it allows for easy parallelization with countless backends: `doFuture`, `doMC`, `doMPI`, `doParallel`, `doRedis`, `doRNG`, `doSNOW`, and `doAzureParallel`.
 
-The [doFuture](https://cran.r-project.org/web/packages/doFuture/index.html) package is the most modern of these backends. It allows to evaluate `foreach` expressions across the evaluation strategies of the [future](https://cran.r-project.org/web/packages/future/index.html) package very easily. All you have to do is to register it as a backend, declare the evaluation strategy of futures of your choice, make sure to generate parallel-safe random numbers for reproducibility (if your code uses randomness), and replace `%do%` with `%dofuture%`.
+The [doFuture](https://cran.r-project.org/web/packages/doFuture/index.html) package is the most modern of these backends. It allows to evaluate `foreach` expressions across the evaluation strategies of the [future](https://cran.r-project.org/web/packages/future/index.html) package very easily. All you have to do is to register it as a backend, declare the evaluation strategy of your choice, make sure to generate parallel-safe random numbers for reproducibility (if your code uses randomness), and replace `%do%` with `%dofuture%`.
 
 ## Benchmarks
 
