@@ -99,7 +99,7 @@ To do all this, we will use the package [rvest](https://cran.r-project.org/web/p
 
 Let's load it:
 
-```{r}
+```{.r}
 library(rvest)
 ```
 
@@ -109,19 +109,19 @@ As mentioned above, our site is the [database of PhD dissertations from the Univ
 
 Let's create a character vector with the URL:
 
-```{r}
+```{.r}
 url <- "https://trace.tennessee.edu/utk_graddiss/index.html"
 ```
 
 First, we read in the html data from that page:
 
-```{r}
+```{.r}
 html <- read_html(url)
 ```
 
 Let's have a look at the raw data:
 
-```{r}
+```{.r}
 html
 ```
 
@@ -151,7 +151,7 @@ It is a good idea to test things out on a single element before doing a massive 
 
 To start, we need to extract the first URL. The function `html_element()` from the package `rvest` extracts the first element matching some character. Let's pass to this function our `html` object and the character `".article-listing a"` and assign the result to an object that we will call `test`:
 
-```{r}
+```{.r}
 test <- html %>% html_element(".article-listing a")
 ```
 
@@ -167,13 +167,13 @@ test <- html_element(html, ".article-listing a")
 
 Our new object is a list:
 
-```{r}
+```{.r}
 typeof(test)
 ```
 
 Let's print it:
 
-```{r}
+```{.r}
 test
 ```
 
@@ -181,14 +181,14 @@ The URL is in there, so we successfully extracted the correct element, but we ne
 
 `a` is one of the HTML tags that have an attribute (`href`) as you can see when you print `test`. It is actually the value of that attribute that we want. To extract an attribute value, we use the function `html_attr()`:
 
-```{r}
+```{.r}
 url_test <- test %>% html_attr("href")
 url_test
 ```
 
 This is our URL.
 
-```{r}
+```{.r}
 str(url_test)
 ```
 
@@ -198,7 +198,7 @@ It is saved in a character vector, which is perfect.
 
 Instead of creating the intermediate objects `html` and `test`, we could have chained the functions:
 
-```{r}
+```{.r}
 url_test <- read_html(url) %>%
   html_element(".article-listing a") %>%
   html_attr("href")
@@ -214,7 +214,7 @@ We just saw that `url_test` is a character vector representing a URL. We know ho
 
 The first thing to do—as we did earlier with the database site—is to read in the html data. Let's assign it to a new object that we will call `html_test`:
 
-```{r}
+```{.r}
 html_test <- read_html(url_test)
 html_test
 ```
@@ -229,7 +229,7 @@ While earlier we wanted the value of a tag attribute (i.e. part of the metadata)
 
 Let's run both operations at once to save the creation of an intermediate object:
 
-```{r}
+```{.r}
 date_test <- html_test %>%
   html_element("#publication_date p") %>%
   html_text2()
@@ -243,13 +243,13 @@ Note the difference with what we did earlier to extract the URL: if we had used 
 
 Let's verify that our `date` object indeed contains the date:
 
-```{r}
+```{.r}
 date_test
 ```
 
 We also want the major for this thesis. The [SelectorGadget](https://selectorgadget.com/) allows us to find that this time, it is the `#department p` element that we need. Let's extract it in the same fashion:
 
-```{r}
+```{.r}
 major_test <- html_test %>%
   html_element("#department p") %>%
   html_text2()
@@ -258,7 +258,7 @@ major_test
 
 And for the advisor, we need the `#advisor1 p` element:
 
-```{r}
+```{.r}
 advisor_test <- html_test %>%
   html_element("#advisor1 p") %>%
   html_text2()
@@ -281,7 +281,7 @@ Now, write the code to extract it and make sure you actually get what you want.
 
 We now have the date, major, and advisor for the first dissertation. We can create a matrix by passing them as arguments to `cbind()`:
 
-```{r}
+```{.r}
 result_test <- cbind(date_test, major_test, advisor_test)
 result_test
 ```
@@ -294,12 +294,12 @@ Now that we have tested our code on the first dissertation, we can apply it on a
 
 Instead of using `html_element()`, this time we will use `html_elements()` which extracts *all* matching elements (instead of just the first one):
 
-```{r}
+```{.r}
 dat <- html %>% html_elements(".article-listing a")
 dat
 ```
 
-```{r}
+```{.r}
 typeof(dat)
 length(dat)
 typeof(dat[[1]])
@@ -313,13 +313,13 @@ Before running for loops, it is important to initialize empty loops. It is much 
 
 So let's initialize an empty list that we call `list_urls` of the appropriate size:
 
-```{r}
+```{.r}
 list_urls <- vector("list", length(dat))
 ```
 
 Now we can run a loop to fill in our list:
 
-```{r}
+```{.r}
 for (i in seq_along(dat)) {
   list_urls[[i]] <- dat[[i]] %>% html_attr("href")
 }
@@ -327,7 +327,7 @@ for (i in seq_along(dat)) {
 
 Let's print again the first element of `list_urls` to make sure all looks good:
 
-```{r}
+```{.r}
 list_urls[[1]]
 ```
 
@@ -339,13 +339,13 @@ We will now extract the data (date, major, and advisor) for all URLs in our list
 
 Again, before running a for loop, we need to allocate memory first by creating an empty container (here a list):
 
-```{r}
+```{.r}
 list_data <- vector("list", length(list_urls))
 ```
 
 We move the code we tested for a single URL inside a loop and we add one result to the `list_data` list at each iteration until we have all 100 dissertation sites scraped. Because there are quite a few of us running the code at the same time, we don't want the site to block our request. To play safe, we will add a little delay (0.1 second) at each iteration (many sites will block requests if they are too frequent):
 
-```{r}
+```{.r}
 for (i in seq_along(list_urls)) {
   html <- read_html(list_urls[[i]])
   date <- html %>%
@@ -364,7 +364,7 @@ for (i in seq_along(list_urls)) {
 
 Let's make sure all looks good by printing the first element of `list_data`:
 
-```{r}
+```{.r}
 list_data[[1]]
 ```
 
@@ -372,19 +372,19 @@ list_data[[1]]
 
 We can turn this big list into a dataframe:
 
-```{r}
+```{.r}
 result <- do.call(rbind.data.frame, list_data)
 ```
 
 `result` is a long dataframe, so we will only print the first few elements:
 
-```{r}
+```{.r}
 head(result)
 ```
 
 If you like the tidyverse, you can turn it into a tibble:
 
-```{r}
+```{.r}
 result <- result %>% tibble::as_tibble()
 ```
 
@@ -392,7 +392,7 @@ result <- result %>% tibble::as_tibble()
 
 The notation `tibble::as_tibble()` means that we are using the function `as_tibble()` from the package [tibble](https://tibble.tidyverse.org/). A tibble is the [tidyverse](https://www.tidyverse.org/) version of a dataframe. One advantage is that it will only print the first 10 rows by default instead of printing the whole dataframe, so you don't have to use `head()` when printing long dataframes:
 
-```{r}
+```{.r}
 result
 ```
 
@@ -400,13 +400,13 @@ result
 
 We can capitalize the headers:
 
-```{r}
+```{.r}
 names(result) <- c("Date", "Major", "Advisor")
 ```
 
 This is what our final result looks like:
 
-```{r}
+```{.r}
 result
 ```
 
