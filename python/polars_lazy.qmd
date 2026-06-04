@@ -1,6 +1,8 @@
 ---
 title: Lazy evaluation
 author: Marie-Hélène Burle
+bibliography: python.bib
+csl: ../diabetologia.csl
 ---
 
 :::{.def}
@@ -70,3 +72,73 @@ type(df_lazy.filter(pl.col("Year") == 2001).collect())
 ```
 
 This allows you to work with data too big to fit in memory!
+
+## Data too big to fit in memory
+
+### Example of large dataset
+
+Let's play with data from the [GBIF](https://www.gbif.org/) website (free and open access biodiversity database). The [Southern African Bird Atlas Project 2](https://www.gbif.org/dataset/906e6978-e292-4a8b-9c39-adf6bb0f3323) [@https://doi.org/10.15468/dl.gqwnm2] contains a CSV file of 12.3 GB.
+
+The data contains 25,687,526 rows and 50 columns.
+
+From that dataset, I want a list of species from the genus *Passer* (Old World sparrows).
+
+### The importance of file format
+
+Text-based formats (CSV, JSON) are not suitable for large files. [Apache Parquet](https://parquet.apache.org/) is a binary, machine-optimized, column-oriented file format with efficient encoding and compression and it is considered the industry-standard file format for large tabular data.
+
+I converted the file to Parquet and copied it to our training cluster at `/project/def-sponsor00/data/sa_birds.parquet`.
+
+Here is how much smaller the Parquet file is:
+
+|  ||| File type ||| Size |
+| -- | -- | -- | -- | -- | -- | -- |
+| File downloaded from GBIF ||| Zipped CSV ||| 2.2 GB |
+| Uncompressed file ||| CSV ||| 12.3 GB |
+| Ideal file format ||| [Parquet]{.emph} ||| [0.5 GB]{.emph} |
+
+In addition to being **15 times (!!) smaller**, it is **a lot faster to read & write**. With its native support for the columnar Apache Arrow format, Polars is ideal to work with Parquet files.
+
+Now, while that file is very small, once you read it in Python, it cannot remain compressed and it will return to its full size of 12 GB. That is a lot more memory than we have on the training cluster (we only have 3600 MB in our current JupyterHub session!)
+
+### What are your options?
+
+When the data is too big to fit in memory, you can:
+
+- read in data only for the columns you are interested in,
+- read and process the file in chunks and try to combine the results,
+- [use the Polars lazy API]{.emph}.
+
+### Create a LazyFrame
+
+You can create a LazyFrame (no impact on memory, LazyFrame returned instantly):
+
+```{python}
+df_pl_lazy = pl.scan_parquet('/project/def-sponsor00/data/sa_birds.parquet')
+```
+
+Run a query on it (no impact on memory, LazyFrame returned instantly):
+
+```{python}
+passer_df_lazy = df_pl_lazy.filter(
+    pl.col('genus') == 'Passer'
+).select(pl.col('species')).unique()
+```
+
+### Collect the result
+
+Now, you collect the result (this uses memory and takes time to compute) and turn the DataFrame into a Python list:
+
+```{python}
+passer_ls = passer_df_lazy.collect().get_column('species').to_list()
+
+passer_ls
+```
+
+With this method, as long as the data itself fits on a drive and the queries don't return huge subsets of data, you can run queries on giant datasets such as the 3 TB [eBird dataset](https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e) with a very small amount of RAM.
+
+### RAM actually needed
+
+I did a little experiment on a cluster: I ran the previous code on a single CPU core and gradually reduced the amount of memory asked from Slurm until I got an OOM error.
+
+[I got the result with as little as 150 MB of memory.]{.emph}
