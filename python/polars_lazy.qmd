@@ -109,7 +109,9 @@ When the data is too big to fit in memory, you can:
 - read and process the file in chunks and try to combine the results,
 - [use the Polars lazy API]{.emph}.
 
-### Create a LazyFrame
+### Polars lazy API is the best solution
+
+#### Create a LazyFrame
 
 You can create a LazyFrame (no impact on memory, LazyFrame returned instantly):
 
@@ -123,15 +125,58 @@ df_pl_lazy = pl.scan_parquet('/project/def-sponsor00/data/sa_birds.parquet')
 df_pl_lazy = pl.scan_parquet('sa_birds.parquet')
 ```
 
+#### Inspect it by collecting wisely
+
+You can inspect your LazyFrame by collecting small queries on it. Don't query too much of it at a time for your memory of course and don't try to collect the whole LazyFrame as this would defeat the whole purpose of using the lazy API and you would get into a OOM crash.
+
+For instance, if you want to print the first few rows (and also get info on the column names and their data types), you can do that no problem (the data contains over 25 million rows and that is way too big for our current memory, but a few rows are of course more than fine:
+
+```{python}
+df_pl_lazy.head().collect()
+```
+
+:::{.note}
+
+Note that you cannot run `df_pl_lazy.sample` on a LazyFrame:
+
+```{python}
+import random
+df_pl_lazy.sample(5).collect()
+```
+
+That's because Polars would have to have access to the whole data to draw a random sample.
+
+:::
+
+If you only want to print the column names without having to collect any row at all you, you can collect the schema and get the column names from it:
+
+```{python}
+df_pl_lazy.collect_schema().names()
+```
+
+:::{.note}
+
+Do not use the `columns` attribute on the LazyFrame as it will raise the following performance warning:
+
+```
+Determining the column names of a LazyFrame requires resolving its schema,
+which is a potentially expensive operation.
+Use `LazyFrame.collect_schema().names()` to get the column names without this warning.
+```
+
+:::
+
+#### Write a query on the LazyFrame
+
 Run a query on it (no impact on memory, LazyFrame returned instantly):
 
 ```{python}
 passer_df_lazy = df_pl_lazy.filter(
-    pl.col('genus') == 'Passer'
+	pl.col('genus') == 'Passer'
 ).select(pl.col('species')).unique()
 ```
 
-### Collect the result
+#### Collect the result
 
 Now, you collect the result (this uses memory and takes time to compute) and turn the DataFrame into a Python list:
 
@@ -143,7 +188,7 @@ passer_ls
 
 With this method, as long as the data itself fits on a drive and the queries don't return huge subsets of data, you can run queries on giant datasets such as the 3 TB [eBird dataset](https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e) with a very small amount of RAM.
 
-### RAM actually needed
+#### RAM actually needed
 
 I did a little experiment on a cluster: I ran the previous code on a single CPU core and gradually reduced the amount of memory asked from Slurm until I got an OOM error.
 
