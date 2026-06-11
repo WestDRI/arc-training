@@ -1,0 +1,610 @@
+---
+title: Web scraping with Beautiful Soup
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+The internet is a trove of information. A lot of it is publicly available and thus suitable for use in research. Extracting that information and putting it in an organized format for analysis can however be extremely tedious.
+
+Web scraping tools allow to automate parts of that process and Python is a popular language for the task.
+
+In this workshop, I will guide you through an example using the package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/).
+
+:::
+
+## HTML and CSS
+
+[HyperText Markup Language](https://en.wikipedia.org/wiki/HTML) (HTML) is the standard markup language for websites: it encodes the information related to the formatting and structure of webpages. Additionally, some of the customization can be stored in [Cascading Style Sheets](https://en.wikipedia.org/wiki/CSS) (CSS) files.
+
+HTML uses tags of the form:
+
+```{.html}
+<some_tag>Your content</some_tag>
+```
+
+Some tags have attributes:
+
+```{.html}
+<some_tag attribute_name="attribute value">Your content</some_tag>
+```
+
+:::{.example}
+
+Examples:
+
+:::
+
+Site structure:
+
+- `<h2>This is a heading of level 2</h2>`
+- `<p>This is a paragraph</p>`
+
+Formatting:
+
+- `<b>This is bold</b>`
+- `<a href="https://some.url">This is the text for a link</a>`
+
+## Web scrapping
+
+Web scraping is a general term for a set of tools which allow for the extraction of data from the web automatically.
+
+While most of the data on the internet is publicly available, it is illegal to scrape some sites and you should always look into the policy of a site before attempting to scrape it. Some sites will also block you if you submit too many requests in a short amount of time, so remember to scrape responsibly by doing the following:
+
+- Look for a public API for the site. If there is an API, use it instead of scraping (it will be a lot easier).
+- Add `robots.txt` at the end of the URL of a site to see whether it says anything about scraping.
+- Add some delay with `time.sleep` between requests.
+- Google whether or not the site you are interested in can be scraped.
+- Look for information on the site itself.
+
+## Example for this workshop
+
+We will use the [Theoi project](https://www.theoi.com/). Our goal is to get a DataFrame with the name of the Greek gods as a variable and their parents as a 2nd variable.
+
+:::{.note}
+
+Theoi is the ancient Greek word for "gods".
+
+:::
+
+## Install packages
+
+For this section, you need to install the following packages in a virtual environment (you can create a new one or activate the one you used in the previous days):
+
+- `requests`
+- `beautifulsoup4`
+- `polars`
+
+This is why we need these packages:
+
+| Package | Usage |
+|--|--|
+| [requests](https://github.com/psf/requests) | Allows you to send commands to a web server. In our case, we use it to get the HTML of the page we are interested in. |
+| [beautifulsoup4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/) | Makes it easy to pull data out of HTML files. |
+| [polars](https://github.com/pola-rs/polars) | The DataFrame library that we will use to store our data. |
+
+: {tbl-colwidths="[20, 80]"}
+
+## Explore the site carefully
+
+The first step is to get familiar with the site. You want to understand its structure, what data it contains, and how that data is organized. Of course, you also want to think carefully about what data you want and be clear about what your goals are before you start coding.
+
+In our case, we should start from [the page of the Greek gods](https://www.theoi.com/greek-mythology/greek-gods.html). From it, we want a list of all the URLs of the subcategories of Greek gods (e.g. [Olypian gods](https://www.theoi.com/greek-mythology/olympian-gods.html), [Titan gods](https://www.theoi.com/greek-mythology/titans.html), etc.). Then, from each of those sub-pages, we want the URLs of individual gods (e.g. [Aphrodite](https://www.theoi.com/Olympios/Aphrodite.html), [Apollo](https://www.theoi.com/Olympios/Apollon.html), etc.). Finally, from those pages, we want the names of the parents.
+
+## Load packages
+
+Let's load the packages that will make scraping websites with Python easier:
+
+```{python}
+# External packages:
+import requests                 # To download the HTML data from a site
+from bs4 import BeautifulSoup   # To parse the HTML data
+import polars as pl             # To store the data
+
+# Modules from the standard library:
+import time                     # To add a delay between each requests
+import re                       # To use regular expressions
+```
+
+Let's create a string with the main URL we want to scrape:
+
+```{python}
+mainpage_url = "https://www.theoi.com/greek-mythology/greek-gods.html"
+```
+
+First, we send a request to that URL and save the response in a variable called `r`:
+
+```{python}
+r = requests.get(mainpage_url)
+```
+
+Let's see what our response looks like:
+
+```{python}
+r
+```
+
+```{python}
+r.status_code
+```
+
+If you look in the [list of HTTP status codes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes), you can see that a response with a code of `200` means that the request was successful.
+
+## Explore the raw data
+
+To get the actual content of the response as unicode (text), we can use the `text` property of the response. This will give us the raw HTML markup from the webpage.
+
+Let's print the first 800 characters:
+
+```{python}
+print(r.text[:800])
+```
+
+## Parse the data
+
+The package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/) takes disorganized HTML "tag soup" and structures it into a "beautiful", easily traversable object tree which will make extracting information easier.
+
+Let's create an object called `mainpage` with the parse tree:
+
+```{python}
+mainpage = BeautifulSoup(r.text, "html.parser")
+```
+
+:::{.note}
+
+`html.parser` is the name of the parser that we are using here. It is better to use a specific parser to get consistent results across environments.
+
+:::
+
+We can print the beginning of the parsed result:
+
+```{python}
+print(mainpage.prettify()[:800])
+```
+
+:::{.note}
+
+The `prettify` method turns the BeautifulSoup object we created into a string (which is needed for slicing).
+
+:::
+
+It looks like the same HTML, but BeautifulSoup has now created a parse tree and will be able to extract information based on Python keyword arguments and dictionaries or based on CSS selectors.
+
+For instance, to get a single element such as the HTML segment containing the title of the page, we can use these methods:
+
+- using the title tag name:
+
+```{python}
+mainpage.title
+```
+
+- using `find()` to look for HTML markers (tags, attributes, etc.):
+
+```{python}
+mainpage.find("title")
+```
+
+- using `select_one()` which accepts CSS selectors:
+
+```{python}
+mainpage.select_one("title")
+```
+
+If you use these methods on elements that occur multiple times, they will return the first element:
+
+```{python}
+mainpage.a
+```
+
+```{python}
+mainpage.find("a")
+```
+
+```{python}
+mainpage.select_one("a")
+```
+
+If you want to extract all elements, you need to use instead:
+
+- `find_all()` for HTML markers
+
+```{python}
+mainpage.find_all("a")[:5]  # let's only print the first 5
+```
+
+- `select()` for CSS selectors:
+
+```{python}
+mainpage.select("a")[:5]    # let's only print the first 5
+```
+
+Both methods return a BeautifulSoup `ResultSet` object which behaves like a list.
+
+:::{.info}
+
+**Difference between methods:**
+
+|              | Python objects | CSS selectors                                           |
+|--------------|----------------|---------------------------------------------------------|
+| Single match | `find()`       | `select_one()`                                          |
+| All matches  | `find_all()`   | `select()`                                              |
+| Dependency   | None           | [Soup Sieve](https://github.com/facelessuser/soupsieve) |
+| Performance  | Faster         | Slower due to CSS parsing                               |
+
+:::
+
+## Identify relevant markers
+
+The HTML code for this webpage contains the data we are interested in, but it is mixed in with a lot of HTML formatting and data we don't care about. We need to extract the data relevant to us and turn it into a workable format.
+
+The first step is to find the HTML markers that contain our data. One option is to use a web inspector or—even easier—the [SelectorGadget](https://selectorgadget.com/), a JavaScript bookmarklet built by [Andrew Cantino](https://andrewcantino.com/).
+
+To use this tool, go to the [SelectorGadget](https://selectorgadget.com/) website and drag the link of the bookmarklet to your bookmarks bar.
+
+Now, go to [the Greek gods page](https://www.theoi.com/greek-mythology/greek-gods.html) and click on the bookmarklet in your bookmarks bar. You will see a floating box at the bottom of your screen. As you move your mouse across the screen, an orange rectangle appears around each element over which you pass and it give you the HTML tag of that element.
+
+Your goal is to select the HTML marker that matches the elements you want and only those by first clicking on one element of interest to select all similar elements, then, in a second step (when the box is red), to click on one selected element that you don't want to remove those.
+
+What we want in our example are hyperlinks (since we first need the list of sub-pages for the sub-categories of Greek gods).
+
+Hyperlinks in HTML are marked by the `a` tag. So as you move the orange box over various elements, make sure to click when you see `a` in the bottom left corner of the box.
+
+If you hover over one of the images and see `a img`, you might think that you are on the right track, but if you actually select it by clicking on it, the selected tag in the box is `img`. Meaning no hyperlink, so that's not good (you can click [Clear]{.codelike} to clear the selection and start again).
+
+Now, if you hover over one of the captions below the images, you can see `h3 a` in the bottom corner of the orange box and if you click on it, the tag is `a`. So that's good.
+
+But that has selected all the hyperlinks in the page and of course we only want the links that leads to the sub-categories of gods. So click on links you don't want to deselect their different types until you only have the links you want.
+
+In the end, the tag you want is called `.caption a` and there should be 11 of them in the page.
+
+:::{.note}
+
+To close the gadget, click on the cross in the right of the box.
+
+:::
+
+## Get the sub-categories URLs
+
+Now we can use `select` with the CSS selector `.caption a` to extract the URLs of the sub-categories of gods:
+
+```{python}
+mainpage_captions = mainpage.select(".caption a")
+```
+
+Let's first prototype our code on the first link:
+
+```{python}
+mainpage_captions[0]
+```
+
+This gives you the full hyperlink code. What you want out of it is the URL. You extract it with:
+
+```{python}
+mainpage_captions[0].get("href")
+```
+
+Unfortunately, this is not a full URL and you need to prepend `https://www.theoi.com/greek-mythology/` to it. This string is actually the base URL that you will have to prepend everywhere, so let's create a variable with it:
+
+```{python}
+base_url = "https://www.theoi.com/greek-mythology/"
+```
+
+We can now concatenate it with our code to get the full URL:
+
+```{python}
+base_url + mainpage_captions[0].get("href")
+```
+
+That looks good! We got the first URL.
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+How would you get the second URL?
+
+:::
+
+Of course, we need to do this on all the elements of `captions`. For this we use a for loop.
+
+First, we create an empty list that we will fill with the URLs as the loop runs:
+
+```{python}
+subcats_urls = []
+```
+
+Now we run the loop and fill in our empty list with `append`:
+
+```{python}
+for caption in mainpage_captions:
+    subcats_urls.append(base_url + caption.get("href"))
+```
+
+:::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Print the last 3 URLs.
+
+:::
+
+## Get the gods URLs
+
+Now, for each sub-category of gods, we want the URLs of all the gods pages. The methodology is exactly the same as what we did previously.
+
+Let's do it for the first subcategory at the URL <https://www.theoi.com/greek-mythology/olympian-gods.html>. First, we need to index that first URL from our list `subcats_urls`:
+
+```{python}
+subcats_url0 = subcats_urls[0]
+subcats_url0
+```
+
+Then we send a request to that URL:
+
+```{python}
+r = requests.get(subcats_url0)
+```
+
+Now we turn it into soup:
+
+```{python}
+subcat0 = BeautifulSoup(r.text, "html.parser")
+```
+
+You can play with the SelectorGadget to double-check that the HTML tag is the same, then you can use it to extract all the caption with the links to the gods pages:
+
+```{python}
+subcat0_captions = subcat0.select(".caption a")
+```
+
+Let's print the first element to make sure it looks like what we expect:
+
+```{python}
+subcat0_captions[0]
+```
+
+Let's extract the URL part of the hyperlink:
+
+```{python}
+subcat0_captions[0].get("href")
+```
+
+Now, to recreate the actual URL, you prepend `base_url` as we did before:
+
+```{python}
+base_url + subcat0_captions[0].get("href")
+```
+
+:::{.notenoit}
+
+This URL might look peculiar to you but it is actually totally valid: \
+`..` represents the parent directory and \
+`https://www.theoi.com/Olympios/../Olympios/Aphrodite.html` is actually exactly the same as \
+`https://www.theoi.com/Olympios/Aphrodite.html`.
+
+:::
+
+Now that we checked that the code works on a single entry, we can do it on all elements of the ResultSet:
+
+```{python}
+gods_urls0 = []
+
+for caption in subcat0_captions:
+    gods_urls0.append(base_url + caption.get("href"))
+```
+
+As a sanity check, let's see how many gods URL we have for this first subcategory of gods:
+
+```{python}
+len(gods_urls0)
+```
+
+If you go to the [Olympian gods page](https://www.theoi.com/greek-mythology/olympian-gods.html), you will see that there are indeed 27 gods in that category, so we are good.
+
+Let's print the first 5 URLs as a safety check:
+
+```{python}
+gods_urls0[:5]
+```
+
+It worked! 🙂
+
+Now we need to do that for all the subcategories of gods in a big loop and we will then have the URLs for *all* the Greek gods. In addition to the code, we will add a little delay at each iteration so that the website we are scraping doesn't block us. It is considered good practice to not overwhelm the server by creating too much traffic at once:
+
+```{python}
+gods_urls = []
+
+for subcats_url in subcats_urls:
+    r = requests.get(subcats_url)
+    subcat = BeautifulSoup(r.text, "html.parser")
+    subcat_captions = subcat.select(".caption a")
+    for caption in subcat_captions:
+        gods_urls.append(base_url + caption.get("href"))
+    # Add a delay at each iteration
+    time.sleep(0.1)
+```
+
+:::{.note}
+
+Note the presence of a nested for loop (a for loop within a for loop). It is getting complicated!
+
+:::
+
+Let's do a few sanity checks.
+
+First 5 URLs:
+
+```{python}
+gods_urls[:5]
+```
+
+Last 5:
+
+```{python}
+gods_urls[-5:]
+```
+
+Length of our list of gods URLs:
+
+```{python}
+len(gods_urls)
+```
+
+5 URLs somewhere in the middle of the list:
+
+```{python}
+gods_urls[80:85]
+```
+
+## Get the gods info
+
+Remember that our goal was to get the gods names and their parents names. As always, we test the code on a single element (here one god URL) first before we implement a loop. Let's extract the first gods URL from the list:
+
+```{python}
+gods_urls0 = gods_urls[0]
+```
+
+Now, we send a request and render as usual:
+
+```{python}
+r = requests.get(gods_urls0)
+god0 = BeautifulSoup(r.text, "html.parser")
+```
+
+The first thing we need from this page is the name of the god (a goddess in this case). We should be able to do this from the title of this page.
+
+```{python}
+god0.title
+```
+
+The title is in a `title` tag. To extract the text out of an HTML tag, you use the `get_text` method:
+
+```{python}
+title0 = god0.title.get_text()
+title0
+```
+
+We then use a regular expression to clean the part of the title that we are not interested in:
+
+```{python}
+god_name0 = re.sub(r"\s*-.*$", "", title0)
+god_name0
+```
+
+:::{.note}
+
+Trick: LLMs are very good at writing regular expressions. Ask them to write them for you. Alternatively, if you want to learn regexp, [here](https://www.regular-expressions.info/quickstart.html) is an excellent site that explains them very nicely.
+
+:::
+
+We could change the name from upper case to capitalized:
+
+```{python}
+god_name0.capitalize()
+```
+
+We now have the god's name which is the first thing we want for each god. The second thing we want is the names of the parents of that god. As we are now trying to extract a very type of element from the site, we have to go back to the SelectorGadget. This shows us that the element we need is under the HTML tag `tr:nth-child(1) td`. Let's extract that element:
+
+```{python}
+god0_parents = god0.select_one("tr:nth-child(1) td")
+god0_parents
+```
+
+Our element is in a `td` tag so we extract it with the `get_text` method:
+
+```{python}
+god0_parents.get_text()
+```
+
+🥳
+
+We can now create a loop to run this code on all the elements of the ResultSet:
+
+```{python}
+gods_info = []
+
+for god_url in gods_urls:
+    r = requests.get(god_url)
+    god = BeautifulSoup(r.text, "html.parser")
+    title = god.title.get_text()
+    god_name = re.sub(r"\s*-.*$", "", title).capitalize()
+    god_parents = god.select_one("tr:nth-child(1) td").get_text()
+    # Save the god name and its parents names in a tuple
+    gods_info.append((god_name, god_parents))
+```
+
+We are getting an error message because the site has inconsistencies and the code works for most, but not all gods pages. As soon as the loop hits the first error, it stops the execution.
+
+Let's add `if` statements to keep the execution running and print the problematic URLs:
+
+```{python}
+gods_info = []
+
+for god_url in gods_urls:
+    r = requests.get(god_url)
+    god = BeautifulSoup(r.text, "html.parser")
+    title = god.title.get_text()
+    god_name = re.sub(r"\s*-.*$", "", title).capitalize()
+    god_parents_element = god.select_one("tr:nth-child(1) td")
+    if god_parents_element is None:
+        print(f"{god_url} does not have scrapable data about parents")
+    else:
+        god_parents = god_parents_element.get_text()
+        gods_info.append((god_name, god_parents))
+```
+
+As you can see, a number of gods URLs do not have data about their parents in the format we are scraping.
+
+<https://www.theoi.com/greek-mythology/../Daimon/Soteria.html> is an inconsistent page because Sotoria's parentage is uncertain.
+
+<https://www.theoi.com/greek-mythology/heracles.html> is a totally different page, probably because Heracles started as a demi-god.
+
+The remaining URLs are actually not gods URLs (the website is really inconsistent there) but pages about cults of those gods. We already have links to the pages of the gods in question in our list.
+
+We are excluding all those bad entries from the results and we now have a list of tuples. Here are the first 5 tuples:
+
+```{python}
+gods_info[:5]
+```
+
+## Store the result in a DataFrame
+
+A DataFrame might be more convenient than a list of tuples to hold these data. Let's create one with Polars:
+
+```{python}
+result = pl.DataFrame(
+     data=gods_info,
+     schema=["God", "Parents"],
+     orient="row"
+ )
+
+result
+```
+
+## Save the result to file
+
+As a final step, we will save our data to a parquet file:
+
+```{.python}
+result.write_parquet('god_data.parquet')
+```
+
+:::{.notenoit}
+
+You could save the data as a CSV file if you wanted. As the data here is small, that would be suitable too:
+
+```{.python}
+result.write_csv('god_data.csv')
+```
+
+*Because parquet is so much more efficient and the best format for large datasets, I like using it everywhere.*
+
+:::
