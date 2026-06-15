@@ -11,7 +11,7 @@ The internet is a trove of information. A lot of it is publicly available and th
 
 Web scraping tools allow to automate parts of that process and Python is a popular language for the task.
 
-In this workshop, I will guide you through a simple example using the package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/).
+In this workshop, I will guide you through an example using the package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/).
 
 :::
 
@@ -74,7 +74,13 @@ Formatting:
 
 Web scraping is a general term for a set of tools which allow for the extraction of data from the web automatically.
 
-While most of the data on the internet is publicly available, it is illegal to scrape some sites and you should always look into the policy of a site before attempting to scrape it. Some sites will also block you if you submit too many requests in a short amount of time, so remember to scrape responsibly.
+While most of the data on the internet is publicly available, it is illegal to scrape some sites and you should always look into the policy of a site before attempting to scrape it. Some sites will also block you if you submit too many requests in a short amount of time, so remember to scrape responsibly by doing the following:
+
+- Look for a public API for the site. If there is an API, use it instead of scraping (it will be a lot easier).
+- Add `robots.txt` at the end of the URL of a site to see whether it says anything about scraping.
+- Add some delay with `time.sleep` between requests.
+- Google whether or not the site you are interested in can be scraped.
+- Look for information on the site itself.
 
 ## Example for this workshop
 
@@ -88,7 +94,25 @@ We will only do this for the first page which contains the links to the 100 most
 
 :::
 
-## Let's look at the site
+## Install packages
+
+For this section, you need to install the following packages in a virtual environment (you can create a new one or activate the one you used in the previous days):
+
+- `requests`
+- `beautifulsoup4`
+- `polars`
+
+This is why we need these packages:
+
+| Package | Usage |
+|--|--|
+| [requests](https://github.com/psf/requests) | Allows you to send commands to a web server. In our case, we use it to get the HTML of the page we are interested in. |
+| [beautifulsoup4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/) | Makes it easy to pull data out of HTML files. |
+| [polars](https://github.com/pola-rs/polars) | The DataFrame library that we will use to store our data. |
+
+: {tbl-colwidths="[20, 80]"}
+
+## Explore the site carefully
 
 First of all, let's have a close look at the website we want to scrape to think carefully about what we want to do. Before starting to write code, it is always a good idea to think about what you are trying to achieve with your code.
 
@@ -102,15 +126,20 @@ To create a dataframe with the data for all the dissertations on that first page
 
 Let's load the packages that will make scraping websites with Python easier:
 
-```{.python}
-import requests                 # To download the html data from a site
-from bs4 import BeautifulSoup   # To parse the html data
+```{python}
+# External packages:
+import requests                 # To download the HTML data from a site
+from bs4 import BeautifulSoup   # To parse the HTML data
+import polars as pl             # To store the data
+
+# Modules from the standard library:
 import time                     # To add a delay between each requests
-import pandas as pd             # To store our data in a DataFrame
+# import re                       # To use regular expressions
 ```
 
 ## Send request to the main site
 
+<!-- use this site instead now: https://trace.tennessee.edu/search?configuration=researchoutputs&page=1&f.organization=The%20University%20of%20Tennessee,equals -->
 As mentioned above, our site is the [database of PhD dissertations from the University of Tennessee](https://trace.tennessee.edu/utk_graddiss/index.html).
 
 Let's create a string with the URL:
@@ -137,15 +166,15 @@ If you look in the [list of HTTP status codes](https://en.wikipedia.org/wiki/Lis
 
 To get the actual content of the response as unicode (text), we can use the `text` property of the response. This will give us the raw HTML markup from the webpage.
 
-Let's print the first 200 characters:
+Let's print the first 800 characters:
 
 ```{.python}
-print(r.text[:200])
+print(r.text[:800])
 ```
 
 ## Parse the data
 
-The package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/) transforms (parses) such HTML data into a parse tree, which will make extracting information easier.
+The package [Beautiful Soup](https://beautiful-soup-4.readthedocs.io/en/latest/) takes disorganized HTML "tag soup" and structures it into a "beautiful", easily traversable object tree which will make extracting information easier.
 
 Let's create an object called `mainpage` with the parse tree:
 
@@ -162,7 +191,7 @@ mainpage = BeautifulSoup(r.text, "html.parser")
 We can print the beginning of the parsed result:
 
 ```{.python}
-print(mainpage.prettify()[:200])
+print(mainpage.prettify()[:800])
 ```
 
 :::{.note}
@@ -171,47 +200,70 @@ The `prettify` method turns the BeautifulSoup object we created into a string (w
 
 :::
 
-It doesn't look any more clear to us, but it is now in a format the Beautiful Soup package can work with.
+It looks like the same HTML, but BeautifulSoup has now created a parse tree and will be able to extract information based on Python keyword arguments and dictionaries or based on CSS selectors.
 
-For instance, we can get the HTML segment containing the title with three methods:
+For instance, to get a single element such as the HTML segment containing the title of the page, we can use these methods:
 
 - using the title tag name:
 
-```{.python}
+```{python}
 mainpage.title
 ```
 
-- using `find` to look for HTML markers (tags, attributes, etc.):
+- using `find()` to look for HTML markers (tags, attributes, etc.):
 
-```{.python}
+```{python}
 mainpage.find("title")
 ```
 
-- using `select` which accepts CSS selectors:
+- using `select_one()` which accepts CSS selectors:
 
-```{.python}
-mainpage.select("title")
+```{python}
+mainpage.select_one("title")
 ```
 
-`find` will only return the first element. `find_all` will return all elements. `select` will also return all elements. Which one you chose depends on what you need to extract. There often several ways to get you there.
+If you use these methods on elements that occur multiple times, they will return the first element:
 
-Here are other examples of data extraction:
-
-```{.python}
-mainpage.head
-```
-
-```{.python}
+```{python}
 mainpage.a
 ```
 
-```{.python}
-mainpage.find_all("a")[:5]
+```{python}
+mainpage.find("a")
 ```
 
-```{.python}
-mainpage.select("a")[:5]
+```{python}
+mainpage.select_one("a")
 ```
+
+If you want to extract all elements, you need to use instead:
+
+- `find_all()` for HTML markers
+
+```{python}
+mainpage.find_all("a")[:5]  # let's only print the first 5
+```
+
+- `select()` for CSS selectors:
+
+```{python}
+mainpage.select("a")[:5]    # let's only print the first 5
+```
+
+Both methods return a BeautifulSoup `ResultSet` object which behaves like a list.
+
+:::{.info}
+
+**Difference between methods:**
+
+|              | Python objects | CSS selectors                                           |
+|--------------|----------------|---------------------------------------------------------|
+| Single match | `find()`       | `select_one()`                                          |
+| All matches  | `find_all()`   | `select()`                                              |
+| Dependency   | None           | [Soup Sieve](https://github.com/facelessuser/soupsieve) |
+| Performance  | Faster         | Slower due to CSS parsing                               |
+
+:::
 
 ## Test run
 
@@ -232,6 +284,12 @@ As you can see, all the links we want are selected. However, there are many othe
 As there are 100 such links per page, the count of selected elements in the bottom floating box should be down to 100.
 
 In the main section of the floating box, you can now see: `.article-listing a`. This means that the data we want are under the HTML elements `.article-listing a` (the class `.article-listing` and the tag `a`).
+
+:::{.note}
+
+To close the gadget, click on the cross in the right of the box.
+
+:::
 
 ### Extract test URL
 
@@ -393,44 +451,36 @@ Some sites will block requests if they are too frequent. Adding a little delay b
 
 :::
 
-## Store results in DataFrame
+## Store the result in a DataFrame
 
-A DataFrame would be a lot more convenient than a list to hold our results.
-
-First, we create a list with the column names for our future DataFrame:
+A DataFrame might be more convenient than a list of tuples to hold these data. Let's create one with Polars:
 
 ```{.python}
-cols = ["Date", "Major", "Advisor"]
+result = pl.DataFrame(
+     data=ls,
+     schema=["Date", "Major", "Advisor"],
+     orient="row"
+ )
+
+result
 ```
 
-Then we create our DataFrame:
+## Save the result to file
+
+As a final step, we will save our data to a parquet file:
 
 ```{.python}
-df = pd.DataFrame(ls, columns=cols)
+result.write_parquet('god_data.parquet')
 ```
+
+:::{.notenoit}
+
+You could save the data as a CSV file if you wanted. As the data here is small, that would be suitable too:
 
 ```{.python}
-df
+result.write_csv('god_data.csv')
 ```
 
-## Save results to file
-
-As a final step, we will save our data to a CSV file:
-
-```{.python}
-df.to_csv('dissertations_data.csv', index=False)
-```
-
-:::{.note}
-
-The default `index=True` writes the row numbers. We are not writing these indices in our file by changing the value of this argument to `False`.
-
-:::
-
-If you are using a Jupyter notebook or the [IPython](https://en.wikipedia.org/wiki/IPython) shell, you can type `!ls` to see that the file is there and `!cat dissertations_data.csv` to print its content.
-
-:::{.note}
-
-`!` is a magic command that allows to run Unix shell commands in a notebook or IPython shell.
+*Because parquet is so much more efficient and the best format for large datasets, I like using it everywhere.*
 
 :::
