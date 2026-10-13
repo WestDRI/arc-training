@@ -360,6 +360,19 @@ Sequoia Chameleon is a reimplementation of the GnuPG interface so that existing 
 
 `gpg-sq` & `gpgv-sq` emulate `gpg` & `gpgv`
 
+You can symlink `gpg-sq` to `gpg` to act as drop-in replacement:
+
+```{.bash}
+mkdir $HOME/bin
+ln -s /usr/bin/gpg-sq $HOME/bin/gpg
+export PATH="$HOME/bin:$PATH"
+```
+
+```{.bash}
+gpg --version
+which gpg
+```
+
 ## Directories encryption: gocryptfs {.center}
 
 [Installation](https://nuetzlich.net/gocryptfs/compile/)
@@ -920,10 +933,11 @@ You end by launching a shell/tmux/your agent/your MCP servers
 
 ```{.bash}
 bwrap \
-	# --ro-bind bind mounts paths read-only
-    --ro-bind $HOME/.local $HOME/.local \
-	# --bind bind mounts paths with write access
-	
+    --ro-bind /usr/bin /usr/bin \
+    --bind $HOME/.cache $HOME/.cache \
+    --setenv HOME "$HOME" \
+    --setenv USER "$USER" \
+	<command>
 ```
 
 ## bubblewrap {.center}
@@ -940,6 +954,8 @@ set -euo pipefail
 SANDBOX_PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
 # use exec to replace current script by bwrap command instead of forking
+# --ro-bind bind mounts paths read-only
+# --bind bind mounts paths with write access
 exec /usr/bin/bwrap \
     --tmpfs /tmp \
     --dev /dev \
