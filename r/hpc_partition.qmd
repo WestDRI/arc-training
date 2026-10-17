@@ -108,13 +108,13 @@ That's because `randomForest()` does not accept datasets with too many rows.
 
 :::{.info}
 
-The bottom line is that there are situation in which the data is just too big. In such cases, you want to look at **data parallelism**: instead of splitting your code into tasks that can run in parallel as we did previously, you split the data into chunks and run the code in parallel on those chunks.
+The bottom line is that there are situations in which the data is just too big. In such cases, you want to look at **data parallelism**: instead of splitting your code into tasks that can run in parallel as we did previously, you split the data into chunks and run the code in parallel on those chunks.
 
 :::
 
 :::{.note}
 
-Of course, you could also simply run the code on a subset of your data. In many situation, reducing your data by sampling it properly will be good enough. But there are situations in which you want to use a huge dataset.
+Of course, you could also simply run the code on a subset of your data. In many situations, reducing your data by sampling it properly will be good enough. But there are situations in which you want to use a huge dataset.
 
 :::
 
@@ -182,7 +182,7 @@ bigger_iris <- iris[rep(seq_len(nrow(iris)), each = 1e3), ]
 rownames(bigger_iris) <- NULL
 ```
 
-Then we create a partitioned data frame on the workers with the `partition()` function. The function will try to split the data as heavenly as possible among workers.
+Then we create a partitioned data frame on the workers with the `partition()` function. The function will try to split the data as evenly as possible among workers.
 
 If you group observations by some variable (with `dplyr::group_by()`) beforehand, `multidplyr` will ensure that all data points in a group end up on the same worker. This is very convenient in a lot of cases, but is not relevant here. Without grouping observations first, it is unclear how `partition()` chooses which observation goes to which worker. In our data, we have all the `setosa` observations first, then all the `versicolor`, and finally all the `virginica`. We want to make sure that the `randomForest()` function runs on a sample of all 3 species. We will thus randomly shuffle the data before partitioning it (when we were parallelizing by splitting the trees, we didn't have to worry about that since each subset of trees was running on the entire dataset):
 
@@ -466,7 +466,7 @@ Rscript partition.R
 
 ## Data partitioning for speed
 
-Beside the memory advantage, are we getting any speedup from data parallelization? i.e. how does this code compare with the parallelization we did as regard the number of trees with `foreach` and `doFuture`?
+Besides the memory advantage, are we getting any speedup from data parallelization? i.e. how does this code compare with the parallelization we did as regards the number of trees with `foreach` and `doFuture`?
 
 We want to make sure to compare the same things. So we go back to our smaller `big_iris` and we increase the number of trees back to 1000.
 
@@ -534,11 +534,11 @@ Some expressions had a GC in every iteration; so filtering is disabled.
 
 Can `multidplyr` run in distributed memory? There is nothing on this in the documentation, so I tried it.
 
-I increased the number of workers to 8 and ran the code on 2 nodes with 4 cores per node and got no speedup. I also created a dataset 10 times bigger (with `each = 1e4`), which creates an OOM on 4 cores one a single node and tried it on 11 nodes with 4 cores (10 to match the 10 times size increase, plus one to play safe). This didn't solve the OOM issue. I tried various other tests, all with no success.
+I increased the number of workers to 8 and ran the code on 2 nodes with 4 cores per node and got no speedup. I also created a dataset 10 times bigger (with `each = 1e4`), which creates an OOM on 4 cores on a single node and tried it on 11 nodes with 4 cores (10 to match the 10 times size increase, plus one to play safe). This didn't solve the OOM issue. I tried various other tests, all with no success.
 
-In conclusion, it seems that `multidply`'s way of creating a cluster of workers doesn't have a mechanism to spread them across nodes and that the package thus does not allow to split data across nodes.
+In conclusion, it seems that `multidply`'s way of creating a cluster of workers doesn't have a mechanism to spread them across nodes and that the package thus does not allow you to split data across nodes.
 
-In cases where your data is so big that it doesn't fit in the memory of a single node, it doesn't seem that any R package currently allows to split the data automatically for you.
+In cases where your data is so big that it doesn't fit in the memory of a single node, it doesn't seem that any R package currently allows splitting the data automatically for you.
 
 :::
 
