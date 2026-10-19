@@ -875,10 +875,10 @@ In mccollect(jobs = jobs, wait = TRUE) :
   long vectors (argument 28) are not supported in .C</code></pre>
 <p>That’s because <code>randomForest()</code> does not accept datasets with too many rows.</p>
 <div class="info">
-<p>The bottom line is that there are situation in which the data is just too big. In such cases, you want to look at <strong>data parallelism</strong>: instead of splitting your code into tasks that can run in parallel as we did previously, you split the data into chunks and run the code in parallel on those chunks.</p>
+<p>The bottom line is that there are situations in which the data is just too big. In such cases, you want to look at <strong>data parallelism</strong>: instead of splitting your code into tasks that can run in parallel as we did previously, you split the data into chunks and run the code in parallel on those chunks.</p>
 </div>
 <div class="note">
-<p>Of course, you could also simply run the code on a subset of your data. In many situation, reducing your data by sampling it properly will be good enough. But there are situations in which you want to use a huge dataset.</p>
+<p>Of course, you could also simply run the code on a subset of your data. In many situations, reducing your data by sampling it properly will be good enough. But there are situations in which you want to use a huge dataset.</p>
 </div>
 <p>You could split the data manually and run the code on each chunk, but it would be tedious and very lengthy. You could also implement running the code on all chunks in parallel, but there is a much simpler option provided by the <a href="https://cran.r-project.org/web/packages/multidplyr/index.html">multidplyr</a> package.</p>
 </section>
@@ -921,7 +921,7 @@ The following object is masked from ‘package:dplyr’:
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>bigger_iris <span class="ot">&lt;-</span> iris[<span class="fu">rep</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(iris)), <span class="at">each =</span> <span class="fl">1e3</span>), ]</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(bigger_iris) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Then we create a partitioned data frame on the workers with the <code>partition()</code> function. The function will try to split the data as heavenly as possible among workers.</p>
+<p>Then we create a partitioned data frame on the workers with the <code>partition()</code> function. The function will try to split the data as evenly as possible among workers.</p>
 <p>If you group observations by some variable (with <code>dplyr::group_by()</code>) beforehand, <code>multidplyr</code> will ensure that all data points in a group end up on the same worker. This is very convenient in a lot of cases, but is not relevant here. Without grouping observations first, it is unclear how <code>partition()</code> chooses which observation goes to which worker. In our data, we have all the <code>setosa</code> observations first, then all the <code>versicolor</code>, and finally all the <code>virginica</code>. We want to make sure that the <code>randomForest()</code> function runs on a sample of all 3 species. We will thus randomly shuffle the data before partitioning it (when we were parallelizing by splitting the trees, we didn’t have to worry about that since each subset of trees was running on the entire dataset):</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Shuffle the rows of the data frame randomly</span></span>
@@ -1135,9 +1135,9 @@ Levels: setosa versicolor virginica</code></pre>
 </section>
 <section id="data-partitioning-for-speed" class="level2">
 <h2 class="anchored" data-anchor-id="data-partitioning-for-speed">Data partitioning for speed</h2>
-<p>Beside the memory advantage, are we getting any speedup from data parallelization? i.e.&nbsp;how does this code compare with the parallelization we did as regard the number of trees with <code>foreach</code> and <code>doFuture</code>?</p>
+<p>Besides the memory advantage, are we getting any speedup from data parallelization? i.e.&nbsp;how does this code compare with the parallelization we did as regards the number of trees with <code>foreach</code> and <code>doFuture</code>?</p>
 <p>We want to make sure to compare the same things. So we go back to our smaller <code>big_iris</code> and we increase the number of trees back to 1000.</p>
-<p>We will compare it with the plans <code>multisession</code> and <code>multicore</code> that <a href="hpc_foreach#multisession.qmd">we performed earlier</a>. The minimum and median times for these two options for shared memory parallelism were of 2.72s and 3.15s respectively.</p>
+<p>We will compare it with the plans <code>multisession</code> and <code>multicore</code> that <a href="../r/hpc_foreach.html#multisession">we performed earlier</a>. The minimum and median times for these two options for shared memory parallelism were of 2.72s and 3.15s respectively.</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>partition_bench.R</strong></pre>
@@ -1195,9 +1195,9 @@ Some expressions had a GC in every iteration; so filtering is disabled.</code></
 <div class="note">
 <p><strong>What about distributed memory?</strong></p>
 <p>Can <code>multidplyr</code> run in distributed memory? There is nothing on this in the documentation, so I tried it.</p>
-<p>I increased the number of workers to 8 and ran the code on 2 nodes with 4 cores per node and got no speedup. I also created a dataset 10 times bigger (with <code>each = 1e4</code>), which creates an OOM on 4 cores one a single node and tried it on 11 nodes with 4 cores (10 to match the 10 times size increase, plus one to play safe). This didn’t solve the OOM issue. I tried various other tests, all with no success.</p>
-<p>In conclusion, it seems that <code>multidply</code>’s way of creating a cluster of workers doesn’t have a mechanism to spread them across nodes and that the package thus does not allow to split data across nodes.</p>
-<p>In cases where your data is so big that it doesn’t fit in the memory of a single node, it doesn’t seem that any R package currently allows to split the data automatically for you.</p>
+<p>I increased the number of workers to 8 and ran the code on 2 nodes with 4 cores per node and got no speedup. I also created a dataset 10 times bigger (with <code>each = 1e4</code>), which creates an OOM on 4 cores on a single node and tried it on 11 nodes with 4 cores (10 to match the 10 times size increase, plus one to play safe). This didn’t solve the OOM issue. I tried various other tests, all with no success.</p>
+<p>In conclusion, it seems that <code>multidply</code>’s way of creating a cluster of workers doesn’t have a mechanism to spread them across nodes and that the package thus does not allow you to split data across nodes.</p>
+<p>In cases where your data is so big that it doesn’t fit in the memory of a single node, it doesn’t seem that any R package currently allows splitting the data automatically for you.</p>
 </div>
 <section id="conclusion-1" class="level3">
 <h3 class="anchored" data-anchor-id="conclusion-1">Conclusion</h3>

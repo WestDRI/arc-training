@@ -868,7 +868,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <pre><code>[1] "setosa"     "versicolor" "virginica" </code></pre>
 </div>
 </div>
-<p>The goal is to create a random forest model (let’s call it <code>rf</code>) that can classify an iris flower as one of the 3 species based on its sepals and petals measurements.</p>
+<p>The goal is to create a random forest model (let’s call it <code>rf</code>) that can classify an iris flower as one of the 3 species based on its sepal and petal measurements.</p>
 <p>First, of course, we need to load the package:</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -949,7 +949,7 @@ Levels: setosa versicolor virginica</code></pre>
 <h2 class="anchored" data-anchor-id="hidden-parallelism-check">Hidden parallelism check</h2>
 <p>Before parallelizing your code, remember to check whether the package you are using is already doing any parallelization under the hood (after all, maybe the <code>randomForest</code> package runs things in parallel. We don’t know).</p>
 <p>One way to do this is to test the package on your local machine and, while some sample code is running, to open <a href="https://htop.dev/">htop</a> and see how many cores are used.</p>
-<p>Why do this on your local machine? because on the cluster, if you launch <code>htop</code> while your batch job is running, you will be looking at processes running on the login node while your code is running on compute node(s). So this will not help you. You could salloc on the/one of the compute node(s) running your job and run <code>htop</code> there, but in production clusters, compute nodes are large and you will see all the processes from all the other users using that compute node. So this test is just easier done locally.</p>
+<p>Why do this on your local machine? Because on the cluster, if you launch <code>htop</code> while your batch job is running, you will be looking at processes running on the login node while your code is running on compute node(s). So this will not help you. You could salloc on the/one of the compute node(s) running your job and run <code>htop</code> there, but in production clusters, compute nodes are large and you will see all the processes from all the other users using that compute node. So this test is just easier done locally.</p>
 <p>On my machine I ran:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -968,7 +968,7 @@ Levels: setosa versicolor virginica</code></pre>
 <section id="the-dofuture-package" class="level2">
 <h2 class="anchored" data-anchor-id="the-dofuture-package">The doFuture package</h2>
 <p>The most useful part of <code>foreach</code> is that it allows for easy parallelization with countless backends: <code>doFuture</code>, <code>doMC</code>, <code>doMPI</code>, <code>doParallel</code>, <code>doRedis</code>, <code>doRNG</code>, <code>doSNOW</code>, and <code>doAzureParallel</code>.</p>
-<p>The <a href="https://cran.r-project.org/web/packages/doFuture/index.html">doFuture</a> package is the most modern of these backends. It allows to evaluate <code>foreach</code> expressions across the evaluation strategies of the <a href="https://cran.r-project.org/web/packages/future/index.html">future</a> package very easily. All you have to do is to register it as a backend, declare the evaluation strategy of your choice, make sure to generate parallel-safe random numbers for reproducibility (if your code uses randomness), and replace <code>%do%</code> with <code>%dofuture%</code>.</p>
+<p>The <a href="https://cran.r-project.org/web/packages/doFuture/index.html">doFuture</a> package is the most modern of these backends. It allows you to evaluate <code>foreach</code> expressions across the evaluation strategies of the <a href="https://cran.r-project.org/web/packages/future/index.html">future</a> package very easily. All you have to do is to register it as a backend, declare the evaluation strategy of your choice, make sure to generate parallel-safe random numbers for reproducibility (if your code uses randomness), and replace <code>%do%</code> with <code>%dofuture%</code>.</p>
 </section>
 <section id="benchmarks" class="level2">
 <h2 class="anchored" data-anchor-id="benchmarks">Benchmarks</h2>
@@ -1082,7 +1082,7 @@ Some expressions had a GC in every iteration; so filtering is disabled.</code></
 <li>It allows other people to run the same code on their different hardware without changing it (if they don’t have the resources to run things in parallel, they only have to change the execution strategy).</li>
 </ul>
 <p>To turn the code into a parallelizable version with <a href="https://cran.r-project.org/web/packages/doFuture/index.html">doFuture</a>, we replace <code>%do%</code> with <code>%dofuture%</code>.</p>
-<p>Here, we also need to use the option <code>.options.future = list(seed = TRUE)</code>: whenever your parallel code rely on a random process, it isn’t enough to use <code>set.seed()</code> to ensure reproducibility, you also need to generate parallel-safe random numbers. In random forest, each tree is trained on a random subset of the data and random variables are selected for splitting at each node. The option <code>.options.future = list(seed = TRUE)</code> pregenerates the random seeds using L’Ecuyer-CMRG RNG streams<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>
+<p>Here, we also need to use the option <code>.options.future = list(seed = TRUE)</code>: whenever your parallel code relies on a random process, it isn’t enough to use <code>set.seed()</code> to ensure reproducibility, you also need to generate parallel-safe random numbers. In random forest, each tree is trained on a random subset of the data and random variables are selected for splitting at each node. The option <code>.options.future = list(seed = TRUE)</code> pregenerates the random seeds using L’Ecuyer-CMRG RNG streams<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>
 <p>This is the parallelizable <code>foreach</code> code, but run sequentially:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
