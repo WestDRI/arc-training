@@ -1,3 +1,6 @@
+# start ollama first with:
+# sudo systemctl start ollama.service
+
 """Semantic search across three eras of NLP: lexical, dense, generative.
 
 Experiment backing the webinar "From pipelines to prompts: NLP in the LLM era"
@@ -37,7 +40,7 @@ import ollama
 import polars as pl
 from rank_bm25 import BM25Okapi
 
-# --- Config -------------------------------------------------------------------
+# --- Config ------------------------------------------------------------------
 
 SMOKE = os.environ.get("SMOKE") == "1"  # tiny corpus, few queries, fast checks
 DATA = Path(__file__).parent / "data/scifact/scifact"
@@ -144,12 +147,12 @@ bm25_search_time = time.perf_counter() - t0
 
 bm25_ndcg = float(np.mean([ndcg_at_k(bm25_rankings[q], qrels[q]) for q in eval_qids]))
 RESULTS.append(
-    dict(
-        method="1a BM25 (lexical)",
-        ndcg10=bm25_ndcg,
-        index_s=bm25_index_time,
-        search_ms=1000 * bm25_search_time / len(eval_qids),
-    )
+    {
+        "method": "1a BM25 (lexical)",
+        "ndcg10": bm25_ndcg,
+        "index_s": bm25_index_time,
+        "search_ms": 1000 * bm25_search_time / len(eval_qids),
+    }
 )
 print(
     f"era 1  BM25             nDCG@10 {bm25_ndcg:.3f}"
@@ -199,12 +202,12 @@ for model in EMB_MODELS:
 
     ndcg = float(np.mean([ndcg_at_k(rankings[q], qrels[q]) for q in eval_qids]))
     RESULTS.append(
-        dict(
-            method=f"2 {model}",
-            ndcg10=ndcg,
-            index_s=index_time,
-            search_ms=1000 * search_time / len(eval_qids),
-        )
+        {
+            "method": f"2 {model}",
+            "ndcg10": ndcg,
+            "index_s": index_time,
+            "search_ms": 1000 * search_time / len(eval_qids),
+        }
     )
     print(
         f"era 2  {model:<17} nDCG@10 {ndcg:.3f}"
@@ -235,12 +238,12 @@ def rrf(rankings: dict[str, list[str]]) -> dict[str, list[str]]:
 rrf_rankings = rrf({"bm25": bm25_rankings, "dense": dense_rankings})
 rrf_ndcg = float(np.mean([ndcg_at_k(rrf_rankings[q], qrels[q]) for q in eval_qids]))
 RESULTS.append(
-    dict(
-        method=f"2+1 hybrid RRF ({dense_model} + BM25)",
-        ndcg10=rrf_ndcg,
-        index_s=np.nan,
-        search_ms=np.nan,
-    )
+    {
+        "method": f"2+1 hybrid RRF ({dense_model} + BM25)",
+        "ndcg10": rrf_ndcg,
+        "index_s": np.nan,
+        "search_ms": np.nan,
+    }
 )
 print(f"hyb   RRF fusion       nDCG@10 {rrf_ndcg:.3f}")
 
@@ -319,12 +322,12 @@ llm_time = time.perf_counter() - t0
 
 llm_ndcg = float(np.mean([ndcg_at_k(llm_rankings[q], qrels[q]) for q in llm_qids]))
 RESULTS.append(
-    dict(
-        method=f"3 LLM rerank on {dense_model}+BM25 top-{K}",
-        ndcg10=llm_ndcg,
-        index_s=np.nan,
-        search_ms=1000 * llm_time / len(llm_qids),
-    )
+    {
+        "method": f"3 LLM rerank on {dense_model}+BM25 top-{K}",
+        "ndcg10": llm_ndcg,
+        "index_s": np.nan,
+        "search_ms": 1000 * llm_time / len(llm_qids),
+    }
 )
 print(
     f"era 3 llama3.2 rerank nDCG@10 {llm_ndcg:.3f}"
@@ -338,13 +341,17 @@ print(
 df = pl.DataFrame(RESULTS)
 print("\n== BEIR/SciFact - nDCG@10 ==")
 print(
-    df.to_string(
-        index=False,
-        formatters={
-            "ndcg10": "{:.3f}".format,
-            "index_s": "{:.0f}".format,
-            "search_ms": "{:.1f}".format,
-        },
+    str(
+        df.with_columns(
+            pl.col("ndcg10").map_elements(lambda x: f"{x:.3f}", return_dtype=pl.String),
+            pl.col("index_s").map_elements(
+                lambda x: f"{x:.0f}", return_dtype=pl.String
+            ),
+            pl.col("search_ms").map_elements(
+                lambda x: f"{x:.1f}", return_dtype=pl.String
+            ),
+        )
     )
 )
-df.to_json(Path(__file__).parent / "results.json", orient="records", indent=2)
+
+df.write_json(Path(__file__).parent / "results.json")
