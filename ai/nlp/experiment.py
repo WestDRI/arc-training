@@ -1,69 +1,67 @@
-"""Three eras of NLP on one corpus: classic pipeline, embeddings, small LLM.
+"""Semantic search across three eras of NLP: lexical, dense, generative.
 
 Experiment backing the webinar "From pipelines to prompts: NLP in the LLM era"
-(see wb_llm_era.qmd). Same corpus (AG News headlines), two tasks:
+(see wb_llm_era.qmd). One task - semantic search - on one benchmark:
 
-- Task A: topic classification (World / Sports / Business / Sci-Tech)
-- Task B: semantic search
+    BEIR/SciFact: 5,183 scientific abstracts, ~300 test queries
+    (scientific claims) with gold relevance judgements.
 
-For each era we record the labels required, the size of the pretrained model,
-and the wall-clock time, so the three approaches can be compared side by side.
+The eras:
 
-Dependencies (add to the uv project in this directory):
+1. Lexical search   BM25 (no model, exact-term matching)
+2. Dense retrieval  embedding similarity, three model sizes
+3. Generative       small LLM (llama3.2 via ollama) reranking a shortlist
 
-    uv add scikit-learn pandas datasets sentence-transformers transformers accelerate
+Plus the standard hybrid trick (reciprocal rank fusion of eras 1 and 2).
 
-Quick test: shrink N_SEARCH / N_TRAIN / N_TEST below (era 3 is by far the
-slowest step; everything else runs in seconds).
+Everything is scored with nDCG@10 on the same qrels. No method is given an
+unfair edge: the numbers land where they land and the webinar conclusion
+follows the results, not the other way around.
+
+Data:   curl -L -o scifact.zip
+        https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
+Models: ollama pull all-minilm nomic-embed-text mxbai-embed-large llama3.2
+
+Run with `uv run python -I experiment.py` (SMOKE=1 for a quick validation
+run on a corpus subsample).
 """
 
-import random
+import json
+import os
 import re
 import time
+from pathlib import Path
 
 import numpy as np
-import pandas as pd
-import torch
-from datasets import load_dataset
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from transformers import pipeline as hf_pipeline
+import ollama
+import polars as pl
+from rank_bm25 import BM25Okapi
 
-# --- Config -----------------------------------------------------------------
+# --- Config -------------------------------------------------------------------
 
-SEED = 42
-N_SEARCH = 1_000   # retrieval corpus for task B
-N_TRAIN = 500      # labeled docs to train the era 1 / era 2 classifiers
-N_TEST = 100       # docs to classify at inference (keep small: era 3 is slow)
-K = 3              # results shown per query
+SMOKE = os.environ.get("SMOKE") == "1"  # tiny corpus, few queries, fast checks
+DATA = Path(__file__).parent / "data/scifact/scifact"
+K = 10  # nDCG depth
+LLM_QUERIES = 5 if SMOKE else 50  # LLM reranking is slow: subset only
+RRF_K = 60  # reciprocal rank fusion constant
 
-EMB_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # 22M params
-LLM_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"  # 494M params, small enough for CPU
-
-LABELS = ["World", "Sports", "Business", "Sci/Tech"]
-# How each class is described for the zero-label methods of eras 2 and 3:
-# wording matters, this is prompt engineering in miniature.
-CLASS_TEXTS = [
-    "world news",
-    "sports news",
-    "business news",
-    "science and technology news",
+# Embedding models, oldest/smallest first: does model quality flip the
+# BM25 vs dense ranking? (SciFact is full of rare exact terms - a BM25-friendly
+# domain - so this is a fair fight, not a strawman.)
+# "mxbai-embed-large" (335M) is a stronger third candidate if disk allows.
+EMB_MODELS = [
+    "all-minilm",  # 23M params, 2020-era miniature
+    "nomic-embed-text",  # 137M params, modern
 ]
+LLM_MODEL = "llama3.2"  # 3B params
 
-QUERIES = [
-    "spacecraft heading to Mars",
-    "automobile manufacturer recalls vehicles over safety flaws",
-    "athlete wins gold medal at the Olympics",
-    "stock prices surge on Wall Street",
-    "fighting escalates in the Middle East",
-]
+RERANK_FORMAT = {  # structured output for the reranker
+    "type": "object",
+    "properties": {"ranking": {"type": "array", "items": {"type": "integer"}}},
+    "required": ["ranking"],
+}
 
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
+RESULTS = []
 
 
 def timed(fn, *args, **kwargs):
@@ -73,219 +71,280 @@ def timed(fn, *args, **kwargs):
     return out, time.perf_counter() - t0
 
 
-def top_k(sims, k=K):
-    """Indices of the k largest similarities, best first."""
-    best = np.argpartition(-sims, k - 1)[:k]
-    return best[np.argsort(-sims[best])]
+def tokenize(text: str) -> list[str]:
+    """Crude but sufficient for BM25: lowercase alphanumeric tokens."""
+    return re.findall(r"[a-z0-9]+", text.lower())
 
 
-def overlap(a, b) -> float:
-    """Fraction of top-k agreement between two result lists."""
-    return len({int(i) for i in a} & {int(i) for i in b}) / K
+def ndcg_at_k(ranked: list[str], qrels: dict[str, int], k: int = K) -> float:
+    """nDCG@k, graded gains (SciFact qrels happen to be binary)."""
+    dcg = sum(qrels.get(d, 0) / np.log2(r + 2) for r, d in enumerate(ranked[:k]))
+    ideal = sorted(qrels.values(), reverse=True)[:k]
+    idcg = sum(g / np.log2(r + 2) for r, g in enumerate(ideal))
+    return dcg / idcg if idcg else 0.0
 
 
-# --- Corpus -----------------------------------------------------------------
+# --- Corpus, queries, relevance judgements -------------------------------------
 
-ag = load_dataset("ag_news")
+corpus = {}  # doc id -> {"title": ..., "text": ...}
+with open(DATA / "corpus.jsonl", encoding="utf-8") as f:
+    for line in f:
+        doc = json.loads(line)
+        corpus[doc["_id"]] = {
+            "title": doc.get("title") or "",
+            "text": doc["text"],
+        }
 
-corpus_texts = ag["train"]["text"][:N_SEARCH]
-corpus_labels = [LABELS[i] for i in ag["train"]["label"][:N_SEARCH]]
+if SMOKE:  # shrink the corpus, keep only queries still answerable from it
+    corpus = dict(list(corpus.items())[:500])
+docs = list(corpus)
 
-# Labeled samples for task A, class balance preserved.
-pool = ag["train"].select(range(N_SEARCH, N_SEARCH + 20_000))
-train_texts, _, train_y, _ = train_test_split(
-    pool["text"], pool["label"],
-    train_size=N_TRAIN, stratify=pool["label"], random_state=SEED,
-)
-test_pool = ag["test"].select(range(2_000))
-test_texts, _, test_y, _ = train_test_split(
-    test_pool["text"], test_pool["label"],
-    train_size=N_TEST, stratify=test_pool["label"], random_state=SEED,
-)
-train_labels = [LABELS[i] for i in train_y]
-test_labels = [LABELS[i] for i in test_y]
-print(f"corpus: {N_SEARCH} docs for search, {N_TRAIN} labeled, {N_TEST} test\n")
+queries = {}  # query id -> text
+with open(DATA / "queries.jsonl", encoding="utf-8") as f:
+    for line in f:
+        q = json.loads(line)
+        queries[q["_id"]] = q["text"]
 
+qrels = {}  # query id -> {doc id: relevance}
+with open(DATA / "qrels" / "test.tsv", encoding="utf-8") as f:
+    next(f)
+    for line in f:
+        qid, did, score = line.split("\t")
+        qrels.setdefault(qid, {})[did.strip()] = int(score)
 
-# --- Task A: topic classification -------------------------------------------
-
-# Era 1 - classic pipeline: TF-IDF features + task-specific classifier.
-# Trained from scratch: needs labeled data and a new model for every task.
-classic = Pipeline([
-    ("tfidf", TfidfVectorizer(ngram_range=(1, 2))),
-    ("clf", LogisticRegression(max_iter=1000)),
-])
-_, t_fit_classic = timed(classic.fit, train_texts, train_labels)
-pred_classic, t_pred_classic = timed(classic.predict, test_texts)
-acc_classic = accuracy_score(test_labels, pred_classic)
-print(f"era 1  tfidf+logreg       accuracy {acc_classic:.1%}"
-      f"  (fit {t_fit_classic:.2f}s, predict {t_pred_classic:.2f}s)")
-
-# Era 2 - embeddings: one encoder for every task.
-from sentence_transformers import SentenceTransformer
-
-embedder = SentenceTransformer(EMB_MODEL)
-E_corpus, _ = timed(
-    embedder.encode, corpus_texts,
-    normalize_embeddings=True, show_progress_bar=False,
-)
-E_train, t_enc_train = timed(
-    embedder.encode, train_texts,
-    normalize_embeddings=True, show_progress_bar=False,
-)
-# Both era 2 variants below share this one encoding of the test set.
-E_test, t_enc_test = timed(
-    embedder.encode, test_texts,
-    normalize_embeddings=True, show_progress_bar=False,
+eval_qids = [
+    qid for qid in qrels if qid in queries and any(d in corpus for d in qrels[qid])
+]
+if SMOKE:
+    eval_qids = eval_qids[:30]
+print(
+    f"corpus: {len(corpus)} docs | eval queries: {len(eval_qids)}"
+    f" | LLM subset: {LLM_QUERIES}\n"
 )
 
-# (a) zero-shot: no labels at all - classify by similarity to the class names.
-class_vecs = embedder.encode(CLASS_TEXTS, normalize_embeddings=True)
-pred_zero = [LABELS[np.argmax(class_vecs @ e)] for e in E_test]
-acc_zero = accuracy_score(test_labels, pred_zero)
-print(f"era 2  embeddings 0-shot  accuracy {acc_zero:.1%}"
-      f"  (no labels, encode {t_enc_test:.2f}s)")
-
-# (b) few-shot: the very same classifier as era 1, but on embeddings.
-head = LogisticRegression(max_iter=1000)
-_, t_fit_head = timed(head.fit, E_train, train_labels)
-pred_emb, _ = timed(head.predict, E_test)
-acc_emb = accuracy_score(test_labels, pred_emb)
-print(f"era 2  embeddings+logreg accuracy {acc_emb:.1%}"
-      f"  (encode {t_enc_train:.2f}s + fit {t_fit_head:.2f}s,"
-      f" predict {t_enc_test:.2f}s)")
-
-# Era 3 - small LLM: zero labels, prompt only.
-llm = hf_pipeline("text-generation", model=LLM_MODEL, device_map="auto")
-llm.tokenizer.pad_token_id = llm.tokenizer.eos_token_id
-llm.tokenizer.padding_side = "left"  # safe batching for decoder-only models
+full_text = {d: f"{corpus[d]['title']}. {corpus[d]['text']}" for d in docs}
 
 
-def parse_label(out: str) -> str | None:
-    out = out.lower()
-    for label in LABELS:
-        if label.lower() in out:
-            return label
-    return None
+# --- Era 1: lexical search (BM25) ----------------------------------------------
+
+# No model at all: score docs by exact (unigram) term overlap with the query.
+# Fails on vocabulary mismatch - and on SciFact it is still a serious
+# baseline: scientific queries are full of rare exact terms.
+
+t0 = time.perf_counter()
+bm25 = BM25Okapi([tokenize(full_text[d]) for d in docs])
+bm25_index_time = time.perf_counter() - t0
+
+t0 = time.perf_counter()
+bm25_rankings = {  # query id -> doc ids, best first
+    qid: [docs[i] for i in np.argsort(-bm25.get_scores(tokenize(queries[qid])))]
+    for qid in eval_qids
+}
+bm25_search_time = time.perf_counter() - t0
+
+bm25_ndcg = float(np.mean([ndcg_at_k(bm25_rankings[q], qrels[q]) for q in eval_qids]))
+RESULTS.append(
+    dict(
+        method="1a BM25 (lexical)",
+        ndcg10=bm25_ndcg,
+        index_s=bm25_index_time,
+        search_ms=1000 * bm25_search_time / len(eval_qids),
+    )
+)
+print(
+    f"era 1  BM25             nDCG@10 {bm25_ndcg:.3f}"
+    f"  ({bm25_search_time * 1000 / len(eval_qids):.1f} ms/query)"
+)
 
 
-def classify_llm(texts: list[str]) -> list[str | None]:
-    messages = [
-        [
-            {"role": "system",
-             "content": "You are a classifier. Reply with the label only."},
-            {"role": "user",
-             "content": "Classify this news headline as one of: "
-                        f"{', '.join(LABELS)}.\n\nHeadline: {text}"},
-        ]
-        for text in texts
-    ]
-    outs = llm(messages, max_new_tokens=4, do_sample=False, batch_size=16)
-    return [parse_label(o[0]["generated_text"]) for o in outs]
+# --- Era 2: dense retrieval (embeddings) ---------------------------------------
+
+CACHE = Path(__file__).parent / ".emb_cache"
 
 
-pred_llm, t_pred_llm = timed(classify_llm, test_texts)
-n_unparsed = sum(p is None for p in pred_llm)
-acc_llm = accuracy_score(test_labels, [p or "" for p in pred_llm])
-print(f"era 3  LLM 0-shot        accuracy {acc_llm:.1%}"
-      f"  (predict {t_pred_llm:.0f}s, {n_unparsed} unparseable)\n")
+def embed(texts: list[str], model: str, batch: int = 64) -> np.ndarray:
+    """Embed texts with an ollama model, L2-normalized (disk-cached:
+    the doc list is deterministic, so length is a sufficient cache key)."""
+    cache = CACHE / f"{model}-{len(texts)}.npy"
+    if cache.exists():
+        return np.load(cache)
+    CACHE.mkdir(exist_ok=True)
+    out = []
+    for i in range(0, len(texts), batch):
+        resp = ollama.embed(model=model, input=texts[i : i + batch])
+        out.extend(resp["embeddings"])
+        if (i // batch) % 10 == 0:
+            print(f"  {model}: {min(i + batch, len(texts))}/{len(texts)}", flush=True)
+    emb = np.asarray(out, dtype=np.float32)
+    emb /= np.linalg.norm(emb, axis=1, keepdims=True)
+    np.save(cache, emb)
+    return emb
 
 
-# --- Task B: semantic search -------------------------------------------------
+E = {}  # model -> (doc embeddings, per-query rankings, timings)
+best_dense = None  # (model, rankings) of the era 2 winner
+for model in EMB_MODELS:
+    t0 = time.perf_counter()
+    doc_emb = embed([full_text[d] for d in docs], model)
+    index_time = time.perf_counter() - t0
 
-# Era 1 - lexical search: TF-IDF cosine similarity.
-tfidf = TfidfVectorizer(ngram_range=(1, 2)).fit(corpus_texts)
-D = tfidf.transform(corpus_texts)
+    t0 = time.perf_counter()
+    rankings = {}
+    for qid in eval_qids:
+        q = ollama.embed(model=model, input=[queries[qid]])["embeddings"][0]
+        q = np.asarray(q, dtype=np.float32)
+        q /= np.linalg.norm(q)
+        rankings[qid] = [docs[i] for i in np.argsort(-(doc_emb @ q))]
+    search_time = time.perf_counter() - t0
+
+    ndcg = float(np.mean([ndcg_at_k(rankings[q], qrels[q]) for q in eval_qids]))
+    RESULTS.append(
+        dict(
+            method=f"2 {model}",
+            ndcg10=ndcg,
+            index_s=index_time,
+            search_ms=1000 * search_time / len(eval_qids),
+        )
+    )
+    print(
+        f"era 2  {model:<17} nDCG@10 {ndcg:.3f}"
+        f"  ({index_time:.0f}s index, "
+        f"{1000 * search_time / len(eval_qids):.1f} ms/query)"
+    )
+    if best_dense is None or ndcg > best_dense[0]:
+        best_dense = (ndcg, model, rankings)
+
+_, dense_model, dense_rankings = best_dense
 
 
-def search_tfidf(query: str, k: int = K) -> np.ndarray:
-    # Query words absent from the corpus vocabulary are silently dropped:
-    # vocabulary mismatch in action.
-    q = tfidf.transform([query])
-    return top_k((q @ D.T).toarray().ravel(), k)
+# --- Hybrid: reciprocal rank fusion of eras 1 and 2 -----------------------------
 
 
-# Era 2 - dense retrieval: embedding cosine similarity.
-def search_embed(query: str, k: int = K) -> np.ndarray:
-    q = embedder.encode([query], normalize_embeddings=True)[0]
-    return top_k(E_corpus @ q, k)
+def rrf(rankings: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Fuse rankings: score = sum over methods of 1 / (RRF_K + rank)."""
+    fused = {}
+    for qid in eval_qids:
+        scores = {}
+        for ranking in rankings.values():
+            for rank, d in enumerate(ranking[qid]):
+                scores[d] = scores.get(d, 0.0) + 1.0 / (RRF_K + rank)
+        fused[qid] = sorted(scores, key=scores.get, reverse=True)
+    return fused
 
 
-# Era 3 - LLM as reranker: cannot scan a corpus, so it reorders a shortlist.
-def search_llm(query: str, shortlist: list[int]) -> list[int]:
+rrf_rankings = rrf({"bm25": bm25_rankings, "dense": dense_rankings})
+rrf_ndcg = float(np.mean([ndcg_at_k(rrf_rankings[q], qrels[q]) for q in eval_qids]))
+RESULTS.append(
+    dict(
+        method=f"2+1 hybrid RRF ({dense_model} + BM25)",
+        ndcg10=rrf_ndcg,
+        index_s=np.nan,
+        search_ms=np.nan,
+    )
+)
+print(f"hyb   RRF fusion       nDCG@10 {rrf_ndcg:.3f}")
+
+
+# --- Era 3: LLM reranker ---------------------------------------------------------
+
+# A generative model cannot scan the corpus; it can only reorder a shortlist.
+# Standard pattern: retrieve top-k with era 1/2 methods, let the LLM rerank.
+# This is the only place compute explodes: one LLM call per query.
+
+
+def rerank(query: str, shortlist: list[str]) -> tuple[list[str], bool]:
     listing = "\n".join(
-        f"{n}. {corpus_texts[i]}" for n, i in enumerate(shortlist))
-    messages = [[
-        {"role": "system",
-         "content": "You are a search engine. Answer with numbers only."},
-        {"role": "user",
-         "content": f"Query: {query}\n\nDocuments:\n{listing}\n\n"
-                    f"Which {K} documents are most relevant? "
-                    "Reply with their numbers, most relevant first."},
-    ]]
-    out = llm(messages, max_new_tokens=16, do_sample=False)[0][0][
-        "generated_text"]
-    nums = [int(n) for n in re.findall(r"\d+", out)][:K]
-    return [shortlist[n] for n in nums if n < len(shortlist)]
+        f"{n + 1}. {full_text[d][:350]}" for n, d in enumerate(shortlist)
+    )
+    resp = ollama.chat(
+        model=LLM_MODEL,
+        messages=[
+            {"role": "system", "content": "You are a search reranker."},
+            {
+                "role": "user",
+                "content": f"Query: {query}\n\nDocuments:\n{listing}\n\n"
+                "The documents are numbered starting from 1. "
+                "Rank them by relevance to the query. "
+                "Reply with the document numbers, most relevant "
+                "first.",
+            },
+        ],
+        format=RERANK_FORMAT,
+        options={"temperature": 0, "num_predict": 120},
+    )
+    ok = True
+    try:
+        nums = list(
+            dict.fromkeys(  # dedupe, order-preserving
+                json.loads(resp["message"]["content"])["ranking"]
+            )
+        )[:K]
+        ranked = [shortlist[n - 1] for n in nums if 1 <= n <= len(shortlist)]
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
+        ok = False
+        ranked = []
+        with open(
+            Path(__file__).parent / ".rerank_failures.log", "a", encoding="utf-8"
+        ) as f:
+            f.write(
+                f"query: {query!r}\nerror: {e}\n"
+                f"response: {resp['message']['content']!r}\n\n"
+            )
+    # pad with the retriever order (docs the LLM did not list)
+    return ranked + [d for d in shortlist if d not in ranked], ok
 
 
-def show(method: str, ids) -> None:
-    print(f"  {method}")
-    for i in ids:
-        print(f"    [{corpus_labels[int(i)]:>8}] {corpus_texts[int(i)][:70]}")
+# Unload the embedding models from the ollama server so the LLM has
+# room to load (this box has 7.8 GiB RAM total).
+for m in EMB_MODELS:
+    ollama.embed(model=m, input=["."], keep_alive=0)
+
+llm_qids = sorted(eval_qids)[:LLM_QUERIES]
+t0 = time.perf_counter()
+n_fail = 0
+llm_rankings = {}
+for qid in llm_qids:
+    shortlist = list(dict.fromkeys(bm25_rankings[qid][:K] + dense_rankings[qid][:K]))
+    for attempt in range(3):
+        try:
+            llm_rankings[qid], ok = rerank(queries[qid], shortlist)
+            break
+        except ollama.ResponseError:  # runner hiccup: give it a moment
+            print(f"  rerank retry {attempt + 1} for query {qid}", flush=True)
+            time.sleep(10)
+    else:  # all retries failed: fall back to the retriever order
+        llm_rankings[qid], ok = shortlist[:K], False
+    n_fail += not ok
+llm_time = time.perf_counter() - t0
+
+llm_ndcg = float(np.mean([ndcg_at_k(llm_rankings[q], qrels[q]) for q in llm_qids]))
+RESULTS.append(
+    dict(
+        method=f"3 LLM rerank on {dense_model}+BM25 top-{K}",
+        ndcg10=llm_ndcg,
+        index_s=np.nan,
+        search_ms=1000 * llm_time / len(llm_qids),
+    )
+)
+print(
+    f"era 3 llama3.2 rerank nDCG@10 {llm_ndcg:.3f}"
+    f"  ({llm_time / len(llm_qids):.1f} s/query,"
+    f" {len(llm_qids)} queries, {n_fail} unparseable)"
+)
 
 
-t_tfidf = t_embed = t_llm = 0.0
-overlaps_tfidf, overlaps_llm = [], []
-for query in QUERIES:
-    hits_tfidf, dt = timed(search_tfidf, query)
-    t_tfidf += dt
-    hits_embed, dt = timed(search_embed, query)
-    t_embed += dt
+# --- Summary ---------------------------------------------------------------------
 
-    # Era 3 cannot scan the corpus, only rerank the top hits of a retriever
-    # (here the union of both) - the standard reranking pattern.
-    shortlist = sorted({*search_tfidf(query, k=10).tolist(),
-                        *search_embed(query, k=10).tolist()})
-    hits_llm, dt = timed(search_llm, query, shortlist)
-    t_llm += dt
-
-    overlaps_tfidf.append(overlap(hits_tfidf, hits_embed))
-    overlaps_llm.append(overlap(hits_llm, hits_embed))
-
-    print(f"\nquery: {query!r}")
-    show("era 1 tfidf", hits_tfidf)
-    show("era 2 embeddings", hits_embed)
-    show("era 3 llm rerank", hits_llm)
-
-
-# --- Summary -----------------------------------------------------------------
-
-cls_rows = pd.DataFrame([
-    dict(era="1 classic pipeline", method="tfidf + logistic reg",
-         labels=N_TRAIN, params="0", fit_s=t_fit_classic,
-         infer_s=t_pred_classic, accuracy=acc_classic),
-    dict(era="2 embeddings", method="zero-shot (class names)",
-         labels=0, params="22M", fit_s=0.0, infer_s=t_enc_test,
-         accuracy=acc_zero),
-    dict(era="2 embeddings", method="embeddings + logistic reg",
-         labels=N_TRAIN, params="22M", fit_s=t_enc_train + t_fit_head,
-         infer_s=t_enc_test, accuracy=acc_emb),
-    dict(era="3 small LLM", method="zero-shot prompt",
-         labels=0, params="494M", fit_s=0.0, infer_s=t_pred_llm,
-         accuracy=acc_llm),
-])
-print("\nTask A - classification")
-print(cls_rows.to_string(index=False))
-
-search_rows = pd.DataFrame([
-    dict(method="tfidf", total_s=t_tfidf,
-         overlap_with_embeddings=np.mean(overlaps_tfidf)),
-    dict(method="embeddings", total_s=t_embed, overlap_with_embeddings=1.0),
-    dict(method="llm reranker", total_s=t_llm,
-         overlap_with_embeddings=np.mean(overlaps_llm)),
-])
-print(f"\nTask B - search ({len(QUERIES)} queries)")
-print(search_rows.to_string(index=False))
-
-cls_rows.to_json("results.json", orient="records", indent=2)
+df = pl.DataFrame(RESULTS)
+print("\n== BEIR/SciFact - nDCG@10 ==")
+print(
+    df.to_string(
+        index=False,
+        formatters={
+            "ndcg10": "{:.3f}".format,
+            "index_s": "{:.0f}".format,
+            "search_ms": "{:.1f}".format,
+        },
+    )
+)
+df.to_json(Path(__file__).parent / "results.json", orient="records", indent=2)
