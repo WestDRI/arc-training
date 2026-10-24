@@ -1,5 +1,6 @@
-# start ollama first with:
-# sudo systemctl start ollama.service
+# start ollama first
+# normal workflow: sudo systemctl start ollama.service
+# in bbox, no systemd, start with: ollama serve
 
 """Semantic search across three eras of NLP: lexical, dense, generative.
 
