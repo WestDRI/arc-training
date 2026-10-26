@@ -14,7 +14,8 @@ The eras:
 
 1. Lexical search   BM25 (no model, exact-term matching)
 2. Dense retrieval  embedding similarity, three model sizes
-3. Generative       small LLM (llama3.2 via ollama) reranking a shortlist
+3. Generative       LLMs (llama3.2 3B, llama3.1 8B via ollama) reranking
+                    a shortlist
 
 Plus the standard hybrid trick (reciprocal rank fusion of eras 1 and 2).
 
@@ -24,7 +25,7 @@ follows the results, not the other way around.
 
 Data:   curl -L -o scifact.zip
         https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
-Models: ollama pull all-minilm nomic-embed-text mxbai-embed-large llama3.2
+Models: ollama pull all-minilm nomic-embed-text mxbai-embed-large llama3.2 llama3.1:8b
 
 Run with `uv run python -I experiment.py` (SMOKE=1 for a quick validation
 run on a corpus subsample).
@@ -52,12 +53,28 @@ RRF_K = 60  # reciprocal rank fusion constant
 # Embedding models, oldest/smallest first: does model quality flip the
 # BM25 vs dense ranking? (SciFact is full of rare exact terms - a BM25-friendly
 # domain - so this is a fair fight, not a strawman.)
-# "mxbai-embed-large" (335M) is a stronger third candidate if disk allows.
 EMB_MODELS = [
     "all-minilm",  # 23M params, 2020-era miniature
     "nomic-embed-text",  # 137M params, modern
+    "mxbai-embed-large",  # 335M params, modern
 ]
-LLM_MODEL = "llama3.2"  # 3B params
+# mxbai wants a task instruction prefixed to queries (per its model card);
+# nomic's ollama template already adds its own prefixes.
+QUERY_PREFIX = {
+    "mxbai-embed-large": "Represent this sentence for searching relevant passages: "
+}
+LLM_MODELS = ["llama3.2", "llama3.1:8b"]  # 3B then 8B: does scaling fix era 3?
+# Reranking full abstracts (median ~360 tokens, p99 ~790) means ~8-16k token
+# prompts, far past ollama's 4k default context. Weights + 16k of KV cache only
+# fit the 6 GiB GPU for the 8B model with flash attention and a compressed cache.
+LLM_OPTS = {
+    "llama3.2": {"num_ctx": 16384},
+    "llama3.1:8b": {
+        "num_ctx": 16384,
+        "flash_attention": True,
+        "kv_cache_type": "q8_0",
+    },
+}
 
 RERANK_FORMAT = {  # structured output for the reranker
     "type": "object",
@@ -66,13 +83,6 @@ RERANK_FORMAT = {  # structured output for the reranker
 }
 
 RESULTS = []
-
-
-def timed(fn, *args, **kwargs):
-    """Return (result, wall-clock seconds) for a call."""
-    t0 = time.perf_counter()
-    out = fn(*args, **kwargs)
-    return out, time.perf_counter() - t0
 
 
 def tokenize(text: str) -> list[str]:
@@ -185,8 +195,7 @@ def embed(texts: list[str], model: str, batch: int = 64) -> np.ndarray:
     return emb
 
 
-E = {}  # model -> (doc embeddings, per-query rankings, timings)
-best_dense = None  # (model, rankings) of the era 2 winner
+best_dense = None  # (ndcg, model, rankings) of the era 2 winner
 for model in EMB_MODELS:
     t0 = time.perf_counter()
     doc_emb = embed([full_text[d] for d in docs], model)
@@ -195,7 +204,9 @@ for model in EMB_MODELS:
     t0 = time.perf_counter()
     rankings = {}
     for qid in eval_qids:
-        q = ollama.embed(model=model, input=[queries[qid]])["embeddings"][0]
+        q = ollama.embed(
+            model=model, input=[QUERY_PREFIX.get(model, "") + queries[qid]]
+        )["embeddings"][0]
         q = np.asarray(q, dtype=np.float32)
         q /= np.linalg.norm(q)
         rankings[qid] = [docs[i] for i in np.argsort(-(doc_emb @ q))]
@@ -256,25 +267,22 @@ print(f"hyb   RRF fusion       nDCG@10 {rrf_ndcg:.3f}")
 # This is the only place compute explodes: one LLM call per query.
 
 
-def rerank(query: str, shortlist: list[str]) -> tuple[list[str], bool]:
-    listing = "\n".join(
-        f"{n + 1}. {full_text[d][:350]}" for n, d in enumerate(shortlist)
-    )
+def rerank(model: str, query: str, shortlist: list[str]) -> tuple[list[str], bool]:
+    listing = "\n".join(f"{n + 1}. {full_text[d]}" for n, d in enumerate(shortlist))
     resp = ollama.chat(
-        model=LLM_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": "You are a search reranker."},
             {
                 "role": "user",
                 "content": f"Query: {query}\n\nDocuments:\n{listing}\n\n"
-                "The documents are numbered starting from 1. "
-                "Rank them by relevance to the query. "
-                "Reply with the document numbers, most relevant "
-                "first.",
+                f"There are {len(shortlist)} documents, numbered 1 to {len(shortlist)}. "
+                f"Reply with the {K} most relevant document numbers, "
+                "most relevant first.",
             },
         ],
         format=RERANK_FORMAT,
-        options={"temperature": 0, "num_predict": 120},
+        options={"temperature": 0, "num_predict": 200, **LLM_OPTS[model]},
     )
     ok = True
     try:
@@ -298,43 +306,50 @@ def rerank(query: str, shortlist: list[str]) -> tuple[list[str], bool]:
     return ranked + [d for d in shortlist if d not in ranked], ok
 
 
-# Unload the embedding models from the ollama server so the LLM has
-# room to load (this box has 7.8 GiB RAM total).
+# Unload the embedding models from the ollama server so the LLMs have
+# room to load (they compete for the 6 GiB of GPU memory).
 for m in EMB_MODELS:
     ollama.embed(model=m, input=["."], keep_alive=0)
 
 llm_qids = sorted(eval_qids)[:LLM_QUERIES]
-t0 = time.perf_counter()
-n_fail = 0
-llm_rankings = {}
-for qid in llm_qids:
-    shortlist = list(dict.fromkeys(bm25_rankings[qid][:K] + dense_rankings[qid][:K]))
-    for attempt in range(3):
-        try:
-            llm_rankings[qid], ok = rerank(queries[qid], shortlist)
-            break
-        except ollama.ResponseError:  # runner hiccup: give it a moment
-            print(f"  rerank retry {attempt + 1} for query {qid}", flush=True)
-            time.sleep(10)
-    else:  # all retries failed: fall back to the retriever order
-        llm_rankings[qid], ok = shortlist[:K], False
-    n_fail += not ok
-llm_time = time.perf_counter() - t0
+shortlists = {  # same shortlists for every LLM: only the reranker changes
+    qid: list(dict.fromkeys(bm25_rankings[qid][:K] + dense_rankings[qid][:K]))
+    for qid in llm_qids
+}
+for llm in LLM_MODELS:
+    t0 = time.perf_counter()
+    n_fail = 0
+    llm_rankings = {}
+    for qid in llm_qids:
+        for attempt in range(3):
+            try:
+                llm_rankings[qid], ok = rerank(llm, queries[qid], shortlists[qid])
+                break
+            except ollama.ResponseError:  # runner hiccup: give it a moment
+                print(f"  rerank retry {attempt + 1} for query {qid}", flush=True)
+                time.sleep(10)
+        else:  # all retries failed: fall back to the retriever order
+            llm_rankings[qid], ok = shortlists[qid][:K], False
+        n_fail += not ok
+    llm_time = time.perf_counter() - t0
+    ollama.generate(model=llm, keep_alive=0)  # free memory for the next model
 
-llm_ndcg = float(np.mean([ndcg_at_k(llm_rankings[q], qrels[q]) for q in llm_qids]))
-RESULTS.append(
-    {
-        "method": f"3 LLM rerank on {dense_model}+BM25 top-{K}",
-        "ndcg10": llm_ndcg,
-        "index_s": np.nan,
-        "search_ms": 1000 * llm_time / len(llm_qids),
-    }
-)
-print(
-    f"era 3 llama3.2 rerank nDCG@10 {llm_ndcg:.3f}"
-    f"  ({llm_time / len(llm_qids):.1f} s/query,"
-    f" {len(llm_qids)} queries, {n_fail} unparseable)"
-)
+    llm_ndcg = float(
+        np.mean([ndcg_at_k(llm_rankings[q], qrels[q]) for q in llm_qids])
+    )
+    RESULTS.append(
+        {
+            "method": f"3 {llm} rerank on {dense_model}+BM25 top-{K}",
+            "ndcg10": llm_ndcg,
+            "index_s": np.nan,
+            "search_ms": 1000 * llm_time / len(llm_qids),
+        }
+    )
+    print(
+        f"era 3 {llm:<15} rerank nDCG@10 {llm_ndcg:.3f}"
+        f"  ({llm_time / len(llm_qids):.1f} s/query,"
+        f" {len(llm_qids)} queries, {n_fail} unparseable)"
+    )
 
 
 # --- Summary ---------------------------------------------------------------------
