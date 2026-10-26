@@ -9,9 +9,13 @@ import numpy as np
 import ollama
 from rank_bm25 import BM25Okapi
 
-DATA = Path(__file__).parent / "data/scifact/scifact"
-CACHE = Path(__file__).parent / ".emb_cache"
+HERE = Path(__file__).parent
+DATA = HERE / "data/scifact/scifact"
+CACHE = HERE / ".emb_cache"
 K, RRF_K = 10, 60
+QUERY_PREFIX = {
+    "mxbai-embed-large": "Represent this sentence for searching relevant passages: "
+}
 
 
 def ndcg_at_k(ranked, qrels, k=K):
@@ -41,11 +45,17 @@ with open(DATA / "qrels" / "test.tsv", encoding="utf-8") as f:
 eval_qids = [q for q in qrels if q in queries and any(d in corpus for d in qrels[q])]
 llm_qids = sorted(eval_qids)[:50]  # same subset as experiment.py era 3
 
+# era-3 settings from the full run: winner of era 2 + the reranker scores
+rows = json.loads((HERE / "results.json").read_text())
+dense_model = max(
+    (r for r in rows if r["method"].startswith("2 ")), key=lambda r: r["ndcg10"]
+)["method"][2:]
+
 full_text = {d: f"{corpus[d]['title']}. {corpus[d]['text']}" for d in docs}
 tok = lambda s: re.findall(r"[a-z0-9]+", s.lower())
 bm25 = BM25Okapi([tok(full_text[d]) for d in docs])
 
-E = np.load(CACHE / "nomic-embed-text-5183.npy")  # doc order == docs
+E = np.load(CACHE / f"{dense_model}-5183.npy")  # doc order == docs
 
 
 def mean_ndcg(rankings):
@@ -56,7 +66,10 @@ bm25_r, dense_r = {}, {}
 for qid in llm_qids:
     bm25_r[qid] = [docs[i] for i in np.argsort(-bm25.get_scores(tok(queries[qid])))]
     q = np.asarray(
-        ollama.embed(model="nomic-embed-text", input=[queries[qid]])["embeddings"][0],
+        ollama.embed(
+            model=dense_model,
+            input=[QUERY_PREFIX.get(dense_model, "") + queries[qid]],
+        )["embeddings"][0],
         dtype=np.float32,
     )
     q /= np.linalg.norm(q)
@@ -70,7 +83,10 @@ for qid in llm_qids:
             s[d] = s.get(d, 0.0) + 1.0 / (RRF_K + rank)
     rrf_r[qid] = sorted(s, key=s.get, reverse=True)
 
-print("on the 50-query LLM subset (nDCG@10):")
-for name, r in [("BM25", bm25_r), ("nomic-embed-text", dense_r), ("RRF hybrid", rrf_r)]:
-    print(f"  {name:<18} {mean_ndcg(r):.3f}")
-print("  llama3.2 rerank   0.615  (from experiment.py)")
+print(f"on the 50-query LLM subset (nDCG@10):")
+print(f"  {'BM25':<18} {mean_ndcg(bm25_r):.3f}")
+print(f"  {dense_model:<18} {mean_ndcg(dense_r):.3f}")
+print(f"  {'RRF hybrid':<18} {mean_ndcg(rrf_r):.3f}")
+for r in rows:  # rerankers were scored on this very subset
+    if r["method"].startswith("3 "):
+        print(f"  {r['method'][2:]:<18} {r['ndcg10']:.3f}  (from experiment.py)")
