@@ -30,94 +30,241 @@ bibliography: nlp.bib
 csl: ../../diabetologia.csl
 ---
 
-## The premise {.center}
+# 4 eras of NLP
 
-:::{.def}
+## Era 1: Symbolic era {.center}
 
-Traditional [natural language processing (NLP)](https://en.wikipedia.org/wiki/Natural_language_processing) relied on task-specific pipelines (for sentiment analysis, entities recognition, topic modelling, etc.) and labour-intensive labeled datasets. Today, a single pre-trained [large language model (LLM)](https://en.wikipedia.org/wiki/Large_language_model) can handle all tasks through plain-language prompts.
+*1950s–1970s*
 
-But is a generative model always the right tool for the job?
+**Complex, hard-coded rules written by linguists**
+
+Alan Turing's ["Computing Machinery and Intelligence"](https://en.wikipedia.org/wiki/Computing_Machinery_and_Intelligence) (1950)
+
+IBM's Russian to English translations (1954)
+
+First rule-based chatbot: MIT's [ELIZA](https://en.wikipedia.org/wiki/ELIZA) (1964—1967)
+
+## Era 2: Lexical search {.center}
+
+*1980s–1990s*
+
+**Statistical methods**
+
+Algorithms learn patterns & probabilities from data (large corpora)
+
+## Era 3: Dense retrieval {.center}
+
+*2000s–2010s*
+
+**Machine learning & early deep learning models**
+
+Vector embeddings, e.g. [Word2Vec](https://en.wikipedia.org/wiki/Word2Vec) (2013)
+
+Mathematical representation of words based on their semantic meanings & contextual relationships
+
+[Recurrent Neural Networks (RNNs)](https://en.wikipedia.org/wiki/Recurrent_neural_network) such as [Long Short-Term Memory (LSTM)](https://en.wikipedia.org/wiki/Long_short-term_memory) networks for speech recognition & translation
+
+## Era 4: LLMs {.center}
+
+*2017–present*
+
+**Transformer based large language models**
+
+Self-attention mechanism
+
+Massive scaling
+
+Generative AI
+
+[BERT](https://en.wikipedia.org/wiki/BERT_(language_model)), [GPT](https://en.wikipedia.org/wiki/Products_and_applications_of_OpenAI#Text_generation), [Gemini](https://en.wikipedia.org/wiki/Gemini_(language_model)), [Claude](https://en.wikipedia.org/wiki/Claude_(AI)), etc.
+
+# The question
+
+If LLMs can do everything, are task-specific methods dead?
+
+Let's find out with one test case
+
+# Test case
+
+## The task: [semantic search](https://en.wikipedia.org/wiki/Semantic_search) {.center}
+
+Search a query in a dataspace by [meaning]{.emph} rather than literal matches
+
+The classic failure of keyword search is [vocabulary mismatch](https://en.wikipedia.org/wiki/Vocabulary_mismatch)
+
+:::{.notenoline}
+
+Example:
+
+"Heart attack" does not match "myocardial infarction"
 
 :::
-
-## One question {.center}
-
-If a prompted LLM can do everything, are task-specific methods dead?
-
-Let us find out, honestly:
-
-- One task: [semantic search](https://en.wikipedia.org/wiki/Semantic_search)
-- One benchmark, one metric, the same data for every method
-- [No method gets an unfair edge: the numbers land where they land]{.emph}
-
-# One task, three eras
-
-## The task: semantic search {.center}
-
-Given a query, rank documents by [meaning]{.emph}, not just word overlap
-
-:::{.example}
-
-"We need studies on sugar taxes and diabetes incidence"
-
-:::
-
-Everywhere: literature discovery, enterprise search, retrieval-augmented generation...
-
-The classic failure of keyword search is [vocabulary mismatch]{.emph}: "heart attack" does not match "myocardial infarction"
 
 ## The benchmark: BEIR/SciFact {.center}
 
-[BEIR](https://arxiv.org/abs/2104.08663) is a standard suite of information retrieval benchmarks; SciFact [@wadden2020factfictionverifyingscientific] is its scientific-claims dataset
+[SciFact](https://arxiv.org/abs/2004.14974) [@wadden2020factfictionverifyingscientific] dataset: a benchmark for scientific claim verification (2020), \
+part of the [BEIR](https://arxiv.org/abs/2104.08663) [@thakur2021beir] standard suite of information retrieval benchmarks
+
+- [5,183 scientific abstracts]{.emph}
+- [300 scientific claims]{.emph}
+- [Expert annotators' ground truth]{.emph}
+
+## The methods {.center}
 
 ::::{.columns}
 
-:::{.column width="58%"}
+:::{.column width="50%"}
 
-- [5,183 scientific abstracts]{.emph} (the corpus)
-- [300 test queries]{.emph} (scientific claims)
-- [Gold relevance judgements]{.emph} (the qrels) to score against
+**Lexical ranking algorithm**
+
+Sparse keyword search
+
+[BM25](https://en.wikipedia.org/wiki/Okapi_BM25)
 
 :::
 
-:::{.column width="42%"}
+:::{.column width="50%"}
 
-```{.bash}
-curl -L -o scifact.zip \
-  https://public.ukp.informatik.\
-tu-darmstadt.de/thakur/BEIR/\
-datasets/scifact.zip
-```
+**Dense retrieval**
+
+Semantic vectors via embeddings
+
+- [all-minilm](https://ollama.com/library/all-minilm) (23M)
+- [nomic-embed-text](https://ollama.com/library/nomic-embed-text) (137M)
+- [mxbai-embed-large](https://ollama.com/library/mxbai-embed-large) (335M)
 
 :::
 
 ::::
 
-:::{.note}
+::::{.columns}
 
-SciFact is friendly territory for keyword search: scientific claims are full of rare exact terms. A fair fight, not a strawman.
+:::{.column width="50%"}
+
+**Reciprocal Rank Fusion**
+
+Hybrid keyword + embeddings
 
 :::
 
-## Loading the data {.center}
+:::{.column width="50%"}
+
+**LLMs**
+
+Generative reranking
+
+- [llama3.2 3b](https://ollama.com/library/llama3.2:3b)
+- [llama3.1:8b](https://ollama.com/library/llama3.1:8b)
+
+:::
+
+::::
+
+## The metric: nDCG@10 {.center}
+
+[Normalized Discounted Cumulative Gain](https://en.wikipedia.org/wiki/Discounted_cumulative_gain) at rank 10 is a ranking quality metric in information retrieval, search engines & recommendation systems
+
+Measures how well a system places the most relevant items within the first 10 results
+
+Industry standard
+
+## The hardware: one small GPU {.center}
+
+For this test, the hardware used was a laptop with: \
+8 cores, 16 threads, 30 GiB of RAM, and **a small 6GiB GPU**
+
+:::{.note}
+
+The same test was run on CPUs \
+15 to 20× slower across the board, identical scores
+
+:::
+
+## Get the data {.center}
+
+```{.bash}
+curl -L -o scifact.zip \
+  https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
+```
+
+:::{.notenoit}
+
+Alternative methods to get the data:
+
+- from the [GitHub repo](https://github.com/allenai/scifact)
+- from [Hugging Face](https://huggingface.co/datasets/allenai/scifact):
+
+```{.python}
+from datasets import load_dataset
+dataset = load_dataset("allenai/scifact")
+```
+
+:::
+
+## Structure of the data {.center}
+
+[scifact.zip]{.codelike} unzips to a [scifact]{.codelike} dir with:
+
+[corpus.jsonl]{.codelike}: a corpus of research abstracts \
+  ➔ `id`, `title`,` text` (abstract of scientific paper)
+
+[queries.jsonl]{.codelike}: scientific claims to be verified against the corpus \
+  ➔ `id`, `text` (claim), `label` (`contradict` / `support`)
+
+[qrels]{.codelike} dir with [train.tsv]{.codelike} & [test.tsv]{.codelike}: relevance judgment for training & testing \
+  ➔ `corpus-id`, `query-id`, `score`
+
+## Load packages {.center}
 
 ```{.python}
 import json
 import numpy as np
-import ollama
-from rank_bm25 import BM25Okapi
 
-corpus = {}                        # doc id -> title + abstract
-for line in open("data/scifact/corpus.jsonl"):
-    doc = json.loads(line)
-    corpus[doc["_id"]] = f"{doc.get('title') or ''}. {doc['text']}"
+# https://github.com/ollama/ollama-python:
+import ollama
+
+# https://github.com/dorianbrown/rank_bm25:
+from rank_bm25 import BM25Okapi
 ```
 
-Queries and qrels load the same way (three small files, that is the whole setup)
+## Load corpus {.center}
 
-## The metric: nDCG@10 {.center}
+```{.python}
+corpus = {}  # doc id -> {"title": ..., "text": ...}
 
-How high do the relevant documents land in the top 10?
+with open("scifact" / "corpus.jsonl", encoding="utf-8") as f:
+    for line in f:
+        doc = json.loads(line)
+        corpus[doc["_id"]] = {
+            "title": doc.get("title") or "",
+            "text": doc["text"],
+        }
+```
+
+## Load queries {.center}
+
+```{.python}
+queries = {}  # query id -> text
+
+with open("scifact" / "queries.jsonl", encoding="utf-8") as f:
+    for line in f:
+        q = json.loads(line)
+        queries[q["_id"]] = q["text"]
+```
+
+## Load relevance judgments {.center}
+
+```{.python}
+qrels = {}  # query id -> {doc id: relevance}
+
+with open("scifact" / "qrels" / "test.tsv", encoding="utf-8") as f:
+    next(f)
+    for line in f:
+        qid, did, score = line.split("\t")
+        qrels.setdefault(qid, {})[did.strip()] = int(score)
+```
+
+## nDCG@10 {.center}
 
 ```{.python}
 def ndcg_at_k(ranked, qrels, k=10):
@@ -128,63 +275,23 @@ def ndcg_at_k(ranked, qrels, k=10):
     return dcg / idcg if idcg else 0.0
 ```
 
-:::{.note}
-
-Position-discounted credit for each relevant document, normalized by the best possible ranking (1.0 = perfect). The standard BEIR metric.
-
-:::
-
-## The three eras {.center}
-
-:::::{.columns}
-
-:::{.column}
-
-**1. Lexical search**
-
-BM25
-
-No model at all
-
-:::
-
-:::{.column}
-
-**2. Dense retrieval**
-
-Embeddings
-
-Three model sizes
-
-:::
-
-:::{.column}
-
-**3. Generative**
-
-LLM reranking
-
-Two model sizes
-
-:::
-
-:::::
-
-:::{.note}
-
-Plus the classic hybrid trick (fusing eras 1 and 2).
-
-:::
-
-# Era 1 — Lexical search
+# Lexical ranking algorithm
 
 ## BM25 {.center}
 
-Score documents by exact term overlap, weighted by how rare each term is
+[Bag-of-words](https://en.wikipedia.org/wiki/Bag-of-words_model) retrieval function ranking documents by how relevant they are to a given search query (1994)
 
-- Statistics from 1994, still the default in libraries like [Elasticsearch](https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables)
-- [No model, no training, no GPU]{.emph}, indexing is counting words
-- Fails on vocabulary mismatch and on paraphrase
+Uses exact term overlap \
+Improved version of [term frequency–inverse document frequency (TF-IDF)](https://en.wikipedia.org/wiki/Tf–idf) with length normalization \
+Still widely used (e.g. [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch)) \
+No training \
+CPU-based
+
+:::{.note}
+
+Fails on vocabulary mismatch & on paraphrase
+
+:::
 
 ## The code {.center}
 
@@ -193,41 +300,43 @@ def tokenize(text):
     """Crude but sufficient: lowercase alphanumeric tokens."""
     return re.findall(r"[a-z0-9]+", text.lower())
 
+# Build the index
 bm25 = BM25Okapi([tokenize(full_text[d]) for d in docs])
 
+# Score every document
 scores = bm25.get_scores(tokenize(query))
+
+# Sort
 ranking = [docs[i] for i in np.argsort(-scores)]
 ```
 
-That is the whole era: build the index, score every document, sort
-
-## The result {.center}
+## Result {.center}
 
 ```
-era 1  BM25  nDCG@10 0.652  (15.0 ms/query)
+BM25  nDCG@10 0.652  (15.0 ms/query)
 ```
 
 :::{.emph}
 
-0.652 with zero training and one second of indexing
+0.652 with zero training, one second of indexing & 15 ms per query
 
 :::
 
 A very serious baseline on this dataset
 
-# Era 2 — Dense retrieval
+# Dense retrieval
 
 ## The idea {.center}
 
-A trained [embedding model](https://ollama.com/blog/embedding-models) maps texts to vectors such that [similar meaning lands nearby]{.emph}
+A trained [embedding](https://en.wikipedia.org/wiki/Embedding_(machine_learning)) model maps texts to vectors based on meaning
 
 - Index: embed every abstract once
 - Search: embed the query, rank by [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity)
-- Solves vocabulary mismatch: "heart attack" and "myocardial infarction" have close vectors
+- Solves vocabulary mismatch: "heart attack" & "myocardial infarction" have close vectors
 
 :::{.note}
 
-Dense retrieval does not scan text; it compares coordinates. That is why it needs an index of embeddings.
+Dense retrieval does not scan text; it compares coordinates. That is why it needs an index of embeddings
 
 :::
 
@@ -245,8 +354,6 @@ ollama pull all-minilm nomic-embed-text mxbai-embed-large
 | nomic-embed-text | 137M | 2024 | 274 MB |
 | mxbai-embed-large | 335M | 2024 | 669 MB |
 
-[Does model size flip the BM25 versus dense ranking?]{.emph}
-
 ## Embedding the corpus {.center}
 
 ```{.python}
@@ -256,15 +363,19 @@ def embed(texts, model, batch=64):
         out.extend(ollama.embed(model=model,
                                 input=texts[i:i+batch])["embeddings"])
     emb = np.asarray(out, dtype=np.float32)
+    # L2-normalization
     emb /= np.linalg.norm(emb, axis=1, keepdims=True)  # unit vectors
     return emb
 
 doc_emb = embed([full_text[d] for d in docs], model)
 ```
 
+L2-normalization makes every later dot product a cosine similarity \
+This makes things a lot faster!
+
 :::{.note}
 
-L2-normalizing makes every later dot product a cosine similarity. On a laptop GPU, indexing 5,183 abstracts takes 150 s with the largest model.
+On my laptop GPU, indexing 5,183 abstracts took 150 s with the largest model
 
 :::
 
@@ -280,44 +391,32 @@ q /= np.linalg.norm(q)
 ranking = [docs[i] for i in np.argsort(-(doc_emb @ q))]
 ```
 
-One matrix-vector product against the whole corpus: [milliseconds]{.emph}
-
-## The results {.center}
-
-```
-era 2  all-minilm         nDCG@10 0.648  (20.1 ms/query)
-era 2  nomic-embed-text   nDCG@10 0.703  (18.1 ms/query)
-era 2  mxbai-embed-large  nDCG@10 0.741  (22.3 ms/query)
-```
-
-::::{.columns}
-
-:::{.column width="50%"}
-
-- The 2020 miniature [merely ties BM25]{.emph}
-- The modern models [win clearly]{.emph}
-
-:::
-
-:::{.column width="50%"}
-
-- Bigger embedding model → better rankings at [the same milliseconds per query]{.emph}
-
-:::
-
-::::
+One matrix-vector product against the whole corpus: [20 milliseconds]{.emph}
 
 :::{.inlinenote}
 
-Each model gets its recommended query format; abstracts are truncated at each model's own context limit.
+Each model gets its recommended query format \
+Abstracts are truncated at each model's own context limit
 
 :::
 
-# The hybrid
+## Results {.center}
 
-## Reciprocal rank fusion {.center}
+```
+all-minilm         nDCG@10 0.648  (20.1 ms/query)
+nomic-embed-text   nDCG@10 0.703  (18.1 ms/query)
+mxbai-embed-large  nDCG@10 0.741  (22.3 ms/query)
+```
 
-The standard cheap trick: fuse two rankings by rank position, no score calibration needed
+- The 2020 miniature model ties BM25
+- The modern models do better
+- Bigger embedding model → better rankings at [the same milliseconds per query]{.emph}
+
+# Reciprocal rank fusion
+
+## The idea {.center}
+
+Fuse two rankings by rank position, no score calibration needed [@10.1145/1571941.1572114]
 
 ```{.python}
 RRF_K = 60  # classic constant (Cormack et al. 2009)
@@ -333,33 +432,35 @@ def rrf(rankings):
     return fused
 ```
 
-## The result: it depends {.center}
+## Result {.center}
 
 ```
 RRF (nomic + BM25):   0.702 -> 0.706   # helped a little
 RRF (mxbai + BM25):   0.741 -> 0.731   # hurt
 ```
 
+Whether or not a hybrid method helps depends
+
 - With a mediocre embedder, fusion buys back what each method misses
 - Once one signal is much stronger, [fusing drags it down]{.emph}
 
 :::{.note}
 
-Hybrid search is a patch for weak retrieval, not a law of nature.
+Hybrid search is a patch for weak retrieval
 
 :::
 
-# Era 3 — Generative reranking
+# LLMs
 
 ## The constraint {.center}
 
-A generative model [cannot scan 5,183 abstracts]{.emph}: it has no index and reads tokens one prompt at a time
+A generative model [cannot scan 5,183 abstracts]{.emph}: it has no index & reads tokens one prompt at a time
 
 The standard pattern is [retrieve-then-rerank]{.emph}:
 
-- Retrieve a shortlist: top-10 BM25 ∪ top-10 dense (≤ 20 documents)
+- Retrieve a shortlist: top-10 BM25 or top-10 dense (≤ 20 documents)
 - Ask an LLM to reorder the shortlist
-- One LLM call per query: [the only place compute explodes]{.emph}
+- One LLM call per query: [extremely high compute demand]{.emph}
 
 ## The call {.center}
 
@@ -381,186 +482,78 @@ resp = ollama.chat(
 
 :::{.inlinenote}
 
-Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context window.
+Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context window
 
 :::
 
-## The harness matters {.center}
-
-The reply is text: [parse it, validate it, always keep a fallback]{.emph}
-
-```{.python}
-nums = list(dict.fromkeys(            # dedupe, order-preserving
-    json.loads(resp["message"]["content"])["ranking"]))[:10]
-ranked = [shortlist[n - 1]
-          for n in nums if 1 <= n <= len(shortlist)]
-# pad with the retriever order (docs the LLM did not list)
-return ranked + [d for d in shortlist if d not in ranked]
-```
-
-## First attempt: what came back {.center}
-
-With 350-character document excerpts, several replies per run were unparseable:
-
-```
-query: 'Taxation of sugar-sweetened beverages had no effect on the
-        incidence rate of type II diabetes in India.'
-response: '{ "ranking": [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
-  14, 15, 16, 17, 2, 9, 5, 8, 11, 10, 6, 7, 4, 13, 12, 14, 15, 16,
-  17, 2, 9, 5, 8, 11, 10, 6,
-error: Expecting value: line 1 column 146 (char 145)
-```
-
-:::{.note}
-
-The model loops over numbers until it hits the generation cap: truncated JSON. Six to nine queries out of 50, depending on the run.
-
-:::
-
-## Fairer prompt, attempt 1: full abstracts {.center}
-
-Give the model the entire abstracts instead of 350-character excerpts
-
-```
-era 3  llama3.2     rerank nDCG@10 0.623  (4.4 s/query, 9 unparseable)
-era 3  llama3.1:8b  rerank nDCG@10 0.525  (17.6 s/query, 4 unparseable)
-```
-
-Still failing to parse, still below the retrievers it starts from
-
-## Fairer prompt, attempt 2: an explicit contract {.center}
-
-State the number of documents, the valid range, and the expected count ("There are 20 documents, numbered 1 to 20. Reply with the 10 most relevant document numbers.")
-
-[Zero unparseable replies]{.emph} in both models. And yet:
-
-```
-shortlist: 20 docs | gold document at position 1
-
-llama3.2 replied: { "ranking": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12] }
-```
-
-:::{.note}
-
-21 does not even exist. The model counts down from N: [structured output fixed the format, not the judgment]{.emph}
-
-:::
-
-## The fallback was flattering the LLM {.center}
-
-Every unparseable reply had silently fallen back to the retriever's own order
-
-- The "better" early scores were [partly the retriever's work]{.emph}, not the LLM's
-- Once every reply parses, the 3B model's true ranking quality appears:
+## Result {.center}
 
 ```
 era 3  llama3.2     rerank  nDCG@10 0.295  (0 unparseable)
 ```
 
-:::{.emph}
+## The results {.center}
 
-Measure what the model does, not what the harness rescues
-
-:::
-
-## Era 3: the results {.center}
-
-Reranking runs on 50 queries (one LLM call each); retrievers re-scored on the same 50:
-
-| Method | nDCG@10 (50 queries) | Per query |
-|---|---|---|
-| mxbai-embed-large (retriever) | 0.693 | 22 ms |
-| RRF hybrid (retriever) | 0.651 | — |
-| BM25 (retriever) | 0.606 | 15 ms |
-| llama3.2 3B rerank | 0.295 | 5.1 s |
-| llama3.1:8b rerank | 0.557 | 14.4 s |
-
-The 8B model produces genuine rankings... [and still damages the retrieval it reranks]{.emph}
+| Era | Method                   | nDCG@10 | Per query |
+|-----|--------------------------|---------|-----------|
+| 1   | BM25                     | 0.652   | 15 ms     |
+| 2   | all-minilm (23M)         | 0.648   | 20 ms     |
+| 2   | nomic-embed-text (137M)  | 0.703   | 18 ms     |
+| 2   | mxbai-embed-large (335M) | 0.741   | 22 ms     |
+| 1+2 | RRF hybrid               | 0.731   | —         |
+| 3   | llama3.2 3B rerank       | 0.295*  | 5.1 s     |
+| 3   | llama3.1:8B rerank       | 0.557*  | 14.4 s    |
 
 # The verdict
 
-## All the numbers {.center}
-
-| Era | Method | nDCG@10 | Per query |
-|---|---|---|---|
-| 1 | BM25 | 0.652 | 15 ms |
-| 2 | all-minilm (23M) | 0.648 | 20 ms |
-| 2 | nomic-embed-text (137M) | 0.703 | 18 ms |
-| 2 | mxbai-embed-large (335M) | 0.741 | 22 ms |
-| 1+2 | RRF hybrid | 0.731 | — |
-| 3 | llama3.2 3B rerank | 0.295* | 5.1 s |
-| 3 | llama3.1:8B rerank | 0.557* | 14.4 s |
-
-:::{.inlinenote}
-
-*on the 50-query subset. Same benchmark, same hardware: a 2020 laptop with a 6 GiB GPU.
-
-:::
-
 ## The cost of generation {.center}
 
-| | Embedding search | LLM reranking |
-|---|---|---|
-| Per query | 22 ms | 5.1 s (3B) to 14.4 s (8B) |
-| Slowdown | 1× | [230× to 650×]{.emph} |
-| Model on disk | 669 MB | 2.0 to 4.9 GB |
+|               | Embedding search | LLM reranking             |
+|---------------|------------------|---------------------------|
+| Per query     | 22 ms            | 5.1 s (3B) to 14.4 s (8B) |
+| Slowdown      | 1×               | [230× to 650×]{.emph}     |
+| Model on disk | 669 MB           | 2.0 to 4.9 GB             |
 
 :::{.note}
 
-And it bought a worse ranking. On a CPU-only machine the same experiment ran too: 15 to 20× slower across the board, identical scores.
+The LLM also gave a worse ranking
 
 :::
 
 ## Takeaways {.center}
 
 - [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger model, better rankings, same milliseconds
-- A prompted generative model is [not automatically better]{.emph}, even mid-sized, even with a carefully engineered harness
-- Hybrid fusion patches weak retrieval; it drags down strong retrieval
-- [Fallbacks can hide failures]{.emph}: a rescued reply is not a good reply
+- Hybrid fusion patches weak retrieval, but drags down strong retrieval
+- A prompted generative model is [not automatically better]{.emph}
 
 ## Reach for the LLM when {.center}
 
-::::{.columns}
-
-:::{.column width="48%"}
-
 The task is [generative]{.emph}:
 
-- Summarize the retrieved abstracts
-- Extract claims and entities
-- Answer, explain, discuss
-
-:::
-
-:::{.column width="52%"}
+- Summarize, answer, explain, discuss...
+- Extract claims & entities
 
 :::{.note}
 
-Retrieval and generation are different jobs. Let the embedder retrieve and the LLM do what only an LLM can do.
+Retrieval and generation are different jobs. Let the embedder retrieve and the LLM do what only an LLM can do
 
 :::
 
+## Full code {.center}
+
+:::{.callout-note collapse="true"}
+
+```{.python}
+
+```
+
 :::
 
-::::
+---
 
-## Resources {.center}
+<br><br><br><br><br>
 
-- Code and results: [webinar page](wb_llm_era.qmd)
-- [BEIR](https://arxiv.org/abs/2104.08663) and [SciFact](https://arxiv.org/abs/2004.10711) papers
-- [ollama](https://ollama.com) and its [embedding models guide](https://ollama.com/blog/embedding-models)
-- [rank-bm25](https://github.com/dorianbrown/rank_bm25)
-- Reciprocal rank fusion: [Cormack et al. 2009](https://dl.acm.org/doi/10.1145/1571941.1572114)
+### References<br><br>
 
-## References {.center}
-
-::: {#refs}
-:::
-
-## Thank you {.center}
-
-:::{.emph}
-
-Questions?
-
+:::{#refs}
 :::
