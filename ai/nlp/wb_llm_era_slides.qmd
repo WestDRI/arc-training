@@ -42,7 +42,7 @@ Alan Turing's ["Computing Machinery and Intelligence"](https://en.wikipedia.org/
 
 IBM's Russian to English translations (1954)
 
-First rule-based chatbot: MIT's [ELIZA](https://en.wikipedia.org/wiki/ELIZA) (1964—1967)
+First rule-based chatbot: MIT's [ELIZA](https://en.wikipedia.org/wiki/ELIZA) (1964–1967)
 
 ## Era 2: Lexical search {.center}
 
@@ -78,7 +78,7 @@ Generative AI
 
 [BERT](https://en.wikipedia.org/wiki/BERT_(language_model)), [GPT](https://en.wikipedia.org/wiki/Products_and_applications_of_OpenAI#Text_generation), [Gemini](https://en.wikipedia.org/wiki/Gemini_(language_model)), [Claude](https://en.wikipedia.org/wiki/Claude_(AI)), etc.
 
-# The question <br>
+# The question: <br>
 
 :::{.question}
 
@@ -171,8 +171,8 @@ Hybrid keyword + embeddings
 **LLMs** \
 Reranking the shortlist
 
-- [llama3.2 3b](https://ollama.com/library/llama3.2:3b)
-- [llama3.1:8b](https://ollama.com/library/llama3.1:8b)
+- [llama3.2 3B](https://ollama.com/library/llama3.2:3b)
+- [llama3.1 8B](https://ollama.com/library/llama3.1:8b)
 
 :::
 
@@ -399,7 +399,7 @@ The 2020 miniature model ties BM25
 
 The modern models do better
 
-Bigger embedding model → better rankings at [the same milliseconds per query]{.emph}
+Bigger embedding model → better rankings at [the same speed]{.emph}
 
 # Reciprocal Rank Fusion (RRF)
 
@@ -550,7 +550,8 @@ llama3.2 replied: { "ranking": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12] }
 
 :::{.note}
 
-21 does not even exist — the model counts down from N: [the tighter prompt fixed the format, not the judgment]{.emph}
+21 does not even exist: the model counts down from N \
+[The tighter prompt fixed the format, but not the judgment]{.emph}
 
 :::
 
@@ -558,24 +559,24 @@ llama3.2 replied: { "ranking": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12] }
 
 ```
 llama3.2 3B   listwise rerank   nDCG@10 0.295  (5.1 s/query)
-llama3.1:8B   listwise rerank   nDCG@10 0.557  (14.4 s/query)
+llama3.1 8B   listwise rerank   nDCG@10 0.557  (14.4 s/query)
 ```
 
 :::{.note}
 
-The 8B produces genuine orderings — [both models still damage the 0.693 retrieval they rerank]{.emph}
+The 8B produces genuine orderings, but [both models still damage the 0.693 retrieval they rerank]{.emph}
 
 :::
 
 ## Score, do not generate {.center}
 
-The listwise prompt asks the model to [do arithmetic over list positions]{.emph} — exactly what small transformers fumble
+The listwise prompt asks the model to [do arithmetic over list positions]{.emph}. Something small transformers are not good at
 
 Instead: judge one document at a time & read the answer from the model's own distribution
 
 ## Score, do not generate {.center}
 
-One small prompt per document — not one giant prompt per query:
+One small prompt per document, rather than a giant prompt per query:
 
 ```{.python}
 resp = ollama.chat(
@@ -616,21 +617,22 @@ P(yes) straight from the model's distribution: [no list to count, no text to par
 
 ```
 llama3.2 3B   pointwise  nDCG@10 0.668  (3.3 s/query)
-llama3.1:8B   pointwise  nDCG@10 0.722  (7.6 s/query)
+llama3.1 8B   pointwise  nDCG@10 0.722  (7.6 s/query)
 ```
 
 :::{.emph}
 
-The same models, the same 50 queries — the 8B now beats the 0.693 retriever it starts from
+8B now beats the 0.693 retriever it starts from
 
 :::
 
-## Fine-tune the 3B: LoRA {.center}
+## Fine-tuning {.center}
 
-Prompting leaves the weights untouched \
-[LoRA](https://huggingface.co/docs/peft/conceptual_guides/lora) trains tiny adapter matrices beside a frozen model — here a 4-bit llama3.2 3B that fits the 6 GiB GPU
+[LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora) [@hu2021loralowrankadaptationlarge] trains tiny adapter matrices beside a frozen model
 
-- [400 claims from the training split]{.emph} (the test split was never touched): the same yes/no prompt, gold abstracts & BM25 hard negatives
+Here: a 4-bit llama3.2 3B that fits the 6 GiB GPU
+
+- [400 claims from the training split]{.emph} (the test split was never touched): the same `yes`/`no` prompt, gold abstracts & BM25 hard negatives
 - Loss on the answer token only
 - One epoch: [57 minutes on the laptop]{.emph}
 
@@ -656,34 +658,37 @@ llama3.2 3B + LoRA   pointwise  nDCG@10 0.739  (13.3 s/query)
 
 :::{.emph}
 
-The same 3B model: 0.295 generating a ranking → 0.668 scored → [0.739 fine-tuned]{.emph}
+The same 3B model: \
+0.295 generating a ranking → 0.668 scored → 0.739 fine-tuned
 
 :::
 
 :::{.note}
 
-The judgment is calibrated too: gold at P(yes) 0.76 vs 0.47 for the next abstract — the untuned model tied them at 0.82
+The judgment is calibrated too: gold at P(yes) 0.76 vs 0.47 for the next abstract \
+The untuned model tied them at 0.82
 
 :::
 
-## Same 50 queries {.center}
+# Verdict
+
+## Comparison {.center}
 
 All the LLM methods run on 50 queries; the retrievers re-scored on the same 50:
 
 | Method                        | nDCG@10 | Per query |
 |-------------------------------|---------|-----------|
 | llama3.2 3B + LoRA pointwise  | 0.739   | 13.3 s    |
-| llama3.1:8B pointwise         | 0.722   | 7.6 s     |
+| llama3.1 8B pointwise         | 0.722   | 7.6 s     |
 | mxbai-embed-large (retriever) | 0.693   | 22 ms     |
 | llama3.2 3B pointwise         | 0.668   | 3.3 s     |
 | RRF hybrid (retriever)        | 0.651   | —         |
 | BM25 (retriever)              | 0.606   | 15 ms     |
-| llama3.1:8B listwise          | 0.557   | 14.4 s    |
+| llama3.1 8B listwise          | 0.557   | 14.4 s    |
 | llama3.2 3B listwise          | 0.295   | 5.1 s     |
 
-Generating a ranking damaged the retrieval for both models — [the fine-tuned 3B now leads every method]{.emph}
-
-# Verdict
+Generating a ranking damaged the retrieval for both models \
+[The fine-tuned 3B now leads every method]{.emph}
 
 ## {.center}
 
@@ -695,9 +700,9 @@ Generating a ranking damaged the retrieval for both models — [the fine-tuned 3
 | 3   | mxbai-embed-large (335M)      | 0.741   | 22 ms     |
 | 2+3 | RRF hybrid                    | 0.731   | —         |
 | 4   | llama3.2 3B listwise rerank   | 0.295*  | 5.1 s     |
-| 4   | llama3.1:8B listwise rerank   | 0.557*  | 14.4 s    |
+| 4   | llama3.1 8B listwise rerank   | 0.557*  | 14.4 s    |
 | 4   | llama3.2 3B pointwise rerank  | 0.668*  | 3.3 s     |
-| 4   | llama3.1:8B pointwise rerank  | 0.722*  | 7.6 s     |
+| 4   | llama3.1 8B pointwise rerank  | 0.722*  | 7.6 s     |
 | 4   | llama3.2 3B + LoRA pointwise  | 0.739*  | 13.3 s    |
 
 :::{.inlinenote}
@@ -716,17 +721,18 @@ Generating a ranking damaged the retrieval for both models — [the fine-tuned 3
 
 :::{.note}
 
-Only the 8B pointwise (7.6 s) & the fine-tuned 3B (13.3 s) beat the embedder — the 3B also costs [one hour of training]{.emph} on the same laptop
+Only the 8B pointwise (7.6 s) & the fine-tuned 3B (13.3 s) beat the embedder \
+Fine-tuning of 3B took [one hour of training]{.emph} on the laptop
 
 :::
 
 ## Takeaways {.center}
 
-- [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger model, better rankings, same milliseconds
+- [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger models give better rankings at no time cost
 - Hybrid fusion patches weak retrieval, but drags down strong retrieval
 - A prompted generative model is [not automatically better]{.emph}: asking it to generate a ranking was the worst method
-- Used right — scoring with its [probabilities]{.emph} instead of its prose — the 8B LLM beat the retriever it reranked on the same queries, [at 345× the cost]{.emph}
-- [One hour of LoRA on the training split]{.emph} turned the 3B from the worst method into the best of the day
+- Used right (scoring with its [probabilities]{.emph} instead of its prose), the 8B LLM beat the retriever it reranked on the same queries, but [at 345× the cost]{.emph}
+- [One hour of LoRA on the training split]{.emph} turned the 3B from the worst to the best method
 
 ## Reach for the LLM when {.center}
 
@@ -737,7 +743,9 @@ The task is [generative]{.emph}:
 
 :::{.note}
 
-Retrieval and generation are different jobs. Let the embedder retrieve and the LLM do what only an LLM can do — or score with it when ranking quality matters more than speed
+Retrieval and generation are different jobs. Let the embedder retrieve and the LLM do what only an LLM can do
+
+Or score with it when ranking quality matters more than speed
 
 :::
 
@@ -749,7 +757,7 @@ Retrieval and generation are different jobs. Let the embedder retrieve and the L
 
 ---
 
-<br><br><br>
+<br><br>
 
 ### References<br><br>
 
