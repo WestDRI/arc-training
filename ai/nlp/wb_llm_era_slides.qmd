@@ -688,6 +688,65 @@ Let's train the 4-bit llama3.2 3B that fits the 6 GiB GPU
 - Loss on the answer token only
 - One epoch: [57 minutes on the laptop]{.emph}
 
+## How LoRA works {.center}
+
+```{dot}
+//| echo: false
+
+// LoRA: a frozen weight matrix plus a trainable low-rank correction.
+// Effective weights: W + (alpha/r) * B @ A
+//
+// Numbers are for one q_proj matrix of llama3.2 3B (3072 x 3072 ~ 9.4M
+// weights; adapter pair 2 x 3072 x 16 = 98K). Across all 28 layers and the
+// seven targeted projections: 24.3M of 3.2B parameters trainable (0.75%).
+//
+// Render: dot -Tsvg lora.gv -o lora.svg
+digraph LoRA {
+  rankdir=LR;
+  bgcolor="transparent";
+  nodesep=0.4;
+  ranksep=0.7;
+  node [fontname="Helvetica Neue, Arial, sans-serif", fontsize=15,
+        shape=box, style="rounded,filled", margin="0.16,0.09"];
+  edge [fontname="Helvetica Neue, Arial, sans-serif", fontsize=12,
+        color="#595959", penwidth=1.6, arrowsize=0.7];
+
+  // Input and output
+  x   [label="x", shape=circle, fillcolor="#ffffff", color="#595959",
+       fontcolor="#30173d"];
+  out [label="output", fillcolor="#ffffff", color="#595959",
+       fontcolor="#30173d"];
+
+  // Frozen path: the pre-trained weight matrix, never updated
+  W [label="W\n3072 × 3072\nFrozen — never trained",
+     fillcolor="#f2f2f2", color="#8c8c8c", fontcolor="#4d4d4d",
+     style="rounded,filled,dashed"];
+
+  // Trainable path: the LoRA adapters, the only weights that change
+  A [label="A\n16 × 3072\nTrainable",
+     fillcolor="#fce8e9", color="#b5111b", fontcolor="#8a0d15"];
+  B [label="B\n3072 × 16\nTrainable",
+     fillcolor="#fce8e9", color="#b5111b", fontcolor="#8a0d15"];
+
+  // Sum of both paths
+  add [label="+", shape=circle, fillcolor="#ffffff", color="#595959",
+       fontcolor="#30173d"];
+
+  x   -> W [color="#8c8c8c"];
+  x   -> A [color="#b5111b"];
+  A   -> B [color="#b5111b", label="r = 16", fontcolor="#8a0d15"];
+  W   -> add [color="#8c8c8c"];
+  B   -> add [color="#b5111b"];
+  add -> out;
+
+  label="Effective weights: W + B·A scaled by α/r = 2\n24.3M of 3.2B parameters trainable (0.75%)";
+  labelloc=b;
+  labelfontsize=13;
+  labelfontname="Helvetica Neue, Arial, sans-serif";
+  fontcolor="#4d4d4d";
+}
+```
+
 ## The code {.center}
 
 ```{.python}
