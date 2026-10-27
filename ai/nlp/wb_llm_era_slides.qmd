@@ -78,7 +78,7 @@ Generative AI
 
 [BERT](https://en.wikipedia.org/wiki/BERT_(language_model)), [GPT](https://en.wikipedia.org/wiki/Products_and_applications_of_OpenAI#Text_generation), [Gemini](https://en.wikipedia.org/wiki/Gemini_(language_model)), [Claude](https://en.wikipedia.org/wiki/Claude_(AI)), etc.
 
-# The question: <br>
+# The question <br>
 
 :::{.question}
 
@@ -123,12 +123,12 @@ dataset = load_dataset("allenai/scifact")
 [scifact.zip]{.codelike} unzips to a [scifact]{.codelike} dir with:
 
 [corpus.jsonl]{.codelike}: a corpus of research abstracts \
-  ➔ `id`, `title`,` text` (abstract of scientific paper)
+  ➔ `_id`, `title`, `text` (abstract of scientific paper)
 
 [queries.jsonl]{.codelike}: scientific claims to be verified against the corpus \
   ➔ `id`, `text` (claim), `label` (`contradict` / `support`)
 
-[qrels]{.codelike} dir with [train.tsv]{.codelike} & [test.tsv]{.codelike}: relevance judgment for training & testing \
+[qrels]{.codelike} dir with [train.tsv]{.codelike} & [test.tsv]{.codelike}: relevance judgments for training & testing \
   ➔ `corpus-id`, `query-id`, `score`
 
 ## Methods {.center}
@@ -195,14 +195,20 @@ def ndcg_at_k(ranked, qrels, k=10):
 
 ## Scores in context {.center}
 
-- 0.45–0.65: Typical range for standard keyword search engines
-- 0.70–0.80: Strong search quality
-- 0.80+: Exceptional performance
+Across the 18 datasets of BEIR, BM25 averages an nDCG@10 of 0.48 [@thakur2021beir]
+
+SciFact is one of the most keyword-friendly datasets of the suite: scientific claims are full of rare exact terms
+
+:::{.note}
+
+Rule of thumb on this benchmark: 0.70+ is strong & 0.80+ is exceptional
+
+:::
 
 ## Hardware: one small GPU {.center}
 
 For this test, the hardware used was a laptop with: \
-8 cores, 16 threads, 30 GiB of RAM, and a **small 6GiB GPU**
+8 cores, 16 threads, 30 GiB of RAM, and a **small 6 GiB GPU**
 
 ## Load packages {.center}
 
@@ -550,7 +556,7 @@ All replies parsed
 
 ## New issues with 3B {.center}
 
-Real reply to the tighter prompt, for a query whose gold document sat at position 1 of the shortlist:
+Real reply to the better prompt, for a query whose gold document sat at position 1 of the shortlist:
 
 ```
 shortlist: 20 docs | gold document at position 1
@@ -561,7 +567,7 @@ llama3.2 replied: { "ranking": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12] }
 :::{.note}
 
 21 does not even exist: the model counts down from N \
-[The tighter prompt fixed the format, but not the judgment]{.emph}
+[The better prompt fixed the format, but not the judgment]{.emph}
 
 :::
 
@@ -581,7 +587,7 @@ but [both models still damage the 0.693 retrieval they rerank]{.emph}
 
 ## Good prompt {.center}
 
-The listwise prompt asks the model to [do arithmetic over list positions]{.emph}. Something small transformers are not good at
+The listwise prompt asks the model to [do arithmetic over list positions]{.emph} — something small transformers are not good at
 
 Instead: judge one document at a time & read the answer from the model's own distribution
 
@@ -633,7 +639,7 @@ llama3.1 8B   pointwise  nDCG@10 0.722  (7.6 s/query)
 
 :::{.emph}
 
-8B now beats the 0.693 retriever it starts from
+The 8B now beats the 0.693 retriever it starts from
 
 :::
 
@@ -653,7 +659,7 @@ Here: a 4-bit llama3.2 3B that fits the 6 GiB GPU
 bnb = BitsAndBytesConfig(load_in_4bit=True,
                          bnb_4bit_quant_type="nf4")
 model = AutoModelForCausalLM.from_pretrained(
-    "Llama-3.2-3B-Instruct",
+    "unsloth/Llama-3.2-3B-Instruct",
     quantization_config=bnb, device_map={"": 0})
 model = get_peft_model(model, LoraConfig(
     r=16, lora_alpha=32, lora_dropout=0.05,
@@ -727,13 +733,13 @@ Generating a ranking damaged the retrieval for both models \
 
 | Era | Method                        | nDCG@10 | Per query |
 |-----|-------------------------------|---------|-----------|
-| 2   | BM25                          | 0.652   | 15 ms     |
-| 3   | mxbai-embed-large (335M)      | 0.741   | 22 ms     |
+| 2   | BM25                          | 0.606   | 15 ms     |
+| 3   | mxbai-embed-large (335M)      | 0.693   | 22 ms     |
 | 4   | llama3.2 3B + LoRA pointwise  | 0.739*  | 13.3 s    |
 
 :::{.inlinenote}
 
-*on the 50-query subset. Same benchmark, same hardware: a laptop with a 6 GiB GPU
+*on the 50-query subset — mxbai-embed-large scores 0.693 on those same 50. Same benchmark, same hardware: a laptop with a 6 GiB GPU
 
 :::
 
@@ -754,7 +760,7 @@ Fine-tuning of 3B took [one hour of training]{.emph} on the laptop
 
 ## Takeaways {.center}
 
-- [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger models give better rankings at no time cost
+- [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger models give better rankings at essentially the same speed
 - Hybrid fusion patches weak retrieval, but drags down strong retrieval
 - A prompted generative model is [not automatically better]{.emph}: asking it to generate a ranking was the worst method
 - Used right (scoring with its [probabilities]{.emph} instead of its prose), the 8B LLM beat the retriever it reranked on the same queries, but [345× slower]{.emph}
