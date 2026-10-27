@@ -169,7 +169,7 @@ Hybrid keyword + embeddings
 :::{.column width="50%"}
 
 **LLMs** \
-Generative reranking
+Reranking the shortlist
 
 - [llama3.2 3b](https://ollama.com/library/llama3.2:3b)
 - [llama3.1:8b](https://ollama.com/library/llama3.1:8b)
@@ -475,37 +475,174 @@ Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context win
 
 :::
 
-## Results {.center}
+## The harness matters {.center}
+
+The reply is text: [parse it, validate it, always keep a fallback]{.emph}
+
+```{.python}
+nums = list(dict.fromkeys(            # dedupe, order-preserving
+    json.loads(resp["message"]["content"])["ranking"]))[:10]
+ranked = [shortlist[n - 1]
+          for n in nums if 1 <= n <= len(shortlist)]
+# pad with the retriever order (docs the LLM did not list)
+return ranked + [d for d in shortlist if d not in ranked]
+```
+
+## What came back {.center}
+
+With a looser instruction (no count, no range, no reply length), several replies per run were unparseable:
 
 ```
-llama3.2     rerank  nDCG@10 0.295  (0 unparseable)
+query: 'The combination of H3K4me3 and H3K79me2 is found in
+        quiescent hair follicle stem cells.'
+response: '{ "ranking": [1, 3, 11, 12, 13, 14, 15, 16, 17, 18,
+            19, 4, 6, 8, 9, 10, 5, 7, 2, 5, 5, 5, 5, 5, 5,
+error: Expecting value: line 32 column 3 (char 168)
 ```
-
-# Verdict
-
-## Summary {.center}
-
-| Era | Method                   | nDCG@10 | Per query |
-|-----|--------------------------|---------|-----------|
-| 1   | BM25                     | 0.652   | 15 ms     |
-| 2   | all-minilm (23M)         | 0.648   | 20 ms     |
-| 2   | nomic-embed-text (137M)  | 0.703   | 18 ms     |
-| 2   | mxbai-embed-large (335M) | 0.741   | 22 ms     |
-| 1+2 | RRF hybrid               | 0.731   | —         |
-| 3   | llama3.2 3B rerank       | 0.295*  | 5.1 s     |
-| 3   | llama3.1:8B rerank       | 0.557*  | 14.4 s    |
-
-## The cost of generation {.center}
-
-|               | Embedding search | LLM reranking             |
-|---------------|------------------|---------------------------|
-| Per query     | 22 ms            | 5.1 s (3B) to 14.4 s (8B) |
-| Slowdown      | 1×               | [230× to 650×]{.emph}     |
-| Model on disk | 669 MB           | 2.0 to 4.9 GB             |
 
 :::{.note}
 
-The LLM also gave a worse ranking
+The model loops over numbers until it hits the generation cap: truncated JSON — [9 of 50 replies unparseable]{.emph}
+
+:::
+
+## The countdown {.center}
+
+The explicit contract in the call above fixes the format: zero unparseable replies
+
+Both models. And yet the 3B model returned:
+
+```
+shortlist: 20 docs | gold document at position 1
+
+llama3.2 replied: { "ranking": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12] }
+```
+
+:::{.note}
+
+21 does not even exist — the model counts down from N: [structured output fixed the format, not the judgment]{.emph}
+
+:::
+
+## Results {.center}
+
+```
+                       loose instruction      explicit contract
+llama3.2 3B   rerank   0.623 (9 unparseable)  0.295 (0 unparseable)
+llama3.1:8B   rerank   0.525 (4 unparseable)  0.557 (0 unparseable)
+```
+
+:::{.note}
+
+Unparseable replies had silently fallen back to the retriever order: the loose scores were [partly the retriever's work]{.emph}
+
+:::
+
+## Score, do not generate {.center}
+
+The listwise prompt asks the model to [do arithmetic over list positions]{.emph} — exactly what small transformers fumble
+
+Instead: judge one document at a time & read the answer from the model's own distribution
+
+One small prompt per document — not one giant prompt per query:
+
+```{.python}
+resp = ollama.chat(
+    model=model,
+    messages=[
+        {"role": "system", "content": "You are a search reranker."},
+        {"role": "user", "content":
+            f"Claim: {query}\n\nAbstract: {full_text[d]}\n\n"
+            "Is this abstract relevant to the claim? "
+            "Answer with exactly one word: yes or no."},
+    ],
+    logprobs=True, top_logprobs=10,
+    options={"temperature": 0, "num_predict": 1, "num_ctx": 2048},
+)
+```
+
+## The score {.center}
+
+```{.python}
+lp = {e["token"]: e["logprob"]
+      for e in resp["logprobs"][0]["top_logprobs"]}
+
+yes = max(lp[t] for t in ("yes", "Yes", " yes"))
+no  = max(lp[t] for t in ("no", "No", " no"))
+
+score = np.exp(yes) / (np.exp(yes) + np.exp(no))  # P(yes)
+```
+
+Rank the shortlist by P(yes)
+
+:::{.note}
+
+P(yes) straight from the model's distribution: [no list to count, no JSON to truncate, no fallback]{.emph}
+
+:::
+
+## Pointwise results {.center}
+
+```
+llama3.2 3B   pointwise  nDCG@10 0.668  (3.3 s/query)
+llama3.1:8B   pointwise  nDCG@10 0.722  (7.6 s/query)
+```
+
+:::{.emph}
+
+The same models, the same 50 queries — the 8B now beats the 0.693 retriever it starts from
+
+:::
+
+## Same 50 queries {.center}
+
+All the LLM methods run on 50 queries; the retrievers re-scored on the same 50:
+
+| Method                        | nDCG@10 | Per query |
+|-------------------------------|---------|-----------|
+| llama3.1:8B pointwise         | 0.722   | 7.6 s     |
+| mxbai-embed-large (retriever) | 0.693   | 22 ms     |
+| llama3.2 3B pointwise         | 0.668   | 3.3 s     |
+| RRF hybrid (retriever)        | 0.651   | —         |
+| BM25 (retriever)              | 0.606   | 15 ms     |
+| llama3.1:8B listwise          | 0.557   | 14.4 s    |
+| llama3.2 3B listwise          | 0.295   | 5.1 s     |
+
+Asked to generate a ranking, both models [damage the retrieval they start from]{.emph} — scored on their probabilities, the 8B edges past it
+
+# Verdict
+
+## {.center}
+
+| Era | Method                        | nDCG@10 | Per query |
+|-----|-------------------------------|---------|-----------|
+| 2   | BM25                          | 0.652   | 15 ms     |
+| 3   | all-minilm (23M)              | 0.648   | 20 ms     |
+| 3   | nomic-embed-text (137M)       | 0.703   | 18 ms     |
+| 3   | mxbai-embed-large (335M)      | 0.741   | 22 ms     |
+| 2+3 | RRF hybrid                    | 0.731   | —         |
+| 4   | llama3.2 3B listwise rerank   | 0.295*  | 5.1 s     |
+| 4   | llama3.1:8B listwise rerank   | 0.557*  | 14.4 s    |
+| 4   | llama3.2 3B pointwise rerank  | 0.668*  | 3.3 s     |
+| 4   | llama3.1:8B pointwise rerank  | 0.722*  | 7.6 s     |
+
+:::{.inlinenote}
+
+*on the 50-query subset. Same benchmark, same hardware: a laptop with a 6 GiB GPU
+
+:::
+
+## The cost of the LLM {.center}
+
+|               | Embedding search | LLM reranking            |
+|---------------|------------------|--------------------------|
+| Per query     | 22 ms            | 3.3 s (3B) to 7.6 s (8B) |
+| Slowdown      | 1×               | [150× to 345×]{.emph}    |
+| Model on disk | 669 MB           | 2.0 to 4.9 GB            |
+
+:::{.note}
+
+Best-case columns: the pointwise numbers — the listwise prompts were slower still. And only the 8B pointwise beats the embedder
 
 :::
 
@@ -513,7 +650,8 @@ The LLM also gave a worse ranking
 
 - [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger model, better rankings, same milliseconds
 - Hybrid fusion patches weak retrieval, but drags down strong retrieval
-- A prompted generative model is [not automatically better]{.emph}
+- A prompted generative model is [not automatically better]{.emph}: asking it to generate a ranking was the worst method of the day
+- Used right — scoring with its [probabilities]{.emph} instead of its prose — the 8B LLM beat the retriever it reranked on the same queries, [at 345× the cost]{.emph}
 
 ## Reach for the LLM when {.center}
 
@@ -524,7 +662,7 @@ The task is [generative]{.emph}:
 
 :::{.note}
 
-Retrieval and generation are different jobs. Let the embedder retrieve and the LLM do what only an LLM can do
+Retrieval and generation are different jobs. Let the embedder retrieve and the LLM do what only an LLM can do — or score with it when ranking quality matters more than speed
 
 :::
 
