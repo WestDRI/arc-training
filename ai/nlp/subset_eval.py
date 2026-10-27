@@ -1,5 +1,5 @@
 """nDCG@10 of the retrieval methods restricted to the 50-query LLM subset,
-so era 3 is compared apples to apples."""
+so era 4 is compared apples to apples."""
 
 import json
 import re
@@ -43,13 +43,15 @@ with open(DATA / "qrels" / "test.tsv", encoding="utf-8") as f:
         qrels.setdefault(qid, {})[did.strip()] = int(score)
 
 eval_qids = [q for q in qrels if q in queries and any(d in corpus for d in qrels[q])]
-llm_qids = sorted(eval_qids)[:50]  # same subset as experiment.py era 3
+llm_qids = sorted(eval_qids)[:50]  # same subset as experiment.py era 4
 
-# era-3 settings from the full run: winner of era 2 + the reranker scores
+# era-4 settings from the full run: winner of era 3 + the reranker scores
 rows = json.loads((HERE / "results.json").read_text())
 dense_model = max(
-    (r for r in rows if r["method"].startswith("2 ")), key=lambda r: r["ndcg10"]
-)["method"][2:]
+    (r for r in rows if "rerank" not in r["method"] and "BM25" not in r["method"]
+     and "hybrid" not in r["method"]),
+    key=lambda r: r["ndcg10"],
+)["method"].split()[1]
 
 full_text = {d: f"{corpus[d]['title']}. {corpus[d]['text']}" for d in docs}
 tok = lambda s: re.findall(r"[a-z0-9]+", s.lower())
@@ -88,5 +90,6 @@ print(f"  {'BM25':<18} {mean_ndcg(bm25_r):.3f}")
 print(f"  {dense_model:<18} {mean_ndcg(dense_r):.3f}")
 print(f"  {'RRF hybrid':<18} {mean_ndcg(rrf_r):.3f}")
 for r in rows:  # rerankers were scored on this very subset
-    if r["method"].startswith("3 "):
-        print(f"  {r['method'][2:]:<18} {r['ndcg10']:.3f}  (from experiment.py)")
+    if "rerank" in r["method"]:
+        print(f"  {r['method'].split(' ', 1)[1]:<42} {r['ndcg10']:.3f}"
+              "  (from experiment.py)")
