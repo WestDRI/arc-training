@@ -38,7 +38,8 @@ from transformers import (
 
 HERE = Path(__file__).resolve().parent.parent  # scripts live in src/, data one level up
 DATA = HERE / "data/scifact/scifact"
-CACHE = HERE / ".emb_cache"
+SRC = HERE / "src"  # scratch artifacts: .emb_cache/, lora_reranker/
+CACHE = SRC / ".emb_cache"
 K = 10
 SMOKE = os.environ.get("LORA_SMOKE") == "1"
 BASE = "unsloth/Llama-3.2-3B-Instruct"  # ungated mirror of llama3.2 3B
@@ -224,7 +225,7 @@ class AnswerTrainer(Trainer):
 
 
 args = TrainingArguments(
-    output_dir=str(HERE / "lora_reranker"),
+    output_dir=str(SRC / "lora_reranker"),
     per_device_train_batch_size=1,
     gradient_accumulation_steps=16,
     num_train_epochs=1,
@@ -247,7 +248,7 @@ args = TrainingArguments(
 AnswerTrainer(model=model, train_dataset=Pairs(), args=args,
               data_collator=collate).train()
 model.eval()
-model.save_pretrained(HERE / "lora_reranker" / "adapter")  # LoRA weights only
+model.save_pretrained(SRC / "lora_reranker" / "adapter")  # LoRA weights only
 print("adapter saved", flush=True)
 
 

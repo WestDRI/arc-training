@@ -11,7 +11,8 @@ from rank_bm25 import BM25Okapi
 
 HERE = Path(__file__).resolve().parent.parent  # scripts live in src/, data one level up
 DATA = HERE / "data/scifact/scifact"
-CACHE = HERE / ".emb_cache"
+SRC = HERE / "src"  # scratch artifacts: .emb_cache/, lora_reranker/
+CACHE = SRC / ".emb_cache"
 K, RRF_K = 10, 60
 QUERY_PREFIX = {
     "mxbai-embed-large": "Represent this sentence for searching relevant passages: "
