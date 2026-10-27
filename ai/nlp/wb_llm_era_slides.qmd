@@ -78,107 +78,24 @@ Generative AI
 
 [BERT](https://en.wikipedia.org/wiki/BERT_(language_model)), [GPT](https://en.wikipedia.org/wiki/Products_and_applications_of_OpenAI#Text_generation), [Gemini](https://en.wikipedia.org/wiki/Gemini_(language_model)), [Claude](https://en.wikipedia.org/wiki/Claude_(AI)), etc.
 
-# The question
+# The question <br>
+
+:::{.question}
 
 If LLMs can do everything, are task-specific methods dead?
 
 Let's find out with one test case
 
-# Test case
-
-## The task: [semantic search](https://en.wikipedia.org/wiki/Semantic_search) {.center}
-
-Search a query in a dataspace by [meaning]{.emph} rather than literal matches
-
-The classic failure of keyword search is [vocabulary mismatch](https://en.wikipedia.org/wiki/Vocabulary_mismatch)
-
-:::{.notenoline}
-
-Example:
-
-"Heart attack" does not match "myocardial infarction"
-
 :::
 
-## The benchmark: BEIR/SciFact {.center}
+## Benchmark: BEIR/SciFact {.center}
 
-[SciFact](https://arxiv.org/abs/2004.14974) [@wadden2020factfictionverifyingscientific] dataset: a benchmark for scientific claim verification (2020), \
-part of the [BEIR](https://arxiv.org/abs/2104.08663) [@thakur2021beir] standard suite of information retrieval benchmarks
+[SciFact](https://arxiv.org/abs/2004.14974) [@wadden2020factfictionverifyingscientific] dataset: a benchmark for scientific claim verification (2020) \
+Part of the [BEIR](https://arxiv.org/abs/2104.08663) [@thakur2021beir] standard suite of information retrieval benchmarks
 
 - [5,183 scientific abstracts]{.emph}
-- [300 scientific claims]{.emph}
+- [1,409 scientific claims]{.emph}
 - [Expert annotators' ground truth]{.emph}
-
-## The methods {.center}
-
-::::{.columns}
-
-:::{.column width="50%"}
-
-**Lexical ranking algorithm**
-
-Sparse keyword search
-
-[BM25](https://en.wikipedia.org/wiki/Okapi_BM25)
-
-:::
-
-:::{.column width="50%"}
-
-**Dense retrieval**
-
-Semantic vectors via embeddings
-
-- [all-minilm](https://ollama.com/library/all-minilm) (23M)
-- [nomic-embed-text](https://ollama.com/library/nomic-embed-text) (137M)
-- [mxbai-embed-large](https://ollama.com/library/mxbai-embed-large) (335M)
-
-:::
-
-::::
-
-::::{.columns}
-
-:::{.column width="50%"}
-
-**Reciprocal Rank Fusion**
-
-Hybrid keyword + embeddings
-
-:::
-
-:::{.column width="50%"}
-
-**LLMs**
-
-Generative reranking
-
-- [llama3.2 3b](https://ollama.com/library/llama3.2:3b)
-- [llama3.1:8b](https://ollama.com/library/llama3.1:8b)
-
-:::
-
-::::
-
-## The metric: nDCG@10 {.center}
-
-[Normalized Discounted Cumulative Gain](https://en.wikipedia.org/wiki/Discounted_cumulative_gain) at rank 10 is a ranking quality metric in information retrieval, search engines & recommendation systems
-
-Measures how well a system places the most relevant items within the first 10 results
-
-Industry standard
-
-## The hardware: one small GPU {.center}
-
-For this test, the hardware used was a laptop with: \
-8 cores, 16 threads, 30 GiB of RAM, and **a small 6GiB GPU**
-
-:::{.note}
-
-The same test was run on CPUs \
-15 to 20× slower across the board, identical scores
-
-:::
 
 ## Get the data {.center}
 
@@ -214,16 +131,90 @@ dataset = load_dataset("allenai/scifact")
 [qrels]{.codelike} dir with [train.tsv]{.codelike} & [test.tsv]{.codelike}: relevance judgment for training & testing \
   ➔ `corpus-id`, `query-id`, `score`
 
+## Methods {.center}
+
+::::{.columns}
+
+:::{.column width="50%"}
+
+**Lexical ranking algorithm** \
+Sparse keyword search
+
+- [BM25](https://en.wikipedia.org/wiki/Okapi_BM25)
+
+:::
+
+:::{.column width="50%"}
+
+**Dense retrieval** \
+Semantic vectors via embeddings
+
+- [all-minilm](https://ollama.com/library/all-minilm) (23M)
+- [nomic-embed-text](https://ollama.com/library/nomic-embed-text) (137M)
+- [mxbai-embed-large](https://ollama.com/library/mxbai-embed-large) (335M)
+
+:::
+
+::::
+
+::::{.columns}
+
+:::{.column width="50%"}
+
+**Reciprocal Rank Fusion** \
+Hybrid keyword + embeddings
+
+:::
+
+:::{.column width="50%"}
+
+**LLMs** \
+Generative reranking
+
+- [llama3.2 3b](https://ollama.com/library/llama3.2:3b)
+- [llama3.1:8b](https://ollama.com/library/llama3.1:8b)
+
+:::
+
+::::
+
+## Metric: nDCG@10 {.center}
+
+[Normalized Discounted Cumulative Gain](https://en.wikipedia.org/wiki/Discounted_cumulative_gain) at rank 10 is a standard ranking quality metric in information retrieval, search engines & recommendation systems
+
+Measures how well a system places the most relevant items within the first 10 results
+
+```{.python}
+def ndcg_at_k(ranked, qrels, k=10):
+    dcg = sum(qrels.get(d, 0) / np.log2(r + 2)
+              for r, d in enumerate(ranked[:k]))
+    ideal = sorted(qrels.values(), reverse=True)[:k]
+    idcg = sum(g / np.log2(r + 2) for r, g in enumerate(ideal))
+    return dcg / idcg if idcg else 0.0
+```
+
+## Hardware: one small GPU {.center}
+
+For this test, the hardware used was a laptop with: \
+8 cores, 16 threads, 30 GiB of RAM, and a **small 6GiB GPU**
+
+:::{.note}
+
+The same test was run on CPUs \
+15 to 20× slower across the board, identical scores
+
+:::
+
 ## Load packages {.center}
 
 ```{.python}
 import json
 import numpy as np
 
-# https://github.com/ollama/ollama-python:
+# https://github.com/ollama/ollama-python
 import ollama
 
-# https://github.com/dorianbrown/rank_bm25:
+# https://github.com/dorianbrown/rank_bm25
 from rank_bm25 import BM25Okapi
 ```
 
@@ -264,36 +255,25 @@ with open("scifact" / "qrels" / "test.tsv", encoding="utf-8") as f:
         qrels.setdefault(qid, {})[did.strip()] = int(score)
 ```
 
-## nDCG@10 {.center}
-
-```{.python}
-def ndcg_at_k(ranked, qrels, k=10):
-    dcg = sum(qrels.get(d, 0) / np.log2(r + 2)
-              for r, d in enumerate(ranked[:k]))
-    ideal = sorted(qrels.values(), reverse=True)[:k]
-    idcg = sum(g / np.log2(r + 2) for r, g in enumerate(ideal))
-    return dcg / idcg if idcg else 0.0
-```
-
 # Lexical ranking algorithm
 
 ## BM25 {.center}
 
-[Bag-of-words](https://en.wikipedia.org/wiki/Bag-of-words_model) retrieval function ranking documents by how relevant they are to a given search query (1994)
+A [bag-of-words](https://en.wikipedia.org/wiki/Bag-of-words_model) retrieval function ranks documents by how relevant they are to a search query. It uses literal keyword matches (1994)
 
-Uses exact term overlap \
-Improved version of [term frequency–inverse document frequency (TF-IDF)](https://en.wikipedia.org/wiki/Tf–idf) with length normalization \
-Still widely used (e.g. [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch)) \
-No training \
-CPU-based
+Improved version of [term frequency–inverse document frequency (TF-IDF)](https://en.wikipedia.org/wiki/Tf–idf) with length normalization
+
+No training, CPU-based, still widely used (e.g. [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch))
 
 :::{.note}
 
-Fails on vocabulary mismatch & on paraphrase
+Fails on [vocabulary mismatch](https://en.wikipedia.org/wiki/Vocabulary_mismatch) & paraphrase
+
+Example: "heart attack" does not match "myocardial infarction"
 
 :::
 
-## The code {.center}
+## Code {.center}
 
 ```{.python}
 def tokenize(text):
@@ -340,19 +320,25 @@ Dense retrieval does not scan text; it compares coordinates. That is why it need
 
 :::
 
-## Three model sizes {.center}
+## 3 model sizes {.center}
 
-All served locally by [ollama](https://ollama.com), pulled like containers:
+| Model             | Params | Year | Disk   |
+|-------------------|--------|------|--------|
+| all-minilm        | 23M    | 2020 | 45 MB  |
+| nomic-embed-text  | 137M   | 2024 | 274 MB |
+| mxbai-embed-large | 335M   | 2024 | 669 MB |
+
+Pulled by [ollama](https://ollama.com):
 
 ```{.bash}
 ollama pull all-minilm nomic-embed-text mxbai-embed-large
 ```
 
-| Model | Params | Year | Disk |
-|---|---|---|---|
-| all-minilm | 23M | 2020 | 45 MB |
-| nomic-embed-text | 137M | 2024 | 274 MB |
-| mxbai-embed-large | 335M | 2024 | 669 MB |
+Served locally:
+
+```{.bash}
+ollama serve
+```
 
 ## Embedding the corpus {.center}
 
@@ -370,12 +356,11 @@ def embed(texts, model, batch=64):
 doc_emb = embed([full_text[d] for d in docs], model)
 ```
 
-L2-normalization makes every later dot product a cosine similarity \
-This makes things a lot faster!
+L2-normalization makes every later dot product a cosine similarity
 
 :::{.note}
 
-On my laptop GPU, indexing 5,183 abstracts took 150 s with the largest model
+On the laptop GPU, indexing 5,183 abstracts took 150 s with the largest model
 
 :::
 
@@ -386,6 +371,7 @@ q = np.asarray(
     ollama.embed(model=model, input=[query])["embeddings"][0],
     dtype=np.float32,
 )
+# L2-normalization
 q /= np.linalg.norm(q)
 
 ranking = [docs[i] for i in np.argsort(-(doc_emb @ q))]
@@ -408,11 +394,12 @@ nomic-embed-text   nDCG@10 0.703  (18.1 ms/query)
 mxbai-embed-large  nDCG@10 0.741  (22.3 ms/query)
 ```
 
-- The 2020 miniature model ties BM25
-- The modern models do better
-- Bigger embedding model → better rankings at [the same milliseconds per query]{.emph}
+<br>
+The 2020 miniature model ties BM25 \
+The modern models do better \
+Bigger embedding model → better rankings at [the same milliseconds per query]{.emph}
 
-# Reciprocal rank fusion
+# Reciprocal Rank Fusion (RRF)
 
 ## The idea {.center}
 
@@ -454,7 +441,8 @@ Hybrid search is a patch for weak retrieval
 
 ## The constraint {.center}
 
-A generative model [cannot scan 5,183 abstracts]{.emph}: it has no index & reads tokens one prompt at a time
+A generative model [cannot scan 5,183 abstracts]{.emph}: \
+it has no index & reads tokens one prompt at a time
 
 The standard pattern is [retrieve-then-rerank]{.emph}:
 
@@ -486,13 +474,15 @@ Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context win
 
 :::
 
-## Result {.center}
+## Results {.center}
 
 ```
-era 3  llama3.2     rerank  nDCG@10 0.295  (0 unparseable)
+llama3.2     rerank  nDCG@10 0.295  (0 unparseable)
 ```
 
-## The results {.center}
+# Verdict
+
+## Summary {.center}
 
 | Era | Method                   | nDCG@10 | Per query |
 |-----|--------------------------|---------|-----------|
@@ -503,8 +493,6 @@ era 3  llama3.2     rerank  nDCG@10 0.295  (0 unparseable)
 | 1+2 | RRF hybrid               | 0.731   | —         |
 | 3   | llama3.2 3B rerank       | 0.295*  | 5.1 s     |
 | 3   | llama3.1:8B rerank       | 0.557*  | 14.4 s    |
-
-# The verdict
 
 ## The cost of generation {.center}
 
@@ -541,17 +529,13 @@ Retrieval and generation are different jobs. Let the embedder retrieve and the L
 
 ## Full code {.center}
 
-:::{.callout-note collapse="true"}
-
 ```{.python}
 
 ```
 
-:::
-
 ---
 
-<br><br><br><br><br>
+<br><br><br>
 
 ### References<br><br>
 
