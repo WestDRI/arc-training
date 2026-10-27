@@ -625,12 +625,54 @@ The same models, the same 50 queries — the 8B now beats the 0.693 retriever it
 
 :::
 
+## Fine-tune the 3B: LoRA {.center}
+
+Prompting leaves the weights untouched \
+[LoRA](https://huggingface.co/docs/peft/conceptual_guides/lora) trains tiny adapter matrices beside a frozen model — here a 4-bit llama3.2 3B that fits the 6 GiB GPU
+
+- [400 claims from the training split]{.emph} (the test split was never touched): the same yes/no prompt, gold abstracts & BM25 hard negatives
+- Loss on the answer token only
+- One epoch: [57 minutes on the laptop]{.emph}
+
+## The code {.center}
+
+```{.python}
+bnb = BitsAndBytesConfig(load_in_4bit=True,
+                         bnb_4bit_quant_type="nf4")
+model = AutoModelForCausalLM.from_pretrained(
+    "Llama-3.2-3B-Instruct",
+    quantization_config=bnb, device_map={"": 0})
+model = get_peft_model(model, LoraConfig(
+    r=16, lora_alpha=32, lora_dropout=0.05,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"]))
+```
+
+## LoRA results {.center}
+
+```
+llama3.2 3B + LoRA   pointwise  nDCG@10 0.739  (13.3 s/query)
+```
+
+:::{.emph}
+
+The same 3B model: 0.295 generating a ranking → 0.668 scored → [0.739 fine-tuned]{.emph}
+
+:::
+
+:::{.note}
+
+The judgment is calibrated too: gold at P(yes) 0.76 vs 0.47 for the next abstract — the untuned model tied them at 0.82
+
+:::
+
 ## Same 50 queries {.center}
 
 All the LLM methods run on 50 queries; the retrievers re-scored on the same 50:
 
 | Method                        | nDCG@10 | Per query |
 |-------------------------------|---------|-----------|
+| llama3.2 3B + LoRA pointwise  | 0.739   | 13.3 s    |
 | llama3.1:8B pointwise         | 0.722   | 7.6 s     |
 | mxbai-embed-large (retriever) | 0.693   | 22 ms     |
 | llama3.2 3B pointwise         | 0.668   | 3.3 s     |
@@ -639,7 +681,7 @@ All the LLM methods run on 50 queries; the retrievers re-scored on the same 50:
 | llama3.1:8B listwise          | 0.557   | 14.4 s    |
 | llama3.2 3B listwise          | 0.295   | 5.1 s     |
 
-Asked to generate a ranking, both models [damage the retrieval they start from]{.emph} — scored on their probabilities, the 8B edges past it
+Generating a ranking damaged the retrieval for both models — [the fine-tuned 3B now leads every method]{.emph}
 
 # Verdict
 
@@ -656,6 +698,7 @@ Asked to generate a ranking, both models [damage the retrieval they start from]{
 | 4   | llama3.1:8B listwise rerank   | 0.557*  | 14.4 s    |
 | 4   | llama3.2 3B pointwise rerank  | 0.668*  | 3.3 s     |
 | 4   | llama3.1:8B pointwise rerank  | 0.722*  | 7.6 s     |
+| 4   | llama3.2 3B + LoRA pointwise  | 0.739*  | 13.3 s    |
 
 :::{.inlinenote}
 
@@ -667,13 +710,13 @@ Asked to generate a ranking, both models [damage the retrieval they start from]{
 
 |               | Embedding search | LLM reranking            |
 |---------------|------------------|--------------------------|
-| Per query     | 22 ms            | 3.3 s (3B) to 7.6 s (8B) |
-| Slowdown      | 1×               | [150× to 345×]{.emph}    |
+| Per query     | 22 ms            | 3.3 s to 14.4 s          |
+| Slowdown      | 1×               | [150× to 650×]{.emph}    |
 | Model on disk | 669 MB           | 2.0 to 4.9 GB            |
 
 :::{.note}
 
-Best-case columns: the pointwise numbers — the listwise prompts were slower still. And only the 8B pointwise beats the embedder
+Only the 8B pointwise (7.6 s) & the fine-tuned 3B (13.3 s) beat the embedder — the 3B also costs [one hour of training]{.emph} on the same laptop
 
 :::
 
@@ -683,6 +726,7 @@ Best-case columns: the pointwise numbers — the listwise prompts were slower st
 - Hybrid fusion patches weak retrieval, but drags down strong retrieval
 - A prompted generative model is [not automatically better]{.emph}: asking it to generate a ranking was the worst method
 - Used right — scoring with its [probabilities]{.emph} instead of its prose — the 8B LLM beat the retriever it reranked on the same queries, [at 345× the cost]{.emph}
+- [One hour of LoRA on the training split]{.emph} turned the 3B from the worst method into the best of the day
 
 ## Reach for the LLM when {.center}
 
