@@ -1,0 +1,314 @@
+```{.python}
+"""Fine-tune llama3.2 3B into a pointwise reranker with QLoRA.
+
+Era 4, take 3: the model that failed the listwise prompt (0.295) and scored
+0.668 with prompted P(yes) is now trained for that same yes/no judgment on
+the SciFact training split. The test split is never used for training.
+
+Training: (claim, abstract) pairs -> "yes"/"no", loss on the answer token
+only, QLoRA (4-bit base + LoRA adapters). Hard negatives: top BM25 hits that
+are not gold. Evaluation: the same 50 test queries and shortlists as
+run04/run05 (BM25 + mxbai top-10 union), scored with the same P(yes) -
+read from the fine-tuned model's first answer token.
+
+Needs ollama running (50 query embeddings) and downloads the base model
+from Hugging Face. Run with `uv run python -I lora_rerank.py`
+(LORA_SMOKE=1 for a quick pipeline check on a tiny slice).
+"""
+
+import json
+import os
+import re
+import time
+from pathlib import Path
+
+import numpy as np
+import ollama
+import torch
+import torch.nn.functional as F
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from rank_bm25 import BM25Okapi
+from torch.utils.data import Dataset
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    Trainer,
+    TrainingArguments,
+)
+
+HERE = Path(__file__).parent
+DATA = HERE / "data/scifact/scifact"
+CACHE = HERE / ".emb_cache"
+K = 10
+SMOKE = os.environ.get("LORA_SMOKE") == "1"
+BASE = "unsloth/Llama-3.2-3B-Instruct"  # ungated mirror of llama3.2 3B
+SYSTEM = "You are a search reranker."
+N_NEG = 2  # hard negatives per gold document
+MAX_CHARS = 1500  # abstract truncation: ~400-token prompts fit the time budget
+TRAIN_CLAIMS = 400  # subsample of the ~900 train claims (laptop-GPU budget)
+BATCH = 2  # eval batch: full-vocab logits for a batch are ~180 MB each
+
+
+def ndcg_at_k(ranked, qrels, k=K):
+    dcg = sum(qrels.get(d, 0) / np.log2(r + 2) for r, d in enumerate(ranked[:k]))
+    ideal = sorted(qrels.values(), reverse=True)[:k]
+    idcg = sum(g / np.log2(r + 2) for r, g in enumerate(ideal))
+    return dcg / idcg if idcg else 0.0
+
+
+# --- Data (same loaders as experiment.py) -----------------------------------------
+
+corpus = {}
+with open(DATA / "corpus.jsonl", encoding="utf-8") as f:
+    for line in f:
+        doc = json.loads(line)
+        corpus[doc["_id"]] = {"title": doc.get("title") or "", "text": doc["text"]}
+docs = list(corpus)
+queries = {}
+with open(DATA / "queries.jsonl", encoding="utf-8") as f:
+    for line in f:
+        q = json.loads(line)
+        queries[q["_id"]] = q["text"]
+qrels = {}  # split -> qid -> {doc id: relevance}
+for split in ("train", "test"):
+    qrels[split] = {}
+    with open(DATA / "qrels" / f"{split}.tsv", encoding="utf-8") as f:
+        next(f)
+        for line in f:
+            qid, did, score = line.split("\t")
+            qrels[split].setdefault(qid, {})[did.strip()] = int(score)
+
+full_text = {d: f"{corpus[d]['title']}. {corpus[d]['text']}" for d in docs}
+doc_text = {d: full_text[d][:MAX_CHARS] for d in docs}  # for LLM prompts only
+tok_text = lambda s: re.findall(r"[a-z0-9]+", s.lower())
+bm25 = BM25Okapi([tok_text(full_text[d]) for d in docs])
+
+# --- The 50 evaluation queries & shortlists (identical to run04/run05) -------------
+
+eval_qids = [
+    q for q in qrels["test"]
+    if q in queries and any(d in corpus for d in qrels["test"][q])
+]
+llm_qids = sorted(eval_qids)[:50]
+E = np.load(CACHE / f"mxbai-embed-large-{len(docs)}.npy")  # doc order == docs
+shortlists = {}
+for qid in llm_qids:
+    bm25_top = [docs[i] for i in
+                np.argsort(-bm25.get_scores(tok_text(queries[qid])))][:K]
+    q = np.asarray(
+        ollama.embed(
+            model="mxbai-embed-large",
+            input=["Represent this sentence for searching relevant passages: "
+                   + queries[qid]],
+        )["embeddings"][0], dtype=np.float32)
+    q /= np.linalg.norm(q)
+    shortlists[qid] = list(dict.fromkeys(
+        bm25_top + [docs[i] for i in np.argsort(-(E @ q))][:K]))
+ollama.embed(model="mxbai-embed-large", input=["."], keep_alive=0)  # free GPU
+
+
+# --- Training examples: the pointwise prompt, answered from the train qrels --------
+
+def user_msg(query, doc):
+    return (f"Claim: {query}\n\nAbstract: {doc_text[doc]}\n\n"
+            "Is this abstract relevant to the claim? "
+            "Answer with exactly one word: yes or no.")
+
+
+train_pairs = []  # (qid, doc, label)
+train_qids = [
+    q for q in qrels["train"]
+    if q in queries and any(d in corpus for d in qrels["train"][q])
+]
+rng = np.random.default_rng(42)
+train_qids = list(rng.permutation(train_qids)[:TRAIN_CLAIMS])
+for qid in train_qids:
+    gold = {d for d in qrels["train"][qid] if d in corpus}
+    for d in gold:
+        train_pairs.append((qid, d, 1))
+    ranked = [docs[i] for i in np.argsort(-bm25.get_scores(tok_text(queries[qid])))]
+    negatives = [d for d in ranked if d not in gold][: N_NEG * max(len(gold), 1)]
+    for d in negatives:
+        train_pairs.append((qid, d, 0))
+print(f"training examples: {len(train_pairs)}"
+      f" ({sum(l for _, _, l in train_pairs)} yes)", flush=True)
+
+tok = AutoTokenizer.from_pretrained(BASE)
+tok.padding_side = "right"
+YES_IDS = [tok(s, add_special_tokens=False)["input_ids"][0]
+           for s in (" yes", "Yes", "yes", " Yes")]
+NO_IDS = [tok(s, add_special_tokens=False)["input_ids"][0]
+          for s in (" no", "No", "no", " No")]
+assert not set(YES_IDS) & set(NO_IDS)
+# train on "Yes"/"No": the base model refuses " yes" (untrained CE ~23 vs ~3)
+yes_id, no_id = YES_IDS[1], NO_IDS[1]
+
+
+class Pairs(Dataset):
+    def __len__(self):
+        return len(train_pairs)
+
+    def __getitem__(self, i):
+        qid, d, label = train_pairs[i]
+        prompt = tok.apply_chat_template(
+            [{"role": "system", "content": SYSTEM},
+             {"role": "user", "content": user_msg(queries[qid], d)}],
+            add_generation_prompt=True, return_dict=False,
+        )
+        ids = prompt + [yes_id if label else no_id]
+        return {"input_ids": ids, "labels": [-100] * (len(ids) - 1) + [ids[-1]]}
+
+
+def collate(batch):
+    pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
+    maxlen = max(len(b["input_ids"]) for b in batch)
+    return {
+        "input_ids": torch.tensor(
+            [b["input_ids"] + [pad] * (maxlen - len(b["input_ids"]))
+             for b in batch]),
+        "labels": torch.tensor(
+            [b["labels"] + [-100] * (maxlen - len(b["labels"])) for b in batch]),
+        "attention_mask": torch.tensor(
+            [[1] * len(b["input_ids"]) + [0] * (maxlen - len(b["input_ids"]))
+             for b in batch]),
+    }
+
+
+# --- QLoRA -------------------------------------------------------------------------
+
+bnb = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_compute_dtype=torch.float32,  # fp16 compute: nan gradients
+)
+model = AutoModelForCausalLM.from_pretrained(
+    BASE, quantization_config=bnb, device_map={"": 0},
+    dtype=torch.float16, attn_implementation="sdpa",
+)
+model = prepare_model_for_kbit_training(model)
+model = get_peft_model(model, LoraConfig(
+    r=16, lora_alpha=32, lora_dropout=0.05, bias="none",
+    task_type="CAUSAL_LM",
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"],
+))
+model.print_trainable_parameters()
+
+with torch.no_grad():  # sanity: untrained answer-token loss should be ~3
+    b = collate([Pairs()[i] for i in range(2)])
+    labels = b["labels"].cuda()
+    logits = model(input_ids=b["input_ids"].cuda(),
+                   attention_mask=b["attention_mask"].cuda()).logits
+    idx = (labels != -100).int().argmax(dim=1)
+    rows = torch.arange(len(idx), device=logits.device)
+    pred = logits[rows, idx - 1].float()
+    print(f"sanity: logits [{float(pred.min()):.1f}, {float(pred.max()):.1f}]"
+          f" | untrained CE {float(F.cross_entropy(pred, labels[rows, idx])):.2f}",
+          flush=True)
+
+class AnswerTrainer(Trainer):
+    """Cross-entropy on the answer token only. The default causal-LM loss
+    materializes full-vocab fp32 logits for every position - more than the
+    6 GiB GPU can hold next to the model."""
+
+    def compute_loss(self, model, inputs, return_outputs=False,
+                     num_items_in_batch=None):
+        labels = inputs.pop("labels")
+        logits = model(**inputs).logits
+        idx = (labels != -100).int().argmax(dim=1)  # answer token position
+        rows = torch.arange(len(idx), device=logits.device)
+        pred = logits[rows, idx - 1].float()  # distribution predicting it
+        loss = F.cross_entropy(pred, labels[rows, idx])
+        return (loss, logits) if return_outputs else loss
+
+
+args = TrainingArguments(
+    output_dir=str(HERE / "lora_reranker"),
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=16,
+    num_train_epochs=1,
+    max_steps=4 if SMOKE else -1,
+    learning_rate=1e-4,
+    warmup_steps=20,
+    lr_scheduler_type="cosine",
+    fp16=False,
+    optim="paged_adamw_8bit",
+    gradient_checkpointing=True,
+    gradient_checkpointing_kwargs={"use_reentrant": False},
+    max_grad_norm=1.0,
+    logging_steps=10,
+    save_strategy="steps",
+    save_steps=40,
+    save_total_limit=1,
+    report_to=[],
+    seed=42,
+)
+AnswerTrainer(model=model, train_dataset=Pairs(), args=args,
+              data_collator=collate).train()
+model.eval()
+model.save_pretrained(HERE / "lora_reranker" / "adapter")  # LoRA weights only
+print("adapter saved", flush=True)
+
+
+# --- Same evaluation as run05: P(yes) on the first answer token --------------------
+
+@torch.no_grad()
+def p_yes(query, batch_docs):
+    """P(yes)/(P(yes)+P(no)) per document, batched."""
+    prompts = [
+        tok.apply_chat_template(
+            [{"role": "system", "content": SYSTEM},
+             {"role": "user", "content": user_msg(query, d)}],
+            add_generation_prompt=True, return_dict=False,
+        )
+        for d in batch_docs
+    ]
+    pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
+    maxlen = max(len(p) for p in prompts)
+    ids = torch.full((len(prompts), maxlen), pad, dtype=torch.long)
+    attn = torch.zeros((len(prompts), maxlen), dtype=torch.long)
+    for i, p in enumerate(prompts):
+        ids[i, : len(p)] = torch.tensor(p)
+        attn[i, : len(p)] = 1
+    logits = model(input_ids=ids.cuda(), attention_mask=attn.cuda()).logits
+    last = attn.sum(1) - 1  # next-token distribution after each prompt
+    rows = logits[torch.arange(len(prompts)), last.cuda()].float()
+    ly = torch.logsumexp(rows[:, YES_IDS], dim=1)  # all yes/no case variants
+    ln = torch.logsumexp(rows[:, NO_IDS], dim=1)
+    return torch.sigmoid(ly - ln).cpu().numpy()
+
+
+t0 = time.perf_counter()
+ndcg = []
+eval_qids = llm_qids[:5] if SMOKE else llm_qids
+for n, qid in enumerate(eval_qids):
+    sl = shortlists[qid]
+    scores = np.concatenate(
+        [p_yes(queries[qid], sl[i:i + BATCH]) for i in range(0, len(sl), BATCH)]
+    )
+    order = np.argsort(-scores, kind="stable")
+    ndcg.append(ndcg_at_k([sl[i] for i in order], qrels["test"][qid]))
+    if n < 3:  # exhibit material: gold vs distractors
+        gold = [d for d in qrels["test"][qid] if d in sl]
+        print(f"  query {n + 1}: {queries[qid][:60]!r}", flush=True)
+        for i in order[:3]:
+            mark = " <- gold" if sl[i] in gold else ""
+            print(f"    P(yes) {scores[i]:.2f}  {full_text[sl[i]][:60]!r}{mark}",
+                  flush=True)
+eval_time = time.perf_counter() - t0
+mean_ndcg = float(np.mean(ndcg))
+print(
+    f"era 4 llama3.2+LoRA   pointwise nDCG@10 {mean_ndcg:.3f}"
+    f"  ({eval_time / len(eval_qids):.2f} s/query,"
+    f" {len(eval_qids)} queries)",
+    flush=True,
+)
+(HERE / "run06_results_lora.json").write_text(json.dumps(
+    [{"method": "4 llama3.2 3B + LoRA pointwise on mxbai+BM25 top-10",
+      "ndcg10": mean_ndcg,
+      "search_ms": 1000 * eval_time / len(eval_qids)}],
+    indent=2,
+))
+```
