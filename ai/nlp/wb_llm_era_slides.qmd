@@ -193,13 +193,11 @@ def ndcg_at_k(ranked, qrels, k=10):
     return dcg / idcg if idcg else 0.0
 ```
 
-## Metric: nDCG@10 {.center}
+## Scores in context {.center}
 
-Expected scores:
-
-- 0.45 – 0.65: Typical range for standard e-commerce or keyword search engines
-- 0.70 – 0.80: Strong search quality
-- 0.80+: Exceptional performance, usually powered by advanced AI re-rankers or semantic/hybrid search
+- 0.45–0.65: Typical range for standard keyword search engines
+- 0.70–0.80: Strong search quality
+- 0.80+: Exceptional performance
 
 ## Hardware: one small GPU {.center}
 
@@ -210,13 +208,24 @@ For this test, the hardware used was a laptop with: \
 
 ```{.python}
 import json
-import numpy as np
+import re
 
+import numpy as np
 # https://github.com/ollama/ollama-python
 import ollama
-
+import torch
+import torch.nn.functional as F
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 # https://github.com/dorianbrown/rank_bm25
 from rank_bm25 import BM25Okapi
+from torch.utils.data import Dataset
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    Trainer,
+    TrainingArguments,
+)
 ```
 
 ## Load corpus {.center}
@@ -452,7 +461,7 @@ The standard pattern is [retrieve-then-rerank]{.emph}:
 - Ask an LLM to reorder the shortlist
 - One LLM call per query: [extremely high compute demand]{.emph}
 
-## A naive prompt {.center}
+## Naive prompt {.center}
 
 ```{.python}
 resp = ollama.chat(
@@ -475,7 +484,7 @@ Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context win
 
 :::
 
-## What came back {.center}
+## Issues {.center}
 
 Several replies per run could not be parsed:
 
@@ -508,11 +517,12 @@ except (ValueError, KeyError, IndexError):
 
 :::{.note}
 
-Every unparseable reply silently keeps the retriever's ranking: [the measured score was partly the retriever's work, not the LLM's]{.emph}
+Every unparseable reply silently keeps the retriever's ranking: \
+[the measured score was partly the retriever's work, not the LLM's]{.emph}
 
 :::
 
-## A tighter prompt {.center}
+## Better prompt {.center}
 
 State the number of documents, the valid range & the reply length
 
@@ -534,11 +544,11 @@ resp = ollama.chat(
 
 :::{.inlinenote}
 
-Zero unparseable replies from both models
+All replies parsed
 
 :::
 
-## What the 3B model replied {.center}
+## New issues with 3B {.center}
 
 Real reply to the tighter prompt, for a query whose gold document sat at position 1 of the shortlist:
 
@@ -564,11 +574,12 @@ llama3.1 8B   listwise rerank   nDCG@10 0.557  (14.4 s/query)
 
 :::{.note}
 
-The 8B produces genuine orderings, but [both models still damage the 0.693 retrieval they rerank]{.emph}
+The 8B produces genuine orderings, \
+but [both models still damage the 0.693 retrieval they rerank]{.emph}
 
 :::
 
-## Score, do not generate {.center}
+## Good prompt {.center}
 
 The listwise prompt asks the model to [do arithmetic over list positions]{.emph}. Something small transformers are not good at
 
@@ -658,8 +669,9 @@ llama3.2 3B + LoRA   pointwise  nDCG@10 0.739  (13.3 s/query)
 
 :::{.emph}
 
-The same 3B model: \
-0.295 generating a ranking → 0.668 scored → 0.739 fine-tuned
+Same 3B model:
+
+Generating a ranking: 0.295 → Scoring: 0.668 → Fine-tuned: 0.739
 
 :::
 
@@ -688,7 +700,7 @@ All the LLM methods run on 50 queries; the retrievers re-scored on the same 50:
 | llama3.2 3B listwise          | 0.295   | 5.1 s     |
 
 Generating a ranking damaged the retrieval for both models \
-[The fine-tuned 3B now leads every method]{.emph}
+[The fine-tuned 3B is now the best method]{.emph}
 
 ## {.center}
 
@@ -703,6 +715,20 @@ Generating a ranking damaged the retrieval for both models \
 | 4   | llama3.1 8B listwise rerank   | 0.557*  | 14.4 s    |
 | 4   | llama3.2 3B pointwise rerank  | 0.668*  | 3.3 s     |
 | 4   | llama3.1 8B pointwise rerank  | 0.722*  | 7.6 s     |
+| 4   | llama3.2 3B + LoRA pointwise  | 0.739*  | 13.3 s    |
+
+:::{.inlinenote}
+
+*on the 50-query subset. Same benchmark, same hardware: a laptop with a 6 GiB GPU
+
+:::
+
+## {.center}
+
+| Era | Method                        | nDCG@10 | Per query |
+|-----|-------------------------------|---------|-----------|
+| 2   | BM25                          | 0.652   | 15 ms     |
+| 3   | mxbai-embed-large (335M)      | 0.741   | 22 ms     |
 | 4   | llama3.2 3B + LoRA pointwise  | 0.739*  | 13.3 s    |
 
 :::{.inlinenote}
@@ -731,14 +757,14 @@ Fine-tuning of 3B took [one hour of training]{.emph} on the laptop
 - [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger models give better rankings at no time cost
 - Hybrid fusion patches weak retrieval, but drags down strong retrieval
 - A prompted generative model is [not automatically better]{.emph}: asking it to generate a ranking was the worst method
-- Used right (scoring with its [probabilities]{.emph} instead of its prose), the 8B LLM beat the retriever it reranked on the same queries, but [at 345× the cost]{.emph}
+- Used right (scoring with its [probabilities]{.emph} instead of its prose), the 8B LLM beat the retriever it reranked on the same queries, but [345× slower]{.emph}
 - [One hour of LoRA on the training split]{.emph} turned the 3B from the worst to the best method
 
 ## Reach for the LLM when {.center}
 
 The task is [generative]{.emph}:
 
-- Summarize, answer, explain, discuss...
+- Summarize, answer, explain, discuss
 - Extract claims & entities
 
 :::{.note}
@@ -749,11 +775,23 @@ Or score with it when ranking quality matters more than speed
 
 :::
 
-## Full code {.center}
+# Full code
 
-```{.python}
+## Main experiment {.center}
 
-```
+{{< include src/experiment.qmd >}}
+
+## Subset evaluation {.center}
+
+{{< include src/subset.qmd >}}
+
+## Pointwise reranking {.center}
+
+{{< include src/pointwise.qmd >}}
+
+## Fine-tuning with LoRA {.center}
+
+{{< include src/lora.qmd >}}
 
 ---
 
