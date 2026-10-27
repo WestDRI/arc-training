@@ -451,7 +451,69 @@ The standard pattern is [retrieve-then-rerank]{.emph}:
 - Ask an LLM to reorder the shortlist
 - One LLM call per query: [extremely high compute demand]{.emph}
 
-## The call {.center}
+## A naive prompt {.center}
+
+```{.python}
+resp = ollama.chat(
+    model=model,
+    messages=[
+        {"role": "system", "content": "You are a search reranker."},
+        {"role": "user", "content":
+            f"Query: {query}\n\nDocuments:\n{listing}\n\n"
+            "Rank the documents by relevance to the query. "
+            "Reply with the document numbers, most relevant first."},
+    ],
+    format=RERANK_FORMAT,   # JSON schema: {"ranking": [integers]}
+    options={"temperature": 0, "num_predict": 200, "num_ctx": 16384},
+)
+```
+
+:::{.inlinenote}
+
+Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context window
+
+:::
+
+## What came back {.center}
+
+Several replies per run could not be parsed:
+
+```
+query: 'The combination of H3K4me3 and H3K79me2 is found in
+        quiescent hair follicle stem cells.'
+response: '{ "ranking": [1, 3, 11, 12, 13, 14, 15, 16, 17, 18,
+            19, 4, 6, 8, 9, 10, 5, 7, 2, 5, 5, 5, 5, 5, 5,
+error: Expecting value: line 32 column 3 (char 168)
+```
+
+:::{.note}
+
+The model counts & loops over numbers until the generation cap cuts the JSON mid-list: [9 of 50 replies unparseable]{.emph}
+
+:::
+
+## The fallback hid the failures {.center}
+
+The reply is text: code has to turn it into a ranking
+
+```{.python}
+try:
+    nums = json.loads(resp["message"]["content"])["ranking"]
+    ranked = [shortlist[n - 1] for n in nums
+              if 1 <= n <= len(shortlist)]
+except (ValueError, KeyError, IndexError):
+    ranked = shortlist   # fallback: keep the retriever order
+```
+
+:::{.note}
+
+Every unparseable reply silently keeps the retriever's ranking: [the measured score was partly the retriever's work, not the LLM's]{.emph}
+
+:::
+
+## A tighter prompt {.center}
+
+State the number of documents, the valid range & the reply length
 
 ```{.python}
 resp = ollama.chat(
@@ -471,13 +533,13 @@ resp = ollama.chat(
 
 :::{.inlinenote}
 
-Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context window
+Zero unparseable replies from both models
 
 :::
 
 ## What the 3B model replied {.center}
 
-Real reply to the call above, for a query whose gold document sat at position 1 of the shortlist:
+Real reply to the tighter prompt, for a query whose gold document sat at position 1 of the shortlist:
 
 ```
 shortlist: 20 docs | gold document at position 1
@@ -487,7 +549,7 @@ llama3.2 replied: { "ranking": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12] }
 
 :::{.note}
 
-21 does not even exist — the model counts down from N: [counting is not judging]{.emph}
+21 does not even exist — the model counts down from N: [the tighter prompt fixed the format, not the judgment]{.emph}
 
 :::
 
