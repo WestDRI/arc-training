@@ -1,0 +1,839 @@
+---
+title: From pipelines to prompts
+subtitle: NLP in the LLM era
+author: Marie-Hélène Burle
+bibliography: nlp.bib
+csl: ../../diabetologia.csl
+---
+
+:::{.def}
+
+*Content from [the webinar slides](wb_llm_era_slides.qmd) for easier browsing.*
+
+:::
+
+## 4 eras of NLP
+
+### Era 1: Symbolic era
+
+*1950s–1970s*
+
+**Complex, hard-coded rules written by linguists.**
+
+Alan Turing's ["Computing Machinery and Intelligence"](https://en.wikipedia.org/wiki/Computing_Machinery_and_Intelligence) (1950), IBM's Russian to English translations (1954), and MIT's [ELIZA](https://en.wikipedia.org/wiki/ELIZA) (1964–1967), the first rule-based chatbot.
+
+### Era 2: Lexical search
+
+*1980s–1990s*
+
+**Statistical methods.**
+
+Algorithms learn patterns & probabilities from data (large corpora).
+
+### Era 3: Dense retrieval
+
+*2000s–2010s*
+
+**Machine learning & early deep learning models.**
+
+Vector embeddings, e.g. [Word2Vec](https://en.wikipedia.org/wiki/Word2Vec) (2013): mathematical representation of words based on their semantic meanings & contextual relationships.
+
+[Recurrent Neural Networks (RNNs)](https://en.wikipedia.org/wiki/Recurrent_neural_network) such as [Long Short-Term Memory (LSTM)](https://en.wikipedia.org/wiki/Long_short-term_memory) networks for speech recognition & translation.
+
+### Era 4: LLMs
+
+*2017–present*
+
+**Transformer-based large language models.**
+
+Self-attention mechanism, massive scaling, generative AI.
+
+[BERT](https://en.wikipedia.org/wiki/BERT_(language_model)), [GPT](https://en.wikipedia.org/wiki/Products_and_applications_of_OpenAI#Text_generation), [Gemini](https://en.wikipedia.org/wiki/Gemini_(language_model)), [Claude](https://en.wikipedia.org/wiki/Claude_(AI)), [Kimi](https://en.wikipedia.org/wiki/Kimi_(AI)), [GLM](https://en.wikipedia.org/wiki/GLM_(AI)), [Llama](https://en.wikipedia.org/wiki/Llama_(language_model)), etc.
+
+## The question
+
+:::{.emph}
+
+If LLMs can do everything, are task-specific methods dead?
+
+Let's find out with one test case.
+
+:::
+
+### Benchmark: BEIR/SciFact
+
+The [SciFact](https://arxiv.org/abs/2004.14974) [@wadden2020factfictionverifyingscientific] dataset is a benchmark for scientific claim verification (2020), part of the [BEIR](https://arxiv.org/abs/2104.08663) [@thakur2021beir] standard suite of information retrieval benchmarks:
+
+- [5,183 scientific abstracts]{.emph},
+- [1,409 scientific claims]{.emph},
+- [Expert annotators' ground truth]{.emph}.
+
+### Get the data
+
+```{.bash}
+curl -L -o scifact.zip \
+  https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
+```
+
+:::{.notenoit}
+
+Alternative methods to get the data:
+
+- from the [GitHub repo](https://github.com/allenai/scifact),
+- from [Hugging Face](https://huggingface.co/datasets/allenai/scifact):
+
+```{.python}
+from datasets import load_dataset
+dataset = load_dataset("allenai/scifact")
+```
+
+:::
+
+### Structure of the data
+
+[scifact.zip]{.codelike} unzips to a [scifact]{.codelike} dir with:
+
+[corpus.jsonl]{.codelike}: a corpus of research abstracts \
+  ➔ `_id`, `title`, `text` (abstract of scientific paper).
+
+[queries.jsonl]{.codelike}: scientific claims to be verified against the corpus \
+  ➔ `id`, `text` (claim), `label` (`contradict` / `support`).
+
+[qrels]{.codelike} dir with [train.tsv]{.codelike} & [test.tsv]{.codelike}: relevance judgments for training & testing \
+  ➔ `corpus-id`, `query-id`, `score`.
+
+### Methods
+
+::::{.columns}
+
+:::{.column width="50%"}
+
+**Lexical ranking algorithm** \
+Sparse keyword search
+
+- [BM25](https://en.wikipedia.org/wiki/Okapi_BM25)
+
+:::
+
+:::{.column width="50%"}
+
+**Dense retrieval** \
+Semantic vectors via embeddings
+
+- [all-minilm](https://ollama.com/library/all-minilm) (23M)
+- [nomic-embed-text](https://ollama.com/library/nomic-embed-text) (137M)
+- [mxbai-embed-large](https://ollama.com/library/mxbai-embed-large) (335M)
+
+:::
+
+::::
+
+::::{.columns}
+
+:::{.column width="50%"}
+
+**Reciprocal Rank Fusion** \
+Hybrid keyword + embeddings
+
+:::
+
+:::{.column width="50%"}
+
+**LLMs** \
+Reranking the shortlist
+
+- [llama3.2 3B](https://ollama.com/library/llama3.2:3b)
+- [llama3.1 8B](https://ollama.com/library/llama3.1:8b)
+
+:::
+
+::::
+
+### Metric: nDCG@10
+
+[Normalized Discounted Cumulative Gain](https://en.wikipedia.org/wiki/Discounted_cumulative_gain) at rank 10 is a standard ranking quality metric in information retrieval, search engines & recommendation systems.
+
+Measures how well a system places the most relevant items within the first 10 results.
+
+```{.python}
+def ndcg_at_k(ranked, qrels, k=10):
+    dcg = sum(qrels.get(d, 0) / np.log2(r + 2)
+              for r, d in enumerate(ranked[:k]))
+    ideal = sorted(qrels.values(), reverse=True)[:k]
+    idcg = sum(g / np.log2(r + 2) for r, g in enumerate(ideal))
+    return dcg / idcg if idcg else 0.0
+```
+
+### Scores in context
+
+Across the 18 datasets of BEIR, BM25 averages an nDCG@10 of 0.48 [@thakur2021beir].
+
+SciFact is one of the most keyword-friendly datasets of the suite: scientific claims are full of rare exact terms.
+
+:::{.note}
+
+Rule of thumb on this benchmark: 0.70+ is strong & 0.80+ is exceptional.
+
+:::
+
+### Hardware: one small GPU
+
+For this test, the hardware used was a laptop with 8 cores, 16 threads, 30 GiB of RAM, and a **small 6 GiB GPU**.
+
+### Load packages
+
+```{.python}
+import json
+import re
+
+import numpy as np
+# https://github.com/ollama/ollama-python
+import ollama
+import torch
+import torch.nn.functional as F
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+# https://github.com/dorianbrown/rank_bm25
+from rank_bm25 import BM25Okapi
+from torch.utils.data import Dataset
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    Trainer,
+    TrainingArguments,
+)
+```
+
+### Load corpus
+
+```{.python}
+corpus = {}  # doc id -> {"title": ..., "text": ...}
+
+with open("scifact" / "corpus.jsonl", encoding="utf-8") as f:
+    for line in f:
+        doc = json.loads(line)
+        corpus[doc["_id"]] = {
+            "title": doc.get("title") or "",
+            "text": doc["text"],
+        }
+```
+
+### Load queries
+
+```{.python}
+queries = {}  # query id -> text
+
+with open("scifact" / "queries.jsonl", encoding="utf-8") as f:
+    for line in f:
+        q = json.loads(line)
+        queries[q["_id"]] = q["text"]
+```
+
+### Load relevance judgments
+
+```{.python}
+qrels = {}  # query id -> {doc id: relevance}
+
+with open("scifact" / "qrels" / "test.tsv", encoding="utf-8") as f:
+    next(f)
+    for line in f:
+        qid, did, score = line.split("\t")
+        qrels.setdefault(qid, {})[did.strip()] = int(score)
+```
+
+## Lexical ranking algorithm
+
+### BM25
+
+A [bag-of-words](https://en.wikipedia.org/wiki/Bag-of-words_model) retrieval function ranks documents by how relevant they are to a search query. It uses literal keyword matches (1994).
+
+Improved version of [term frequency–inverse document frequency (TF-IDF)](https://en.wikipedia.org/wiki/Tf–idf) with length normalization.
+
+No training, CPU-based, still widely used (e.g. [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch)).
+
+:::{.note}
+
+Fails on [vocabulary mismatch](https://en.wikipedia.org/wiki/Vocabulary_mismatch) & paraphrase.
+
+Example: "heart attack" does not match "myocardial infarction".
+
+:::
+
+### Code
+
+```{.python}
+def tokenize(text):
+    """Crude but sufficient: lowercase alphanumeric tokens."""
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+# Build the index
+bm25 = BM25Okapi([tokenize(full_text[d]) for d in docs])
+
+# Score every document
+scores = bm25.get_scores(tokenize(query))
+
+# Sort
+ranking = [docs[i] for i in np.argsort(-scores)]
+```
+
+### Result
+
+```
+BM25  nDCG@10 0.652  (15.0 ms/query)
+```
+
+:::{.emph}
+
+0.652 with zero training, one second of indexing & 15 ms per query.
+
+:::
+
+A very serious baseline on this dataset.
+
+## Dense retrieval
+
+### The idea
+
+A trained [embedding](https://en.wikipedia.org/wiki/Embedding_(machine_learning)) model maps texts to vectors based on meaning:
+
+- Index: embed every abstract once,
+- Search: embed the query, rank by [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity),
+- Solves vocabulary mismatch: "heart attack" & "myocardial infarction" have close vectors.
+
+:::{.note}
+
+Dense retrieval does not scan text; it compares coordinates. That is why it needs an index of embeddings.
+
+:::
+
+### 3 model sizes
+
+| Model             | Params | Year | Disk   |
+|-------------------|--------|------|--------|
+| all-minilm        | 23M    | 2020 | 45 MB  |
+| nomic-embed-text  | 137M   | 2024 | 274 MB |
+| mxbai-embed-large | 335M   | 2024 | 669 MB |
+
+Pulled by [ollama](https://ollama.com):
+
+```{.bash}
+ollama pull all-minilm nomic-embed-text mxbai-embed-large
+```
+
+Served locally:
+
+```{.bash}
+ollama serve
+```
+
+### Embedding the corpus
+
+```{.python}
+def embed(texts, model, batch=64):
+    out = []
+    for i in range(0, len(texts), batch):
+        out.extend(ollama.embed(model=model,
+                                input=texts[i:i+batch])["embeddings"])
+    emb = np.asarray(out, dtype=np.float32)
+    # L2-normalization
+    emb /= np.linalg.norm(emb, axis=1, keepdims=True)  # unit vectors
+    return emb
+
+doc_emb = embed([full_text[d] for d in docs], model)
+```
+
+L2-normalization makes every later dot product a cosine similarity.
+
+:::{.note}
+
+On the laptop GPU, indexing 5,183 abstracts took 150 s with the largest model.
+
+:::
+
+### Searching
+
+```{.python}
+q = np.asarray(
+    ollama.embed(model=model, input=[query])["embeddings"][0],
+    dtype=np.float32,
+)
+# L2-normalization
+q /= np.linalg.norm(q)
+
+ranking = [docs[i] for i in np.argsort(-(doc_emb @ q))]
+```
+
+One matrix-vector product against the whole corpus: [20 milliseconds]{.emph}.
+
+:::{.inlinenote}
+
+Each model gets its recommended query format \
+Abstracts are truncated at each model's own context limit.
+
+:::
+
+### Results
+
+```
+all-minilm         nDCG@10 0.648  (20.1 ms/query)
+nomic-embed-text   nDCG@10 0.703  (18.1 ms/query)
+mxbai-embed-large  nDCG@10 0.741  (22.3 ms/query)
+```
+
+The 2020 miniature model ties BM25. The modern models do better.
+
+Bigger embedding model → better rankings at [the same speed]{.emph}.
+
+## Reciprocal Rank Fusion (RRF)
+
+### The idea
+
+Fuse two rankings by rank position, no score calibration needed [@10.1145/1571941.1572114].
+
+```{.python}
+RRF_K = 60  # classic constant (Cormack et al. 2009)
+
+def rrf(rankings):
+    fused = {}
+    for qid in eval_qids:
+        scores = {}
+        for ranking in rankings.values():
+            for rank, d in enumerate(ranking[qid]):
+                scores[d] = scores.get(d, 0.0) + 1.0 / (RRF_K + rank)
+        fused[qid] = sorted(scores, key=scores.get, reverse=True)
+    return fused
+```
+
+### Results
+
+```
+RRF (nomic + BM25):   0.702 -> 0.706   # helped a little
+RRF (mxbai + BM25):   0.741 -> 0.731   # hurt
+```
+
+Whether or not a hybrid method helps depends:
+
+- With a mediocre embedder, fusion buys back what each method misses,
+- Once one signal is much stronger, [fusing drags it down]{.emph}.
+
+:::{.note}
+
+Hybrid search is a patch for weak retrieval.
+
+:::
+
+## LLMs
+
+### Commercial LLMs
+
+It is cheap and easy to use a large, last-generation LLM running on the platform of a company (e.g. [GPT](https://en.wikipedia.org/wiki/Products_and_applications_of_OpenAI#Text_generation), [Gemini](https://en.wikipedia.org/wiki/Gemini_(language_model)), [Claude](https://en.wikipedia.org/wiki/Claude_(AI))).
+
+These models are now excellent at most tasks, including NLP ones.
+
+There are many situations, however, in which they are not suitable:
+
+- Reproducibility (companies can tweak, change, or take down models as they wish),
+- Sensitive data,
+- Concerns about bias in the models,
+- Training on specific data.
+
+### Open-weight models
+
+Open-weight models offer a great alternative, but very large ones (e.g. [Kimi](https://en.wikipedia.org/wiki/Kimi_(AI)), [GLM](https://en.wikipedia.org/wiki/GLM_(AI)), [Llama](https://en.wikipedia.org/wiki/Llama_(language_model))) require massive amounts of compute to run locally, fine-tune, or train.
+
+Thankfully, small open-weight LLMs that run on a laptop can be powerful after fine-tuning.
+
+Some open-source tools make this easy:
+
+- [Ollama](https://github.com/ollama/ollama) to run them locally,
+- [unsloth](https://github.com/unslothai/unsloth) to train, fine-tune & serve them,
+- [SGLang](https://github.com/sgl-project/sglang) to serve them in production.
+
+We will use two very small versions of [Llama](https://en.wikipedia.org/wiki/Llama_(language_model)).
+
+### The constraint
+
+A generative model [cannot scan 5,183 abstracts]{.emph}: it has no index & reads tokens one prompt at a time.
+
+The standard pattern is [retrieve-then-rerank]{.emph}:
+
+- Retrieve a shortlist: top-10 BM25 or top-10 dense (≤ 20 documents),
+- Ask an LLM to reorder the shortlist,
+- One LLM call per query: [extremely high compute demand]{.emph}.
+
+### Naive prompt
+
+```{.python}
+resp = ollama.chat(
+    model=model,
+    messages=[
+        {"role": "system", "content": "You are a search reranker."},
+        {"role": "user", "content":
+            f"Query: {query}\n\nDocuments:\n{listing}\n\n"
+            "Rank the documents by relevance to the query. "
+            "Reply with the document numbers, most relevant first."},
+    ],
+    format=RERANK_FORMAT,   # JSON schema: {"ranking": [integers]}
+    options={"temperature": 0, "num_predict": 200, "num_ctx": 16384},
+)
+```
+
+:::{.inlinenote}
+
+Full abstracts (median ~360 tokens), so the prompt needs a 16k-token context window.
+
+:::
+
+### Issues
+
+Several replies per run could not be parsed:
+
+```
+query: 'The combination of H3K4me3 and H3K79me2 is found in
+        quiescent hair follicle stem cells.'
+response: '{ "ranking": [1, 3, 11, 12, 13, 14, 15, 16, 17, 18,
+            19, 4, 6, 8, 9, 10, 5, 7, 2, 5, 5, 5, 5, 5, 5,
+error: Expecting value: line 32 column 3 (char 168)
+```
+
+:::{.note}
+
+The model counts & loops over numbers until the generation cap cuts the JSON mid-list: [9 of 50 replies unparseable]{.emph}.
+
+:::
+
+### The fallback hid the failures
+
+The reply is text: code has to turn it into a ranking.
+
+```{.python}
+try:
+    nums = json.loads(resp["message"]["content"])["ranking"]
+    ranked = [shortlist[n - 1] for n in nums
+              if 1 <= n <= len(shortlist)]
+except (ValueError, KeyError, IndexError):
+    ranked = shortlist   # fallback: keep the retriever order
+```
+
+:::{.note}
+
+Every unparseable reply silently keeps the retriever's ranking: \
+[the measured score was partly the retriever's work, not the LLM's]{.emph}.
+
+:::
+
+### Better prompt
+
+State the number of documents, the valid range & the reply length.
+
+```{.python}
+resp = ollama.chat(
+    model=model,
+    messages=[
+        {"role": "system", "content": "You are a search reranker."},
+        {"role": "user", "content":
+            f"Query: {query}\n\nDocuments:\n{listing}\n\n"
+            f"There are {len(shortlist)} documents, numbered "
+            f"1 to {len(shortlist)}. Reply with the 10 most relevant "
+            "document numbers, most relevant first."},
+    ],
+    format=RERANK_FORMAT,   # JSON schema: {"ranking": [integers]}
+    options={"temperature": 0, "num_predict": 200, "num_ctx": 16384},
+)
+```
+
+:::{.inlinenote}
+
+All replies parsed.
+
+:::
+
+### New issues with 3B
+
+Real reply to the better prompt, for a query whose gold document sat at position 1 of the shortlist:
+
+```
+shortlist: 20 docs | gold document at position 1
+
+llama3.2 replied: { "ranking": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12] }
+```
+
+:::{.note}
+
+21 does not even exist: the model counts down from N \
+[The better prompt fixed the format, but not the judgment]{.emph}.
+
+:::
+
+### Results
+
+```
+llama3.2 3B   listwise rerank   nDCG@10 0.295  (5.1 s/query)
+llama3.1 8B   listwise rerank   nDCG@10 0.557  (14.4 s/query)
+```
+
+:::{.note}
+
+The 8B produces genuine orderings, \
+but [both models still damage the 0.693 retrieval they rerank]{.emph}.
+
+:::
+
+### Good prompt
+
+The listwise prompt asks the model to [do arithmetic over list positions]{.emph} — something small transformers are not good at.
+
+Instead: judge one document at a time & read the answer from the model's own distribution.
+
+### Score, do not generate
+
+One small prompt per document, rather than a giant prompt per query:
+
+```{.python}
+resp = ollama.chat(
+    model=model,
+    messages=[
+        {"role": "system", "content": "You are a search reranker."},
+        {"role": "user", "content":
+            f"Claim: {query}\n\nAbstract: {full_text[d]}\n\n"
+            "Is this abstract relevant to the claim? "
+            "Answer with exactly one word: yes or no."},
+    ],
+    logprobs=True, top_logprobs=10,
+    options={"temperature": 0, "num_predict": 1, "num_ctx": 2048},
+)
+```
+
+### The score
+
+```{.python}
+lp = {e["token"]: e["logprob"]
+      for e in resp["logprobs"][0]["top_logprobs"]}
+
+yes = max(lp[t] for t in ("yes", "Yes", " yes"))
+no  = max(lp[t] for t in ("no", "No", " no"))
+
+score = np.exp(yes) / (np.exp(yes) + np.exp(no))  # P(yes)
+```
+
+Rank the shortlist by P(yes).
+
+:::{.note}
+
+P(yes) straight from the model's distribution: [no list to count, no text to parse]{.emph}.
+
+:::
+
+### Pointwise results
+
+```
+llama3.2 3B   pointwise  nDCG@10 0.668  (3.3 s/query)
+llama3.1 8B   pointwise  nDCG@10 0.722  (7.6 s/query)
+```
+
+:::{.emph}
+
+The 8B now beats the 0.693 retriever it starts from.
+
+:::
+
+### Fine-tuning
+
+The LLMs we used are general-purpose chat models. While extremely large models are great at any task without fine-tuning, small ones are not. It is not surprising that they perform poorly here.
+
+[Fine-tuning](https://en.wikipedia.org/wiki/Fine-tuning_(deep_learning)) can teach these models to perform much better at a narrow skill.
+
+[Parameter-Efficient Fine-Tuning (PEFT)](https://huggingface.co/blog/peft) does this by only training a tiny fraction of the parameters while freezing the rest.
+
+[Low-Rank Adaptation (LoRA)](https://en.wikipedia.org/wiki/LoRA_(machine_learning)) [@hu2021loralowrankadaptationlarge] is a popular [PEFT](https://huggingface.co/blog/peft) technique that trains tiny adapter matrices beside a frozen model.
+
+Let's train the 4-bit llama3.2 3B that fits the 6 GiB GPU:
+
+- [400 claims from the training split]{.emph} (the test split was never touched): the same `yes`/`no` prompt, gold abstracts & BM25 hard negatives,
+- Loss on the answer token only,
+- One epoch: [57 minutes on the laptop]{.emph}.
+
+### How LoRA works
+
+```{dot}
+//| echo: false
+
+// LoRA: a frozen weight matrix plus a trainable low-rank correction.
+// Effective weights: W + (alpha/r) * B @ A
+//
+// Numbers are for one q_proj matrix of llama3.2 3B (3072 x 3072 ~ 9.4M
+// weights; adapter pair 2 x 3072 x 16 = 98K). Across all 28 layers and the
+// seven targeted projections: 24.3M of 3.2B parameters trainable (0.75%).
+//
+// Render: dot -Tsvg lora.gv -o lora.svg
+digraph LoRA {
+  rankdir=LR;
+  bgcolor="transparent";
+  nodesep=0.4;
+  ranksep=0.7;
+  node [fontname="Helvetica Neue, Arial, sans-serif", fontsize=15,
+        shape=box, style="rounded,filled", margin="0.16,0.09"];
+  edge [fontname="Helvetica Neue, Arial, sans-serif", fontsize=12,
+        color="#595959", penwidth=1.6, arrowsize=0.7];
+
+  // Input and output
+  x   [label="x", shape=circle, fillcolor="#ffffff", color="#595959",
+       fontcolor="#30173d"];
+  out [label="output", fillcolor="#ffffff", color="#595959",
+       fontcolor="#30173d"];
+
+  // Frozen path: the pre-trained weight matrix, never updated
+  W [label="W\n3072 × 3072\nFrozen — never trained",
+     fillcolor="#f2f2f2", color="#8c8c8c", fontcolor="#4d4d4d",
+     style="rounded,filled,dashed"];
+
+  // Trainable path: the LoRA adapters, the only weights that change
+  A [label="A\n16 × 3072\nTrainable",
+     fillcolor="#fce8e9", color="#b5111b", fontcolor="#8a0d15"];
+  B [label="B\n3072 × 16\nTrainable",
+     fillcolor="#fce8e9", color="#b5111b", fontcolor="#8a0d15"];
+
+  // Sum of both paths
+  add [label="+", shape=circle, fillcolor="#ffffff", color="#595959",
+       fontcolor="#30173d"];
+
+  x   -> W [color="#8c8c8c"];
+  x   -> A [color="#b5111b"];
+  A   -> B [color="#b5111b", label="r = 16", fontcolor="#8a0d15"];
+  W   -> add [color="#8c8c8c"];
+  B   -> add [color="#b5111b"];
+  add -> out;
+
+  label="Effective weights: W + B·A scaled by α/r = 2\n24.3M of 3.2B parameters trainable (0.75%)";
+  labelloc=b;
+  labelfontsize=13;
+  labelfontname="Helvetica Neue, Arial, sans-serif";
+  fontcolor="#4d4d4d";
+}
+```
+
+### The code
+
+```{.python}
+bnb = BitsAndBytesConfig(load_in_4bit=True,
+                         bnb_4bit_quant_type="nf4")
+model = AutoModelForCausalLM.from_pretrained(
+    "unsloth/Llama-3.2-3B-Instruct",
+    quantization_config=bnb, device_map={"": 0})
+model = prepare_model_for_kbit_training(model)
+model = get_peft_model(model, LoraConfig(
+    r=16, lora_alpha=32, lora_dropout=0.05,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"]))
+```
+
+### Results
+
+```
+llama3.2 3B + LoRA   pointwise  nDCG@10 0.739  (13.3 s/query)
+```
+
+:::{.emph}
+
+Same 3B model:
+
+Generating a ranking: 0.295 → Scoring: 0.668 → Fine-tuned: 0.739.
+
+:::
+
+:::{.note}
+
+The judgment is calibrated too: gold at P(yes) 0.76 vs 0.47 for the next abstract \
+The untuned model tied them at 0.82.
+
+:::
+
+## Verdict
+
+### Full comparison
+
+All the LLM methods run on 50 queries; the retrievers re-scored on the same 50:
+
+| Method                        | nDCG@10 | Per query |
+|-------------------------------|---------|-----------|
+| llama3.2 3B + LoRA pointwise  | 0.739   | 13.3 s    |
+| llama3.1 8B pointwise         | 0.722   | 7.6 s     |
+| nomic-embed-text (retriever)  | 0.706   | 18 ms     |
+| mxbai-embed-large (retriever) | 0.693   | 22 ms     |
+| llama3.2 3B pointwise         | 0.668   | 3.3 s     |
+| RRF hybrid (mxbai + BM25)     | 0.651   | —         |
+| all-minilm (retriever)        | 0.622   | 20 ms     |
+| BM25 (retriever)              | 0.606   | 15 ms     |
+| llama3.1 8B listwise          | 0.557   | 14.4 s    |
+| llama3.2 3B listwise          | 0.295   | 5.1 s [Fine-tuned 3B is now the best method]{.emph}.
+
+### Best per era
+
+| Era | Method                        | nDCG@10 | Per query |
+|-----|-------------------------------|---------|-----------|
+| 2   | BM25                          | 0.606   | 15 ms     |
+| 3   | mxbai-embed-large (335M)      | 0.693   | 22 ms     |
+| 4   | llama3.2 3B + LoRA pointwise  | 0.739   | 13.3 s:::{.inlinenote}
+
+All on the same 50 queries, same benchmark, same hardware: a laptop with a 6 GiB GPU.
+
+:::
+
+### The LLM cost
+
+|               | Embedding search | LLM reranking            |
+|---------------|------------------|--------------------------|
+| Per query     | 22 ms            | 3.3 s to 14.4 s          |
+| Slowdown      | 1×               | [150× to 650×]{.emph}    |
+| Model on disk | 669 MB           | 2.0 to 4.9 GB        :::{.note}
+
+Only the 8B pointwise (7.6 s) & the fine-tuned 3B (13.3 s) beat the embedder. \
+Fine-tuning of 3B took [one hour of training]{.emph} on the laptop.
+
+:::
+
+### Takeaways
+
+- [Embeddings remain a practical and efficient choice for semantic search]{.emph}, and they scale gracefully: bigger models give better rankings at essentially the same speed,
+- Hybrid fusion patches weak retrieval, but drags down strong retrieval,
+- A prompted generative model is [not automatically better]{.emph}: asking it to generate a ranking was the worst method,
+- Used right (scoring with its [probabilities]{.emph} instead of its prose), the 8B LLM beat the retriever it reranked on the same queries, but [345× slower]{.emph},
+- [One hour of LoRA on the training split]{.emph} turned the 3B from the worst to the best method.
+
+### Reach for the LLM when
+
+The task is [generative]{.emph}:
+
+- Summarize, answer, explain, discuss,
+- Extract claims & entities.
+
+:::{.note}
+
+Retrieval and generation are different jobs. Let the embedder retrieve and the LLM do what only an LLM can do.
+
+Or score with it when ranking quality matters more than speed.
+
+:::
+
+## Full code
+
+### Main experiment
+
+{{< include src/experiment.qmd >}}
+
+### Subset evaluation
+
+{{< include src/subset.qmd >}}
+
+### Pointwise reranking
+
+{{< include src/pointwise.qmd >}}
+
+### Fine-tuning with LoRA
+
+{{< include src/lora.qmd >}}
+
+## References
+
+:::{#refs}
+:::
