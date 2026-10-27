@@ -2,7 +2,7 @@
 # normal workflow: sudo systemctl start ollama.service
 # in bbox, no systemd, start with: ollama serve
 
-"""Semantic search across three eras of NLP: lexical, dense, generative.
+"""Semantic search across the data-driven eras of NLP: lexical, dense, generative.
 
 Experiment backing the webinar "From pipelines to prompts: NLP in the LLM era"
 (see wb_llm_era.qmd). One task - semantic search - on one benchmark:
@@ -10,14 +10,17 @@ Experiment backing the webinar "From pipelines to prompts: NLP in the LLM era"
     BEIR/SciFact: 5,183 scientific abstracts, ~300 test queries
     (scientific claims) with gold relevance judgements.
 
-The eras:
+The eras (numbered as in the webinar slides, where era 1 is the symbolic
+era, not tested here as it involves no data-driven method):
 
-1. Lexical search   BM25 (no model, exact-term matching)
-2. Dense retrieval  embedding similarity, three model sizes
-3. Generative       LLMs (llama3.2 3B, llama3.1 8B via ollama) reranking
-                    a shortlist
+2. Lexical search   BM25 (no model, exact-term matching)
+3. Dense retrieval  embedding similarity, three model sizes
+4. Generative       LLMs (llama3.2 3B, llama3.1 8B via ollama) reranking
+                    a shortlist, two ways: the brute-force listwise prompt
+                    and pointwise P(yes) scoring read from the model
+                    logprobs
 
-Plus the standard hybrid trick (reciprocal rank fusion of eras 1 and 2).
+Plus the standard hybrid trick (reciprocal rank fusion of eras 2 and 3).
 
 Everything is scored with nDCG@10 on the same qrels. No method is given an
 unfair edge: the numbers land where they land and the webinar conclusion
@@ -63,7 +66,7 @@ EMB_MODELS = [
 QUERY_PREFIX = {
     "mxbai-embed-large": "Represent this sentence for searching relevant passages: "
 }
-LLM_MODELS = ["llama3.2", "llama3.1:8b"]  # 3B then 8B: does scaling fix era 3?
+LLM_MODELS = ["llama3.2", "llama3.1:8b"]  # 3B then 8B: does scaling fix era 4?
 # Reranking full abstracts (median ~360 tokens, p99 ~790) means ~8-16k token
 # prompts, far past ollama's 4k default context. Weights + 16k of KV cache only
 # fit the 6 GiB GPU for the 8B model with flash attention and a compressed cache.
@@ -139,7 +142,7 @@ print(
 full_text = {d: f"{corpus[d]['title']}. {corpus[d]['text']}" for d in docs}
 
 
-# --- Era 1: lexical search (BM25) ----------------------------------------------
+# --- Era 2: lexical search (BM25) ----------------------------------------------
 
 # No model at all: score docs by exact (unigram) term overlap with the query.
 # Fails on vocabulary mismatch - and on SciFact it is still a serious
@@ -159,19 +162,19 @@ bm25_search_time = time.perf_counter() - t0
 bm25_ndcg = float(np.mean([ndcg_at_k(bm25_rankings[q], qrels[q]) for q in eval_qids]))
 RESULTS.append(
     {
-        "method": "1a BM25 (lexical)",
+        "method": "2 BM25 (lexical)",
         "ndcg10": bm25_ndcg,
         "index_s": bm25_index_time,
         "search_ms": 1000 * bm25_search_time / len(eval_qids),
     }
 )
 print(
-    f"era 1  BM25             nDCG@10 {bm25_ndcg:.3f}"
+    f"era 2  BM25             nDCG@10 {bm25_ndcg:.3f}"
     f"  ({bm25_search_time * 1000 / len(eval_qids):.1f} ms/query)"
 )
 
 
-# --- Era 2: dense retrieval (embeddings) ---------------------------------------
+# --- Era 3: dense retrieval (embeddings) ---------------------------------------
 
 CACHE = Path(__file__).parent / ".emb_cache"
 
@@ -195,7 +198,7 @@ def embed(texts: list[str], model: str, batch: int = 64) -> np.ndarray:
     return emb
 
 
-best_dense = None  # (ndcg, model, rankings) of the era 2 winner
+best_dense = None  # (ndcg, model, rankings) of the era 3 winner
 for model in EMB_MODELS:
     t0 = time.perf_counter()
     doc_emb = embed([full_text[d] for d in docs], model)
@@ -215,14 +218,14 @@ for model in EMB_MODELS:
     ndcg = float(np.mean([ndcg_at_k(rankings[q], qrels[q]) for q in eval_qids]))
     RESULTS.append(
         {
-            "method": f"2 {model}",
+            "method": f"3 {model}",
             "ndcg10": ndcg,
             "index_s": index_time,
             "search_ms": 1000 * search_time / len(eval_qids),
         }
     )
     print(
-        f"era 2  {model:<17} nDCG@10 {ndcg:.3f}"
+        f"era 3  {model:<17} nDCG@10 {ndcg:.3f}"
         f"  ({index_time:.0f}s index, "
         f"{1000 * search_time / len(eval_qids):.1f} ms/query)"
     )
@@ -232,7 +235,7 @@ for model in EMB_MODELS:
 _, dense_model, dense_rankings = best_dense
 
 
-# --- Hybrid: reciprocal rank fusion of eras 1 and 2 -----------------------------
+# --- Hybrid: reciprocal rank fusion of eras 2 and 3 -----------------------------
 
 
 def rrf(rankings: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -251,7 +254,7 @@ rrf_rankings = rrf({"bm25": bm25_rankings, "dense": dense_rankings})
 rrf_ndcg = float(np.mean([ndcg_at_k(rrf_rankings[q], qrels[q]) for q in eval_qids]))
 RESULTS.append(
     {
-        "method": f"2+1 hybrid RRF ({dense_model} + BM25)",
+        "method": f"3+2 hybrid RRF ({dense_model} + BM25)",
         "ndcg10": rrf_ndcg,
         "index_s": np.nan,
         "search_ms": np.nan,
@@ -260,10 +263,10 @@ RESULTS.append(
 print(f"hyb   RRF fusion       nDCG@10 {rrf_ndcg:.3f}")
 
 
-# --- Era 3: LLM reranker ---------------------------------------------------------
+# --- Era 4: LLM rerankers ---------------------------------------------------------
 
 # A generative model cannot scan the corpus; it can only reorder a shortlist.
-# Standard pattern: retrieve top-k with era 1/2 methods, let the LLM rerank.
+# Standard pattern: retrieve top-k with era 2/3 methods, let the LLM rerank.
 # This is the only place compute explodes: one LLM call per query.
 
 
@@ -339,16 +342,104 @@ for llm in LLM_MODELS:
     )
     RESULTS.append(
         {
-            "method": f"3 {llm} rerank on {dense_model}+BM25 top-{K}",
+            "method": f"4 {llm} listwise rerank on {dense_model}+BM25 top-{K}",
             "ndcg10": llm_ndcg,
             "index_s": np.nan,
             "search_ms": 1000 * llm_time / len(llm_qids),
         }
     )
     print(
-        f"era 3 {llm:<15} rerank nDCG@10 {llm_ndcg:.3f}"
+        f"era 4 {llm:<15} listwise rerank nDCG@10 {llm_ndcg:.3f}"
         f"  ({llm_time / len(llm_qids):.1f} s/query,"
         f" {len(llm_qids)} queries, {n_fail} unparseable)"
+    )
+
+
+# --- Era 4, take 2: pointwise scoring ---------------------------------------------
+
+# The listwise prompt asks the model to do arithmetic over list positions -
+# exactly what small transformers fumble (counting loops, countdown replies).
+# Alternative: judge one document at a time and read the answer from the
+# model's own distribution: score = P(yes) / (P(yes) + P(no)) on the first
+# generated token. No list to count, no JSON to truncate, no fallback. And
+# one abstract per prompt fits a small context window (no 16k KV cache).
+
+YES = ("yes", "Yes", " yes", " Yes")
+NO = ("no", "No", " no", " No")
+
+
+def p_yes(resp) -> float:
+    """P(yes) / (P(yes) + P(no)) from the first generated token's logprobs."""
+    lp = {e["token"]: e["logprob"] for e in resp["logprobs"][0]["top_logprobs"]}
+    yes = max((lp[t] for t in YES if t in lp), default=None)
+    no = max((lp[t] for t in NO if t in lp), default=None)
+    if yes is None and no is None:
+        return 0.5  # the model dodged the question: no signal
+    if no is None:
+        return 1.0
+    if yes is None:
+        return 0.0
+    ey, en = np.exp(yes), np.exp(no)
+    return float(ey / (ey + en))
+
+
+for llm in LLM_MODELS:
+    t0 = time.perf_counter()
+    llm_rankings = {}
+    for qid in llm_qids:
+        for attempt in range(3):
+            try:
+                scores = []
+                for d in shortlists[qid]:
+                    resp = ollama.chat(
+                        model=llm,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a search reranker.",
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Claim: {queries[qid]}\n\n"
+                                f"Abstract: {full_text[d]}\n\n"
+                                "Is this abstract relevant to the claim? "
+                                "Answer with exactly one word: yes or no.",
+                            },
+                        ],
+                        logprobs=True,
+                        top_logprobs=10,
+                        options={"temperature": 0, "num_predict": 1,
+                                 "num_ctx": 2048},
+                    )
+                    scores.append(p_yes(resp))
+                break
+            except ollama.ResponseError:  # runner hiccup: give it a moment
+                print(f"  pointwise retry {attempt + 1} for query {qid}",
+                      flush=True)
+                time.sleep(10)
+        else:  # all retries failed: neutral scores keep the retriever order
+            scores = [0.5] * len(shortlists[qid])
+        # stable sort: ties keep the retriever order
+        order = np.argsort(-np.asarray(scores), kind="stable")
+        llm_rankings[qid] = [shortlists[qid][i] for i in order]
+    llm_time = time.perf_counter() - t0
+    ollama.generate(model=llm, keep_alive=0)  # free memory for the next model
+
+    llm_ndcg = float(
+        np.mean([ndcg_at_k(llm_rankings[q], qrels[q]) for q in llm_qids])
+    )
+    RESULTS.append(
+        {
+            "method": f"4 {llm} pointwise rerank on {dense_model}+BM25 top-{K}",
+            "ndcg10": llm_ndcg,
+            "index_s": np.nan,
+            "search_ms": 1000 * llm_time / len(llm_qids),
+        }
+    )
+    print(
+        f"era 4 {llm:<15} pointwise rerank nDCG@10 {llm_ndcg:.3f}"
+        f"  ({llm_time / len(llm_qids):.1f} s/query,"
+        f" {len(llm_qids)} queries)"
     )
 
 
