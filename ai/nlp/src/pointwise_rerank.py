@@ -11,7 +11,7 @@ generated token's logprobs:
 
 Nothing to count, no JSON to truncate, no fallback needed.
 
-Run with `uv run python -I pointwise_rerank.py` (ollama serve first).
+Run with `uv run python -I src/pointwise_rerank.py` (ollama serve first).
 POINTWISE_QUERIES=3 for a quick sanity check.
 """
 
@@ -25,7 +25,7 @@ import numpy as np
 import ollama
 from rank_bm25 import BM25Okapi
 
-HERE = Path(__file__).parent
+HERE = Path(__file__).resolve().parent.parent  # scripts live in src/, data one level up
 DATA = HERE / "data/scifact/scifact"
 CACHE = HERE / ".emb_cache"
 K = 10
@@ -91,7 +91,7 @@ tok = lambda s: re.findall(r"[a-z0-9]+", s.lower())
 bm25 = BM25Okapi([tok(full_text[d]) for d in docs])
 
 dense_model = max(
-    (r for r in json.loads((HERE / "results.json").read_text())
+    (r for r in json.loads((HERE / "results" / "results.json").read_text())
      if "rerank" not in r["method"] and "BM25" not in r["method"]
      and "hybrid" not in r["method"]),
     key=lambda r: r["ndcg10"],
@@ -180,4 +180,4 @@ for llm in LLM_MODELS:
         flush=True,
     )
 
-Path(HERE / "run05_results_pointwise.json").write_text(json.dumps(RESULTS, indent=2))
+Path(HERE / "results" / "run05_results_pointwise.json").write_text(json.dumps(RESULTS, indent=2))

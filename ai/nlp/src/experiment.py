@@ -30,7 +30,7 @@ Data:   curl -L -o scifact.zip
         https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
 Models: ollama pull all-minilm nomic-embed-text mxbai-embed-large llama3.2 llama3.1:8b
 
-Run with `uv run python -I experiment.py` (SMOKE=1 for a quick validation
+Run with `uv run python -I src/experiment.py` (SMOKE=1 for a quick validation
 run on a corpus subsample).
 """
 
@@ -48,7 +48,8 @@ from rank_bm25 import BM25Okapi
 # --- Config ------------------------------------------------------------------
 
 SMOKE = os.environ.get("SMOKE") == "1"  # tiny corpus, few queries, fast checks
-DATA = Path(__file__).parent / "data/scifact/scifact"
+HERE = Path(__file__).resolve().parent.parent  # scripts live in src/, data one level up
+DATA = HERE / "data/scifact/scifact"
 K = 10  # nDCG depth
 LLM_QUERIES = 5 if SMOKE else 50  # LLM reranking is slow: subset only
 RRF_K = 60  # reciprocal rank fusion constant
@@ -176,7 +177,7 @@ print(
 
 # --- Era 3: dense retrieval (embeddings) ---------------------------------------
 
-CACHE = Path(__file__).parent / ".emb_cache"
+CACHE = HERE / ".emb_cache"
 
 
 def embed(texts: list[str], model: str, batch: int = 64) -> np.ndarray:
@@ -299,7 +300,7 @@ def rerank(model: str, query: str, shortlist: list[str]) -> tuple[list[str], boo
         ok = False
         ranked = []
         with open(
-            Path(__file__).parent / ".rerank_failures.log", "a", encoding="utf-8"
+            HERE / "results" / ".rerank_failures.log", "a", encoding="utf-8"
         ) as f:
             f.write(
                 f"query: {query!r}\nerror: {e}\n"
@@ -461,4 +462,4 @@ print(
     )
 )
 
-df.write_json(Path(__file__).parent / "results.json")
+df.write_json(HERE / "results" / "results.json")
