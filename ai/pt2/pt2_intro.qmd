@@ -1,12 +1,101 @@
 ---
-title: xxx
+title: Introduction
 author: Marie-Hélène Burle
 ---
 
 :::{.def}
 
+This course covers the modern deep learning workflow with PyTorch: adapting pretrained models to your own research data, training them efficiently, evaluating them honestly, and scaling them on a cluster.
 
+It is self-contained, but it does not teach neural network concepts: these have become mainstream and we only refresh the essentials before moving fast.
 
 :::
 
+## What you will learn
 
+- Build a modern PyTorch training loop (bf16 mixed precision, learning-rate schedule, `torch.compile`, early stopping)
+- Load your own research data — whatever messy shape it is in — with `Dataset` and `DataLoader`
+- Adapt a pretrained model to your data instead of designing an architecture from scratch
+- Evaluate results honestly: proper test sets, metrics, error analysis
+- Scale out on a cluster: Slurm jobs, multi-GPU training with `torchrun`
+- Track experiments and share models safely
+- Use coding agents productively for deep learning work — and catch their most common failure mode: stale APIs
+
+The course follows a single thread: we take one research dataset and push it through increasingly capable tools.
+
+```{mermaid}
+%%| echo: false
+
+flowchart LR
+    A[Your data] --> B[Train a small model<br>from scratch]
+    B --> C[Fine-tune a<br>pretrained model]
+    C --> D[Scale out on<br>the cluster]
+```
+
+## What this course is not
+
+[Not an introduction to neural networks.]{.emph} Layers, activations, losses, and the like are assumed known — or looked up on the fly, which is a perfectly valid strategy. We start with a quick refresher, nothing more. For the full treatment, see the beginner course [Getting started with PyTorch](../top_pt.qmd).
+
+[Not about large language models.]{.emph} Running and fine-tuning open-weight LLMs is a workshop of its own (planned for March). This course is about PyTorch itself and the workflow around it.
+
+## Our example dataset
+
+[EuroSAT](https://doi.org/10.1109/JSTARS.2019.2918242) is a set of 27,000 satellite images (Sentinel-2), 64 × 64 pixels each, labeled into 10 land-use classes: annual crop, forest, herbaceous vegetation, highway, industrial, pasture, permanent crop, residential, river, sea or lake (Helber, Bischke, Dengel & Borth 2019, CC BY 4.0).
+
+Why this dataset:
+
+- it is real research data (land-use classification is an active remote sensing problem),
+- it is tiny (~90 MiB), so everything trains in minutes even on a modest GPU,
+- small models trained from scratch get mediocre results on it, while fine-tuned pretrained models crush it — exactly the story this course tells.
+
+## The stack
+
+| Tool                                                        | Role                                                      |
+|-------------------------------------------------------------|-----------------------------------------------------------|
+| [PyTorch](https://pytorch.org/)                             | tensors, autograd, `torch.nn`, `torch.optim`, distributed |
+| [TorchVision](https://pytorch.org/vision/stable/index.html) | datasets, transforms, pretrained vision models            |
+| [timm](https://huggingface.co/docs/timm)                    | a large zoo of pretrained vision models                   |
+| [Datasets](https://huggingface.co/docs/datasets/)           | loading and streaming datasets                            |
+| [MLflow](https://mlflow.org/)                               | experiment tracking                                       |
+| [uv](https://docs.astral.sh/uv/)                            | Python, packages, virtual environments, lockfile          |
+
+PyTorch also has siblings for other modalities (e.g. [TorchAudio](https://pytorch.org/audio/stable/index.html) for audio): the workflow of this course transfers to them directly.
+
+## Setup
+
+We use [uv](https://docs.astral.sh/uv/) to manage Python and packages — see our [uv webinar](../../tools/wb_uv.qmd) for an introduction. It gives us a pinned, reproducible environment from the `pyproject.toml` and `uv.lock` in the course directory.
+
+If you do not have uv yet:
+
+```{.bash}
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then, from the course directory:
+
+```{.bash}
+uv sync
+```
+
+Check your installation and whether PyTorch sees a GPU:
+
+```{.bash}
+uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
+```
+
+<!-- TODO before the course: login instructions for the training VM. -->
+
+Everything also runs on CPU — slower, but complete results for the compute-heavy steps are provided in the course pages.
+
+## Working with assistants
+
+Most of you will write this course's code with the help of a coding agent — and you should: it is a massive speedup for exactly this kind of boilerplate-heavy work. We lean into it with recurring "with an assistant" asides.
+
+But agents have one systematic failure on deep learning code: PyTorch changed a lot between 2022 and today, and assistants trained on older code confidently produce outdated APIs (as do many tutorials you will find online). The fix is a habit, not knowledge:
+
+1. Ask the agent for the code.
+2. Run a tiny snippet of it.
+3. Check the [current documentation](https://pytorch.org/docs/stable/) for anything unfamiliar.
+4. Pin the environment (`uv lock`) so that the working result is reproducible.
+
+The next page is your field guide: everything that changed since 2022.
