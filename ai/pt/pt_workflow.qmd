@@ -41,7 +41,7 @@ Let's create 2 DataLoaders: one for the train set and one for the test set.
 ```{python}
 import torch
 import torchvision
-import torchvision.transforms as transforms
+from torchvision.transforms import v2
 ```
 
 #### Create a transform object
@@ -51,10 +51,13 @@ The [CIFAR-10](https://en.wikipedia.org/wiki/CIFAR-10) images in the [TorchVisio
 We need to normalize them and turn them into tensors:
 
 ```{python}
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+transform = v2.Compose(
+    [v2.ToImage(),
+     v2.ToDtype(torch.float32, scale=True),
+     v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 ```
+
+`ToImage` turns the PIL image into an image tensor (with unsigned 8-bit integers), `ToDtype` converts the pixel values to `float32` on a `[0, 1]` scale (this replaces the old `ToTensor` transform), and `Normalize` standardizes each colour channel. As always with TorchVision, use the transforms from `torchvision.transforms.v2`: the v1 transforms are deprecated.
 
 #### Choose a batch size
 
@@ -291,7 +294,7 @@ with torch.no_grad():
         # calculate outputs by running images through the network
         outputs = net(images)
         # the class with the highest energy is what we choose as prediction
-        _, predicted = torch.max(outputs.data, 1)
+        _, predicted = torch.max(outputs, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
 

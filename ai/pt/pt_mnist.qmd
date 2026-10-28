@@ -19,7 +19,7 @@ The images are composed of 28x28 pixels of greyscale RGB codes ranging from 0 to
 
 There are 60,000 training pairs and 10,000 testing pairs.
 
-The goal is to build a neural network which can learn from the training set to properly identify the handwritten digits and which will perform well when presented with the testing set that it has never seen. This is a typical case of [supervised learning](pt_supervised_learning.qmd).
+The goal is to build a neural network which can learn from the training set to properly identify the handwritten digits and which will perform well when presented with the testing set that it has never seen. This is a typical case of supervised learning.
 
 ![](img/mnist_nn.png)
 
@@ -82,7 +82,8 @@ First, let's load the needed libraries:
 
 ```{python}
 import torch
-from torchvision import datasets, transforms
+from torchvision import datasets
+from torchvision.transforms import v2
 from matplotlib import pyplot as plt
 ```
 
@@ -93,11 +94,20 @@ We will transform the raw data to tensors and normalize them using the mean and 
 So we first need to define a transformation:
 
 ```{python}
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,))
+transform = v2.Compose([
+    v2.ToImage(),
+    v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize((0.1307,), (0.3081,))
 ])
 ```
+
+`ToImage` converts the PIL image into an image tensor (with unsigned 8-bit integer pixel values), then `ToDtype` converts it to `float32` pixel values rescaled from the `[0, 255]` range to `[0, 1]` (the `scale=True` argument is what does the rescaling). This replaces the old `ToTensor` transform. Finally, `Normalize` standardizes each pixel with the mean and standard deviation passed as arguments.
+
+:::{.note}
+
+Always use the `v2` transforms from `torchvision.transforms.v2`: the original v1 transforms are deprecated. The v2 transforms are faster and work on images and videos alike.
+
+:::
 
 ### We can now create our data objects
 
@@ -164,7 +174,7 @@ print(type(train_data[0][0]))
 print(type(train_data[0][1]))
 ```
 
-It is made of the tensor for the first image (remember that we transformed the images into tensors when we created the objects `train_data` and `test_data`) and the integer of the first label (which you can see is 5 when you print `train_data[0][1]`).
+It is made of the tensor for the first image (remember that we transformed the images into tensors when we created the objects `train_data` and `test_data`; with the v2 transforms, this is a `torchvision.tv_tensors.Image`, a subclass of `torch.Tensor` specific to image data) and the integer of the first label (which you can see is 5 when you print `train_data[0][1]`).
 
 So since `train_data[0][0]` is the tensor representing the image of the first pair, let's check its size:
 
@@ -268,14 +278,14 @@ First, we need to get one batch of training images and their labels:
 
 ```{.python}
 dataiter = iter(train_loader)
-batchimg, batchlabel = dataiter.next()
+batchimg, batchlabel = next(dataiter)
 ```
 
 Then, we can plot them:
 
 ```{.python}
 batchplot = plt.figure(figsize=(20, 5))
-for i in torch.arange(20):
+for i in range(20):
     sub = batchplot.add_subplot(2, 10, i+1, xticks=[], yticks=[])
     sub.imshow(torch.squeeze(batchimg[i]), cmap='gray')
     sub.set_title(str(batchlabel[i].item()), fontsize=25)
@@ -297,7 +307,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from torchvision import datasets, transforms
+from torchvision import datasets
+from torchvision.transforms import v2
 from torch.optim.lr_scheduler import StepLR
 ```
 
@@ -306,7 +317,7 @@ These functions include loss functions, activation functions, pooling functions.
 
 ### Create SummaryWriter instance
 
-This `SummaryWritter` instance will be used by TensorBoard.
+This `SummaryWriter` instance will be used by TensorBoard.
 
 ```{.python}
 writer = SummaryWriter()
@@ -317,19 +328,19 @@ writer = SummaryWriter()
 ```{.python}
 # To build a model, create a subclass of torch.nn.Module:
 class Net(nn.Module):
-	def __init__(self):
-		super(Net, self).__init__()
-		self.fc1 = nn.Linear(784, 128)
-		self.fc2 = nn.Linear(128, 10)
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(784, 128)
+        self.fc2 = nn.Linear(128, 10)
 
     # Method for the forward pass:
-	def forward(self, x):
-		x = torch.flatten(x, 1)
-		x = self.fc1(x)
-		x = F.relu(x)
-		x = self.fc2(x)
-		output = F.log_softmax(x, dim=1)
-		return output
+    def forward(self, x):
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+        output = F.log_softmax(x, dim=1)
+        return output
 ```
 
 Python’s class inheritance gives our subclass all the functionality of `torch.nn.Module` while allowing us to customize it.
@@ -384,11 +395,14 @@ def test(model, device, test_loader):
 def main():
     epochs = 1
     torch.manual_seed(1)
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # Pick the accelerator if there is one, otherwise the CPU
+    device = (torch.accelerator.current_accelerator()
+              if torch.accelerator.is_available() else torch.device('cpu'))
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
+    transform = v2.Compose([
+        v2.ToImage(),
+        v2.ToDtype(torch.float32, scale=True),
+        v2.Normalize((0.1307,), (0.3081,))
     ])
 
     train_data = datasets.MNIST(
@@ -444,7 +458,7 @@ Open a terminal and SSH to a cluster.
 
 ### Load necessary modules
 
-First, we need to load the Python and CUDA modules. This is done with the [Lmod](https://github.com/TACC/Lmod) tool through the [module](https://docs.alliancecan.ca/wiki/Utiliser_des_modules/en) command. Here are some key [Lmod commands](https://lmod.readthedocs.io/en/latest/010_user.html):
+First, we need to load the Python module. This is done with the [Lmod](https://github.com/TACC/Lmod) tool through the [module](https://docs.alliancecan.ca/wiki/Utiliser_des_modules/en) command. Here are some key [Lmod commands](https://lmod.readthedocs.io/en/latest/010_user.html):
 
 ```{.bash}
 # Get help on the module command
@@ -460,11 +474,19 @@ $ module avail <tool>
 $ module load <module>[/<version>]
 ```
 
-Here are the modules we need:
+Here is the module we need:
 
 ```{.bash}
-$ module load nixpkgs/16.09 gcc/7.3.0 cuda/10.0.130 cudnn/7.6 python/3.8.2
+$ module load python
 ```
+
+This loads the default version of Python. Use `module avail python` to see the versions available on the cluster.
+
+:::{.note}
+
+You do not need to load any CUDA module: the PyTorch wheels that we will install with `pip` in the next section ship with their own CUDA libraries. You would only need a `cuda` module if you had to compile CUDA code yourself.
+
+:::
 
 ### Install Python packages
 
@@ -533,24 +555,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from torchvision import datasets, transforms
+from torchvision import datasets
+from torchvision.transforms import v2
 from torch.optim.lr_scheduler import StepLR
 
 writer = SummaryWriter()
 
 class Net(nn.Module):
-	def __init__(self):
-		super(Net, self).__init__()
-		self.fc1 = nn.Linear(784, 128)
-		self.fc2 = nn.Linear(128, 10)
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(784, 128)
+        self.fc2 = nn.Linear(128, 10)
 
-	def forward(self, x):
-		x = torch.flatten(x, 1)
-		x = self.fc1(x)
-		x = F.relu(x)
-		x = self.fc2(x)
-		output = F.log_softmax(x, dim=1)
-		return output
+    def forward(self, x):
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+        output = F.log_softmax(x, dim=1)
+        return output
 
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
@@ -588,11 +611,14 @@ def test(model, device, test_loader):
 def main():
     epochs = 10  # don't forget to change the number of epochs
     torch.manual_seed(1)
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # Pick the accelerator if there is one, otherwise the CPU
+    device = (torch.accelerator.current_accelerator()
+              if torch.accelerator.is_available() else torch.device('cpu'))
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
+    transform = v2.Compose([
+        v2.ToImage(),
+        v2.ToDtype(torch.float32, scale=True),
+        v2.Normalize((0.1307,), (0.3081,))
     ])
 
     train_data = datasets.MNIST(

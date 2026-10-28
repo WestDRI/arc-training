@@ -483,15 +483,18 @@ t1 < t2
 
 Tensor data can be placed in the memory of various processor types:
 
-- the RAM of CPU,
-- the RAM of a GPU with CUDA support,
-- the RAM of a GPU with [AMD's ROCm support](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/),
-- the RAM of an [XLA device](https://www.tensorflow.org/xla) (e.g. [Cloud TPU](https://cloud.google.com/tpu)) with the [torch_xla package](https://github.com/pytorch/xla/).
+- the RAM of the CPU,
+- the RAM of a GPU with [CUDA](https://developer.nvidia.com/cuda-toolkit) support (NVIDIA) or [ROCm](https://pytorch.org/docs/stable/notes/hip.html) support (AMD),
+- the RAM of an Apple GPU with [MPS support](https://pytorch.org/docs/stable/notes/mps.html),
+- the RAM of an Intel GPU with XPU support,
+- the memory of an [XLA device](https://www.tensorflow.org/xla) (e.g. a [Cloud TPU](https://cloud.google.com/tpu)) with the [torch_xla package](https://github.com/pytorch/xla/).
 
-The values for the device attributes are:
+The values for the device attribute are:
 
 - CPU: &nbsp;`'cpu'`,
-- GPU (CUDA & AMD's ROCm): &nbsp;`'cuda'`,
+- GPU (CUDA or ROCm): &nbsp;`'cuda'`,
+- Apple GPU: &nbsp;`'mps'`,
+- Intel GPU: &nbsp;`'xpu'`,
 - XLA: &nbsp;`xm.xla_device()`.
 
 This last option requires to load the [torch_xla package](https://github.com/pytorch/xla/) first:
@@ -540,4 +543,26 @@ Or the equivalent short forms:
 ```{.python}
 t2 = t1.cuda(0)
 t3 = t1.cuda(1)
+```
+
+### Device helpers
+
+For code that should run on whatever accelerator is available (CUDA, ROCm, MPS, or XPU) without hardcoding a device type, the `torch.accelerator` interface abstracts over all of them:
+
+```{.python}
+if torch.accelerator.is_available():
+    device = torch.accelerator.current_accelerator()
+```
+
+If you get tired of passing `device=` around, you can set a global default:
+
+```{.python}
+torch.set_default_device('cuda')  # new tensors are now created on the GPU
+```
+
+or scope it to a block:
+
+```{.python}
+with torch.device('cuda'):
+    t_gpu = torch.rand(2)         # created on the GPU, only inside this block
 ```
