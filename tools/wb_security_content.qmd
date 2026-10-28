@@ -713,10 +713,11 @@ You bind mount directories and set env variables needed, everything else is out 
 
 ```{.bash}
 bwrap \
-    --ro-bind /usr/bin /usr/bin \
+    --new-session \
+    --tmpfs /tmp \
+    --ro-bind /bin /bin \
     --bind $HOME/.cache $HOME/.cache \
-    --setenv HOME "$HOME" \
-    --setenv USER "$USER" \
+	...
 	<command>
 ```
 
@@ -735,12 +736,16 @@ SANDBOX_PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 # --ro-bind bind mounts paths read-only
 # --bind bind mounts paths with write access
 exec /usr/bin/bwrap \
+    --unshare-pid \
+    --unshare-ipc \
+    --unshare-uts \
+    --hostname agentbox \
+    --new-session \
     --tmpfs /tmp \
     --dev /dev \
     --dir /dev/shm \
     --tmpfs /dev/shm \
     --proc /proc \
-    --hostname ptsbox --unshare-uts \
     --ro-bind /bin /bin \
     --ro-bind /lib /lib \
     --ro-bind /lib64 /lib64 \
@@ -748,38 +753,33 @@ exec /usr/bin/bwrap \
     --ro-bind /usr/lib /usr/lib \
     --ro-bind /usr/local/bin /usr/local/bin \
     --ro-bind /usr/local/lib /usr/local/lib \
-    --ro-bind /etc/resolv.conf /etc/resolv.conf \
-    --ro-bind /etc/profile.d /etc/profile.d \
-    --ro-bind /etc/ssl/certs /etc/ssl/certs \
-    --ro-bind /etc/passwd /etc/passwd \
+    --ro-bind /etc/ca-certificates /etc/ca-certificates \
+    --ro-bind /etc/gai.conf /etc/gai.conf \
+    --ro-bind /etc/hosts /etc/hosts \
     --ro-bind /etc/ld.so.cache /etc/ld.so.cache \
     --ro-bind /etc/ld.so.conf /etc/ld.so.conf \
     --ro-bind /etc/ld.so.conf.d /etc/ld.so.conf.d \
     --ro-bind /etc/localtime /etc/localtime \
-    --ro-bind /usr/share/terminfo /usr/share/terminfo \
-    --ro-bind /usr/share/ca-certificates /usr/share/ca-certificates \
     --ro-bind /etc/nsswitch.conf /etc/nsswitch.conf \
-    --ro-bind /etc/hosts /etc/hosts \
-    --ro-bind /etc/gai.conf /etc/gai.conf \
+    --ro-bind /etc/passwd /etc/passwd \
+    --ro-bind /etc/profile.d /etc/profile.d \
+    --ro-bind /etc/resolv.conf /etc/resolv.conf \
+    --ro-bind /etc/ssl/certs /etc/ssl/certs \
     --ro-bind /etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
+    --ro-bind /opt /opt \
+    --ro-bind /sys /sys \
+    --ro-bind /usr/share/ca-certificates /usr/share/ca-certificates \
+    --ro-bind /usr/share/terminfo /usr/share/terminfo \
     --ro-bind /usr/share/zoneinfo /usr/share/zoneinfo \
+    --ro-bind "$XDG_RUNTIME_DIR/bus" "$XDG_RUNTIME_DIR/bus" \
+    --ro-bind $HOME/.bash_profile $HOME/.bash_profile \
     --ro-bind $HOME/.bashrc $HOME/.bashrc \
     --ro-bind $HOME/.gitconfig $HOME/.gitconfig \
     --ro-bind $HOME/.local $HOME/.local \
-    --ro-bind /etc/ca-certificates /etc/ca-certificates \
-    --ro-bind "$XDG_RUNTIME_DIR/bus" "$XDG_RUNTIME_DIR/bus" \
     --bind $HOME/.cache $HOME/.cache \
     --bind "$PWD" "$PWD" \
-    --setenv HOME "$HOME" \
-    --setenv USER "$USER" \
     --setenv PATH "$SANDBOX_PATH" \
-    --setenv XDG_RUNTIME_DIR "$XDG_RUNTIME_DIR" \
-    --setenv DBUS_SESSION_BUS_ADDRESS "unix:path=$XDG_RUNTIME_DIR/bus" \
-    --chdir "$PWD" \
-    --setenv TERM "$TERM" \
-    --setenv XDG_RUNTIME_DIR "$XDG_RUNTIME_DIR" \
-    --setenv DBUS_SESSION_BUS_ADDRESS "unix:path=$XDG_RUNTIME_DIR/bus" \
-    zsh
+    bash
 ```
 
 Now compare this from the launched Zsh vs a normal Zsh:
