@@ -25,13 +25,6 @@ You need to have [Python](https://www.python.org/downloads/) and [PyTorch](https
 
 Additionally, you might want to use an IDE such as [elpy](https://github.com/jorgenschaefer/elpy) if you are an Emacs user, [JupyterLab](https://jupyter.org/), etc.
 
-:::{.note}
-
-Note that PyTorch does not yet support Python 3.10 except in some Linux distributions or on systems where a wheel has been built
-For the time being, you might have to use it with Python 3.9.
-
-:::
-
 ### Using tensors on CC clusters
 
 List available wheels and compatible Python versions (in the terminal):
@@ -49,7 +42,7 @@ module avail python
 Get set up:
 
 ```{.bash}
-module load python/3.9.6             # Load a sensible Python version
+module load python                   # Load a recent Python version
 virtualenv --no-download env         # Create a virtual env
 source env/bin/activate              # Activate the virtual env
 pip install --no-index --upgrade pip # Update pip
@@ -91,7 +84,7 @@ These numbers must be stored in a data structure:
 
 - Can run on accelerators (GPUs, TPUs...).
 - Keep track of computation graphs, allowing automatic differentiation.
-- Future plan for sharded tensors to run distributed computations.
+- Support for distributed computations (DTensor).
 
 ### What is a PyTorch tensor?
 
@@ -131,7 +124,7 @@ Boxed values take up more memory (memory for the pointer + memory for the primit
 
 ### Implementation
 
-Under the hood, the values of a PyTorch tensor are stored as a `torch.Storage` instance which is a [one-dimensional array]{.emph}.
+Under the hood, the values of a PyTorch tensor are stored in a `torch.storage.TypedStorage` instance which is a [one-dimensional array]{.emph}.
 
 ```{.python}
 import torch
@@ -158,7 +151,7 @@ storage = t.storage(); print(storage)
  7.0
  8.0
  9.0
-[torch.FloatStorage of size 10]
+[torch.storage.TypedStorage(dtype=torch.float32, device=cpu) of size 10]
 ```
 
 The storage can be indexed:
@@ -186,7 +179,7 @@ storage[3] = 10.0; print(storage)
  7.0
  8.0
  9.0
-[torch.FloatStorage of size 10]
+[torch.storage.TypedStorage(dtype=torch.float32, device=cpu) of size 10]
 ```
 
 To view a multidimensional array from storage, we need [metadata]{.emph}:
@@ -619,7 +612,9 @@ Raw Python method:
 t = torch.rand(10**6, dtype=torch.float64)
 
 # Initialize sum
-su# Run loop
+sum = 0
+
+# Run loop
 for i in range(len(t)): sum += t[i]
 
 # Print result
@@ -1164,15 +1159,18 @@ tensor([[[ 1.0000e+00, -6.0486e-07,  1.3859e-06],
 
 Tensor data can be placed in the memory of various processor types:
 
-- the RAM of CPU,
-- the RAM of a GPU with CUDA support,
-- the RAM of a GPU with [AMD's ROCm support](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/),
-- the RAM of an [XLA device](https://www.tensorflow.org/xla) (e.g. [Cloud TPU](https://cloud.google.com/tpu)) with the [torch_xla package](https://github.com/pytorch/xla/).
+- the RAM of the CPU,
+- the RAM of an NVIDIA GPU (CUDA) or an AMD GPU (ROCm),
+- the RAM of an Apple GPU (MPS),
+- the RAM of an Intel GPU (XPU),
+- the memory of an [XLA device](https://www.tensorflow.org/xla) (e.g. a [Cloud TPU](https://cloud.google.com/tpu)) with the [torch_xla package](https://github.com/pytorch/xla/).
 
 The values for the device attributes are:
 
 - CPU: &nbsp;`'cpu'`
-- GPU (CUDA and AMD's ROCm): &nbsp;`'cuda'`
+- GPU (CUDA and ROCm): &nbsp;`'cuda'`
+- Apple GPU: &nbsp;`'mps'`
+- Intel GPU: &nbsp;`'xpu'`
 - XLA: &nbsp;`xm.xla_device()`
 
 This last option requires to load the [torch_xla package](https://github.com/pytorch/xla/) first:
@@ -1322,6 +1320,4 @@ The larger the computation, the greater the benefit: now 38 times faster.
 
 PyTorch already allows for [distributed training of ML models](https://pytorch.org/tutorials/beginner/dist_overview.html).
 
-The implementation of distributed tensor operations—for instance for linear algebra—is [in the works through the use of a ShardedTensor primitive](https://github.com/pytorch/pytorch/issues/69971) that can be sharded across nodes.
-
-See also [this issue](https://github.com/pytorch/pytorch/issues/55207) for more comments about upcoming developments on (among other things) tensor sharding.
+Distributed tensor operations (for instance for linear algebra) can be run with its [DTensor API](https://pytorch.org/docs/stable/distributed.tensor.html) (`torch.distributed.tensor`), which shards tensors across devices and nodes.
