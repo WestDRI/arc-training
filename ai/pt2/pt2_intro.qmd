@@ -1,13 +1,13 @@
 ---
-title: Introduction
+title: A toy example
 author: Marie-Hélène Burle
 ---
 
 :::{.def}
 
-This page is a warm-up: we build a small neural network, train it on a toy dataset, and dissect every step of the process (tensors, modules, forward pass, loss, backward pass, optimizer steps, and the training loop that ties them together).
+Let's start by examining how PyTorch works to train a model: we build a small neural network, train it on a toy dataset, and dissect every step of the process (tensors, modules, forward pass, loss, backward pass, optimizer steps, and the training loop that ties them together).
 
-It does not teach neural network concepts and it moves fast. If you have never used PyTorch, [our introductory course](../top_pt.qmd) covers the same ground at a gentler pace.
+If you have never used PyTorch, [our introductory course](../top_pt.qmd) covers the same ground at a gentler pace.
 
 :::
 
@@ -19,9 +19,9 @@ from torch import nn
 from matplotlib import pyplot as plt
 ```
 
-`torch` is the core library and `torch.nn` (imported as `nn` by convention) provides the neural network building blocks. matplotlib will give us two quick visualizations.
+`torch` is the core library and `torch.nn` (imported as `nn` by convention) provides the neural network building blocks. `matplotlib` will give us two quick visualizations.
 
-We pick the accelerator (GPU) if there is one and fall back to the CPU otherwise. Everything in this page runs in seconds either way:
+We pick the accelerator (e.g. GPU) if there is one and fall back to the CPU otherwise. Everything in this page runs in seconds either way:
 
 ```{python}
 device = (
@@ -40,39 +40,69 @@ torch.manual_seed(42)
 
 ## Tensors
 
-The fundamental object in PyTorch is the [tensor](https://pytorch.org/docs/stable/tensors.html): an n-dimensional array with a shape, a data type, and a device. If you know NumPy, you are on familiar ground.
+The fundamental object in PyTorch is the [tensor](https://pytorch.org/docs/stable/tensors.html): an n-dimensional array with a shape, a data type, and a device. Although there are differences, if you know NumPy, this will look familiar.
 
-Tensors can be created from Python data or by initializer functions, and any tensor can be copied to the device with `.to(device)` (or created there directly):
+Tensors can be created from Python data or by initializer functions and any tensor can be created directly on the accelerator or copied there with `.to(device)`:
 
 ```{python}
-a = torch.tensor([[1.0, 2.0], [3.0, 4.0]])  # from Python data
-b = a.to(device)                            # copied to the accelerator
-w = torch.randn(2, 5, device=device)        # created straight on the accelerator
+a = torch.tensor([[1.0, 2.0], [3.0, 4.0]])  # create from Python data on the CPU
+print(a)
+```
+
+```{python}
+a.shape
+```
+
+Unlike in NumPy, the default data type in PyTorch is 32-bit single-precision floating point:
+
+```{python}
+a.dtype
+```
+
+```{python}
+b = a.to(device)                            # copy to the accelerator
+print(b)
+```
+
+```{python}
+w = torch.randn(2, 5, device=device)        # create directly on the accelerator
+print(w)
+```
+
+Numpy-style array operations are supported:
+
+```{python}
 print(b @ w)
 ```
 
-Every tensor lives on a device, and operations require all their arguments to be on the same device: mixing devices is the most common error when starting with PyTorch. When it happens, the error message names the two devices involved, and the fix is always a `.to()` in the right place.
-
 :::{.note}
 
-This is all we need on tensors for this course. For a deeper dive (dtypes, broadcasting, views, memory on accelerators), see our webinar [Tensors in PyTorch](../pt/wb_torchtensors.qmd).
+For a deeper dive (broadcasting, views, memory on accelerators), see [the tensor section in our intro course](../pt/pt_tensors.qmd) and our webinar [Everything you wanted to know (and more!) about PyTorch tensors](../pt/wb_torchtensors.qmd).
 
 :::
 
 ## A toy dataset
 
-We need data. Loading a real research dataset is the topic of the next pages, so here we synthesize a small problem instead: two interleaved spirals of points, one per class.
-
-This toy problem trains in seconds on any device, and it cannot be solved by a linear model (no straight line can separate the two spirals), so it genuinely calls for a neural network.
+Let's synthesize a small two-spirals dataset (two interleaved spirals of points) and try to sort the points. This is a classic machine learning benchmark for binary classification because it cannot be solved by a linear model, but a neural network can solve it in seconds.
 
 ```{python}
-def two_spirals(n_per_class=500, noise=0.15):
+def two_spirals(n_per_class=500, noise=0.15):  # noise adds jitter
     """Two interleaved spirals of 2D points, one per class."""
+    # torch.rand(n_per_class, 1) ➔ uniform random numbers between 0 & 1
+    # use sqrt to distribute the points evenly along the spirals
+    # * (3 * torch.pi) scales the values from 0 to 3π
+    # ➔ creates 1.5 rotations (one rotation = 2π)
     t = torch.rand(n_per_class, 1).sqrt() * (3 * torch.pi)
+    # parametric equation for an Archimedean spiral for the base spiral
+    # torch.hstack combines the coordinates in a tensor of shape (n_per_class, 2)
     arm = torch.hstack([t * torch.cos(t), t * torch.sin(t)])
+    # class 1: add Gaussian noise to base spiral
     arm1 = arm + torch.randn(n_per_class, 2) * noise
+    # class 2: rotate base spiral by 180° (* -1) and add Guassian noise
     arm2 = -arm + torch.randn(n_per_class, 2) * noise
+    # stack classes in x and move to accelerator
     x = torch.vstack([arm1, arm2]).to(device)
+    # create labels (class 1 ➔ 0, class 2 ➔ 1) and send to accelerator
     y = torch.cat([
         torch.zeros(n_per_class, dtype=torch.long),
         torch.ones(n_per_class, dtype=torch.long),
@@ -83,18 +113,36 @@ x, y = two_spirals()
 print(x.shape, y.shape)
 ```
 
-The data itself is made of tensors: `x` holds 1,000 points of 2 coordinates each, and `y` holds the class of every point (0 or 1) as an integer tensor. Both already live on the device.
+The data consists of two tensors on the accelerator:
 
-Here is the problem seen from above, with one colour per class:
+- `x` holds the 2 coordinates of 1,000 points (500 per class) as a float32 tensor. Those are the inputs.
+- `y` holds the labels of the points (`0` or `1`) as an integer tensor. Those are the true values.
+
+```{python}
+print(x)
+```
+
+```{python}
+torch.set_printoptions(threshold=10)
+print(y)
+```
+
+Here is the data with one colour per class:
 
 ```{python}
 plt.axis("equal")
 plt.scatter(x[:, 0].cpu(), x[:, 1].cpu(), c=y.cpu(), s=4, cmap="coolwarm")
 ```
 
+:::{.note}
+
+Note that we had to copy the tensors to the CPU (`.cpu()`) to plot them.
+
+:::
+
 ## A network is an `nn.Module`
 
-Models in PyTorch are Python classes that subclass [`nn.Module`](https://pytorch.org/docs/stable/generated/torch.nn.Module.html). They declare their layers in `__init__` and describe how data flows through them in `forward`:
+Models in PyTorch are Python classes that subclass [`nn.Module`](https://pytorch.org/docs/stable/generated/torch.nn.Module.html) to inherit its characteristics. They declare their layers in `__init__` and describe how data flows through them in `forward`:
 
 ```{python}
 class Net(nn.Module):
@@ -111,16 +159,15 @@ class Net(nn.Module):
         return self.layers(x)
 ```
 
-A few things to note:
+- `super().__init__()` runs the initialization of `nn.Module`.
+- [`nn.Sequential`](https://pytorch.org/docs/stable/generated/torch.nn.Sequential.html) chains layers in order.
+- Each [`nn.Linear`](https://docs.pytorch.org/docs/2.15/generated/torch.nn.Linear.html) performs an affine transformation (multiplication by a weight matrix, addition of a bias vector), here from 2 input coordinates to 64 features, then from 64 to 32, and finally from 32 to 2 output labels.
+- The [`nn.ReLU`](https://docs.pytorch.org/docs/2.15/generated/torch.nn.ReLU.html) functions introduce non-linear transformations.
+- The layer widths (64, 32) use powers of 2: GPUs and CPUs are optimized for binary operations, and this aligns memory allocation efficiently.
 
-- `super().__init__()` runs the initialization of `nn.Module`: skipping it is a classic error that leaves the parameters unregistered.
-- [`nn.Sequential`](https://pytorch.org/docs/stable/generated/torch.nn.Sequential.html) chains layers: its output is the result of passing its input through all of them in order.
-- Each `nn.Linear` performs an affine transformation (multiplication by a weight matrix, addition of a bias vector), here from 2 input coordinates to 64 features, then from 64 to 32, then from 32 to 2 scores.
-- The `nn.ReLU` nonlinearities in between are what make the whole stack more expressive than a single linear layer.
-- The widths (64, 32) are powers of two, as is conventional for efficiency.
-- The final layer outputs 2 values: one score per class.
+This is a typical example of [object-oriented programming (OOP)](https://en.wikipedia.org/wiki/Object-oriented_programming) in Python. [We introduce OOP](../../python/intro_oop.qmd) in our intro Python course.
 
-An instance of the class is the model. We create it and move its parameters to the device:
+The model we will use is an instance of the class `Net` we just created. We instantiate it and move its parameters to the accelerator:
 
 ```{python}
 model = Net().to(device)
@@ -128,46 +175,51 @@ print(model)
 print("parameters:", sum(p.numel() for p in model.parameters()))
 ```
 
-`model.parameters()` iterates over all the registered parameter tensors: 2,338 values here. These are exactly the values that training will adjust; everything else in the model stays fixed.
+- The `numel()` method counts the number of elements inside a tensor.
+- `model.parameters()` is an iterator covering all the registered parameter tensors: 2,338 values here. These are the weights and biases that training will adjust; everything else in the model stays fixed.
 
 ## The forward pass
 
-Calling the model on the data runs `forward` on the whole batch at once: 1,000 points in, 1,000 rows of 2 raw scores out. These unnormalized scores are called logits:
+Calling the model on the data runs `forward` on the whole batch at once: the inputs are the 1,000 points and the output are 1,000 pairs of raw scores. These unnormalized scores are called **logits**:
 
 ```{python}
 logits = model(x)
 print(logits[:4])
 ```
 
-A softmax converts logits into probabilities (positive values summing to 1 within each row):
+To convert the logits into probabilities, we normalize them with an [activation function](https://en.wikipedia.org/wiki/Activation_function) such as [softmax](https://en.wikipedia.org/wiki/Softmax_function) (applied with [nn.softmax](https://docs.pytorch.org/docs/2.15/generated/torch.nn.Softmax.html)):
 
 ```{python}
-print(logits.softmax(dim=-1)[:2])
+print(logits.softmax(dim=-1)[:4])
 ```
 
-We only compute it to peek at the model: right after initialization both classes get about equal probability. Note that we do not feed probabilities to the loss: the loss wants the raw logits.
+This gives the probability that each point belongs to one or the other class. Because we haven't trained the model yet, those probabilities are about equal.
 
 ## The loss
 
-Training needs a single number that measures how wrong the model is. For classification, [`nn.CrossEntropyLoss`](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) is the standard choice:
+Training needs a number that measures how wrong the model is: the **loss**.
+
+For classification, [`nn.CrossEntropyLoss`](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) is the standard choice. It is calculated from the model predictions and the real values (`y` in our case):
 
 ```{python}
-criterion = nn.CrossEntropyLoss()
-loss = criterion(logits, y)
+loss_fn = nn.CrossEntropyLoss()
+loss = loss_fn(logits, y)
 print(loss.item())
 ```
 
 :::{.note}
 
-`nn.CrossEntropyLoss` expects raw logits and integer class labels: it applies the softmax internally. Passing it softmaxed outputs is a classic mistake that quietly cripples training.
+`nn.CrossEntropyLoss` expects raw logits and integer class labels: it applies the softmax function internally. Passing it softmaxed outputs is a classic mistake that quietly cripples training.
 
 :::
 
 ## The backward pass
 
-The gradient of the loss with respect to a parameter tells in which direction, and how strongly, to nudge that parameter to decrease the loss. You never compute gradients by hand: [autograd](https://pytorch.org/docs/stable/autograd.html) records every operation performed on tensors and replays the computation backwards.
+The gradient of the loss with respect to a parameter determines in which direction and how strongly that parameter should be nudged to decrease the loss.
 
-Before anything has happened, the parameters carry no gradient:
+Gradients are not computed by hand: PyTorch's [autograd](https://pytorch.org/docs/stable/autograd.html) records every operation performed on tensors and replays the computation backwards.
+
+Before training, the parameters don't carry any gradient:
 
 ```{python}
 print(model.layers[0].weight.grad)
@@ -181,11 +233,13 @@ g = model.layers[0].weight.grad
 print(g.shape, g.norm().item())
 ```
 
-The first layer's weight matrix (of shape 64 × 2) now holds a gradient of the same shape. For more on the computation graph and on what exactly happens in `backward()`, see [the corresponding page](../pt/pt_autograd.qmd) of the introductory course.
+The first layer's weight matrix (of shape 64 × 2) now holds a gradient of the same shape. For more on the computation graph and on what exactly happens in `backward()`, see [the section on automatic differentiation](../pt/pt_autograd.qmd) of our introductory course.
 
 ## One step of the optimizer
 
-The optimizer holds the parameters and an update rule. [`torch.optim.AdamW`](https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html) is a solid default, and `lr` is the learning rate: the size of the parameter updates.
+The optimizer holds the parameters and an update rule. [`torch.optim.AdamW`](https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html) is a solid default.
+
+`lr` is the learning rate: the size of the parameter updates.
 
 ```{python}
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-2)
@@ -196,34 +250,37 @@ optimizer.zero_grad()
 - `optimizer.step()` nudges every parameter against its gradient.
 - `optimizer.zero_grad()` clears the gradients: `backward()` adds to existing gradients rather than replacing them. Accumulation is sometimes exactly what one wants (we will use it as an efficiency trick in a later page), but in our simple loop we want a clean slate at every round.
 
-Let's re-evaluate the loss. No gradient bookkeeping is needed when we are not training, and `torch.inference_mode()` turns it off (this is the modern, faster form of `torch.no_grad()`):
+Let's re-evaluate the loss.
+
+When we are not training, there is no need to keep track of operations since we won't need to calculate the gradients. `torch.inference_mode()` disables the autograd engine and any unnecessary metadata overhead (this is the modern, faster form of `torch.no_grad()`):
 
 ```{python}
 with torch.inference_mode():
-    print(criterion(model(x), y).item())
+    print(loss_fn(model(x), y).item())
 ```
 
-The loss dropped noticeably: a single step already improved the model. Now rinse and repeat.
+The loss dropped noticeably: a single step already improved the model.
 
 ## The training loop
 
-That was every piece. Training is the cycle below repeated over and over:
+Training a model consists of repeating these steps a large number of times. This is done via a loop:
 
 ```{mermaid}
 %%| echo: false
 
 flowchart LR
-    A[zero the gradients] --> B[forward pass]
-    B --> C[compute the loss]
-    C --> D[backward pass]
-    D --> E[optimizer step]
+    classDef default color:#0081c2, stroke:#0081c2;
+    A([Zero the gradients]) --> B([Forward pass])
+    B --> C([Compute the loss])
+    C --> D([Backward pass])
+    D --> E([Optimizer step])
     E --> A
 ```
 
 ```{python}
 for epoch in range(1, 501):
     optimizer.zero_grad()
-    loss = criterion(model(x), y)
+    loss = loss_fn(model(x), y)
     loss.backward()
     optimizer.step()
     if epoch % 100 == 0:
@@ -232,7 +289,9 @@ for epoch in range(1, 501):
 
 An epoch is one complete pass through the data: since we train on the full batch at once here, one epoch is one iteration of the loop. In the rest of the course, the data will come in batches from a DataLoader.
 
-Accuracy on the training data (the fraction of points whose highest-scoring class matches the label):
+## Inference and accuracy
+
+Accuracy on the training data can be calculated by:
 
 ```{python}
 with torch.inference_mode():
@@ -240,7 +299,12 @@ with torch.inference_mode():
 print(f"training accuracy: {acc:.0%}")
 ```
 
-And a picture of what the model learned: we classify every point of a fine grid and colour the two predicted regions:
+- `model(x)` performs a forward pass on our points and gets some predictions (raw logits). Returns a tensor of the form `[batch_size, num_classes]`.
+- `.argmax(dim=1)` along dimension 1 (the classes), gets the index of the maximum value (the output with the biggest confidence). Returns a tensor of predicted classes.
+- `== y` compares our predictions against the true labels. Returns a boolean tensor.
+- `.float().mean()` tuns the boolean tensor into floats of `0.0` (for `False`) and `1.0`(for `True`) and calculates the mean which gives us the proportion of correct predictions.
+
+Here is an illustration of what the model learned: we classify every point of a fine grid and colour the two predicted regions:
 
 ```{python}
 x_min, x_max = x[:, 0].min() - 0.5, x[:, 0].max() + 0.5
@@ -258,13 +322,3 @@ plt.axis("equal")
 plt.contourf(xx.cpu(), yy.cpu(), z, levels=[-0.5, 0.5, 1.5], cmap="coolwarm", alpha=0.3)
 plt.scatter(x[:, 0].cpu(), x[:, 1].cpu(), c=y.cpu(), s=4, cmap="coolwarm")
 ```
-
-The network carved a winding boundary that no linear model could produce, and almost every point sits on the right side of it.
-
-## From here
-
-This bare loop is the skeleton of everything that follows in this course:
-
-- The next pages load a real research dataset (satellite images) and feed it to this loop through `Dataset` and `DataLoader` objects.
-- We then grow the loop itself into a modern one: bf16 mixed precision, warmup + cosine learning-rate schedule, `torch.compile`, early stopping, and metrics.
-- That modern loop then gets reused unchanged to fine-tune a pretrained model instead of training one from scratch, and finally to scale training on a cluster.
