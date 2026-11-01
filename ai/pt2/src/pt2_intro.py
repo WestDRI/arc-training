@@ -4,7 +4,7 @@ A fast refresher of the essentials in one running example (two synthetic
 spirals): tensors, nn.Module, forward, loss, backward, step, then the bare
 loop that strings them together. Runs on CPU in seconds.
 
-Run with: uv run python intro.py
+Run with: uv run python src/pt2_intro.py
 """
 
 import torch

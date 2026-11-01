@@ -10,7 +10,7 @@ The first run downloads the archive into ./data (once, ~90 MiB).
 Credit: Helber et al. 2019 (https://github.com/phelber/eurosat, MIT
 licence). Everything runs on CPU.
 
-Run with: uv run python src/dataset.py
+Run with: uv run python src/pt2_datasets.py
 """
 
 from collections import Counter
@@ -21,7 +21,6 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset, random_split
 from torchvision.datasets import EuroSAT
-
 
 # ------------------------------------ 1. a ready-made torchvision dataset
 # torchvision ships Dataset classes for many classic benchmarks. With
@@ -137,8 +136,8 @@ class ImageFiles(Dataset):
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self, i):
-        path, label = self.samples[i]
+    def __getitem__(self, index):
+        path, label = self.samples[index]
         # convert("RGB"): one stray grayscale or RGBA file should not
         # crash a training run
         img = Image.open(path).convert("RGB")
