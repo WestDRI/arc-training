@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-Let's start by examining how PyTorch works to train a model: we build a small neural network, train it on a toy dataset, and dissect every step of the process (tensors, modules, forward pass, loss, backward pass, optimizer steps, and the training loop that ties them together).
+Let's start by examining how PyTorch works by training a model: we build a small neural network, train it on a toy dataset, and dissect every step of the process (tensors, modules, forward pass, loss, backward pass, optimizer steps, and the training loop that ties them together).
 
 If you have never used PyTorch, [our introductory course](../top_pt.qmd) covers the same ground at a gentler pace.
 
@@ -21,7 +21,7 @@ from matplotlib import pyplot as plt
 
 `torch` is the core library and `torch.nn` (imported as `nn` by convention) provides the neural network building blocks. `matplotlib` will give us two quick visualizations.
 
-We pick the accelerator (e.g. GPU) if there is one and fall back to the CPU otherwise. Everything in this page runs in seconds either way:
+We pick the accelerator (e.g. GPU) if there is one and fall back to the CPU otherwise. Everything on this page runs in seconds either way:
 
 ```{python}
 device = (
@@ -32,7 +32,7 @@ device = (
 print(f"torch {torch.__version__}, {device}")
 ```
 
-Finally, we set a seed: our toy dataset and the network initialization both rely on random numbers, and a seed makes them identical at every run:
+Finally, we set a seed: our toy dataset and the network initialization both rely on random numbers, and a seed makes them identical from run to run:
 
 ```{python}
 torch.manual_seed(42)
@@ -42,7 +42,7 @@ torch.manual_seed(42)
 
 The fundamental object in PyTorch is the [tensor](https://pytorch.org/docs/stable/tensors.html): an n-dimensional array with a shape, a data type, and a device. Although there are differences, if you know NumPy, this will look familiar.
 
-Tensors can be created from Python data or by initializer functions and any tensor can be created directly on the accelerator or copied there with `.to(device)`:
+Tensors can be created from Python data or by initializer functions, and any tensor can be created directly on the accelerator or copied there with `.to(device)`:
 
 ```{python}
 a = torch.tensor([[1.0, 2.0], [3.0, 4.0]])  # create from Python data on the CPU
@@ -69,7 +69,7 @@ w = torch.randn(2, 5, device=device)        # create directly on the accelerator
 print(w)
 ```
 
-Numpy-style array operations are supported:
+NumPy-style array operations are supported:
 
 ```{python}
 print(b @ w)
@@ -83,7 +83,7 @@ For a deeper dive (broadcasting, views, memory on accelerators), see [the tensor
 
 ## A toy dataset
 
-Let's synthesize a small two-spirals dataset (two interleaved spirals of points) and try to sort the points. This is a classic machine learning benchmark for binary classification because it cannot be solved by a linear model, but a neural network can solve it in seconds.
+Let's synthesize a small two-spirals dataset (two interleaved spirals of points) and try to classify the points. This is a classic machine learning benchmark for binary classification because it cannot be solved by a linear model, but a neural network can solve it in seconds.
 
 ```{python}
 def two_spirals(n_per_class=500, noise=0.15):  # noise adds jitter
@@ -93,12 +93,12 @@ def two_spirals(n_per_class=500, noise=0.15):  # noise adds jitter
     # * (3 * torch.pi) scales the values from 0 to 3π
     # ➔ creates 1.5 rotations (one rotation = 2π)
     t = torch.rand(n_per_class, 1).sqrt() * (3 * torch.pi)
-    # parametric equation for an Archimedean spiral for the base spiral
-    # torch.hstack combines the coordinates in a tensor of shape (n_per_class, 2)
+    # parametric equations of an Archimedean spiral give the base spiral
+    # torch.hstack combines the coordinates into a tensor of shape (n_per_class, 2)
     arm = torch.hstack([t * torch.cos(t), t * torch.sin(t)])
     # class 1: add Gaussian noise to base spiral
     arm1 = arm + torch.randn(n_per_class, 2) * noise
-    # class 2: rotate base spiral by 180° (* -1) and add Guassian noise
+    # class 2: rotate base spiral by 180° (* -1) and add Gaussian noise
     arm2 = -arm + torch.randn(n_per_class, 2) * noise
     # stack classes in x and move to accelerator
     x = torch.vstack([arm1, arm2]).to(device)
@@ -161,9 +161,9 @@ class Net(nn.Module):
 
 - `super().__init__()` runs the initialization of `nn.Module`.
 - [`nn.Sequential`](https://pytorch.org/docs/stable/generated/torch.nn.Sequential.html) chains layers in order.
-- Each [`nn.Linear`](https://docs.pytorch.org/docs/2.15/generated/torch.nn.Linear.html) performs an affine transformation (multiplication by a weight matrix, addition of a bias vector), here from 2 input coordinates to 64 features, then from 64 to 32, and finally from 32 to 2 output labels.
-- The [`nn.ReLU`](https://docs.pytorch.org/docs/2.15/generated/torch.nn.ReLU.html) functions introduce non-linear transformations.
-- The layer widths (64, 32) use powers of 2: GPUs and CPUs are optimized for binary operations, and this aligns memory allocation efficiently.
+- Each [`nn.Linear`](https://pytorch.org/docs/stable/generated/torch.nn.Linear.html) performs an affine transformation (multiplication by a weight matrix, addition of a bias vector), here from 2 input coordinates to 64 features, then from 64 to 32, and finally from 32 to 2 output labels.
+- The [`nn.ReLU`](https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html) functions introduce non-linear transformations.
+- The layer widths (64, 32) use powers of 2: GPUs and CPUs work in base 2, so power-of-2 sizes use memory and processing hardware efficiently.
 
 This is a typical example of [object-oriented programming (OOP)](https://en.wikipedia.org/wiki/Object-oriented_programming) in Python. [We introduce OOP](../../python/intro_oop.qmd) in our intro Python course.
 
@@ -180,14 +180,14 @@ print("parameters:", sum(p.numel() for p in model.parameters()))
 
 ## The forward pass
 
-Calling the model on the data runs `forward` on the whole batch at once: the inputs are the 1,000 points and the output are 1,000 pairs of raw scores. These unnormalized scores are called **logits**:
+Calling the model on the data runs `forward` on the whole batch at once: the inputs are the 1,000 points and the output is 1,000 pairs of raw scores. These unnormalized scores are called **logits**:
 
 ```{python}
 logits = model(x)
 print(logits[:4])
 ```
 
-To convert the logits into probabilities, we normalize them with an [activation function](https://en.wikipedia.org/wiki/Activation_function) such as [softmax](https://en.wikipedia.org/wiki/Softmax_function) (applied with [nn.softmax](https://docs.pytorch.org/docs/2.15/generated/torch.nn.Softmax.html)):
+To convert the logits into probabilities, we normalize them with an [activation function](https://en.wikipedia.org/wiki/Activation_function) such as [softmax](https://en.wikipedia.org/wiki/Softmax_function) (applied with the [`.softmax()`](https://pytorch.org/docs/stable/generated/torch.Tensor.softmax.html) method):
 
 ```{python}
 print(logits.softmax(dim=-1)[:4])
@@ -217,7 +217,7 @@ print(loss.item())
 
 The gradient of the loss with respect to a parameter determines in which direction and how strongly that parameter should be nudged to decrease the loss.
 
-Gradients are not computed by hand: PyTorch's [autograd](https://pytorch.org/docs/stable/autograd.html) records every operation performed on tensors and replays the computation backwards.
+Gradients are not computed by hand: PyTorch's [autograd](https://pytorch.org/docs/stable/autograd.html) records every operation performed on tensors that require gradients (our model's parameters) and replays the computation backwards.
 
 Before training, the parameters don't carry any gradient:
 
@@ -248,11 +248,11 @@ optimizer.zero_grad()
 ```
 
 - `optimizer.step()` nudges every parameter against its gradient.
-- `optimizer.zero_grad()` clears the gradients: `backward()` adds to existing gradients rather than replacing them. Accumulation is sometimes exactly what one wants (we will use it as an efficiency trick in a later page), but in our simple loop we want a clean slate at every round.
+- `optimizer.zero_grad()` clears the gradients: `backward()` adds to existing gradients rather than replacing them. Accumulation is sometimes exactly what one wants (we will use it as an efficiency trick in a later page), but in our simple loop we want a clean slate at each iteration.
 
 Let's re-evaluate the loss.
 
-When we are not training, there is no need to keep track of operations since we won't need to calculate the gradients. `torch.inference_mode()` disables the autograd engine and any unnecessary metadata overhead (this is the modern, faster form of `torch.no_grad()`):
+When we are not training, there is no need to keep track of operations since we won't need to calculate the gradients. `torch.inference_mode()` disables the autograd engine and the metadata overhead that comes with it (this is the modern, faster form of `torch.no_grad()`):
 
 ```{python}
 with torch.inference_mode():
@@ -300,9 +300,9 @@ print(f"training accuracy: {acc:.0%}")
 ```
 
 - `model(x)` performs a forward pass on our points and gets some predictions (raw logits). Returns a tensor of the form `[batch_size, num_classes]`.
-- `.argmax(dim=1)` along dimension 1 (the classes), gets the index of the maximum value (the output with the biggest confidence). Returns a tensor of predicted classes.
+- `.argmax(dim=1)` gets the index of the maximum value along dimension 1 (the classes), i.e. the class with the highest confidence. Returns a tensor of predicted classes.
 - `== y` compares our predictions against the true labels. Returns a boolean tensor.
-- `.float().mean()` tuns the boolean tensor into floats of `0.0` (for `False`) and `1.0`(for `True`) and calculates the mean which gives us the proportion of correct predictions.
+- `.float().mean()` turns the boolean tensor into floats of `0.0` (for `False`) and `1.0` (for `True`) and calculates the mean, which gives us the proportion of correct predictions.
 
 Here is an illustration of what the model learned: we classify every point of a fine grid and colour the two predicted regions:
 
