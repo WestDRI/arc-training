@@ -5,17 +5,19 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-The [intro page](pt2_intro.qmd) trained on two tensors holding synthetic points. Real projects start differently: data sits in files on disk, on the web, or in some awkward format, and it has to be brought into the training loop.
+While last section uses synthetic data, projects usually require real data.
 
-This page introduces EuroSAT, the dataset that will carry the rest of the course, and walks through the three sources of data you will meet in practice: a ready-made [torchvision](https://pytorch.org/vision/stable/datasets.html) dataset, a dataset pulled from the [Hugging Face Hub](https://huggingface.co/datasets), and your own files read with a small custom class.
+In this section, we look at three ways to obtain data: [Torchvision built-in datasets](https://pytorch.org/vision/stable/datasets.html), [Hugging Face Hub](https://huggingface.co/datasets), and your own data read with a custom class.
 
 :::
 
 ## Our working dataset: EuroSAT
 
-For the whole course we use a single task: classifying satellite images by land use. [EuroSAT](https://github.com/phelber/eurosat) is a set of 27,000 small (64 × 64 pixels) RGB patches from [Sentinel-2](https://en.wikipedia.org/wiki/Sentinel-2) images, each labelled with one of 10 land-use classes, from annual crop and forest to residential areas and rivers.
+Throughout this course we will use a single task: classifying satellite images by land use. [EuroSAT](https://github.com/phelber/eurosat) is a set of 27,000 small (64 × 64 pixels) RGB patches from [Sentinel-2](https://en.wikipedia.org/wiki/Sentinel-2) images, each labelled with one of 10 land-use classes.
 
 It is a good fit for us: real research data (remote sensing), yet small enough (~90 MiB) to download and train on quickly, even on modest GPUs. It is distributed under an MIT licence (credit: [Helber et al. 2019](https://doi.org/10.1109/JSTARS.2019.2918242)).
+
+## Packages
 
 ```{python}
 from collections import Counter
@@ -31,8 +33,10 @@ from torchvision.datasets import EuroSAT
 
 - `torch.utils.data` holds the dataset machinery: the [`Dataset`](https://pytorch.org/docs/stable/data.html) base class and `random_split`.
 - `torchvision.datasets` provides ready-made vision datasets, `EuroSAT` among them.
-- `datasets` is the Hugging Face library (used further down).
+- `datasets` is the Hugging Face data library.
 - `PIL.Image` opens image files and `Counter` will tally labels.
+
+## Torchvision datasets
 
 ```{python}
 eurosat = EuroSAT(root="data", download=True)
@@ -42,15 +46,15 @@ print(eurosat.classes)
 
 `download=True` fetches and extracts the archive into `data/` on the first run, then detects the files and skips the download. On disk, this is the classic layout, one folder per class:
 
-```{.python}
-data/eurosat/2750/AnnualCrop/AnnualCrop_1.jpg
-data/eurosat/2750/Forest/Forest_1.jpg
+[data/eurosat/2750/AnnualCrop/AnnualCrop_1.jpg]{.codelike}
+[data/eurosat/2750/Forest/Forest_1.jpg]{.codelike}
 ...
-```
 
-### The Dataset contract
+:::{.note}
 
-Everything that holds data for PyTorch obeys one tiny contract: an object with a `__len__` and a `__getitem__` returning one example at a time. `EuroSAT`, the Hugging Face dataset below, and the custom class at the end of this page all satisfy it, which is why the same DataLoaders and training loops (next page) work on all of them.
+Dataset classes holding data for PyTorch must implement the functions `__init__` (instantiates the class), `__len__` (returns the number of samples in the dataset) and `__getitem__` (returns one sample at a time).
+
+:::
 
 ```{python}
 img, label = eurosat[0]
@@ -62,7 +66,7 @@ print(label, eurosat.classes[label])
 - We get a PIL image, not a tensor: converting images to tensors happens in preprocessing (a later page covers transforms).
 - The label is the index of the class in `eurosat.classes` (alphabetical, so the numbering is stable).
 
-Here is one image per class:
+Let's display one image for each class:
 
 ```{python}
 fig, axes = plt.subplots(2, 5, figsize=(12, 5))
@@ -75,7 +79,7 @@ for ax, cls in zip(axes.flat, range(len(eurosat.classes))):
 
 ### Class balance
 
-Never trust a dataset to be balanced: count the labels. `eurosat.targets` holds the label of every image:
+Never trust a dataset to be balanced. `eurosat.targets` holds the labels:
 
 ```{python}
 counts = Counter(eurosat.targets)
@@ -91,9 +95,11 @@ ax.set_xlabel("number of images")
 
 EuroSAT has 2,000 to 3,000 images per class: a mild imbalance. When classes are heavily skewed, a high accuracy can hide a model that ignores the rare classes entirely; we will come back to this when evaluating models.
 
-## Train and validation sets
+### Train and validation sets
 
-The first rule of honest training: never evaluate a model on data it learned from. We split EuroSAT, 80% for training and 20% for validation:
+**Never evaluate a model on data it learned from.**
+
+We split EuroSAT, 80% for training and 20% for validation:
 
 ```{python}
 train, val = random_split(
@@ -137,7 +143,7 @@ idx = torch.load("data/split.pt", weights_only=True)
 train = torch.utils.data.Subset(eurosat, idx["train"])
 ```
 
-## The same data from the Hugging Face Hub
+## Hugging Face Hub
 
 The [Hub](https://huggingface.co/datasets) mirrors thousands of datasets and researchers increasingly share their data there. The [datasets library](https://huggingface.co/docs/datasets/quickstart) downloads and caches them, carries metadata along, preprocesses in parallel, and streams datasets too big to fit on disk.
 
@@ -186,7 +192,7 @@ HF datasets satisfy the same `__len__`/`__getitem__` contract (with dict example
 
 :::
 
-## Your own files: a custom Dataset
+## Custom Dataset
 
 The most common situation of all: a folder of images on your machine, arranged somehow, that you need to train on. If they sit in one folder per class (exactly the layout EuroSAT uses on disk), a dozen lines give you a Dataset:
 
@@ -231,17 +237,20 @@ class ImageFiles(Dataset):
 Let's point it at the EuroSAT tree:
 
 ```{python}
-mine = ImageFiles(Path("data") / "eurosat" / "2750")
-img, label = mine[0]
-print(len(mine), "images,", len(mine.classes), "classes")
-print(type(img).__name__, img.size, "->", label, mine.classes[label])
+eurosat_custom = ImageFiles(Path("data") / "eurosat" / "2750")
+img, label = eurosat_custom[0]
+print(len(eurosat_custom), "images,", len(eurosat_custom.classes), "classes")
+print(type(img).__name__, img.size, "->", label, eurosat_custom.classes[label])
+```
+
+### Comparison with Torchvision
+
+```{python}
+print(eurosat_custom.classes == eurosat.classes)
 ```
 
 ```{python}
-print(mine.classes == eurosat.classes)
-print([lbl for _, lbl in mine.samples] == eurosat.targets)
+print([lbl for _, lbl in eurosat_custom.samples] == eurosat.targets)
 ```
 
-Ours agrees with torchvision's reader, class for class and label for label. `torchvision.datasets.ImageFolder` is exactly this class, battle-tested: use it directly for this layout. Writing our own was the point: when your data is messier (labels in a csv file, nested folders, mixed formats), the pattern adapts and the contract stays the same.
-
-The next page turns these datasets into shuffled batches, read in parallel by worker processes.
+Our dataset agrees with Torchvision's reader, class for class and label for label. `torchvision.datasets.ImageFolder` is actually exactly the class we defined. If your data is more messy, you can adapt this class to transform and tidy it. Our section on [data preprocessing](../jxai/jxai_preprocess.qmd) in our [deep learning course with the JAX AI stack](../top_jxai.qmd) goes into this in a lot more details.
