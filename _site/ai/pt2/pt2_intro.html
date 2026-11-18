@@ -85,9 +85,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-9b3b9661cb49c94e18fd16e0acf7db81.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-099a6e310a90501c9021be545a7c9a7b.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../../site_libs/bootstrap/bootstrap-dark-520cc44911880db025f117088c2aa1fc.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="../../site_libs/bootstrap/bootstrap-099a6e310a90501c9021be545a7c9a7b.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-5e16b338765c6f1eb4487a6a80b04bda.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-35c802ac66faa56a4d8e71a77ee1b879.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-5e16b338765c6f1eb4487a6a80b04bda.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -383,7 +383,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
   <li><a href="#the-forward-pass" id="toc-the-forward-pass" class="nav-link" data-scroll-target="#the-forward-pass">The forward pass</a></li>
   <li><a href="#the-loss" id="toc-the-loss" class="nav-link" data-scroll-target="#the-loss">The loss</a></li>
   <li><a href="#the-backward-pass" id="toc-the-backward-pass" class="nav-link" data-scroll-target="#the-backward-pass">The backward pass</a></li>
-  <li><a href="#our-optimizer" id="toc-our-optimizer" class="nav-link" data-scroll-target="#our-optimizer">Our optimizer</a></li>
+  <li><a href="#the-optimizer" id="toc-the-optimizer" class="nav-link" data-scroll-target="#the-optimizer">The optimizer</a></li>
   <li><a href="#the-training-loop" id="toc-the-training-loop" class="nav-link" data-scroll-target="#the-training-loop">The training loop</a></li>
   <li><a href="#inference-and-accuracy" id="toc-inference-and-accuracy" class="nav-link" data-scroll-target="#inference-and-accuracy">Inference and accuracy</a></li>
   </ul>
@@ -424,14 +424,14 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="675a3962" class="cell" data-execution_count="2">
+<div id="15bfc9b5" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib <span class="im">import</span> pyplot <span class="im">as</span> plt</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p><code>torch</code> is the core library and <code>torch.nn</code> (imported as <code>nn</code> by convention) provides the neural network building blocks. We use <code>matplotlib</code> to visualize the data and the model predictions.</p>
 <p>First, we pick the accelerator (e.g.&nbsp;GPU) if there is one and fall back to the CPU otherwise. Everything on this page runs in seconds either way:</p>
-<div id="dc25f6bc" class="cell" data-execution_count="3">
+<div id="0fc07fd0" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    torch.accelerator.current_accelerator()</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> torch.accelerator.is_available()</span>
@@ -439,14 +439,14 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"torch </span><span class="sc">{</span>torch<span class="sc">.</span>__version__<span class="sc">}</span><span class="ss">, </span><span class="sc">{</span>device<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>torch 2.13.0+cu130, cuda</code></pre>
+<pre><code>torch 2.14.1+cu130, cuda</code></pre>
 </div>
 </div>
 <p>Then, we set a seed: our toy dataset and the network initialization both rely on random numbers, and a seed makes them identical from run to run:</p>
-<div id="d7b2b270" class="cell" data-execution_count="4">
+<div id="2b67f930" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">42</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="3">
-<pre><code>&lt;torch._C.Generator at 0x7fcc14965230&gt;</code></pre>
+<pre><code>&lt;torch._C.Generator at 0x7ff2401f7ef0&gt;</code></pre>
 </div>
 </div>
 </section>
@@ -454,7 +454,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <h2 class="anchored" data-anchor-id="tensors">Tensors</h2>
 <p>The fundamental object in PyTorch is the <a href="https://pytorch.org/docs/stable/tensors.html">tensor</a>: an n-dimensional array with a shape, a data type, and a device. Although there are differences, if you know NumPy, this will look familiar.</p>
 <p>Tensors can be created from Python data or by initializer functions, and any tensor can be created directly on the accelerator or copied there with <code>.to(device)</code>:</p>
-<div id="0f19d8ad" class="cell" data-execution_count="5">
+<div id="47ee1161" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> torch.tensor([[<span class="fl">1.0</span>, <span class="fl">2.0</span>], [<span class="fl">3.0</span>, <span class="fl">4.0</span>]])  <span class="co"># create from Python data on the CPU</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(a)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -462,20 +462,20 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
         [3., 4.]])</code></pre>
 </div>
 </div>
-<div id="c8725644" class="cell" data-execution_count="6">
+<div id="1df3379b" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>a.shape</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="5">
 <pre><code>torch.Size([2, 2])</code></pre>
 </div>
 </div>
 <p>Unlike in NumPy, the default data type in PyTorch is 32-bit single-precision floating point:</p>
-<div id="9db06f11" class="cell" data-execution_count="7">
+<div id="f23bebcb" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>a.dtype</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="6">
 <pre><code>torch.float32</code></pre>
 </div>
 </div>
-<div id="a074cf1d" class="cell" data-execution_count="8">
+<div id="e1ca89de" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> a.to(device)                            <span class="co"># copy to the accelerator</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(b)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -483,7 +483,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
         [3., 4.]], device='cuda:0')</code></pre>
 </div>
 </div>
-<div id="e70d45e9" class="cell" data-execution_count="9">
+<div id="30ded07b" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>w <span class="op">=</span> torch.randn(<span class="dv">2</span>, <span class="dv">5</span>, device<span class="op">=</span>device)        <span class="co"># create directly on the accelerator</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(w)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -492,7 +492,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 <p>NumPy-style array operations are supported:</p>
-<div id="8683648d" class="cell" data-execution_count="10">
+<div id="cdc2ded3" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(b <span class="op">@</span> w)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>tensor([[  1.5000,   0.8625,  -1.8071,   1.9050,  -4.4751],
@@ -506,7 +506,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <section id="our-toy-dataset" class="level2">
 <h2 class="anchored" data-anchor-id="our-toy-dataset">Our toy dataset</h2>
 <p>Let’s synthesize a small two-spirals dataset (two interleaved spirals of points) and try to classify the points. This is a classic machine learning benchmark for binary classification because it cannot be solved by a linear model, but a neural network can solve it in seconds.</p>
-<div id="2882dda1" class="cell" data-execution_count="11">
+<div id="b28ae49d" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> two_spirals(n_per_class<span class="op">=</span><span class="dv">500</span>, noise<span class="op">=</span><span class="fl">0.15</span>):  <span class="co"># noise adds jitter</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Two interleaved spirals of 2D points, one per class."""</span></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># torch.rand(n_per_class, 1) ➔ uniform random numbers between 0 &amp; 1</span></span>
@@ -541,7 +541,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <li><code>x</code> holds the 2 coordinates of 1,000 points (500 per class) as a float32 tensor. Those are the inputs.</li>
 <li><code>y</code> holds the labels of the points (<code>0</code> or <code>1</code>) as an integer tensor. Those are the true values.</li>
 </ul>
-<div id="9f7c4da2" class="cell" data-execution_count="12">
+<div id="266cd75f" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(x)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>tensor([[-7.5556,  4.6962],
@@ -553,7 +553,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
         [-1.7683,  5.0664]], device='cuda:0')</code></pre>
 </div>
 </div>
-<div id="9d95e904" class="cell" data-execution_count="13">
+<div id="f357aed0" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>torch.set_printoptions(threshold<span class="op">=</span><span class="dv">10</span>)</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(y)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -561,7 +561,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 </div>
 <p>Here is the data with one colour per class:</p>
-<div id="694b1e09" class="cell" data-execution_count="14">
+<div id="02a078b9" class="cell" data-execution_count="13">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>plt.axis(<span class="st">"equal"</span>)</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>plt.scatter(x[:, <span class="dv">0</span>].cpu(), x[:, <span class="dv">1</span>].cpu(), c<span class="op">=</span>y.cpu(), s<span class="op">=</span><span class="dv">4</span>, cmap<span class="op">=</span><span class="st">"coolwarm"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display">
@@ -579,7 +579,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <section id="our-model" class="level2">
 <h2 class="anchored" data-anchor-id="our-model">Our model</h2>
 <p>Models in PyTorch are Python classes that subclass <a href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html"><code>nn.Module</code></a> to inherit its characteristics. They declare their layers in <code>__init__()</code> and describe how data flows through them in <code>forward()</code>:</p>
-<div id="a374416c" class="cell" data-execution_count="15">
+<div id="2faa793e" class="cell" data-execution_count="14">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Net(nn.Module):</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
@@ -602,7 +602,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </ul>
 <p>This is a typical example of <a href="https://en.wikipedia.org/wiki/Object-oriented_programming">object-oriented programming (OOP)</a> in Python (<a href="../../python/intro_oop.html">we introduce OOP</a> in our intro Python course).</p>
 <p>The model we will use is an instance of the class <code>Net</code> we just created. We instantiate it and move its parameters to the accelerator:</p>
-<div id="ca3a7688" class="cell" data-execution_count="16">
+<div id="051a7b5c" class="cell" data-execution_count="15">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Net().to(device)</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model)</span>
 <span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"parameters:"</span>, <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> model.parameters()))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -627,7 +627,7 @@ parameters: 2338</code></pre>
 <section id="the-forward-pass" class="level2">
 <h2 class="anchored" data-anchor-id="the-forward-pass">The forward pass</h2>
 <p>In the forward pass, we pass the data through the <code>forward()</code> function to get predictions: the inputs are our 1,000 points of the 2 classes and the outputs are 1,000 pairs of raw scores. These unnormalized scores are called <strong>logits</strong>:</p>
-<div id="6dbbcc57" class="cell" data-execution_count="17">
+<div id="cb8ee179" class="cell" data-execution_count="16">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> model(x)</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(logits[:<span class="dv">4</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -638,7 +638,7 @@ parameters: 2338</code></pre>
 </div>
 </div>
 <p>To convert the logits into probabilities, we normalize them with an <a href="https://en.wikipedia.org/wiki/Activation_function">activation function</a> such as <a href="https://en.wikipedia.org/wiki/Softmax_function">softmax</a> (applied with the <a href="https://pytorch.org/docs/stable/generated/torch.Tensor.softmax.html"><code>.softmax()</code></a> method):</p>
-<div id="476c48e2" class="cell" data-execution_count="18">
+<div id="df2d1f9a" class="cell" data-execution_count="17">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(logits.softmax(dim<span class="op">=-</span><span class="dv">1</span>)[:<span class="dv">4</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>tensor([[0.3376, 0.6624],
@@ -652,8 +652,8 @@ parameters: 2338</code></pre>
 <section id="the-loss" class="level2">
 <h2 class="anchored" data-anchor-id="the-loss">The loss</h2>
 <p>Training requires a measure of how wrong the model is: the <strong>loss</strong>, calculated by a <strong>loss function</strong> from the model predictions and the real values (<code>y</code> in our case).</p>
-<p>For classification, <a href="https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html"><code>nn.CrossEntropyLoss</code></a> is the standard loss function.</p>
-<div id="db2e9944" class="cell" data-execution_count="19">
+<p>For classification problems, <a href="https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html"><code>nn.CrossEntropyLoss</code></a> is the standard loss function.</p>
+<div id="0c59bff5" class="cell" data-execution_count="18">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>loss_fn <span class="op">=</span> nn.CrossEntropyLoss()</span>
 <span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> loss_fn(logits, y)</span>
 <span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(loss.item())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -662,22 +662,23 @@ parameters: 2338</code></pre>
 </div>
 </div>
 <div class="note">
-<p><code>nn.CrossEntropyLoss</code> expects raw logits and integer class labels: it applies the softmax function internally. Passing it softmaxed outputs is a classic mistake that quietly cripples training.</p>
+<p>Because it applies the softmax function internally, <code>nn.CrossEntropyLoss()</code> expects raw logits and integer class labels. Passing it softmaxed outputs is a classic mistake that quietly cripples training.</p>
+<p>Note that some loss functions do need softmaxed outputs, so make sure to read the documentation of the function you use.</p>
 </div>
 </section>
 <section id="the-backward-pass" class="level2">
 <h2 class="anchored" data-anchor-id="the-backward-pass">The backward pass</h2>
-<p>The gradient of the loss with respect to a parameter determines in which direction and how strongly that parameter should be nudged to decrease the loss.</p>
+<p>The gradient (vector of partial derivatives) of the loss with respect to a parameter determines in which direction and how strongly that parameter should be nudged to decrease the loss.</p>
 <p>Gradients are not computed by hand: PyTorch’s <a href="https://pytorch.org/docs/stable/autograd.html">autograd</a> records every operation performed on tensors that require gradients (our model’s parameters) and replays the computation backwards.</p>
 <p>Before training, the parameters don’t carry any gradient:</p>
-<div id="57b8774c" class="cell" data-execution_count="20">
+<div id="5de49925" class="cell" data-execution_count="19">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.layers[<span class="dv">0</span>].weight.grad)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>None</code></pre>
 </div>
 </div>
-<p>A single call to <code>backward()</code> on the loss fills in the <code>.grad</code> of every parameter that contributed to it:</p>
-<div id="13d1fb64" class="cell" data-execution_count="21">
+<p>A call to <code>backward()</code> on the loss creates a <code>.grad</code> attribute for every parameter that contributed to it:</p>
+<div id="2da09b46" class="cell" data-execution_count="20">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> model.layers[<span class="dv">0</span>].weight.grad</span>
 <span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(g.shape, g.norm().item())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -687,11 +688,12 @@ parameters: 2338</code></pre>
 </div>
 <p>The first layer’s weight matrix (of shape 64 × 2) now holds a gradient of the same shape. For more on the computation graph and on what exactly happens in <code>backward()</code>, see <a href="../../ai/pt/pt_autograd.html">the section on automatic differentiation</a> of our introductory course.</p>
 </section>
-<section id="our-optimizer" class="level2">
-<h2 class="anchored" data-anchor-id="our-optimizer">Our optimizer</h2>
-<p>The optimizer holds the parameters and an update rule. After each backward xxxxx<a href="https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html"><code>torch.optim.AdamW</code></a> is a solid default.</p>
-<p><code>lr</code> is the learning rate: the size of the parameter updates.</p>
-<div id="c7e522cd" class="cell" data-execution_count="22">
+<section id="the-optimizer" class="level2">
+<h2 class="anchored" data-anchor-id="the-optimizer">The optimizer</h2>
+<p>The optimizer holds the parameters and an update rule. After each backward pass, it updates the parameters in the direction opposite to their gradients in order to reduce the loss. This is one step of <a href="https://en.wikipedia.org/wiki/Gradient_descent">gradient descent</a>.</p>
+<p><a href="https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html"><code>torch.optim.AdamW</code></a> is a solid default.</p>
+<p><code>lr</code> is the learning rate: a hyperparameter that dictates the step size of the parameter updates.</p>
+<div id="2faa3ff2" class="cell" data-execution_count="21">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.AdamW(model.parameters(), lr<span class="op">=</span><span class="fl">1e-2</span>)</span>
 <span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>optimizer.step()</span>
 <span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>optimizer.zero_grad()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -700,9 +702,9 @@ parameters: 2338</code></pre>
 <li><code>optimizer.step()</code> nudges every parameter against its gradient.</li>
 <li><code>optimizer.zero_grad()</code> clears the gradients: <code>backward()</code> adds to existing gradients rather than replacing them. Accumulation is sometimes exactly what one wants (we will use it as an efficiency trick in a later page), but in our simple loop we want a clean slate at each iteration.</li>
 </ul>
-<p>Let’s re-evaluate the loss.</p>
+<p>Now we can re-evaluate the loss and see the improvement after one step.</p>
 <p>When we are not training, there is no need to keep track of operations since we won’t need to calculate the gradients. <code>torch.inference_mode()</code> disables the autograd engine and the metadata overhead that comes with it (this is the modern, faster form of <code>torch.no_grad()</code>):</p>
-<div id="f7dec4b6" class="cell" data-execution_count="23">
+<div id="09f58cc5" class="cell" data-execution_count="22">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.inference_mode():</span>
 <span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(loss_fn(model(x), y).item())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -713,7 +715,7 @@ parameters: 2338</code></pre>
 </section>
 <section id="the-training-loop" class="level2">
 <h2 class="anchored" data-anchor-id="the-training-loop">The training loop</h2>
-<p>Training a model consists of repeating these steps a large number of times. This is done via a loop:</p>
+<p>Training a model consists of repeating this process a large number of times.</p>
 <div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div>
@@ -733,7 +735,8 @@ parameters: 2338</code></pre>
 </div>
 </div>
 </div>
-<div id="355b6266" class="cell" data-execution_count="24">
+<p>Programmatically, this is done via a loop. Let’s train our model over 500 epochs and print the value of the loss every 100 epoch:</p>
+<div id="eb18e471" class="cell" data-execution_count="23">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">501</span>):</span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    optimizer.zero_grad()</span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> loss_fn(model(x), y)</span>
@@ -749,12 +752,14 @@ epoch 400  loss 0.0004
 epoch 500  loss 0.0003</code></pre>
 </div>
 </div>
-<p>An epoch is one complete pass through the data: since we train on the full batch at once here, one epoch is one iteration of the loop. In the rest of the course, the data will come in batches from a DataLoader.</p>
+<div class="note">
+<p>An epoch is one complete pass through the data: since we train on the full dataset at once here, one epoch is one iteration of the loop. In the rest of the course, the data will come in batches from a DataLoader.</p>
+</div>
 </section>
 <section id="inference-and-accuracy" class="level2">
 <h2 class="anchored" data-anchor-id="inference-and-accuracy">Inference and accuracy</h2>
 <p>Accuracy on the training data can be calculated by:</p>
-<div id="f28363eb" class="cell" data-execution_count="25">
+<div id="c8882b3f" class="cell" data-execution_count="24">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.inference_mode():</span>
 <span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>    acc <span class="op">=</span> (model(x).argmax(dim<span class="op">=</span><span class="dv">1</span>) <span class="op">==</span> y).<span class="bu">float</span>().mean()</span>
 <span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"training accuracy: </span><span class="sc">{</span>acc<span class="sc">:.0%}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -769,7 +774,7 @@ epoch 500  loss 0.0003</code></pre>
 <li><code>.float().mean()</code> turns the boolean tensor into floats of <code>0.0</code> (for <code>False</code>) and <code>1.0</code> (for <code>True</code>) and calculates the mean, which gives us the proportion of correct predictions.</li>
 </ul>
 <p>Here is an illustration of what the model learned: we classify every point of a fine grid and colour the two predicted regions:</p>
-<div id="4b379ec9" class="cell" data-execution_count="26">
+<div id="8fe5041d" class="cell" data-execution_count="25">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>x_min, x_max <span class="op">=</span> x[:, <span class="dv">0</span>].<span class="bu">min</span>() <span class="op">-</span> <span class="fl">0.5</span>, x[:, <span class="dv">0</span>].<span class="bu">max</span>() <span class="op">+</span> <span class="fl">0.5</span></span>
 <span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>y_min, y_max <span class="op">=</span> x[:, <span class="dv">1</span>].<span class="bu">min</span>() <span class="op">-</span> <span class="fl">0.5</span>, x[:, <span class="dv">1</span>].<span class="bu">max</span>() <span class="op">+</span> <span class="fl">0.5</span></span>
 <span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>xx, yy <span class="op">=</span> torch.meshgrid(</span>
