@@ -1,21 +1,23 @@
 ---
 title: Datasets
 author: Marie-Hélène Burle
+bibliography: pt2.bib
+csl: ../../diabetologia.csl
 ---
 
 :::{.def}
 
-While last section uses synthetic data, projects usually require real data.
+While last section used synthetic data, projects usually require real data.
 
-In this section, we look at three ways to obtain data: [Torchvision built-in datasets](https://pytorch.org/vision/stable/datasets.html), [Hugging Face Hub](https://huggingface.co/datasets), and your own data read with a custom class.
+In this section, we look at three ways to obtain data: [Torchvision built-in datasets](https://pytorch.org/vision/stable/datasets.html), [Hugging Face Hub](https://huggingface.co/datasets), and your own data, read with a custom class.
 
 :::
 
 ## Our working dataset: EuroSAT
 
-Throughout this course we will use a single task: classifying satellite images by land use. [EuroSAT](https://github.com/phelber/eurosat) is a set of 27,000 small (64 × 64 pixels) RGB patches from [Sentinel-2](https://en.wikipedia.org/wiki/Sentinel-2) images, each labelled with one of 10 land-use classes.
+[EuroSAT](https://github.com/phelber/eurosat) [@8736785] is a set of 27,000 small (64 × 64 pixels) RGB patches from [Sentinel-2](https://en.wikipedia.org/wiki/Sentinel-2) images, each labelled with one of 10 land-use classes. It is distributed under an MIT licence.
 
-It is a good fit for us: real research data (remote sensing), yet small enough (~90 MiB) to download and train on quickly, even on modest GPUs. It is distributed under an MIT licence (credit: [Helber et al. 2019](https://doi.org/10.1109/JSTARS.2019.2918242)).
+It is a good fit for us: real research data (remote sensing), yet small enough to download and train on quickly, even on modest GPUs.
 
 ## Packages
 
@@ -38,79 +40,114 @@ from torchvision.datasets import EuroSAT
 
 ## Torchvision datasets
 
+`torchvision.datasets` provides built-in computer vision datasets and base classes. Because they subclass `torch.utils.data.Dataset`, they implement the functions `__init__` (instantiating the class), `__len__` (returning the number of samples in the dataset) and `__getitem__` (returning one sample at a time). This means that you can pass them directly to the PyTorch DataLoader machinery for batching, shuffling, and parallel loading.
+
 ```{python}
 eurosat = EuroSAT(root="data", download=True)
+```
+
+`download=True` fetches and extracts the archive into the chosen root directory (here [data]{.codelike}) on the first run, then detects the files and skips the download. On disk, this is the classic layout, one folder per class:
+
+```
+
+data/eurosat/2750/AnnualCrop/AnnualCrop_1.jpg
+data/eurosat/2750/AnnualCrop/AnnualCrop_2.jpg
+data/eurosat/2750/AnnualCrop/AnnualCrop_3.jpg
+...
+data/eurosat/2750/Forest/Forest_1.jpg
+data/eurosat/2750/Forest/Forest_2.jpg
+data/eurosat/2750/Forest/Forest_3.jpg
+...
+
+```
+
+Let's explore the dataset:
+
+```{python}
+print(eurosat)
+```
+
+```{python}
 print(len(eurosat), "images")
+```
+
+```{python}
 print(eurosat.classes)
 ```
 
-`download=True` fetches and extracts the archive into `data/` on the first run, then detects the files and skips the download. On disk, this is the classic layout, one folder per class:
+```{python}
+print(len(eurosat.classes))
+```
 
-[data/eurosat/2750/AnnualCrop/AnnualCrop_1.jpg]{.codelike}
-[data/eurosat/2750/Forest/Forest_1.jpg]{.codelike}
-...
-
-:::{.note}
-
-Dataset classes holding data for PyTorch must implement the functions `__init__` (instantiates the class), `__len__` (returns the number of samples in the dataset) and `__getitem__` (returns one sample at a time).
-
-:::
+When the dataset is created, initialization scans the file names. To read in images, you index the dataset object:
 
 ```{python}
 img, label = eurosat[0]
-print(type(img).__name__, img.size, img.mode)
-print(label, eurosat.classes[label])
 ```
 
-- Images are not read when the dataset is created: initialization only scans file names, and indexing decodes that one image.
-- We get a PIL image, not a tensor: converting images to tensors happens in preprocessing (a later page covers transforms).
-- The label is the index of the class in `eurosat.classes` (alphabetical, so the numbering is stable).
+Images are stored as PIL images, not tensors. They will be converted to tensors in preprocessing:
+
+```{python}
+print(type(img).__name__, img.size, img.mode)
+```
+
+`eurosat.classes` is a list of the 10 classes of land-use sorted alphabetically. The label associated with each image is the index of the class it belongs to:
+
+```{python}
+print(label, eurosat.classes[label])
+print(eurosat[4000][1], eurosat.classes[eurosat[4000][1]])
+print(eurosat[9000][1], eurosat.classes[eurosat[9000][1]])
+print(eurosat[12000][1], eurosat.classes[eurosat[12000][1]])
+```
 
 Let's display one image for each class:
 
 ```{python}
 fig, axes = plt.subplots(2, 5, figsize=(12, 5))
 for ax, cls in zip(axes.flat, range(len(eurosat.classes))):
-    img, _ = eurosat[eurosat.targets.index(cls)]
-    ax.imshow(img)
-    ax.set_title(eurosat.classes[cls], fontsize=9)
-    ax.axis("off")
+	img, _ = eurosat[eurosat.targets.index(cls)]
+	ax.imshow(img)
+	ax.set_title(eurosat.classes[cls], fontsize=9)
+	ax.axis("off")
 ```
 
 ### Class balance
 
-Never trust a dataset to be balanced. `eurosat.targets` holds the labels:
+You should never trust a dataset to be balanced. Let's check how balanced our dataset is.
+
+`eurosat.targets` holds the labels. Let's print the total per class:
 
 ```{python}
 counts = Counter(eurosat.targets)
 for i, name in enumerate(eurosat.classes):
-    print(f"{name:>22} {counts[i]}")
+	print(f"{name:>22} {counts[i]}")  # >22 right-aligns for a nicer display
 ```
+
+We can visualize it with a quick histogram:
 
 ```{python}
 fig, ax = plt.subplots(figsize=(7, 4))
 ax.barh(eurosat.classes, [counts[c] for c in range(10)])
-ax.set_xlabel("number of images")
+ax.set_xlabel("Number of images")
 ```
 
 EuroSAT has 2,000 to 3,000 images per class: a mild imbalance. When classes are heavily skewed, a high accuracy can hide a model that ignores the rare classes entirely; we will come back to this when evaluating models.
 
 ### Train and validation sets
 
-**Never evaluate a model on data it learned from.**
+[Never evaluate a model on data it learned from.]{.emph}
 
-We split EuroSAT, 80% for training and 20% for validation:
+We randomly split EuroSAT, 80% for training and 20% for validation:
 
 ```{python}
 train, val = random_split(
-    eurosat, [0.8, 0.2], generator=torch.Generator().manual_seed(42)
+	eurosat, [0.8, 0.2], generator=torch.Generator().manual_seed(42)
 )
-print(len(train), len(val), type(train).__name__)
+print(f"Training set size: {len(train)} items\nValidation set size: {len(val)} items\nType: {type(train).__name__}")
 ```
 
-- `random_split` returns two `Subset` objects: thin views holding lists of indices into `eurosat`. No image is copied.
+- `random_split` returns two `Subset` objects: thin views holding lists of indices from `eurosat`. No image is copied and the dataset characteristics (`__init__`, `__len__`, and `__getitem__` are maintained).
 - The seeded generator makes the shuffle reproducible.
-- `Subset`s satisfy the Dataset contract too: they can be indexed, or wrapped in DataLoaders (next page).
 
 :::{.note}
 
@@ -118,7 +155,7 @@ print(len(train), len(val), type(train).__name__)
 
 :::
 
-:::{.exo}
+::::{.exo}
 
 :::{.yourturn}
 
@@ -126,26 +163,38 @@ Your turn:
 
 :::
 
-Check that `train` and `val` are disjoint: no index should appear in both. Hint: `set()`.
+Check that `train` and `val` are disjoint: no index should appear in both.
 
-:::
+- First hint: explore the attributes of `train` by typing `train.` followed by [Tab]{.codelike}.
 
-The rest of the course must evaluate on this exact validation set, or numbers from different pages would not be comparable. So we save the index lists once:
+- Second hint: sets have a method called `isdisjoint()`.
+
+<!-- ```{python} -->
+<!-- set(val.indices).isdisjoint(train.indices) -->
+<!-- ``` -->
+
+::::
+
+The rest of the course must evaluate on this exact validation set, or the results from different sections would not be comparable. Let's save the index lists as a [split.pt]{.codelike} file in our data directory:
 
 ```{python}
 torch.save({"train": train.indices, "val": val.indices}, "data/split.pt")
 ```
 
-Later pages reload them with:
+In later sections, we will reload them by reading the file as a dictionary, then recreating the Subset objects:
 
-```{.python}
+```{python}
 idx = torch.load("data/split.pt", weights_only=True)
+print(type(idx))
 train = torch.utils.data.Subset(eurosat, idx["train"])
+print(type(train))
+val = torch.utils.data.Subset(eurosat, idx["val"])
+print(type(val))
 ```
 
 ## Hugging Face Hub
 
-The [Hub](https://huggingface.co/datasets) mirrors thousands of datasets and researchers increasingly share their data there. The [datasets library](https://huggingface.co/docs/datasets/quickstart) downloads and caches them, carries metadata along, preprocesses in parallel, and streams datasets too big to fit on disk.
+[Hugging Face datasets Hub](https://huggingface.co/datasets) mirrors thousands of datasets and researchers increasingly share their data there. The [datasets library](https://github.com/huggingface/datasets) downloads and caches them, carries metadata along, preprocesses them in parallel, and streams datasets too big to fit on disk.
 
 ```{python}
 eurosat_hf = hf.load_dataset("blanchon/EuroSAT_RGB")
@@ -153,7 +202,7 @@ train_hf = eurosat_hf["train"]
 print(train_hf)
 ```
 
-The first call downloads the data into `~/.cache/huggingface`; later calls hit the cache and return instantly. We get a `DatasetDict` of named splits: this copy of EuroSAT comes pre-split into train/validation/test.
+The first call downloads the data into [~/.cache/huggingface/datasets]{.codelike} and converts it into Apache Arrow files; later calls hit the cache and return instantly. We get a `DatasetDict` of named splits: this copy of EuroSAT comes pre-split into train/validation/test.
 
 ```{python}
 label_meta = train_hf.features["label"]
@@ -172,7 +221,7 @@ Indexing an HF dataset returns a dict, not a tuple: columns have names instead o
 
 ```{python}
 def add_label_name(example):
-    return {"label_name": label_meta.int2str(example["label"])}
+	return {"label_name": label_meta.int2str(example["label"])}
 
 train_hf = train_hf.map(add_label_name)
 print(train_hf[0]["label_name"])
@@ -192,47 +241,55 @@ HF datasets satisfy the same `__len__`/`__getitem__` contract (with dict example
 
 :::
 
+## Torchvision vs HF datasets
+
+While both are equally convenient, there are key differences in design philosophies, file formats, and caching architectures between Torchvision and Hugging Face datasets that can lead to massive differences in disk usage and speed.
+
+For our dataset, the Torchvision files take up ~90 MB of storage while the Hugging Face files take up ~770 MB.
+
+But this difference in storage comes with an efficiency trade-off: Torchvision datasets are designed to save bandwidth and storage for standard vision benchmarks, whereas Hugging Face datasets are engineered for high-performance data processing, random access, and zero-copy memory mapping.
+
+**Torchvision** downloads datasets in their native, highly-compressed distribution formats such as `.tar`, `.zip`, `.gz`, or raw PNG/JPEG images. PyTorch reads these archives directly or extracts them minimally.
+
+**Hugging Face** converts and caches datasets into **Apache Arrow** files. Arrow is an in-memory columnar format optimized for blazing-fast data retrieval, filtering, and machine learning pipelines. This layout sacrifices storage space to maximize read speed and minimize CPU overhead during training. Additionally, the memory-mapping done by Apache Arrow allows your operating system to map the dataset on disk directly into virtual memory: instead of loading a 50GB dataset into your physical RAM (which would crash your computer), your script reads it straight from the disk as if it were in memory. For this to work efficiently without massive CPU stuttering, the data on disk must be structured in a predictable, aligned layout rather than being tightly squeezed inside a compressed archive that requires sequential decompression.
+
 ## Custom Dataset
 
-The most common situation of all: a folder of images on your machine, arranged somehow, that you need to train on. If they sit in one folder per class (exactly the layout EuroSAT uses on disk), a dozen lines give you a Dataset:
+The most common situation of all: a folder of images on your machine, arranged somehow, that you need to train on. First, organize them to have one folder per class. Then create a subclass to `Dataset` that matches 
 
 ```{python}
 class ImageFiles(Dataset):
-    """Images in one subfolder per class under root; labels from folder names."""
+	"""Images in one subfolder per class under root; labels from folder names."""
 
-    def __init__(self, root, transform=None, extensions=(".jpg", ".jpeg", ".png")):
-        root = Path(root)
-        # sorted: alphabetical class names give deterministic, portable
-        # label indices (the same convention as ImageFolder)
-        self.classes = sorted(p.name for p in root.iterdir() if p.is_dir())
-        self.class_to_idx = {name: i for i, name in enumerate(self.classes)}
-        self.transform = transform
-        # scan the file list once (paths only: no image is read yet);
-        # walking class by class gives ImageFolder's order
-        self.samples = [
-            (path, label)
-            for label, name in enumerate(self.classes)
-            for path in sorted((root / name).iterdir())
-            if path.suffix.lower() in extensions
-        ]
+	def __init__(self, root, transform=None, extensions=(".jpg", ".jpeg", ".png")):
+		root = Path(root)
+		# sorted: alphabetical class names give deterministic, portable label indices
+		self.classes = sorted(p.name for p in root.iterdir() if p.is_dir())
+		self.class_to_idx = {name: i for i, name in enumerate(self.classes)}
+		self.transform = transform
+		# scan the file list once walking class by class
+		self.samples = [
+			(path, label)
+			for label, name in enumerate(self.classes)
+			for path in sorted((root / name).iterdir())
+			if path.suffix.lower() in extensions
+		]
 
-    def __len__(self):
-        return len(self.samples)
+	def __len__(self):
+		return len(self.samples)
 
-    def __getitem__(self, index):
-        path, label = self.samples[index]
-        # convert("RGB"): one stray grayscale or RGBA file should not
-        # crash a training run
-        img = Image.open(path).convert("RGB")
-        if self.transform is not None:  # used on the preprocessing page
-            img = self.transform(img)
-        return img, label
+	def __getitem__(self, index):
+		path, label = self.samples[index]
+		# convert("RGB"): stray grayscale or RGBA files should not crash a training run
+		img = Image.open(path).convert("RGB")
+		if self.transform is not None:  # used on the preprocessing page
+			img = self.transform(img)
+		return img, label
 ```
 
-- `__init__` scans the tree once and stores `(path, label)` pairs: paths only, no image is opened. Classes are sorted alphabetically, the same convention as `ImageFolder`, so label numbering matches.
-- `__getitem__` opens one image per call: decoding on demand is what will let worker processes parallelize the reading (next page).
-- `.convert("RGB")` prevents one stray grayscale or RGBA file from crashing training.
-- `transform` is the hook where preprocessing will plug in (a later page).
+- `__init__` scans the tree once and stores `(path, label)` pairs: paths only, no image is opened.
+- `__getitem__` opens one image per call: decoding on demand is what will let worker processes parallelize the reading.
+- `transform` is the hook where preprocessing will plug in.
 
 Let's point it at the EuroSAT tree:
 
@@ -253,4 +310,4 @@ print(eurosat_custom.classes == eurosat.classes)
 print([lbl for _, lbl in eurosat_custom.samples] == eurosat.targets)
 ```
 
-Our dataset agrees with Torchvision's reader, class for class and label for label. `torchvision.datasets.ImageFolder` is actually exactly the class we defined. If your data is more messy, you can adapt this class to transform and tidy it. Our section on [data preprocessing](../jxai/jxai_preprocess.qmd) in our [deep learning course with the JAX AI stack](../top_jxai.qmd) goes into this in a lot more details.
+Our dataset agrees with Torchvision's reader, class for class and label for label. If your data is more messy, you can adapt this class to transform and tidy it. Our section on [data preprocessing](../jxai/jxai_preprocess.qmd) in our [deep learning course with the JAX AI stack](../top_jxai.qmd) goes into this in a lot more details.
