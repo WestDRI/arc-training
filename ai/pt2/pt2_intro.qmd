@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-Let's start by examining how PyTorch works by training a model: we build a small neural network, train it on a toy dataset, and dissect every step of the process (tensors, modules, forward pass, loss, backward pass, optimizer steps, and the training loop that ties them together).
+Let's start by examining how PyTorch works by training a model: we build a small neural network, train it on a toy dataset, and dissect every step of the process.
 
 If you have never used PyTorch, [our introductory course](../top_pt.qmd) covers the same ground at a gentler pace.
 
@@ -19,9 +19,9 @@ from torch import nn
 from matplotlib import pyplot as plt
 ```
 
-`torch` is the core library and `torch.nn` (imported as `nn` by convention) provides the neural network building blocks. `matplotlib` will give us two quick visualizations.
+`torch` is the core library and `torch.nn` (imported as `nn` by convention) provides the neural network building blocks. We use `matplotlib` to visualize the data and the model predictions.
 
-We pick the accelerator (e.g. GPU) if there is one and fall back to the CPU otherwise. Everything on this page runs in seconds either way:
+First, we pick the accelerator (e.g. GPU) if there is one and fall back to the CPU otherwise. Everything on this page runs in seconds either way:
 
 ```{python}
 device = (
@@ -32,7 +32,7 @@ device = (
 print(f"torch {torch.__version__}, {device}")
 ```
 
-Finally, we set a seed: our toy dataset and the network initialization both rely on random numbers, and a seed makes them identical from run to run:
+Then, we set a seed: our toy dataset and the network initialization both rely on random numbers, and a seed makes them identical from run to run:
 
 ```{python}
 torch.manual_seed(42)
@@ -81,7 +81,7 @@ For a deeper dive (broadcasting, views, memory on accelerators), see [the tensor
 
 :::
 
-## A toy dataset
+## Our toy dataset
 
 Let's synthesize a small two-spirals dataset (two interleaved spirals of points) and try to classify the points. This is a classic machine learning benchmark for binary classification because it cannot be solved by a linear model, but a neural network can solve it in seconds.
 
@@ -134,15 +134,15 @@ plt.axis("equal")
 plt.scatter(x[:, 0].cpu(), x[:, 1].cpu(), c=y.cpu(), s=4, cmap="coolwarm")
 ```
 
-:::{.note}
+:::{.notenoit}
 
 Note that we had to copy the tensors to the CPU (`.cpu()`) to plot them.
 
 :::
 
-## A network is an `nn.Module`
+## Our model
 
-Models in PyTorch are Python classes that subclass [`nn.Module`](https://pytorch.org/docs/stable/generated/torch.nn.Module.html) to inherit its characteristics. They declare their layers in `__init__` and describe how data flows through them in `forward`:
+Models in PyTorch are Python classes that subclass [`nn.Module`](https://pytorch.org/docs/stable/generated/torch.nn.Module.html) to inherit its characteristics. They declare their layers in `__init__()` and describe how data flows through them in `forward()`:
 
 ```{python}
 class Net(nn.Module):
@@ -165,7 +165,7 @@ class Net(nn.Module):
 - The [`nn.ReLU`](https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html) functions introduce non-linear transformations.
 - The layer widths (64, 32) use powers of 2: GPUs and CPUs work in base 2, so power-of-2 sizes use memory and processing hardware efficiently.
 
-This is a typical example of [object-oriented programming (OOP)](https://en.wikipedia.org/wiki/Object-oriented_programming) in Python. [We introduce OOP](../../python/intro_oop.qmd) in our intro Python course.
+This is a typical example of [object-oriented programming (OOP)](https://en.wikipedia.org/wiki/Object-oriented_programming) in Python ([we introduce OOP](../../python/intro_oop.qmd) in our intro Python course).
 
 The model we will use is an instance of the class `Net` we just created. We instantiate it and move its parameters to the accelerator:
 
@@ -180,7 +180,7 @@ print("parameters:", sum(p.numel() for p in model.parameters()))
 
 ## The forward pass
 
-Calling the model on the data runs `forward` on the whole batch at once: the inputs are the 1,000 points and the output is 1,000 pairs of raw scores. These unnormalized scores are called **logits**:
+In the forward pass, we pass the data through the `forward()` function to get predictions: the inputs are our 1,000 points of the 2 classes and the outputs are 1,000 pairs of raw scores. These unnormalized scores are called **logits**:
 
 ```{python}
 logits = model(x)
@@ -197,9 +197,9 @@ This gives the probability that each point belongs to one or the other class. Be
 
 ## The loss
 
-Training needs a number that measures how wrong the model is: the **loss**.
+Training requires a measure of how wrong the model is: the **loss**, calculated by a **loss function** from the model predictions and the real values (`y` in our case).
 
-For classification, [`nn.CrossEntropyLoss`](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) is the standard choice. It is calculated from the model predictions and the real values (`y` in our case):
+For classification problems, [`nn.CrossEntropyLoss`](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) is the standard loss function.
 
 ```{python}
 loss_fn = nn.CrossEntropyLoss()
@@ -209,13 +209,15 @@ print(loss.item())
 
 :::{.note}
 
-`nn.CrossEntropyLoss` expects raw logits and integer class labels: it applies the softmax function internally. Passing it softmaxed outputs is a classic mistake that quietly cripples training.
+Because it applies the softmax function internally, `nn.CrossEntropyLoss()` expects raw logits and integer class labels. Passing it softmaxed outputs is a classic mistake that quietly cripples training.
+
+Note that some loss functions do need softmaxed outputs, so make sure to read the documentation of the function you use.
 
 :::
 
 ## The backward pass
 
-The gradient of the loss with respect to a parameter determines in which direction and how strongly that parameter should be nudged to decrease the loss.
+The gradient (vector of partial derivatives) of the loss with respect to a parameter determines in which direction and how strongly that parameter should be nudged to decrease the loss.
 
 Gradients are not computed by hand: PyTorch's [autograd](https://pytorch.org/docs/stable/autograd.html) records every operation performed on tensors that require gradients (our model's parameters) and replays the computation backwards.
 
@@ -225,7 +227,7 @@ Before training, the parameters don't carry any gradient:
 print(model.layers[0].weight.grad)
 ```
 
-A single call to `backward()` on the loss fills in the `.grad` of every parameter that contributed to it:
+A call to `backward()` on the loss creates a `.grad` attribute for every parameter that contributed to it:
 
 ```{python}
 loss.backward()
@@ -235,11 +237,13 @@ print(g.shape, g.norm().item())
 
 The first layer's weight matrix (of shape 64 × 2) now holds a gradient of the same shape. For more on the computation graph and on what exactly happens in `backward()`, see [the section on automatic differentiation](../pt/pt_autograd.qmd) of our introductory course.
 
-## One step of the optimizer
+## The optimizer
 
-The optimizer holds the parameters and an update rule. [`torch.optim.AdamW`](https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html) is a solid default.
+The optimizer holds the parameters and an update rule. After each backward pass, it updates the parameters in the direction opposite to their gradients in order to reduce the loss. This is one step of [gradient descent](https://en.wikipedia.org/wiki/Gradient_descent).
 
-`lr` is the learning rate: the size of the parameter updates.
+[`torch.optim.AdamW`](https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html) is a solid default.
+
+`lr` is the learning rate: a hyperparameter that dictates the step size of the parameter updates.
 
 ```{python}
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-2)
@@ -250,7 +254,7 @@ optimizer.zero_grad()
 - `optimizer.step()` nudges every parameter against its gradient.
 - `optimizer.zero_grad()` clears the gradients: `backward()` adds to existing gradients rather than replacing them. Accumulation is sometimes exactly what one wants (we will use it as an efficiency trick in a later page), but in our simple loop we want a clean slate at each iteration.
 
-Let's re-evaluate the loss.
+Now we can re-evaluate the loss and see the improvement after one step.
 
 When we are not training, there is no need to keep track of operations since we won't need to calculate the gradients. `torch.inference_mode()` disables the autograd engine and the metadata overhead that comes with it (this is the modern, faster form of `torch.no_grad()`):
 
@@ -263,7 +267,7 @@ The loss dropped noticeably: a single step already improved the model.
 
 ## The training loop
 
-Training a model consists of repeating these steps a large number of times. This is done via a loop:
+Training a model consists of repeating this process a large number of times.
 
 ```{mermaid}
 %%| echo: false
@@ -277,6 +281,8 @@ flowchart LR
     E --> A
 ```
 
+Programmatically, this is done via a loop. Let's train our model over 500 epochs and print the value of the loss every 100 epoch:
+
 ```{python}
 for epoch in range(1, 501):
     optimizer.zero_grad()
@@ -287,7 +293,11 @@ for epoch in range(1, 501):
         print(f"epoch {epoch:3d}  loss {loss.item():.4f}")
 ```
 
-An epoch is one complete pass through the data: since we train on the full batch at once here, one epoch is one iteration of the loop. In the rest of the course, the data will come in batches from a DataLoader.
+:::{.note}
+
+An epoch is one complete pass through the data: since we train on the full dataset at once here, one epoch is one iteration of the loop. In the rest of the course, the data will come in batches from a DataLoader.
+
+:::
 
 ## Inference and accuracy
 
