@@ -1,0 +1,366 @@
+---
+title: A modern training loop
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+[The toy example](pt2_intro.qmd) trained a model with a bare five-line loop. Real training needs more: mixed precision, a learning-rate schedule, gradient clipping, proper metrics, early stopping, and checkpointing of the best model.
+
+This page assembles all of it into one canonical loop and runs it on EuroSAT, training a small convnet from scratch. The loop is deliberately ordinary and explicit: it is the engine of the whole course, reused later for fine-tuning and for cluster training with only the model changing.
+
+:::
+
+## Setup
+
+```{python}
+import math
+import time
+
+import torch
+from matplotlib import pyplot as plt
+from torch import nn
+from torchmetrics import MeanMetric
+from torchmetrics.classification import MulticlassAccuracy
+from torch.utils.data import DataLoader, Subset
+from torchvision.datasets import EuroSAT
+from torchvision.transforms import v2 as T
+```
+
+- `torchmetrics` provides composable, device-aware metrics (`MeanMetric` for weighted averages, `MulticlassAccuracy` for the classification score).
+- `math` is for the cosine schedule, `time` to time epochs.
+
+As [before](pt2_intro.qmd), we pick the accelerator if there is one, fall back to the CPU otherwise, and seed for reproducibility:
+
+```{python}
+device = (
+    torch.accelerator.current_accelerator()
+    if torch.accelerator.is_available()
+    else torch.device("cpu")
+)
+torch.manual_seed(42)
+print(f"torch {torch.__version__}, {device}")
+```
+
+The data pipeline is the one built in the last two sections: [transforms with augmentation](pt2_augmentation.qmd) for training and deterministic transforms for validation, [loaders](pt2_dataloaders.qmd) with 4 persistent workers. The training shuffle gets a seeded generator, the pattern [seen earlier](pt2_dataloaders.qmd), so that runs are reproducible:
+
+```{python}
+IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+
+train_tf = T.Compose([
+    T.ToImage(),
+    T.RandomHorizontalFlip(),
+    T.RandomVerticalFlip(),
+    T.RandomRotation(90),
+    T.ToDtype(torch.float32, scale=True),
+    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+])
+val_tf = T.Compose([
+    T.ToImage(),
+    T.ToDtype(torch.float32, scale=True),
+    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+])
+
+idx = torch.load("data/split.pt", weights_only=True)
+train = Subset(EuroSAT(root="data", transform=train_tf), idx["train"])
+val = Subset(EuroSAT(root="data", transform=val_tf), idx["val"])
+
+loader_kwargs = {
+    "batch_size": 64,
+    "num_workers": 4,
+    "persistent_workers": True,
+    "pin_memory": torch.accelerator.is_available(),
+}
+train_loader = DataLoader(
+    train, shuffle=True, generator=torch.Generator().manual_seed(42),
+    **loader_kwargs,
+)
+val_loader = DataLoader(val, **loader_kwargs)
+print(len(train_loader), "train batches,", len(val_loader), "val batches")
+```
+
+## A deliberately small model
+
+The model is a small convolutional network: three conv blocks that halve the image and double the channels, then a global average pool and a linear layer producing one score per class.
+
+```{python}
+class Net(nn.Module):
+    """A deliberately small CNN for 64x64 images, 10 classes."""
+
+    def __init__(self):
+        super().__init__()
+        self.layers = nn.Sequential(
+            # 3 conv blocks: each halves the image, doubles the channels
+            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),  # 64 -> 32
+            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),  # 32 -> 16
+            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),  # 16 -> 16
+            nn.AdaptiveAvgPool2d(1),  # one value per channel: 128 features
+            nn.Flatten(),
+            nn.Linear(128, 10),  # one score per class
+        )
+
+    def forward(self, x):
+        return self.layers(x)
+```
+
+- Each [`nn.Conv2d`](https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html) slides 3 × 3 filters over the image (`padding=1` keeps the size).
+- [`nn.AdaptiveAvgPool2d(1)`](https://pytorch.org/docs/stable/generated/torch.nn.AdaptiveAvgPool2d.html) averages each channel over the whole image: whatever the input size, the output is 128 numbers. This makes the architecture tolerant to other image sizes.
+
+```{python}
+model = Net().to(device)
+print("parameters:", sum(p.numel() for p in model.parameters()))
+```
+
+Roughly 95,000 parameters: the same small CNN that served to measure GPU starvation [in the DataLoaders section](pt2_dataloaders.qmd). It is deliberately modest. Trained from scratch, it will land on a mediocre baseline, and that is the point: it gives every later technique something to improve upon, and its epochs run in seconds even on small GPUs.
+
+## Hyperparameters
+
+Model training hyperparameters include loss, optimizer, and learning-rate schedule.
+
+The loss function and optimizer are the [familiar ones](pt2_intro.qmd): cross-entropy for classification, AdamW with decoupled weight decay:
+
+```{python}
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.01)
+```
+
+The new ingredient is the schedule. A constant learning rate is a poor default: too high and early updates destabilize the run, too low and training crawls. We combine two standard ideas:
+
+- **Warmup**: the learning rate ramps up from almost zero over the first epoch. The first steps happen on random weights, where gradients are large and noisy.
+- **Cosine decay**: afterwards, it anneals smoothly down to zero: large steps while the model is coarse, small steps while it refines.
+
+```{python}
+max_epochs, patience, warmup = 15, 4, len(train_loader)  # warmup: 1 epoch
+total_steps = max_epochs * len(train_loader)
+
+def lr_lambda(step):
+    if step < warmup:
+        return (step + 1) / warmup  # linear ramp from ~0 to 1
+    progress = (step - warmup) / (total_steps - warmup)
+    return 0.5 * (1.0 + math.cos(math.pi * progress))  # cosine down to ~0
+
+scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+print(f"warmup {warmup} steps, total {total_steps} steps")
+```
+
+`LambdaLR` multiplies the base learning rate (1e-3) by our function at every step. Here is the shape of it over the planned run:
+
+```{python}
+base_lr = optimizer.param_groups[0]["initial_lr"]
+lrs = [base_lr * lr_lambda(s) for s in range(total_steps)]
+fig, ax = plt.subplots(figsize=(7, 3))
+ax.plot(lrs)
+ax.set_xlabel("step")
+ax.set_ylabel("learning rate")
+```
+
+## Metrics
+
+Hand-rolled accuracy is easy to get subtly wrong (averaging over batches instead of samples is the classic). We use [torchmetrics](https://github.com/Lightning-AI/torchmetrics): metrics are objects with an `update()` called per batch and a `compute()` called once at the end, and they weight correctly. They will also plug into experiment tracking later in the course.
+
+The two we need: `MeanMetric` for a weighted average (per-batch losses weighted by batch size, since the last batch is smaller), and `MulticlassAccuracy`:
+
+```{python}
+metric = MulticlassAccuracy(num_classes=10).to(device)
+with torch.inference_mode():
+    logits = torch.eye(10).repeat(3, 1).to(device)  # 30 rows of perfect logits
+    preds = logits.argmax(dim=1)
+metric.update(preds, torch.arange(10).repeat(3).to(device))
+print(metric.compute().item())
+```
+
+Perfect predictions on three passes over the 10 classes: the accuracy is 1.0.
+
+## One epoch of training
+
+One more modern ingredient: **mixed precision**. The compute happens in `bfloat16`, which halves memory traffic and, on recent GPUs, uses dedicated fast paths, while sensitive operations stay in float32. `torch.autocast` handles the casting per operation:
+
+```{python}
+# bf16 only accelerates on Ampere (2020) and newer GPUs; on older ones it
+# runs in emulation and can be slower than plain fp32, hence the gate
+use_bf16 = device.type == "cuda" and torch.cuda.get_device_capability()[0] >= 8
+print(use_bf16)
+```
+
+:::{.note}
+
+Why bf16 rather than the classic fp16? bf16 keeps the exponent range of float32, so it does not need the gradient scaling that fp16 training requires (the `GradScaler` you will meet in older tutorials). On GPUs too old to accelerate bf16, like the RTX 2060 this page renders on, fp32 remains the honest choice: we measured bf16 emulation there at twice the epoch time of fp32. On the GPUs of the later cluster section, the gate opens and the same code runs in bf16.
+
+:::
+
+Here is one epoch, the production version of [the toy loop](pt2_intro.qmd):
+
+```{python}
+def train_epoch():
+    model.train()
+    loss_metric = MeanMetric().to(device)
+    for x, y in train_loader:
+        x = x.to(device, non_blocking=True)
+        y = y.to(device, non_blocking=True)
+        optimizer.zero_grad()
+        with torch.autocast(
+            device_type=device.type, dtype=torch.bfloat16, enabled=use_bf16
+        ):
+            loss = loss_fn(model(x), y)
+        loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        scheduler.step()  # the schedule advances every batch
+        loss_metric.update(loss.detach(), weight=x.size(0))
+    return loss_metric.compute().item()
+```
+
+- `model.train()` switches to training behaviour (our CNN has no mode-dependent layers, but the habit prevents silent bugs the day the model changes).
+- Batches move to the accelerator with `non_blocking=True`: with [pinned memory](pt2_dataloaders.qmd), the copies overlap with compute.
+- The forward pass and the loss sit inside the autocast context; the backward pass and the optimizer work outside it on scaled gradients.
+- [`clip_grad_norm_`](https://pytorch.org/docs/stable/generated/torch.nn.utils.clip_grad_norm_.html) rescales the gradients if their global norm exceeds 1.0: one pathological batch cannot produce a huge parameter jump. This protects the run at a negligible cost.
+- The scheduler advances at every batch, matching the per-step warmup and cosine.
+- `loss_metric.update` receives the detached loss weighted by the batch size, so the epoch loss is the mean over images, not over batches.
+
+## Evaluation
+
+Evaluation runs the same batches through the model without training machinery:
+
+```{python}
+def evaluate():
+    model.eval()
+    loss_metric = MeanMetric().to(device)
+    acc_metric = MulticlassAccuracy(num_classes=10).to(device)
+    for x, y in val_loader:
+        x = x.to(device, non_blocking=True)
+        y = y.to(device, non_blocking=True)
+        with torch.inference_mode():
+            logits = model(x)
+            preds = logits.argmax(dim=1)
+        loss_metric.update(loss_fn(logits, y), weight=x.size(0))
+        acc_metric.update(preds, y)
+    return loss_metric.compute().item(), acc_metric.compute().item()
+```
+
+- `model.eval()` is the counterpart of `model.train()`.
+- [`torch.inference_mode()`](https://pytorch.org/docs/stable/generated/torch.inference_mode.html) disables the autograd engine: no graph is recorded, so evaluation is faster and leaner.
+- Predictions are the class with the highest logit, computed inside the context; the metric updates happen outside it: torchmetrics needs regular tensors for its bookkeeping.
+
+## Early stopping
+
+The last piece is the loop around the epochs. It keeps a history for plotting, saves a checkpoint whenever validation improves, and stops when it has not improved for `patience` epochs:
+
+```{python}
+def fit():
+    history = {"train_loss": [], "val_loss": [], "val_acc": [], "lr": []}
+    best_acc, best_epoch, wait = 0.0, 0, 0
+    for epoch in range(1, max_epochs + 1):
+        t0 = time.perf_counter()
+        train_loss = train_epoch()
+        val_loss, val_acc = evaluate()
+        history["train_loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+        history["val_acc"].append(val_acc)
+        history["lr"].append(scheduler.get_last_lr()[0])
+        marker = ""
+        if val_acc > best_acc:
+            best_acc, best_epoch, wait = val_acc, epoch, 0
+            torch.save(
+                {"model": model.state_dict(), "epoch": epoch, "val_acc": val_acc},
+                "data/best.pt",
+            )
+            marker = " *"
+        else:
+            wait += 1
+        print(f"epoch {epoch:2d}  train {train_loss:.3f}  val {val_loss:.3f}  "
+              f"acc {val_acc:5.1%}  lr {scheduler.get_last_lr()[0]:.2e}  "
+              f"{time.perf_counter() - t0:4.1f} s{marker}")
+        if wait >= patience:
+            print(f"early stop: no improvement for {patience} epochs")
+            break
+    return history, best_epoch, best_acc
+```
+
+- The `*` marks epochs that improved on the best validation accuracy so far, each of which overwrites the checkpoint.
+- Why checkpoint at all? Validation metrics wobble from epoch to epoch, so the last epoch is not necessarily the best model. The saved checkpoint is the one to keep and evaluate.
+- Early stopping ends the run when `wait` reaches `patience`: the model has stopped improving and further epochs are wasted compute (and, given enough of them, would slowly overfit).
+
+## The run
+
+```{python}
+history, best_epoch, best_acc = fit()
+```
+
+A few things to read in this output:
+
+- Each epoch takes a handful of seconds on this laptop GPU: the loop is cheap enough to experiment with.
+- The accuracy does not climb smoothly: it wobbles, and in our run it hovered in the mid-70s for a few epochs before jumping to about 79%. The patience of 4 gave the run room to wait out that plateau instead of stopping at the first non-improving epoch.
+- Improvements kept arriving late in the schedule. On longer schedules or bigger models, that is rarely the case, and early stopping is what saves you from babysitting a run that has plateaued.
+
+## Learning curves
+
+```{python}
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.7, 3.5))
+epochs = range(1, len(history["train_loss"]) + 1)
+ax1.plot(epochs, history["train_loss"], label="train")
+ax1.plot(epochs, history["val_loss"], label="validation")
+ax1.set_xlabel("epoch")
+ax1.set_ylabel("cross-entropy loss")
+ax1.legend()
+ax2.plot(epochs, history["val_acc"])
+ax2.set_xlabel("epoch")
+ax2.set_ylabel("validation accuracy")
+```
+
+The validation loss tracks the training loss closely: [augmentation](pt2_augmentation.qmd) is doing its job, and the model is not badly overfitting. It is simply running out of capacity: about one image in five is still misclassified. This is our mediocre baseline.
+
+## The best checkpoint
+
+The file saved along the way holds the best model seen:
+
+```{python}
+ckpt = torch.load("data/best.pt", weights_only=True)
+print(f"best epoch: {ckpt['epoch']}  val acc: {ckpt['val_acc']:.1%}")
+model.load_state_dict(ckpt["model"])
+val_loss, val_acc = evaluate()
+print(f"restored model: val loss {val_loss:.3f}  acc {val_acc:.1%}")
+```
+
+- `weights_only=True` keeps `torch.load` restricted to plain data: loading a checkpoint should never execute code.
+- Restoring the weights and re-evaluating confirms the numbers: this is the baseline model of the course, a small CNN at about 81% validation accuracy.
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+The learning rate is the hyperparameter that most affects this run. Train for 3 epochs with `lr=1e-1`, then 3 epochs with `lr=1e-4`, and compare the epoch losses with our run at `lr=1e-3`.
+
+- First hint: each trial needs a fresh `model`, `optimizer`, and `scheduler` (the scheduler holds a reference to the optimizer).
+
+- Second hint: `lr_lambda` reads `warmup` and `total_steps` from the global scope: lower `max_epochs` and recompute `total_steps` rather than editing the function.
+
+<!-- ```{python} -->
+<!-- max_epochs = 3 -->
+<!-- total_steps = max_epochs * len(train_loader) -->
+<!-- model = Net().to(device)  # fresh weights -->
+<!-- optimizer = torch.optim.AdamW(model.parameters(), lr=1e-1, weight_decay=0.01) -->
+<!-- scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda) -->
+<!-- history, best_epoch, best_acc = fit() -->
+<!-- ``` -->
+
+<!-- With lr=1e-1, the first epochs are rough (epoch 1 train loss about 1.9 -->
+<!-- versus 1.7 at lr=1e-3), then the run recovers as the schedule anneals: -->
+<!-- warmup and clipping keep even a large learning rate from exploding. -->
+<!-- With lr=1e-4, nothing protects you from slowness: the epoch 3 loss is -->
+<!-- still about 1.5, versus about 0.9 at lr=1e-3. -->
+
+::::
+
+## The engine of the course
+
+This loop, ordinary as it looks, is the engine that every later section reuses:
+
+- **Faster training** (next section) wraps the same loop with `torch.compile` and precision knobs and measures what they buy.
+- **Fine-tuning a pretrained model** (later in the course) swaps `Net` for a pretrained backbone with a new head. The loop, the schedule, the metrics, and the checkpointing stay exactly the same, and the accuracy jumps by a wide margin: the payoff of the whole course.
+- **Cluster training** (the finale) runs this same code as a script across several GPUs of a supercomputer.
+
+The baseline itself is mediocre on purpose: about 81% accuracy means roughly one image in five is wrong, and hand-tuning this small CNN further is a dead end. The next two moves are to make the loop faster and the model dramatically better.

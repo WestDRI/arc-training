@@ -1,0 +1,250 @@
+---
+title: "Preprocessing & augmentation"
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+Before images can reach a model, they must become tensors: uniform size and data type, values in a sensible range. On top of this, randomly perturbing the training images (**augmentation**) is a cheap way to get more out of a small dataset.
+
+We build both pipelines on EuroSAT with [torchvision transforms v2](https://pytorch.org/vision/stable/transforms.html).
+
+:::
+
+## Setup
+
+```{python}
+import torch
+from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader, Subset
+from torchvision.datasets import EuroSAT
+from torchvision.transforms import v2 as T
+
+torch.manual_seed(42)
+```
+
+`torchvision.transforms.v2` (imported as `T` by convention) is the current transform API: the older `transforms` namespace still works but is in maintenance mode. The v2 transforms accept PIL images, tensors, or batches of either.
+
+As before, we reload the dataset and [the split saved earlier](pt2_datasets.qmd), and pick one training image to work on:
+
+```{python}
+eurosat = EuroSAT(root="data")
+idx = torch.load("data/split.pt", weights_only=True)
+img, label = eurosat[idx["train"][0]]
+print(type(img).__name__, img.size, "->", label, eurosat.classes[label])
+```
+
+## The validation pipeline: preprocessing
+
+A model needs every input as a float32 tensor of the same shape, with values in a comparable range. For evaluation, this conversion must be deterministic. Here is the whole pipeline for our validation images:
+
+```{python}
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
+
+val_tf = T.Compose([
+    T.ToImage(),                           # PIL image -> uint8 CHW tensor
+    T.ToDtype(torch.float32, scale=True),  # /255 -> float32 in [0, 1]
+    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+])
+```
+
+Let's run the three stages one by one on our image:
+
+```{python}
+x = T.ToImage()(img)
+print(x.shape, x.dtype, int(x.min()), int(x.max()))
+```
+
+- [`T.ToImage()`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToImage.html) turns the PIL image into a uint8 tensor of shape (3, 64, 64): channels first, the layout PyTorch expects.
+- The values are raw pixel intensities from 0 to 255.
+
+```{python}
+x = T.ToDtype(torch.float32, scale=True)(x)
+print(x.shape, x.dtype, f"{x.min():.3f} {x.max():.3f}")
+```
+
+- [`T.ToDtype`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToDtype.html) with `scale=True` rescales to [0, 1] while converting to float32, the data type models compute in.
+
+```{python}
+x = T.Normalize(IMAGENET_MEAN, IMAGENET_STD)(x)
+print(x.shape, x.dtype, f"{x.min():.2f} {x.max():.2f}")
+```
+
+```{python}
+print([f"{v:+.2f}" for v in x.mean(dim=(1, 2)).tolist()])
+```
+
+- [`T.Normalize`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.Normalize.html) standardizes each channel: it subtracts a mean and divides by a standard deviation.
+
+Why these particular mean and std? They are the per-channel statistics of ImageNet, the dataset the pretrained models of a later section were trained on: those models expect inputs normalized exactly this way. We adopt them for the whole course, including our from-scratch baseline, so that every run stays comparable.
+
+:::{.note}
+
+Our Forest patch normalizes to channel means of about −1.01, −0.65, and +0.11: far from zero. EuroSAT is darker and greener than the average ImageNet photo. When training a model from scratch, computing your own dataset statistics is a legitimate choice; what matters is using the same statistics everywhere, data and model consistent.
+
+:::
+
+:::{.note}
+
+Older tutorials use `transforms.ToTensor()`: the v2 equivalent is `ToImage()` followed by `ToDtype(torch.float32, scale=True)`.
+
+:::
+
+Two things are missing from this pipeline that you will usually need for your own data. EuroSAT images are all 64 × 64 pixels, so there is no [`T.Resize`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.Resize.html); and evaluation crops are deterministic, so there is no random crop. For mixed-size images, the standard evaluation recipe is `T.Resize(256)` followed by [`T.CenterCrop(224)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.CenterCrop.html).
+
+## The training pipeline: augmentation
+
+The file count of a small dataset is fixed, but the model should not keep seeing the exact same pixels. **Augmentation** applies random, label-preserving changes to training images at every read: the model then never trains on the same tensor twice and cannot rely on accidents of orientation or framing.
+
+```{python}
+train_tf = T.Compose([
+    T.ToImage(),
+    T.RandomHorizontalFlip(),  # p=0.5 by default
+    T.RandomVerticalFlip(),    # p=0.5 by default
+    T.RandomRotation(90),      # random angle in [-90, 90]
+    T.ToDtype(torch.float32, scale=True),
+    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+])
+```
+
+Why these three transforms? Satellite images look straight down: there is no "up" in a nadir view, and a field, a highway, or a lake flipped or rotated is still the same class. This reasoning is domain-specific: rotating handwritten digits would turn some 6s into 9s, and flipping text left to right destroys it. Every augmentation you add is a bet that the change preserves the label of every image in the dataset.
+
+The random transforms sit before the dtype conversion: geometry on uint8 tensors is cheaper than on float32, and `Normalize` must come last.
+
+Here is one image (a highway) next to seven passes of the random part of the pipeline:
+
+```{python}
+aug_display = T.Compose([           # for screens: without Normalize
+    T.ToImage(),
+    T.RandomHorizontalFlip(),
+    T.RandomVerticalFlip(),
+    T.RandomRotation(90),
+])
+
+img, label = eurosat[10000]
+print(label, eurosat.classes[label])
+fig, axes = plt.subplots(2, 4, figsize=(10.5, 5.5))
+axes.flat[0].imshow(img)
+axes.flat[0].set_title("original", fontsize=9)
+axes.flat[0].axis("off")
+for ax in axes.flat[1:]:
+    ax.imshow(aug_display(img).permute(1, 2, 0))  # CHW -> HWC
+    ax.axis("off")
+```
+
+Every call draws fresh random parameters:
+
+```{python}
+a, b, c = train_tf(img), train_tf(img), train_tf(img)
+print(torch.equal(a, b), torch.equal(b, c))
+```
+
+Our 21,600 training files now yield effectively unbounded distinct training tensors: after 10 epochs, the model has seen each file 10 times, but never the same tensor twice.
+
+And the validation transform, being deterministic, returns the identical tensor every time:
+
+```{python}
+a, b = val_tf(img), val_tf(img)
+print(torch.equal(a, b))
+```
+
+[Validation and test transforms must be deterministic.]{.emph} Random transforms at evaluation time add noise to your metrics and let luck masquerade as performance. Augmentation is a training-time tool.
+
+## Where transforms run
+
+Both pipelines attach to the dataset at construction, through the `transform=` argument used in [the DataLoaders section](pt2_dataloaders.qmd). torchvision datasets take it, and so does the custom `ImageFiles` class [we wrote earlier](pt2_datasets.qmd): `transform` was the hook left open for exactly this.
+
+The transform runs inside `__getitem__`, once per sample, therefore inside the worker processes: augmentation is parallelized by the DataLoaders for free. It is not free though: on this machine, one pass over the training set with 4 workers took 2.0 s without augmentation and 4.8 s with flips, rotation, and normalization. Cheap transforms keep the workers ahead of the accelerator; expensive ones starve it again, which is the diagnosis of the previous section.
+
+## One draw per call
+
+The v2 transforms also accept batches of tensors. But watch out: a transform draws one set of random parameters per call, so the whole batch gets flipped or rotated together:
+
+```{python}
+batch = torch.stack([T.ToImage()(eurosat[i][0]) for i in range(8)])
+hflip = T.RandomHorizontalFlip()
+for _ in range(4):
+    out = hflip(batch)
+    print([not torch.equal(out[i], batch[i]) for i in range(8)])
+```
+
+Every line is all `True` or all `False`: never a mix. Per-sample randomness must therefore happen on the dataset side, one `__getitem__` at a time, as we have set up. Batched calls remain useful for deterministic transforms such as `Normalize`.
+
+## When augmentation helps
+
+Augmentation is regularization: it trades easy fit on the training set for generalization.
+
+- **Training from scratch on a small dataset** (our situation in the next section): augmentation is one of the highest-value additions. The model cannot memorize exact images, and validation accuracy typically climbs once the model starts overfitting.
+- **Fine-tuning a pretrained model** (a later section of this course): the backbone was already trained on millions of heavily augmented images, so it arrives robust. Start with light or no augmentation; add some back if the gap between training and validation performance grows.
+- Every transform must be label-preserving **and** representative of real variation. Photometric jitter on satellite images deserves care: colour carries physical signal there (vegetation, water). Geometric flips and rotations are the safe choice for EuroSAT.
+
+Expect the training loss to fall more slowly with augmentation: the task got harder, not the model worse. Judge on validation metrics.
+
+For a quick strong default on natural images, torchvision also ships one-liner policies such as [`T.TrivialAugmentWide`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.TrivialAugmentWide.html) and [`T.RandAugment`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.RandAugment.html), which compose random transforms for you.
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Add `T.RandomResizedCrop(64, scale=(0.4, 1.0))` to the training pipeline (right after `T.ToImage()`), then display 8 variants of one image. Finally, think: which EuroSAT classes could lose their identity if crops get very tight?
+
+- First hint: copy `aug_display`, without `Normalize`.
+
+- Second hint: `scale` bounds the fraction of the image area kept by the crop.
+
+- Third hint: two classes are long and thin.
+
+<!-- ```{python} -->
+<!-- aug_crop = T.Compose([ -->
+<!--     T.ToImage(), -->
+<!--     T.RandomResizedCrop(64, scale=(0.4, 1.0)), -->
+<!--     T.RandomHorizontalFlip(), -->
+<!--     T.RandomVerticalFlip(), -->
+<!--     T.RandomRotation(90), -->
+<!-- ]) -->
+<!-- img, label = eurosat[10000] -->
+<!-- fig, axes = plt.subplots(2, 4, figsize=(10.5, 5.5)) -->
+<!-- for ax in axes.flat: -->
+<!--     ax.imshow(aug_crop(img).permute(1, 2, 0)) -->
+<!--     ax.axis("off") -->
+<!-- ``` -->
+
+<!-- Highway and River are linear features: a tight crop of either can look like the other, or like neither. Tight crops of PermanentCrop and Industrial can also lose the context that identifies them. -->
+
+::::
+
+## The complete data pipeline
+
+The data side of the course is now complete: datasets with the right transform per split, loaders with the options measured in the previous section.
+
+```{python}
+train = Subset(EuroSAT(root="data", transform=train_tf), idx["train"])
+val = Subset(EuroSAT(root="data", transform=val_tf), idx["val"])
+print(len(train), len(val))
+```
+
+```{python}
+loader_kwargs = {
+    "batch_size": 64,
+    "num_workers": 4,
+    "persistent_workers": True,
+    "pin_memory": torch.accelerator.is_available(),
+}
+train_loader = DataLoader(train, shuffle=True, **loader_kwargs)
+val_loader = DataLoader(val, **loader_kwargs)
+```
+
+One training batch:
+
+```{python}
+x, y = next(iter(train_loader))
+print(x.shape, x.dtype, f"{x.min():.2f} {x.max():.2f}")
+print(y[:8].tolist())
+```
+
+Augmented, normalized, shuffled batches of tensors now flow at steady state. What is still missing is the model and the loop that trains it: this is the next section.
