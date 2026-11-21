@@ -196,28 +196,43 @@ print(type(val))
 
 [Hugging Face datasets Hub](https://huggingface.co/datasets) mirrors thousands of datasets and researchers increasingly share their data there. The [datasets library](https://github.com/huggingface/datasets) downloads and caches them, carries metadata along, preprocesses them in parallel, and streams datasets too big to fit on disk.
 
+There are [118 EuroSAT datasets](https://huggingface.co/datasets?search=eurosat) on HF. [blanchon/EuroSAT_RGB](https://huggingface.co/datasets/blanchon/EuroSAT_RGB) is by far the most popular and the most downloaded of them. If you look at the associated paper, you will see that it is [the EuroSAT description paper](https://arxiv.org/abs/1709.00029) [@8736785]. This thus seems like the perfect dataset to use:
+
 ```{python}
 eurosat_hf = hf.load_dataset("blanchon/EuroSAT_RGB")
-train_hf = eurosat_hf["train"]
-print(train_hf)
+print(type(eurosat_hf))
+print(eurosat_hf)
 ```
 
 The first call downloads the data into [~/.cache/huggingface/datasets]{.codelike} and converts it into Apache Arrow files; later calls hit the cache and return instantly. We get a `DatasetDict` of named splits: this copy of EuroSAT comes pre-split into train/validation/test.
+
+Unlike in the Torchvision dataset, the labels come with the data (so they aren't based on file indexing):
+
+```{python}
+train_hf = eurosat_hf["train"]
+print(train_hf.features)
+```
 
 ```{python}
 label_meta = train_hf.features["label"]
 print(label_meta.names)
 ```
 
-The labels come documented with the data: the `label` column is a `ClassLabel` feature that knows the class names.
-
 ```{python}
-print(train_hf[0]["label"], train_hf[0]["filename"])
+print(train_hf[0])
 ```
 
-Indexing an HF dataset returns a dict, not a tuple: columns have names instead of positions.
+```{python}
+print(train_hf[0]["label"])
+```
 
-`.map` applies a function to every example, in parallel (`num_proc=`), and caches the result on disk, keyed by a fingerprint of the function. Try running this next cell twice:
+```{python}
+print(train_hf[0]["filename"])
+```
+
+The [`map()`](https://huggingface.co/docs/datasets/v5.2.0/package_reference/main_classes#datasets.Dataset.map) method applies a function to every item in the dataset and caches the result on disk, keyed by a fingerprint of the function.
+
+For instance, to add a new feature called "label_name" to `train_hf` which contains the class names as string of the labels (using [Hugging Face datasets `int2str()`](https://huggingface.co/docs/datasets/v5.2.0/package_reference/main_classes#datasets.ClassLabel.int2str)), we can run:
 
 ```{python}
 def add_label_name(example):
@@ -227,7 +242,17 @@ train_hf = train_hf.map(add_label_name)
 print(train_hf[0]["label_name"])
 ```
 
-With `streaming=True`, examples arrive shard by shard as they download. There is no `len()` and no random access: a way to peek into a dataset without storing it.
+You can use `map()` in parallel by setting a value to the `num_proc` argument.
+
+:::{.note}
+
+HF datasets satisfy the same `__init__`/`__len__`/`__getitem__` class structure, so they plug into the same DataLoaders as everything else.
+
+Using `with_format("torch")` returns the labels directly as tensors.
+
+:::
+
+If you don't want to download the data files, you can pass `streaming=True` to `hf.load_dataset()`:
 
 ```{python}
 stream = hf.load_dataset("blanchon/EuroSAT_RGB", split="train", streaming=True)
@@ -235,11 +260,7 @@ first = next(iter(stream))
 print(first["filename"])
 ```
 
-:::{.note}
-
-HF datasets satisfy the same `__len__`/`__getitem__` contract (with dict examples), so they plug into the same DataLoaders as everything else; `with_format("torch")` returns the labels as tensors.
-
-:::
+This is useful to inspect datasets without downloading them, to save storage space for very large datasets, or when the processing pipeline is slow enough that the added network speed doesn't become a bottleneck.
 
 ## Torchvision vs HF datasets
 
@@ -255,7 +276,7 @@ But this difference in storage comes with an efficiency trade-off: Torchvision d
 
 ## Custom Dataset
 
-The most common situation of all: a folder of images on your machine, arranged somehow, that you need to train on. First, organize them to have one folder per class. Then create a subclass to `Dataset` that matches 
+The most common situation of all: a folder of images on your machine, arranged somehow, that you need to train on. First, organize the images to have one folder per class. Then create a subclass to `Dataset` that processes your images adequately. With nice, clean data, it could look like this:
 
 ```{python}
 class ImageFiles(Dataset):
