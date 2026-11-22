@@ -1,0 +1,219 @@
+---
+title: "Zero-shot with multimodal models"
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+The whole course so far trained models: loop, loss, epochs. This closing section of the transfer-learning part uses none of that. [CLIP](https://openai.com/index/clip/)-style multimodal models were trained to place images and text in one shared embedding space, and that single trick turns them into classifiers that were never told our classes: describe the classes in words, encode the description, and match.
+
+We try it on EuroSAT, and we compare honestly with the model [we fine-tuned](pt2_transfer.qmd).
+
+:::
+
+## Setup
+
+```{python}
+import re  # to split CamelCase class names into words
+
+import torch
+from matplotlib import pyplot as plt
+import open_clip
+from torch.utils.data import DataLoader, Subset
+from torchvision.datasets import EuroSAT
+```
+
+```{python}
+device = (
+    torch.accelerator.current_accelerator()
+    if torch.accelerator.is_available()
+    else torch.device("cpu")
+)
+torch.manual_seed(42)
+print(f"torch version: {torch.__version__}\ndevice: {device}")
+```
+
+We use the original OpenAI CLIP with a ViT-B/32 image encoder, through [open_clip](https://github.com/mlfoundations/open_clip), a library dedicated to these models:
+
+```{python}
+model, _, preprocess = open_clip.create_model_and_transforms(
+    "ViT-B-32-quickgelu", pretrained="openai"
+)
+tokenizer = open_clip.get_tokenizer("ViT-B-32-quickgelu")
+model = model.to(device).eval()
+print(f"{sum(p.numel() for p in model.parameters()) / 1e6:.0f}M parameters")
+```
+
+- The first call downloads about 350 MB of weights; later calls hit the cache.
+- The `-quickgelu` suffix selects the activation of the original OpenAI training run: same architecture, subtly different network.
+
+The third return value is CLIP's own preprocessing. Unlike [the ResNet-18 experiment](pt2_transfer.qmd), where we kept our 64 × 64 images, here we use it as-is:
+
+```{python}
+print(preprocess)
+```
+
+Resizing to 224 is not a choice this time. The image encoder is a [vision transformer](https://en.wikipedia.org/wiki/Vision_transformer): it cuts the image into patches and adds a learned position embedding to each, and those embeddings exist for exactly one resolution. Its normalization statistics are CLIP's own too, not ImageNet's.
+
+## Prompts as a classifier
+
+Our class names are CamelCase identifiers (`AnnualCrop`); text encoders want words. A regular expression splits a name wherever an uppercase letter starts a new word:
+
+```{python}
+def to_words(name):
+    # insert a space before each capital (except the first), lowercase
+    return re.sub(r"(?<!^)(?=[A-Z])", " ", name).lower()
+
+print([to_words(c) for c in EuroSAT(root="data").classes[:3]])
+```
+
+The classifier is a list of sentences, one per class, described the way a caption would describe them:
+
+```{python}
+classes = EuroSAT(root="data").classes
+prompts = [f"a satellite image of {to_words(c)}" for c in classes]
+print(prompts[:3])
+```
+
+Both encoders project into the same space, where matching image-text pairs sit close together. Encoding the prompts and normalizing the result gives us one vector per class:
+
+```{python}
+tokens = tokenizer(prompts).to(device)
+with torch.inference_mode():
+    text_features = model.encode_text(tokens)
+    # normalized, and back on the CPU: the similarity math is tiny
+    text_features = torch.nn.functional.normalize(text_features, dim=-1).cpu()
+print(text_features.shape)
+```
+
+- The tokenizer turns each sentence into token ids; the text encoder is a small transformer with a max length of 77 tokens, plenty for us.
+- Normalizing the embeddings turns dot products into cosine similarities: only directions matter, not lengths.
+
+## Images, once
+
+The image side is one pass over the validation set with CLIP's preprocessing, no training machinery anywhere:
+
+```{python}
+val = Subset(EuroSAT(root="data", transform=preprocess),
+             torch.load("data/split.pt", weights_only=True)["val"])
+val_loader = DataLoader(
+    val, batch_size=128, num_workers=4, pin_memory=torch.accelerator.is_available(),
+)
+feats, targets = [], []
+with torch.inference_mode():
+    for x, y in val_loader:
+        f = model.encode_image(x.to(device, non_blocking=True))
+        feats.append(torch.nn.functional.normalize(f, dim=-1).cpu())
+        targets.append(y)
+img_features, targets = torch.cat(feats), torch.cat(targets)
+print(img_features.shape, targets.shape)
+```
+
+Classifying is now a matrix product: the similarities between every image and every class sentence, and a `argmax` along the classes:
+
+```{python}
+logits = img_features @ text_features.T
+preds = logits.argmax(dim=1)
+acc = (preds == targets).float().mean()
+print(f"zero-shot accuracy: {acc:.1%}")
+```
+
+About 39%: remarkable for a classifier that learned our ten classes two cells ago, and far from the 96% of [the fine-tuned model](pt2_transfer.qmd). Both halves of that sentence are the lesson of this page; let us look closer at each.
+
+## Phrasing matters
+
+The prompt list *is* the classifier, so its wording matters. The same features, three phrasings:
+
+```{python}
+def zero_shot_accuracy(template):
+    texts = [template.format(to_words(c)) for c in classes]
+    tokens = tokenizer(texts).to(device)
+    with torch.inference_mode():
+        tf = torch.nn.functional.normalize(model.encode_text(tokens), dim=-1).cpu()
+    return ((img_features @ tf.T).argmax(dim=1) == targets).float().mean()
+
+for template in ("{}", "a photo of {}", "a satellite image of {}"):
+    print(f"{template:>28}: {zero_shot_accuracy(template):5.1%}")
+```
+
+- CLIP's canonical prompt, "a photo of ...", *underperforms* the bare class names here: it steers the text towards web photography, away from our domain.
+- The domain-aware phrasing buys a few points. Real gains come from describing the classes like captions do, not from prefix tuning.
+
+:::{.note}
+
+A standard trick we are skipping: **prompt ensembling**, averaging the text embeddings of several templates per class. It stabilizes zero-shot classifiers on natural photos. On EuroSAT we measured it within a point of the best single template: with this domain gap, phrasing is not the bottleneck.
+
+:::
+
+## Where it works, where it breaks
+
+Per-class recall shows the shape of the failure much better than the 39% average:
+
+```{python}
+recall = torch.stack([
+    (preds[targets == c] == c).float().mean() for c in range(10)
+])
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.barh(classes, recall.tolist())
+ax.set_xlabel("zero-shot recall")
+```
+
+<br>The pattern is the story:
+
+- Classes whose names describe scenes that fill web photo captions do fine: residential neighbourhoods, industrial buildings, highways.
+- Classes whose names are remote-sensing jargon collapse: "herbaceous vegetation" is not how anyone captions an image, and SeaLake, trivially easy for every trained model in this course, is nearly never predicted by CLIP. The classifier is only as good as the meeting point between our vocabulary and the model's training captions.
+
+This is [domain shift](https://en.wikipedia.org/wiki/Domain_adaptation) in its plainest form, and the field answers it the same way each time: fine-tune the multimodal model on domain data. Remote-sensing CLIPs exist (see for instance [RemoteCLIP](https://github.com/RemoteCLIP/RemoteCLIP)), built with exactly the recipe of our transfer-learning section, one level up.
+
+## When to reach for zero-shot
+
+Zero-shot costs no labels, no training, and one line of change to retarget: a different prompt list is a different classifier. That makes it the cheapest first experiment in applied deep learning: a floor under any labelling effort, a way to explore what a model knows about a domain before investing, and occasionally (web-adjacent domains, open-ended label spaces) the final solution.
+
+Specialized domains pull the other way. On EuroSAT, 39% zero-shot against 96% fine-tuned is the honest comparison, and the reason the fine-tuning section of this course exists.
+
+Where this is heading is bigger than classification: the same image encoders, paired with language models, answer free-form questions about images. Our webinar [The LLM era](../nlp/wb_llm_era.qmd) picks up that thread.
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Class names are jargon; captions are plain language. Replace each class name with a plain-language descriptor of what the patch shows (e.g. "residential neighbourhood houses" for `Residential`), keep the "a satellite image of" template, and measure again.
+
+- Hint: build `descriptors`, a list of 10 strings in class order, then `prompts = [f"a satellite image of {d}" for d in descriptors]`.
+
+<!-- ```{python} -->
+<!-- descriptors = [ -->
+<!--     "farmland with crop fields", -->
+<!--     "dense forest canopy", -->
+<!--     "grassland and bushes", -->
+<!--     "a highway road", -->
+<!--     "industrial buildings", -->
+<!--     "green pasture", -->
+<!--     "orchard or vineyard rows", -->
+<!--     "residential neighbourhood houses", -->
+<!--     "a river", -->
+<!--     "a lake or sea", -->
+<!-- ] -->
+<!-- prompts = [f"a satellite image of {d}" for d in descriptors] -->
+<!-- tokens = tokenizer(prompts).to(device) -->
+<!-- with torch.inference_mode(): -->
+<!--     tf = torch.nn.functional.normalize(model.encode_text(tokens)).cpu() -->
+<!-- preds = (img_features @ tf.T).argmax(dim=1) -->
+<!-- print(f"{(preds == targets).float().mean():.1%}") -->
+<!-- ``` -->
+
+<!-- Plain language pays where jargon was hurting: with the -->
+<!-- descriptors above we measured about 42% overall, SeaLake -->
+<!-- jumping from single digits to near 60% and HerbaceousVegetation -->
+<!-- from zero to about 28%. The flip side: descriptors that overlap -->
+<!-- ("green pasture", "grassland and bushes", "dense forest canopy") -->
+<!-- steal predictions from each other, and Forest dropped hard. -->
+<!-- Descriptor writing is the zero-shot practitioner's core skill: -->
+<!-- translating jargon into the model's vocabulary, while keeping -->
+<!-- the class descriptions distinct. -->
+
+::::

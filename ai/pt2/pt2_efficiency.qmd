@@ -1,0 +1,151 @@
+---
+title: Efficiency menu
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+Training runs into two walls: not enough memory, and not enough time. The course has already assembled most of the answers, spread across its sections; this page gathers the remaining ones and ends with the menu in one place, ordered by when to reach for each.
+
+:::
+
+## Gradient accumulation
+
+[We promised this one](pt2_dataloaders.qmd) when discussing batch sizes: when the batch you *want* does not fit in memory, simulate it with several smaller **microbatches** whose gradients add up. Since `backward()` [accumulates into `.grad`](pt2_intro.qmd) by default, the mechanism is almost free:
+
+```{python}
+import copy
+
+import torch
+from torch import nn
+
+
+class Tiny(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(32, 64), nn.ReLU(), nn.Linear(64, 10))
+
+    def forward(self, x):
+        return self.net(x)
+
+torch.manual_seed(42)
+batch = torch.randn(64, 32)
+labels = torch.randint(0, 10, (64,))
+loss_fn = nn.CrossEntropyLoss()
+```
+
+The claim to verify: four microbatches of 16, each contributing `loss / 4`, produce the same gradients as one straight batch of 64. Same starting weights, so a copy of the model for each path:
+
+```{python}
+reference = Tiny()
+accumulated = copy.deepcopy(reference)  # same starting weights as reference
+
+loss = loss_fn(reference(batch), labels)
+loss.backward()
+ref_grads = [p.grad.clone() for p in reference.parameters()]
+
+reference.zero_grad()  # not needed anymore, but a clean habit
+optimizer = torch.optim.SGD(accumulated.parameters(), lr=1.0)
+optimizer.zero_grad()
+for micro_x, micro_y in zip(batch.split(16), labels.split(16)):
+    loss = loss_fn(accumulated(micro_x), micro_y) / 4  # loss / N
+    loss.backward()
+optimizer.step()
+
+acc_grads = [p.grad for p in accumulated.parameters()]
+print([torch.allclose(a, b, atol=1e-5) for a, b in zip(ref_grads, acc_grads)])
+```
+
+The gradients match (up to floating-point noise, hence the tolerance): mathematically, one batch of 64 and four accumulated microbatches of 16 are the same update. In a training loop, the pattern is:
+
+```{.python}
+for i, (x, y) in enumerate(train_loader, start=1):
+    loss = loss_fn(model(x), y) / ACCUMULATE
+    loss.backward()
+    if i % ACCUMULATE == 0:          # one optimizer step per group
+        nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        optimizer.zero_grad()
+        scheduler.step()
+```
+
+- `zero_grad` moves to the end of the group; the scheduler steps once per *effective* batch.
+- **The caveat**: layers with cross-sample state, above all batch normalization, see only one microbatch at a time, so their statistics are computed over 16 rather than 64 images. Our CNN has none; [our fine-tuned ResNet-18](pt2_transfer.qmd) does. Usually acceptable, occasionally the reason results shift — know which kind of layer you are accumulating through.
+- Accumulation trades *time* for the *illusion* of a large batch: it does not speed anything up. When the goal is throughput rather than memory, a [real large batch on more hardware](pt2_ddp.qmd) is the honest lever.
+
+## Mixed precision, recalled
+
+[bf16 autocast](pt2_loop.qmd) is the default of this course wherever the GPU has the units for it; it halves activation memory on top of speeding up compute. Two precisions we have not used:
+
+- **fp16**, the older half-precision, needs gradient scaling ([`GradScaler`](https://pytorch.org/docs/stable/amp.html)) to avoid underflow. Reach for it only on pre-Ampere GPUs where bf16 is emulated — a vanishing category.
+- **8-bit and 4-bit**: [quantization](https://github.com/pytorch/ao) (the torchao library) shrinks trained models for inference, and 8-bit *optimizer* states ([bitsandbytes](https://github.com/bitsandbytes-fundamentals/bitsandbytes)) cut optimizer memory at training time. Both are drop-in-ish, both trade a little accuracy; measure rather than assume.
+
+## Activation checkpointing
+
+The other memory eater after parameters and optimizer state is **activations**: every intermediate result the forward pass produces, kept alive until `backward()` needs it. Memory grows with depth, resolution, and batch size.
+
+Activation checkpointing (recomputation) throws most of them away and recomputes them on demand during the backward pass:
+
+```{.python}
+from torch.utils.checkpoint import checkpoint
+
+def forward(self, x):
+    for block in self.blocks:
+        x = checkpoint(block, x, use_reentrant=False)  # recompute in backward
+    return self.head(x)
+```
+
+One call per block; the block's inputs are kept, its internals are not, and the backward pass runs the block again to rebuild them. Expect roughly a third more compute for a large drop in activation memory. It composes with everything else in this course — [FSDP2](pt2_fsdp.qmd) and torch.compile both support it — and it is the standard companion to sharding when even a sharded model's activations overflow.
+
+## Checkpointing the checkpoints
+
+Large-model checkpoints take minutes to write, and the naive `torch.save` freezes the training loop while it serializes gigabytes. Two patterns to know:
+
+- Write to the compute node's local disk ([`$SLURM_TMPDIR`](pt2_cluster.qmd)) and copy back asynchronously, rather than writing straight to the network filesystem.
+- For sharded models, [DCP's asynchronous save](https://pytorch.org/docs/stable/distributed.checkpoint.html) serializes on a background thread.
+
+## The menu
+
+| Symptom | First lever | Then |
+| :--- | :--- | :--- |
+| GPU idle between steps (low utilization) | [DataLoader workers, prefetch, pinning](pt2_dataloaders.qmd) | cheaper transforms |
+| Steps themselves slow | [`torch.compile`](pt2_speed.qmd) | TF32 / bf16 |
+| Batch does not fit in memory | gradient accumulation (this page) | smaller batch + lr adjustment |
+| Model state does not fit on one GPU | [FSDP2](pt2_fsdp.qmd) | 8-bit optimizers |
+| Activations do not fit | activation checkpointing (this page) | smaller microbatch |
+| Epochs too slow overall | [more GPUs, DDP](pt2_ddp.qmd) | profile first: [where does the time go?](pt2_speed.qmd) |
+
+Two habits hold the menu together: [profile before optimizing](pt2_speed.qmd), and change one thing at a time — every lever above interacts with the learning rate.
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Add an `--accumulate N` option to `train.py` (batch 64/N per microbatch), run two epochs on the full data with N=4, and compare the epoch losses with a normal two-epoch run.
+
+- Hint: the loss is divided by N inside the loop; `optimizer.step()`, `zero_grad()`, and `scheduler.step()` fire every N microbatches.
+- Hint: our CNN has no batch normalization, so the comparison is clean.
+
+<!-- ```{python} -->
+<!-- # inside the epoch loop, with microbatches of 64 // N images: -->
+<!-- loss = loss_fn(model(x), y) / N -->
+<!-- loss.backward() -->
+<!-- if batch_id % N == N - 1: -->
+<!--     nn.utils.clip_grad_norm_(model.parameters(), 1.0) -->
+<!--     optimizer.step() -->
+<!--     optimizer.zero_grad() -->
+<!--     scheduler.step()  # stepped len(train_loader) times per epoch as before -->
+<!-- ``` -->
+
+<!-- With the same seed and microbatches of 16 (four per update), -->
+<!-- the epoch losses match the batch-64 run within noise: same -->
+<!-- 338 optimizer steps per epoch, same effective batch of 64. -->
+<!-- The wall-clock cost is higher: the accelerator runs four times -->
+<!-- as many, four-times-smaller kernels per update. Accumulation -->
+<!-- bought memory, not speed. -->
+
+::::

@@ -1,0 +1,314 @@
+---
+title: Faster training
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+[The training loop](pt2_loop.qmd) of the previous section is modern and complete, but it runs exactly as written: one Python-level operation at a time. This section covers the standard levers that make a working loop fast: `torch.compile`, reduced-precision matrix math, the profiler that tells you where the time actually goes, and the arithmetic that tells you whether a model fits on a GPU.
+
+:::
+
+## Setup
+
+```{python}
+import time  # to time epochs
+
+import torch
+from torch import nn
+from torch.utils.data import DataLoader, Subset
+from torchvision.datasets import EuroSAT
+from torchvision.transforms import v2 as T
+```
+
+```{python}
+device = (
+    torch.accelerator.current_accelerator()
+    if torch.accelerator.is_available()
+    else torch.device("cpu")
+)
+torch.manual_seed(42)
+print(f"torch version: {torch.__version__}\ndevice: {device}")
+```
+
+The data pipeline is [the canonical one](pt2_augmentation.qmd) of the course: training transforms with augmentation, batches of 64, four persistent workers. Only the training loader is needed here:
+
+```{python}
+IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+
+train_tf = T.Compose([
+    T.ToImage(),
+    T.RandomHorizontalFlip(),
+    T.RandomVerticalFlip(),
+    T.RandomRotation(90),
+    T.ToDtype(torch.float32, scale=True),
+    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+])
+
+idx = torch.load("data/split.pt", weights_only=True)
+train = Subset(EuroSAT(root="data", transform=train_tf), idx["train"])
+train_loader = DataLoader(
+    train, batch_size=64, num_workers=4, persistent_workers=True,
+    pin_memory=torch.accelerator.is_available(),
+)
+print(len(train_loader), "batches")
+```
+
+And the model is [the small CNN](pt2_loop.qmd) of the previous section, with its loss and optimizer. This page only times training steps, so the metrics, the schedule, and the early stopping are left out:
+
+```{python}
+class Net(nn.Module):
+    """A small CNN for 64x64 images and 10 classes."""
+
+    def __init__(self):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
+            nn.Linear(128, 10),
+        )
+
+    def forward(self, x):
+        return self.layers(x)
+
+model = Net().to(device)
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.01)
+print("parameters:", sum(p.numel() for p in model.parameters()))
+```
+
+## A baseline epoch
+
+Here is the timing harness for this page: one warmup epoch (worker startup, CUDA context, caches), then one timed epoch at steady state:
+
+```{python}
+def timed_epoch(m):
+    """Run one epoch of bare training steps on model m, return seconds."""
+    t0 = time.perf_counter()
+    for x, y in train_loader:
+        x = x.to(device, non_blocking=True)
+        y = y.to(device, non_blocking=True)
+        optimizer.zero_grad()
+        loss = loss_fn(m(x), y)
+        loss.backward()
+        optimizer.step()
+    torch.accelerator.synchronize()
+    return time.perf_counter() - t0
+```
+
+```{python}
+timed_epoch(model)  # warmup
+print(f"eager: {timed_epoch(model):4.1f} s")
+```
+
+This is eager PyTorch: each operation is launched one at a time, exactly as the code is written. On small models like ours, the accelerator spends much of each step waiting for the next kernel launch: the model is so small that its 95,000 parameters cannot keep the hardware busy.
+
+## torch.compile
+
+[`torch.compile`](https://pytorch.org/docs/stable/generated/torch.compile.html) wraps a module so that its first call captures the operations into a graph, which is then compiled into fused kernels and optimized as a whole:
+
+```{python}
+compiled = torch.compile(model)
+```
+
+- The return value is a drop-in replacement: call it, pass it to the profiling code below, everything works as before.
+- The wrapped model's parameters are the same objects the optimizer already holds: no new optimizer needed.
+- Nothing happens yet: compilation is deferred to the first call.
+
+```{python}
+t0 = time.perf_counter()
+timed_epoch(compiled)  # first call: compiles
+torch.accelerator.synchronize()
+print(f"first epoch (with compilation): {time.perf_counter() - t0:4.1f} s")
+```
+
+```{python}
+print(f"compiled, steady state: {timed_epoch(compiled):4.1f} s")
+```
+
+Two things to read in these numbers:
+
+- The first epoch pays a one-time compilation cost, typically tens of seconds for a model this size. The compiled artifacts are cached on disk (under [Triton]{.codelike}'s cache directory), so a later process that compiles the same graph starts faster.
+- From the second epoch on, the compiled model runs the same training step faster than eager. How much faster varies a lot: our CNN interleaves convolutions with small elementwise operations, and fusing those helps, but the big convolutions were already well served by cuDNN. Models with more Python-level overhead (transformers are the classic) see larger gains.
+
+:::{.note}
+
+**What happens under the hood?** Two things. First, [TorchDynamo](https://pytorch.org/docs/stable/dynamo.html) records the operations your Python code performs on the model into a graph (stopping at "graph breaks" it cannot handle, and compiling each fragment). Second, the [Inductor](https://pytorch.org/docs/stable/inductor.html) backend generates optimized kernels for that graph: [Triton](https://github.com/openai/triton) kernels on GPUs. Fusing sequences of elementwise operations into one kernel is where much of the speedup comes from: fewer launches, and intermediate results stay in fast GPU memory.
+
+:::
+
+:::{.note}
+
+**Watch out for recompilations.** A graph is compiled for the shapes it sees. Our training loader yields batches of shape `(64, 3, 64, 64)` all the way, except the last one, which has 32 images: the first epoch compiles the model twice. With many distinct shapes (variable sequence lengths, varying image sizes), `torch.compile` can spend its time recompiling instead of training. Two remedies: `drop_last=True` on the training loader ([we met the option](pt2_dataloaders.qmd) when counting batches), and `torch.compile(model, dynamic=True)` to compile shape-generic graphs.
+
+:::
+
+`torch.compile` also takes a `mode` argument: the default balances compile time against speed, while `mode="max-autotune"` lets the compiler try more kernel variants at the cost of longer compilation. For a loop that runs for hours, a few extra minutes of compilation are a good trade.
+
+## TF32
+
+The compute that dominates training is matrix multiplication, and GPUs have fast units for it. Since the Ampere generation (2020), NVIDIA GPUs can run float32 matrix products in [TF32](https://pytorch.org/docs/stable/notes/cuda.html#tf32-on-nvidia-ampere-and-later), a format that keeps float32's range but carries only 10 bits of mantissa. The accuracy loss is invisible for deep learning, and the speedup on matmul-heavy workloads is substantial.
+
+| Format | Sign | Exponent | Mantissa | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| float32 | 1 | 8 | 23 | the default dtype of training |
+| TF32 | 1 | 8 | 10 | float32 range, reduced precision, used internally by tensor cores |
+| bfloat16 | 1 | 8 | 7 | [the autocast format of our loop](pt2_loop.qmd) |
+
+PyTorch lets you pick how float32 matmuls are allowed to degrade:
+
+```{python}
+print(torch.get_float32_matmul_precision())
+```
+
+The default, `"highest"`, never leaves float32. `"high"` allows TF32 (or bfloat16 on hardware without TF32), and `"medium"` allows bfloat16. Convolutions have a separate switch, `torch.backends.cudnn.allow_tf32`, which has been `True` by default for years.
+
+```{.python}
+torch.set_float32_matmul_precision("high")  # one line, usually near the top of a script
+```
+
+:::{.note}
+
+TF32 needs Ampere or newer. The RTX 2060 this page renders on is a Turing GPU: no TF32 units, so the setting changes nothing here, and [our bf16 gate](pt2_loop.qmd) keeps autocast off for the same reason. On the cluster GPUs of the later sections, both switches open and the same code speeds up.
+
+:::
+
+## Profiling
+
+Before optimizing anything longer than a page, measure. [torch.profiler](https://pytorch.org/docs/stable/profiler.html) records what each part of a step costs: which kernels ran, for how long, on which device.
+
+```{python}
+import os
+
+from torch.profiler import ProfilerActivity, profile
+
+os.environ["KINETO_LOG_LEVEL"] = "100"  # silence the profiler's own logging
+
+x, y = next(iter(train_loader))
+x, y = x.to(device), y.to(device)
+for _ in range(3):  # warmup: the first step always runs extra one-time work
+    loss = loss_fn(model(x), y)
+    loss.backward()
+    optimizer.zero_grad()
+
+activities = [ProfilerActivity.CPU]
+if device.type == "cuda":
+    activities.append(ProfilerActivity.CUDA)
+with profile(activities=activities, record_shapes=True) as prof:
+    for _ in range(5):
+        optimizer.zero_grad()
+        loss = loss_fn(model(x), y)
+        loss.backward()
+        optimizer.step()
+```
+
+```{python}
+sort_by = "self_cpu_time_total" if device.type == "cpu" else "self_cuda_time_total"
+print(prof.key_averages().table(sort_by=sort_by, row_limit=8))
+```
+
+How to read the table:
+
+- Each row aggregates all calls to one operation. **Self CPU/CUDA** is the time spent in the operation itself; **CPU total / CUDA total** includes its children. Look at the *self* columns to find the actual hot spots.
+- `Self CPU %` often shows a large `cudaLaunchKernel`-ish share in small models: the CPU issuing work faster than the GPU? No: the CPU *waiting* to issue the next launch. That is the overhead `torch.compile` reduces.
+- `CUDA total` empty while `CPU total` is large marks code that runs on the CPU: a sign that something (data manipulation, a metric computed on CPU tensors) silently left the accelerator.
+
+The table answers "which operation"; for "called from where", export a trace and open it in a trace viewer:
+
+```{.python}
+prof.export_chrome_trace("trace.json")  # then open https://ui.perfetto.dev
+```
+
+:::{.note}
+
+The profiler only sees what runs inside its context: our snippet reuses one batch to keep the trace focused on compute, so the data pipeline of the [DataLoaders section](pt2_dataloaders.qmd) is invisible here. For a data-starved run, the diagnosis tools of that section (epoch times, `nvidia-smi`) come first.
+
+:::
+
+## The memory side: VRAM arithmetic
+
+Speed is one constraint; memory is the other. Training a model keeps several copies of the parameters in GPU memory, and knowing their sizes tells you at a glance what fits.
+
+For a model trained in float32 with an adaptive optimizer like AdamW:
+
+```{python}
+def training_footprint(n_params):
+    """Approximate VRAM for the learned state of a model, in MiB."""
+    per_param = (
+        4  # weights
+        + 4  # gradients
+        + 4 + 4  # AdamW keeps two moments per parameter
+    )
+    return n_params * per_param / 2**20
+
+n_ours = sum(p.numel() for p in model.parameters())
+print(f"our CNN:        {n_ours:>10,} params  ~{training_footprint(n_ours):6.1f} MiB")
+```
+
+Apply the same arithmetic to [ResNet-18](https://pytorch.org/vision/stable/models/resnet.html), the pretrained model of the [next section](pt2_transfer.qmd) (the classifier head replaced for our 10 classes):
+
+```{python}
+from torchvision.models import resnet18
+
+resnet = resnet18(num_classes=10)  # random weights: we only count parameters here
+n_rn18 = sum(p.numel() for p in resnet.parameters())
+print(f"resnet18:       {n_rn18:>10,} params  ~{training_footprint(n_rn18):6.1f} MiB")
+```
+
+Two conclusions:
+
+- Both models fit easily in the 6 GiB of the laptop GPU this course renders on. Add activations (the intermediate results of the forward pass, which scale with batch size), and ResNet-18 training at batch 64 still stays in the neighbourhood of a couple of GiB.
+- The arithmetic explains when models stop fitting: a 7-billion-parameter model trained in float32 with AdamW needs about 104 GiB for weights, gradients, and moments alone, before a single activation. No single GPU holds that; splitting the training state across several of them is the topic of [a later section](pt2_fsdp.qmd).
+
+:::{.note}
+
+To measure rather than estimate on a CUDA GPU, read the allocator's high-water mark after a training step:
+
+```{.python}
+torch.cuda.reset_peak_memory_stats()  # then run one step
+print(f"peak: {torch.cuda.max_memory_allocated() / 2**20:.0f} MiB")
+```
+
+Note that mixed precision does not halve this footprint: with autocast, weights, gradients, and optimizer state stay in float32; only the compute runs in bf16.
+
+:::
+
+## Where to start
+
+In the order that pays off the soonest:
+
+1. **Feed the accelerator** ([previous section](pt2_dataloaders.qmd)): workers, prefetching, pinned memory. No code change in the model.
+2. **`torch.compile`**: one line, meaningful gains on most models, first-call compilation cost.
+3. **Precision**: TF32 where available, bf16 autocast otherwise ([the gate of our loop](pt2_loop.qmd)).
+4. **More hardware**: when one GPU is genuinely not enough, [the cluster sections](pt2_cluster.qmd) take over.
+
+And measure between steps: the profiler for compute, epoch times for the big picture.
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Compile with `mode="max-autotune"` and compare the steady-state epoch time with the default mode. Then add `drop_last=True` to the training loader and check that the recompilation for the small final batch disappears from the first epoch.
+
+- Hint: `max-autotune` compiles for noticeably longer; watch the first epoch's total time versus the second.
+
+<!-- ```{python} -->
+<!-- compiled_mt = torch.compile(model, mode="max-autotune") -->
+<!-- timed_epoch(compiled_mt)  # compilation + epoch -->
+<!-- print(f"max-autotune, steady state: {timed_epoch(compiled_mt):4.1f} s") -->
+<!-- ``` -->
+
+<!-- Expect max-autotune to trade a much longer first epoch for a -->
+<!-- modest additional gain: worth it for long runs, not for our -->
+<!-- 15-epoch loop. With drop_last=True, the first epoch still -->
+<!-- compiles, but only once: the second compilation for the -->
+<!-- 32-image final batch is gone. -->
+
+::::

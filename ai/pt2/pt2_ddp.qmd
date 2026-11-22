@@ -1,0 +1,167 @@
+---
+title: Multi-GPU training
+author: Marie-Hélène Burle
+mermaid:
+  theme: neutral
+---
+
+:::{.def}
+
+[One GPU, used well](pt2_cluster.qmd), covers most research training. The honest cases for more: the epoch must finish faster, or the batch must be larger, than one GPU allows. The standard answer is **distributed data parallel (DDP)**: one copy of the model per GPU, each fed a different shard of the data, gradients averaged at every step.
+
+This section turns our training script into a multi-GPU one. The loop itself does not change; five things around it do.
+
+:::
+
+## How DDP works
+
+```{mermaid}
+%%| echo: false
+
+flowchart TB
+    classDef default color:#0081c2, stroke:#0081c2;
+    D[(the batch)] --> S0[shard 1]
+    D --> S1[shard 2]
+    S0 --> F0[forward + backward<br>on GPU 0]
+    S1 --> F1[forward + backward<br>on GPU 1]
+    F0 --> G0[local gradients]
+    F1 --> G1[local gradients]
+    G0 & G1 --> A([all-reduce: average the gradients])
+    A --> U0[same update on GPU 0]
+    A --> U1[same update on GPU 1]
+```
+
+Every GPU holds an exact copy of the model. At each step, each copy computes gradients on its own shard of the batch; the gradients are averaged across GPUs; every GPU then applies the *same* update, so the copies never drift apart. The result is mathematically almost the same as training with one GPU and a batch N times larger — almost, because batch normalization statistics remain per-GPU.
+
+The price is the averaging: an all-reduce across GPUs at every step. That communication is why two GPUs almost never halve the epoch time, and why small models sometimes run *slower* under DDP than on a single GPU: our 95,000-parameter CNN has steps so short that communication would dominate them. DDP pays off when the model is big enough to keep the GPUs busy between exchanges.
+
+## The five changes
+
+The complete script is `train_ddp.py`, next to this page's source in the course repository: `train.py` (the [single-GPU script](pt2_cluster.qmd)) plus the changes below. Everything else — the model, the schedule, the clipping, the early stopping — is untouched.
+
+**1. A process group.** DDP runs as one *process per GPU*, and the processes must find each other. We let [`torchrun`](https://pytorch.org/docs/stable/elastic/run.html) create and launch them; it fills the environment variables we read:
+
+```{.python}
+local_rank = int(os.environ["LOCAL_RANK"])   # which GPU this process drives
+rank = int(os.environ["RANK"])               # this process's global id
+world_size = int(os.environ["WORLD_SIZE"])   # number of processes
+
+backend = "nccl" if torch.accelerator.is_available() else "gloo"
+dist.init_process_group(backend=backend)     # find the other ranks
+device = torch.device("cuda", local_rank) if torch.accelerator.is_available() \
+    else torch.device("cpu")
+```
+
+- [NCCL](https://github.com/NVIDIA/nccl) is NVIDIA's communication library for GPUs; [gloo](https://github.com/facebookincubator/gloo) is its CPU counterpart. The fallback is also what lets you rehearse the mechanics without any GPU at all.
+
+**2. Sharded data.** A `DistributedSampler` hands each rank a different shard of the dataset, padded so every rank gets the same number of samples:
+
+```{.python}
+sampler = DistributedSampler(train, shuffle=True, seed=42)
+train_loader = DataLoader(train, batch_size=64, sampler=sampler, ...)
+
+for epoch in range(1, max_epochs + 1):
+    sampler.set_epoch(epoch)  # reshuffle the shard assignment
+    ...
+```
+
+The same seed on every rank keeps the shards disjoint. `set_epoch` gives each epoch a fresh assignment, the distributed counterpart of `shuffle=True` reshuffling [at every epoch](pt2_dataloaders.qmd). With `world_size=2` and 21,600 training images, each rank's loader yields 169 batches of 64: the effective batch of the run is 128, not 64.
+
+**3. The wrapped model.** Forward passes go through the DDP wrapper; `backward()` through it triggers the gradient averaging:
+
+```{.python}
+model = Net().to(device)
+ddp_model = DDP(model, device_ids=[local_rank] if device.type == "cuda" else None)
+
+loss = loss_fn(ddp_model(x), y)
+loss.backward()   # DDP hooks in here: gradients are averaged across ranks
+```
+
+Clipping, the optimizer, and the scheduler keep operating on the plain `model`: its parameter tensors are the ones being updated, in place, on every rank.
+
+**4. One rank with side effects.** Prints and checkpoints must happen exactly once, not once per GPU:
+
+```{.python}
+if rank == 0:
+    print(f"epoch {epoch}  ...")
+    torch.save({"model": model.state_dict(), ...}, out)
+```
+
+**5. Reduced metrics.** Each rank only sees its own shard, so validation numbers must be combined before they mean anything. A sum-reduce over `[correct count, sample count]` (then a divide) gives the exact global accuracy:
+
+```{.python}
+def all_reduce_mean(value, device):
+    t = torch.tensor([value], device=device)
+    dist.all_reduce(t, op=dist.ReduceOp.SUM)
+    return (t / dist.get_world_size()).item()
+```
+
+:::{.note}
+
+Every rank runs the entire script — including `if rank == 0` blocks it skips. Keep the ranks' work identical except for the side effects: a `print` on all ranks is cosmetic noise, but a `torch.save` racing from several processes, or an early stop some ranks take and others miss, hangs the run at the next collective. Our script keeps even the early-stopping counters synchronized on every rank, and ends with `dist.barrier()` so no rank exits while others still expect it in a collective.
+
+:::
+
+## Launching
+
+Locally, one node with two GPUs:
+
+```{.bash}
+$ torchrun --nproc-per-node 2 train_ddp.py --epochs 15
+```
+
+`torchrun` starts the two processes, sets the variables from change 1, and restarts the whole group if a process dies. And the rehearsal trick: on any machine, with no GPU in sight,
+
+```{.bash}
+$ torchrun --nproc-per-node 2 train_ddp.py --epochs 2 --max-batches 3 --cpu
+```
+
+```
+torch 2.13.0+cu130  world size 2  backend gloo
+epoch  1  train 2.308  val 2.277  acc 16.4%   5.3 s *
+epoch  2  train 2.268  val 2.248  acc 25.0%   1.9 s *
+```
+
+Two processes on a laptop CPU: no speedup to measure, but every mechanism exercised — sharding, averaging, the single print line per epoch. The same run on GPUs is where the epoch time drops.
+
+On a cluster, the same command goes into the batch script of the [previous section](pt2_cluster.qmd), with as many GPUs requested as processes launched:
+
+```{.bash}
+#SBATCH --gres=gpu:2
+#SBATCH --cpus-per-task=8          # 2 ranks x 2 loaders x 2 workers each
+
+uv run torchrun --nproc-per-node=$SLURM_GPUS_ON_NODE train_ddp.py \
+    --epochs 15 --data $SLURM_TMPDIR/data
+```
+
+`$SLURM_GPUS_ON_NODE` is set by Slurm from the `--gres` line, so the same script serves a 2-GPU and an 8-GPU node. Multi-node jobs (several machines, one training) are the same idea with rendez-vous configuration; see the [PyTorch distributed docs](https://pytorch.org/docs/stable/distributed.html) when you get there.
+
+## What to expect
+
+- **Speedup under N.** With two GPUs, expect well under twice the throughput; communication grows with model size, and so does the *fraction* of time it hides. Measure: our baseline epoch [took seconds](pt2_loop.qmd), so run 2-3 epochs per configuration and compare.
+- **The effective batch doubles.** Two ranks × 64 images is a batch of 128 for the optimizer. [The usual rule](pt2_dataloaders.qmd) — scale the learning rate with the batch — applies, or keep the effective batch fixed by halving each rank's batch size.
+- **Per-GPU memory does not drop.** DDP replicates the model; every GPU holds the whole thing (weights, gradients, optimizer state, activations for its shard). When the model does not fit on one GPU, replication is the wrong strategy: that is [the next section](pt2_fsdp.qmd).
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+Rehearse: run the CPU smoke test with `--nproc-per-node 3`. Before running it, predict (a) how many training batches each rank processes per epoch, (b) how many lines per epoch the output shows, and (c) which single number proves the three ranks agreed.
+
+- Hint: with `--max-batches 3`, each rank's loader holds exactly 3 batches regardless of `world_size`.
+
+<!-- ```{.bash} -->
+<!-- torchrun --nproc-per-node 3 train_ddp.py --epochs 1 --max-batches 3 --cpu -->
+<!-- ``` -->
+
+<!-- (a) 3 batches of 64 per rank (the truncation applies per rank), -->
+<!-- so the effective batch triples with three ranks. (b) One line -->
+<!-- per epoch: only rank 0 prints. (c) The accuracy: it is computed -->
+<!-- from an all-reduce over all three ranks' validation shards. -->
+<!-- A per-rank accuracy would differ slightly on every run. -->
+
+::::
