@@ -11,7 +11,7 @@ This page covers the options that matter and how to diagnose a run in which the 
 
 :::
 
-## Setup
+## Packages
 
 ```{python}
 import time  # to time experiments
@@ -26,10 +26,34 @@ from torchvision.transforms import v2 as T
 - `torch.utils.data` provides the DataLoader machinery.
 - `torchvision.transforms` (its modern `v2` API, imported as `T` by convention) lets us turn images into tensors.
 
-We reload EuroSAT and the split saved [in the previous section](pt2_datasets.qmd), so that every section of the course evaluates on the exact same validation set:
+## Dataset with transform
+
+We need to reload the EuroSAT data and we need to turn our PIL images into tensors because this what the whole PyTorch machinery (DataLoaders, training, etc.) expects. For this, we create a transform with [torchvision transforms v2](https://pytorch.org/vision/stable/transforms.html):
 
 ```{python}
-eurosat = EuroSAT(root="data")
+to_tensor = T.Compose([T.ToImage(), T.ToDtype(torch.float32, scale=True)])
+```
+
+- [`T.ToImage()`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToImage.html) turns the PIL image into a [uint8]{.codelike} tensor of shape `(channels, height, width)`.
+- [`T.ToDtype(torch.float32, scale=True)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToDtype.html) converts it to [float32]{.codelike} and rescales the values from the 0-255 range into `[0, 1]`.
+- `T.Compose` chains the two. This minimal pair is all we need to obtain batches; the full preprocessing pipeline (with normalization and augmentation) is the topic of the [next section of the course](pt2_augmentation.qmd).
+
+We store that transform as an attribute to the dataset:
+
+```{python}
+eurosat = EuroSAT(root="data", transform=to_tensor)
+eurosat.transform
+```
+
+:::{.note}
+
+Transforms are applied on-the-fly inside the dataset's `__getitem__()` method when an item is indexed or fetched by a DataLoader.
+
+:::
+
+Then we need to restore the split saved [in the previous section](pt2_datasets.qmd), so that every section of the course evaluates on the same validation set:
+
+```{python}
 idx = torch.load("data/split.pt", weights_only=True)
 train = Subset(eurosat, idx["train"])
 val = Subset(eurosat, idx["val"])
@@ -38,41 +62,31 @@ print(f"{len(train)} training examples and {len(val)} validation examples")
 
 ## From samples to batches
 
-Indexing a dataset returns one sample at a time, here a PIL image and its label:
+A dataset or Subset can be indexed to return one sample at a time (here an image tensor and its label):
 
 ```{python}
 img, label = train[0]
-print(img, label)
-print(f"First image: {img}\nFirst label: {label}")
+print(f"First image:\n{img}\nFirst label:\n{label}")
+print(f"Shape of the image tensor: {img.shape}")
+print(f"{img.min().item():.2f}  {img.max().item():.2f}")
 ```
+
+:::{.note}
+
+The image is now a PyTorch image tensor and the pixel values are in `[0, 1]`.
+
+:::
 
 A DataLoader takes care of grouping samples into batches.
 
-Let's try:
-
 ```{python}
 loader = DataLoader(train, batch_size=64)
-next(iter(loader))
 ```
 
-The loader calls `__getitem__()` repeatedly, then stacks the samples of each batch with its collate function. The default one only knows how to combine tensors, numbers, arrays, dicts, and lists, so it chokes on PIL images.
-
-The fix is to attach a transform to the dataset so that `__getitem__()` returns tensors:
+The loader calls `__getitem__()` repeatedly, then stacks the samples of each batch into tensors with its collate function.
 
 ```{python}
-to_tensor = T.Compose([T.ToImage(), T.ToDtype(torch.float32, scale=True)])
-
-eurosat = EuroSAT(root="data", transform=to_tensor)
-train = Subset(eurosat, idx["train"])
-val = Subset(eurosat, idx["val"])
-```
-
-- [`T.ToImage()`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToImage.html) turns the PIL image into a [uint8]{.codelike} tensor of shape `(channels, height, width)`.
-- [`T.ToDtype(torch.float32, scale=True)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToDtype.html) converts it to [float32]{.codelike} and rescales the values from the 0-255 range into `[0, 1]`.
-- `T.Compose` chains the two. This minimal pair is all we need to obtain batches; the full preprocessing pipeline (with normalization and augmentation) is the topic of the [next section of the course](pt2_augmentation.qmd).
-
-```{python}
-images, labels = next(iter(DataLoader(train, batch_size=64)))
+images, labels = next(iter(loader))
 print(images.shape, images.dtype)
 print(labels.shape, labels.dtype)
 ```
@@ -81,12 +95,6 @@ One batch is a pair of tensors:
 
 - `images` stacks 64 images of 3 colour channels and 64 × 64 pixels as one [float32]{.codelike} tensor.
 - `labels` holds the 64 class indices as one integer tensor.
-
-The pixel values are now in `[0, 1]`:
-
-```{python}
-print(f"{images.min().item():.2f}  {images.max().item():.2f}")
-```
 
 A loader over the training set yields 338 batches:
 
@@ -188,7 +196,7 @@ Your turn:
 
 ## Shuffling
 
-Should the data be shuffled?
+Should you shuffle the data?
 
 As seen [in the previous section](pt2_datasets.qmd), EuroSAT files are stored class by class (`AnnualCrop` first, then `Forest`, etc.). Without shuffling, a loader feeds batches of a single class:
 
