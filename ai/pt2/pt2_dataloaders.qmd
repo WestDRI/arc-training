@@ -14,18 +14,17 @@ This page covers the options that matter and how to diagnose a run in which the 
 ## Setup
 
 ```{python}
-import time
+import time  # to time experiments
 
 import torch
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt  # to look at a batch
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import EuroSAT
 from torchvision.transforms import v2 as T
 ```
 
 - `torch.utils.data` provides the DataLoader machinery.
-- `torchvision.transforms` (its modern `v2` API, imported as `T` by convention) will let us turn images into tensors.
-- `time` is for the timing experiments of this page and `matplotlib` to look at a batch.
+- `torchvision.transforms` (its modern `v2` API, imported as `T` by convention) lets us turn images into tensors.
 
 We reload EuroSAT and the split saved [in the previous section](pt2_datasets.qmd), so that every section of the course evaluates on the exact same validation set:
 
@@ -34,7 +33,7 @@ eurosat = EuroSAT(root="data")
 idx = torch.load("data/split.pt", weights_only=True)
 train = Subset(eurosat, idx["train"])
 val = Subset(eurosat, idx["val"])
-print(len(train), len(val))
+print(f"{len(train)} training examples and {len(val)} validation examples")
 ```
 
 ## From samples to batches
@@ -43,20 +42,22 @@ Indexing a dataset returns one sample at a time, here a PIL image and its label:
 
 ```{python}
 img, label = train[0]
-print(type(img).__name__, label)
+print(img, label)
+print(f"First image: {img}\nFirst label: {label}")
 ```
 
-A DataLoader takes care of grouping samples into batches. Let's try:
+A DataLoader takes care of grouping samples into batches.
+
+Let's try:
 
 ```{python}
-#| error: true
 loader = DataLoader(train, batch_size=64)
 next(iter(loader))
 ```
 
-The loader calls `__getitem__` repeatedly, then stacks the samples of each batch with its **collate function**. The default one only knows how to combine tensors, numbers, arrays, dicts, and lists, so it chokes on PIL images.
+The loader calls `__getitem__()` repeatedly, then stacks the samples of each batch with its collate function. The default one only knows how to combine tensors, numbers, arrays, dicts, and lists, so it chokes on PIL images.
 
-The fix is to attach a transform to the dataset so that `__getitem__` returns tensors:
+The fix is to attach a transform to the dataset so that `__getitem__()` returns tensors:
 
 ```{python}
 to_tensor = T.Compose([T.ToImage(), T.ToDtype(torch.float32, scale=True)])
@@ -66,9 +67,9 @@ train = Subset(eurosat, idx["train"])
 val = Subset(eurosat, idx["val"])
 ```
 
-- [`T.ToImage()`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToImage.html) turns the PIL image into a uint8 tensor of shape (channels, height, width).
-- [`T.ToDtype(torch.float32, scale=True)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToDtype.html) converts it to float32 and rescales the values from the 0-255 range into [0, 1].
-- `T.Compose` chains the two. This minimal pair is all we need to obtain batches; the full preprocessing pipeline (with normalization and augmentation) is the topic of the [next section](pt2_augmentation.qmd).
+- [`T.ToImage()`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToImage.html) turns the PIL image into a [uint8]{.codelike} tensor of shape `(channels, height, width)`.
+- [`T.ToDtype(torch.float32, scale=True)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToDtype.html) converts it to [float32]{.codelike} and rescales the values from the 0-255 range into `[0, 1]`.
+- `T.Compose` chains the two. This minimal pair is all we need to obtain batches; the full preprocessing pipeline (with normalization and augmentation) is the topic of the [next section of the course](pt2_augmentation.qmd).
 
 ```{python}
 images, labels = next(iter(DataLoader(train, batch_size=64)))
@@ -78,10 +79,10 @@ print(labels.shape, labels.dtype)
 
 One batch is a pair of tensors:
 
-- `images` stacks 64 images of 3 colour channels and 64 × 64 pixels as one float32 tensor.
+- `images` stacks 64 images of 3 colour channels and 64 × 64 pixels as one [float32]{.codelike} tensor.
 - `labels` holds the 64 class indices as one integer tensor.
 
-The pixel values are now in [0, 1]:
+The pixel values are now in `[0, 1]`:
 
 ```{python}
 print(f"{images.min().item():.2f}  {images.max().item():.2f}")
@@ -95,6 +96,63 @@ print(len(DataLoader(train, batch_size=64)))
 
 21,600 images in batches of 64 gives 337.5, rounded up to 338: the last batch is incomplete (32 images). `drop_last=True` drops it instead, giving 337 uniform batches. This is sometimes done for training (uniform batch statistics), never for evaluation (every sample must be counted).
 
+:::{.callout-note collapse="true"}
+
+## How to choose the batch size?
+
+The batch size is a crucial hyperparameter: it impacts your training speed, model stability, and final accuracy.
+
+### Default strategy
+
+If you are unsure where to start, **use a batch size of 32**.
+
+32 is small enough to provide a regularizing effect (helping the model generalize) but large enough to benefit from parallel processing on GPUs.
+
+### Standard values
+
+Always use powers of 2 (32, 64, 128, 256) because GPUs and CPUs are optimized for binary operations, and this aligns memory allocation efficiently.
+
+|  | **Small batch size**  | **Large batch size**  |
+| :--- | :--- | :--- |
+| **Training speed** | Slower: less efficient use of GPU | Faster: maximizes GPU throughput |
+| **Generalization** | Better: the "noise" in the gradient helps the model escape sharp local minima | Worse: can lead to overfitting |
+| **Convergence** | Noisy training curve: loss fluctuates | Smoother training curve: stable descent |
+| **Memory usage** | Low: good for limited VRAM | High: risk of OOM |
+
+### Tuning the batch size
+
+#### Ceiling
+
+Your maximum batch size is dictated by your GPU memory (VRAM).
+
+If you hit an [out of memory (OOM) error](https://en.wikipedia.org/wiki/Out_of_memory), you need to back down to the previous successful power of 2 (this is your hardware maximum).
+
+#### Performance
+
+Just because you *can* fit a batch size of 4096 doesn't mean you *should*.
+
+If training is stable but slow, double to 64, then double again to 128. You can increase the batch size to the hardware maximum to speed up epochs.
+
+If the model overfits or diverges, try reducing the batch size. The "noisy" updates act like regularization, preventing the model from memorizing the data too perfectly.
+
+### Advanced techniques
+
+- **Gradient accumulation:**
+
+If you need a batch size of 64 for stability but your GPU only fits 16, you can use *gradient accumulation*. You process 4 mini-batches of 16, accumulate the gradients, and update the weights once. This mathematically simulates a batch size of 64.
+
+- **Dynamic batching:**
+
+Some advanced training regimes start with a small batch size to stabilize early training and increase it over time to speed up convergence (similar to learning rate decay).
+
+### Learning rate
+
+If you change your batch size significantly, you should adjust your learning rate.
+
+A rule that works well until you get to very large batch sizes is to double the learning rate when you double the batch size.
+
+:::
+
 ::::{.exo}
 
 :::{.yourturn}
@@ -103,52 +161,61 @@ Your turn:
 
 :::
 
-How many batches does `DataLoader(val, batch_size=128)` produce, and how large is the last one? And what does `drop_last=True` change in that count? Predict first, then check.
+- How many batches does `DataLoader(val, batch_size=128)` produce? (Predict first, then check).
 
-- First hint: `len()` works on loaders.
+- How many batches does `DataLoader(val, batch_size=128, drop_last=True)` produce? (Predict first, then check).
 
-- Second hint: a loop keeps its last batch: `for last in loader: pass`
+- How large is the last batch?
 
 <!-- ```{python} -->
+<!-- print(len(DataLoader(val, batch_size=128)))  # 43 -->
+<!-- print(len(DataLoader(val, batch_size=128, drop_last=True)))  # 42 -->
+
+<!-- # Can be found by -->
 <!-- loader = DataLoader(val, batch_size=128) -->
-<!-- print(len(loader))                    # 43 -->
+
 <!-- for last in loader: -->
 <!--     pass -->
-<!-- print(last[0].shape)                  # 24 images in the last batch -->
-<!-- print(len(DataLoader(val, batch_size=128, drop_last=True)))  # 42 -->
+<!-- print(last[0].shape)  # 24 images in the last batch -->
+
+<!-- # Or much more simply by -->
+<!-- 5400 % 42 -->
+<!-- # Or -->
+<!-- 5400 - (128*42) -->
 <!-- ``` -->
 
 ::::
 
 ## Shuffling
 
-Should the data be shuffled? EuroSAT files are stored class by class (`AnnualCrop` first, then `Forest`, etc. as seen [in the previous section](pt2_datasets.qmd)). A loader without shuffling, over the raw dataset, feeds batches of a single class:
+Should the data be shuffled?
+
+As seen [in the previous section](pt2_datasets.qmd), EuroSAT files are stored class by class (`AnnualCrop` first, then `Forest`, etc.). Without shuffling, a loader feeds batches of a single class:
 
 ```{python}
 plain = EuroSAT(root="data", transform=to_tensor)
-print(next(iter(DataLoader(plain, batch_size=8)))[1].tolist())
+print(next(iter(DataLoader(plain, batch_size=8)))[1])
 ```
 
-Our training set does not have this problem: the indices drawn by `random_split` are already shuffled, so batches are mixed. But without `shuffle=True`, iteration follows the same fixed order at every epoch:
+Our training set does not have this problem: the indices drawn by `random_split` are already shuffled, so batches are mixed. But without `shuffle=True`, the iteration follows the same fixed order at every epoch:
 
 ```{python}
 a = next(iter(DataLoader(train, batch_size=8)))[1]
 b = next(iter(DataLoader(train, batch_size=8)))[1]
-print(a.tolist())
-print(b.tolist())
-print(torch.equal(a, b))
+print(a)
+print(b)
 ```
 
-With `shuffle=True`, a fresh order is drawn every epoch:
+With `shuffle=True`, a fresh order is drawn at every epoch:
 
 ```{python}
 a = next(iter(DataLoader(train, batch_size=8, shuffle=True)))[1]
 b = next(iter(DataLoader(train, batch_size=8, shuffle=True)))[1]
-print(a.tolist())
-print(b.tolist())
+print(a)
+print(b)
 ```
 
-Shuffling can be made reproducible by seeding a generator (the same mechanism as for `random_split`):
+Shuffling can be made reproducible by seeding a generator:
 
 ```{python}
 g1 = torch.Generator().manual_seed(42)
@@ -158,11 +225,20 @@ b = next(iter(DataLoader(train, batch_size=8, shuffle=True, generator=g2)))[1]
 print(torch.equal(a, b))
 ```
 
-:::{.note}
+:::{.notenoit}
 
-The generator also seeds the random draws happening inside worker processes, which will matter once we add random augmentation in the next section.
+- Note that a `torch.Generator` is a stateful stream of random numbers. The iteration moves the cursor in that stream:
 
-Shuffle the training data only: validation must be deterministic and its order is irrelevant.
+```{python}
+g = torch.Generator().manual_seed(42)
+a = next(iter(DataLoader(train, batch_size=8, shuffle=True, generator=g)))[1]
+b = next(iter(DataLoader(train, batch_size=8, shuffle=True, generator=g)))[1]
+print(torch.equal(a, b))
+```
+
+- The generator also seeds the random draws happening inside worker processes, which will matter once we add random augmentation in the next section.
+
+- Shuffle the training data only: validation must be deterministic and its order is irrelevant.
 
 :::
 
@@ -171,14 +247,14 @@ Here is one shuffled batch:
 ```{python}
 loader = DataLoader(train, batch_size=64, shuffle=True)
 images, labels = next(iter(loader))
-fig, axes = plt.subplots(2, 4, figsize=(10.5, 5.5))
+fig, axes = plt.subplots(2, 4, figsize=(10.2, 5.5))
 for ax, image, lbl in zip(axes.flat, images[:8], labels[:8]):
     ax.imshow(image.permute(1, 2, 0))  # CHW -> HWC for matplotlib
     ax.set_title(eurosat.classes[lbl], fontsize=9)
     ax.axis("off")
 ```
 
-Mixed classes within each batch give gradient estimates that are not dominated by one class at a time.
+<br>Mixed classes within each batch give gradient estimates that are not dominated by one class at a time.
 
 ## Loading in parallel
 
@@ -237,7 +313,7 @@ How many workers should you use?
 - Every worker is a separate process with a copy of the dataset object and its prefetch buffers: more workers, more RAM. Numbers beyond your CPU count are wasted.
 - 4 is a reasonable default. Measure on your machine, as we just did.
 
-## Worker lifetime: `persistent_workers`
+## Worker lifetime
 
 Workers are spawned when iteration starts and die when the iterator is exhausted, so a fresh set is spawned at every epoch. `persistent_workers=True` (used in the timings above) keeps them alive across epochs. To see why this matters, let's time two passes without it:
 
@@ -282,7 +358,7 @@ Without it, worker startup re-imports your script: module-level code runs again 
 
 :::
 
-## `prefetch_factor`
+## Prefetching
 
 Each worker prepares `prefetch_factor` batches (2 by default) ahead of the one being consumed, so up to `num_workers × prefetch_factor` batches sit in the queue. With fast storage and cheap transforms the default is plenty. Raise it when the storage is slow (e.g. a network filesystem) or the transforms are expensive, so that occasional slow reads get absorbed by the queue rather than stalling the accelerator. It costs buffer RAM and only takes effect with `num_workers > 0`:
 
@@ -292,9 +368,13 @@ loader = DataLoader(
 )
 ```
 
-## `pin_memory`
+## Pinned memory
 
-By default, tensors loaded in the main process live in pageable memory, which the operating system can move or swap out. Transfers to the accelerator from **pinned** (page-locked) memory are faster and can run asynchronously (`.to(device, non_blocking=True)`) while the previous training step computes. With `pin_memory=True`, the DataLoader copies each batch into pinned memory for you. It only matters when training on an accelerator.
+By default, tensors loaded in the main process live in pageable memory, which the operating system can move or swap out to disk.
+
+Transfers to the accelerator from *pinned* (page-locked) memory are faster and can run asynchronously (with `.to(device, non_blocking=True)`) while the previous training step computes.
+
+With `pin_memory=True`, the DataLoader copies each batch into pinned memory for you.
 
 Measured on our GPU for our batch shape (64, 3, 64, 64) float32 (3 MiB) and for a batch 8 times larger (24 MiB), one host-to-device copy:
 
@@ -305,14 +385,15 @@ batch 512:  pageable 6250 µs  pinned 3933 µs
 
 A few percent at our batch size and about 40% for the larger one: small, but free. The caveat is that pinned memory cannot be swapped: pin batches, not datasets.
 
-## Diagnosing an accelerator-starved run
+## Data loading bottleneck
 
-How do you know that data loading is your problem? The classic symptom is an accelerator that alternates between busy and idle: watch the GPU-Util column of `nvidia-smi` while training (see our [GPU notes](../gpu_intro.qmd)) or check epoch times against a rough estimate of pure compute.
+How do you diagnose an accelerator-starved run?
 
-We trained a small CNN (about 95,000 parameters) on EuroSAT for two epochs per configuration on a laptop GPU (RTX 2060, 6 GiB), with the settings of this page and utilization sampled with `nvidia-smi` in a background thread:
+The classic symptom is an accelerator that alternates between busy and idle: watch the GPU-Util column of `nvidia-smi` while training (see our [GPU notes](../gpu_intro.qmd)) or check epoch times against a rough estimate of pure compute.
+
+We trained a small CNN (about 95,000 parameters) on EuroSAT for two epochs per configuration on a laptop GPU (RTX 2060, 6 GiB):
 
 ```{.python}
-# run beforehand on the GPU (results below)
 for num_workers in (0, 2, 4, 8):
     loader = DataLoader(
         train, batch_size=64, shuffle=True, pin_memory=True,
@@ -332,6 +413,8 @@ for num_workers in (0, 2, 4, 8):
                   f"{time.perf_counter() - t0:5.1f} s/epoch, GPU util {mean_util:3.0f}%")
 ```
 
+We sampled utilization with [`nvidia-smi`](../../python/gpu_clusters.qmd#logging-metrics) in a background thread and got the following results:
+
 ```
 num_workers=0:  10.7 s/epoch, GPU util  31%
 num_workers=2:   5.2 s/epoch, GPU util  51%
@@ -339,15 +422,17 @@ num_workers=4:   3.2 s/epoch, GPU util  85%
 num_workers=8:   3.1 s/epoch, GPU util  89%
 ```
 
-The story in the numbers:
+These numbers show that:
 
-- With loading in the main process, the GPU did useful work 31% of the time: the rest was waiting for JPEG decoding. A pure loading pass took 8.1 s, longer than a compute-bound epoch.
+- With loading in the main process, the GPU did useful work 31% of the time: the rest was waiting for JPEG decoding. A pure loading pass took 8.1 s—longer than a compute-bound epoch.
 - Four workers hid loading under compute: epochs got 3.4× faster and utilization reached 85%.
 - The eighth worker bought almost nothing: with this model, 4 workers already feed the GPU as fast as it consumes.
 
 These ratios are specific to a small model on a laptop GPU. A larger model computes longer per batch, so it needs fewer workers to stay busy. When a run is accelerator-starved, tune in this order: more workers first, then `prefetch_factor`, then `pin_memory`.
 
-## The loaders for the rest of the course
+## Our loaders
+
+Here are the loaders that we will use for the rest of the course:
 
 ```{python}
 loader_kwargs = {
