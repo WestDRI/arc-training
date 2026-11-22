@@ -5,9 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-Before images can reach a model, they must become tensors: uniform size and data type, values in a sensible range. On top of this, randomly perturbing the training images (**augmentation**) is a cheap way to get more out of a small dataset.
-
-We build both pipelines on EuroSAT with [torchvision transforms v2](https://pytorch.org/vision/stable/transforms.html).
+We already saw that before images reach a model, they must be transformed into tensors with uniform size and data type, and values in a sensible range. On top of this, randomly perturbing the training images (augmentation) is a cheap way to get more out of a small dataset and prevent overtraining.
 
 :::
 
@@ -23,8 +21,6 @@ from torchvision.transforms import v2 as T
 torch.manual_seed(42)
 ```
 
-`torchvision.transforms.v2` (imported as `T` by convention) is the current transform API: the older `transforms` namespace still works but is in maintenance mode. The v2 transforms accept PIL images, tensors, or batches of either.
-
 As before, we reload the dataset and [the split saved earlier](pt2_datasets.qmd), and pick one training image to work on:
 
 ```{python}
@@ -34,7 +30,7 @@ img, label = eurosat[idx["train"][0]]
 print(type(img).__name__, img.size, "->", label, eurosat.classes[label])
 ```
 
-## The validation pipeline: preprocessing
+## The validation pipeline
 
 A model needs every input as a float32 tensor of the same shape, with values in a comparable range. For evaluation, this conversion must be deterministic. Here is the whole pipeline for our validation images:
 
@@ -93,7 +89,7 @@ Older tutorials use `transforms.ToTensor()`: the v2 equivalent is `ToImage()` fo
 
 Two things are missing from this pipeline that you will usually need for your own data. EuroSAT images are all 64 × 64 pixels, so there is no [`T.Resize`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.Resize.html); and evaluation crops are deterministic, so there is no random crop. For mixed-size images, the standard evaluation recipe is `T.Resize(256)` followed by [`T.CenterCrop(224)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.CenterCrop.html).
 
-## The training pipeline: augmentation
+## The training pipeline
 
 The file count of a small dataset is fixed, but the model should not keep seeing the exact same pixels. **Augmentation** applies random, label-preserving changes to training images at every read: the model then never trains on the same tensor twice and cannot rely on accidents of orientation or framing.
 

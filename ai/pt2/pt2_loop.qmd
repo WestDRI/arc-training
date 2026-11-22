@@ -1,21 +1,21 @@
 ---
-title: A modern training loop
+title: A realistic training loop
 author: Marie-Hélène Burle
 ---
 
 :::{.def}
 
-[The toy example](pt2_intro.qmd) trained a model with a bare five-line loop. Real training needs more: mixed precision, a learning-rate schedule, gradient clipping, proper metrics, early stopping, and checkpointing of the best model.
+[The toy example](pt2_intro.qmd) in the first section of this course trained a model with a bare five-line loop. Real training needs more: mixed precision, a learning-rate schedule, gradient clipping, proper metrics, early stopping, and checkpointing of the best model.
 
-This page assembles all of it into one canonical loop and runs it on EuroSAT, training a small convnet from scratch. The loop is deliberately ordinary and explicit: it is the engine of the whole course, reused later for fine-tuning and for cluster training with only the model changing.
+In this section, we assemble all of it into a loop and run it on EuroSAT to train a small [convolutional neural network (CNN)](https://en.wikipedia.org/wiki/Convolutional_neural_network) from scratch.
 
 :::
 
 ## Setup
 
 ```{python}
-import math
-import time
+import math  # for the cosine schedule
+import time  # to time epochs
 
 import torch
 from matplotlib import pyplot as plt
@@ -27,10 +27,9 @@ from torchvision.datasets import EuroSAT
 from torchvision.transforms import v2 as T
 ```
 
-- `torchmetrics` provides composable, device-aware metrics (`MeanMetric` for weighted averages, `MulticlassAccuracy` for the classification score).
-- `math` is for the cosine schedule, `time` to time epochs.
+`torchmetrics` provides composable, device-aware metrics (`MeanMetric` for weighted averages, `MulticlassAccuracy` for the classification score).
 
-As [before](pt2_intro.qmd), we pick the accelerator if there is one, fall back to the CPU otherwise, and seed for reproducibility:
+As [we saw in the first section](pt2_intro.qmd), we pick the accelerator if there is one, fall back to the CPU otherwise, and seed for reproducibility:
 
 ```{python}
 device = (
@@ -39,7 +38,7 @@ device = (
     else torch.device("cpu")
 )
 torch.manual_seed(42)
-print(f"torch {torch.__version__}, {device}")
+print(f"torch version: {torch.__version__}\ndevice: {device}")
 ```
 
 The data pipeline is the one built in the last two sections: [transforms with augmentation](pt2_augmentation.qmd) for training and deterministic transforms for validation, [loaders](pt2_dataloaders.qmd) with 4 persistent workers. The training shuffle gets a seeded generator, the pattern [seen earlier](pt2_dataloaders.qmd), so that runs are reproducible:
@@ -85,7 +84,7 @@ The model is a small convolutional network: three conv blocks that halve the ima
 
 ```{python}
 class Net(nn.Module):
-    """A deliberately small CNN for 64x64 images, 10 classes."""
+    """A small CNN for 64x64 images and 10 classes."""
 
     def __init__(self):
         super().__init__()
@@ -307,7 +306,7 @@ ax2.set_xlabel("epoch")
 ax2.set_ylabel("validation accuracy")
 ```
 
-The validation loss tracks the training loss closely: [augmentation](pt2_augmentation.qmd) is doing its job, and the model is not badly overfitting. It is simply running out of capacity: about one image in five is still misclassified. This is our mediocre baseline.
+<br>The validation loss tracks the training loss closely: [augmentation](pt2_augmentation.qmd) is doing its job, and the model is not badly overfitting. It is simply running out of capacity: about one image in five is still misclassified. This is our mediocre baseline.
 
 ## The best checkpoint
 
@@ -354,13 +353,3 @@ The learning rate is the hyperparameter that most affects this run. Train for 3 
 <!-- still about 1.5, versus about 0.9 at lr=1e-3. -->
 
 ::::
-
-## The engine of the course
-
-This loop, ordinary as it looks, is the engine that every later section reuses:
-
-- **Faster training** (next section) wraps the same loop with `torch.compile` and precision knobs and measures what they buy.
-- **Fine-tuning a pretrained model** (later in the course) swaps `Net` for a pretrained backbone with a new head. The loop, the schedule, the metrics, and the checkpointing stay exactly the same, and the accuracy jumps by a wide margin: the payoff of the whole course.
-- **Cluster training** (the finale) runs this same code as a script across several GPUs of a supercomputer.
-
-The baseline itself is mediocre on purpose: about 81% accuracy means roughly one image in five is wrong, and hand-tuning this small CNN further is a dead end. The next two moves are to make the loop faster and the model dramatically better.
