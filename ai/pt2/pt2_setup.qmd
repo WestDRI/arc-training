@@ -1,15 +1,85 @@
 ---
-title: Jobs on a cluster
+title: Installation & setup
 author: Marie-Hélène Burle
 ---
 
 :::{.def}
 
-Everything so far ran on one laptop. This section moves the same training to an Alliance cluster: the login/compute distinction, the Slurm scheduler, staging data onto a compute node, and our exact training script as a batch job. The code does not change; the way we launch it does.
+
 
 :::
 
-## Login vs compute nodes
+## On your own machine
+
+On your machine ([but not on the Alliance clusters](https://docs.alliancecan.ca/wiki/Uv)), I recommend that you use [uv](https://docs.astral.sh/uv/) to create a Python project with your chosen Python version and all the necessary packages. `uv` installs packages much faster than `pip`, handles different Python versions extremely smoothly, and it is able to resolve dependencies very well.
+
+:::{.note}
+
+If you want more information on this, I gave [a webinar on `uv`](/python/wb_uv) in May 2025.
+
+:::
+
+Create a Python project (let's call it `pt_project`) and `cd` into it:
+
+```{.bash}
+uv init --bare pt_project
+cd pt_project
+```
+
+:::{.note}
+
+`--bare` creates a `uv` project without files that I am not interested in here such as a [README]{.codelike} and a [main.py]{.codelike}.
+
+:::
+
+Install the packages:
+
+```{.bash}
+uv add torch torchvision timm torchmetrics datasets safetensors matplotlib open-clip-torch
+```
+
+You will see that the dependencies have automatically populated a `pyproject.toml` file and that a virtual environment called `.venv` was created.
+
+As long as you are within the project, you don't need to activate that virtual environment: all you need to do is run `python`/`jupyter lab`/`ipython`/`ptpython`/a `.py` script after `uv run`.
+
+:::{.example}
+
+Examples:
+
+```{.bash}
+$ uv run python
+$ uv run jupyter lab
+$ uv run ptpython
+$ uv run my_script.py
+```
+
+:::
+
+You can even launch Jupyter lab within a project without installing it in that project by using:
+
+```{.bash}
+$ uv run --with jupyter jupyter lab
+```
+
+Alternatively, if you really want a `pip` equivalent (for backward compatibility with old pipelines for instance), you can activate it as you would any other Python virtual environment:
+
+```{.bash}
+source .venv/bin/activate
+```
+
+### Sharing uv projects
+
+To share your uv project environment (for instance for collaboration), put the [pyproject.toml]{.codelike} and [uv.lock]{.codelike} files under version control (or distribute them to your collaborators by other means): they pin every version of Python and the installed packages.
+
+A collaborator can recreate the environment (install the proper Python version if missing and install all packages at the pinned versions) by cd-ing into the project and running:
+
+```{.bash}
+$ uv sync
+```
+
+## On the Alliance clusters
+
+### Login vs compute nodes
 
 When you `ssh` into a cluster, you land on a *login node*: a shared machine for editing files, compiling scripts, moving data, and submitting work. [Never run anything compute-intensive there]{.emph}: hundreds of other researchers are also using it and you would stall everybody's work.
 
@@ -21,20 +91,9 @@ For the live sessions of this course, we hand out a small training cluster with 
 
 :::
 
-## One-time setup
+### One-time setup
 
-**Code.** Clone the project (or copy it with `scp -r`):
 
-```{.bash}
-[local]$ scp -r </path/to/mint/ai/pt2> <user>@<cluster>.alliancecan.ca:~/pt2
-```
-
-**Environment.** The project is a [uv](https://docs.astral.sh/uv/) project: its `pyproject.toml` and `uv.lock` pin every version, including PyTorch. Install [uv](https://github.com/astral-sh/uv) in your home (no permissions needed), then recreate the environment on the cluster:
-
-```{.bash}
-[cluster]$ curl -LsSf https://astral.sh/uv/install.sh | sh
-[cluster]$ cd ~/pt2 && uv sync
-```
 
 No CUDA module is required: PyTorch's wheels ship with their own CUDA libraries. If a cluster's driver is too old for them, pin an older CUDA build in `pyproject.toml` (e.g. the `+cu126` variant of torch) and `uv sync` again.
 
@@ -45,7 +104,7 @@ No CUDA module is required: PyTorch's wheels ship with their own CUDA libraries.
 [local]$ scp data.tar <user>@<cluster>.alliancecan.ca:~/projects/def-<user>/
 ```
 
-## Interactive jobs
+### Interactive jobs
 
 For testing and developing code, ask Slurm for a node with one GPU:
 
@@ -67,7 +126,7 @@ Inside the job, verify the GPU, stage the data, and run the script by hand:
 
 `train.py` is the training loop of [the loop section](pt2_loop.qmd) as a script: same model, same schedule, plus command-line arguments and a checkpoint that also stores the optimizer state (for resuming). Note the main guard at its bottom: [with Python 3.14's forkserver default](pt2_dataloaders.qmd), scripts that spawn DataLoader workers must keep their launch code under `if __name__ == "__main__":` or the workers re-import the script and crash.
 
-## Batch jobs
+### Batch jobs
 
 Once a script works, run it unattended. Write the job script (this is the whole file, `job.sh`):
 
@@ -109,7 +168,7 @@ Submit it, watch it, and check its efficiency afterwards:
 
 :::
 
-## Resuming from a checkpoint
+### Resuming from a checkpoint
 
 Long jobs should checkpoint often enough that an outage costs at most a few hours (on Alliance clusters, at least once every 24 hours). `train.py` already saves the optimizer state next to the model weights; a resume is then three lines before the loop:
 
@@ -122,8 +181,18 @@ start_epoch = ckpt["epoch"] + 1
 
 Reload the optimizer as well as the model: AdamW's per-parameter moments are part of the learned state, and a resumed run without them lurches before recovering. If you resume often, teach `fit()` to start its epoch counter and its schedule at `start_epoch` rather than 1.
 
-## Asking for GPUs responsibly
+### Asking for GPUs responsibly
 
 - [One GPU first.]{.emph} Porting a working training to a cluster is the goal of this page; multiplying GPUs only pays for models and datasets that genuinely need them — the [next section](pt2_ddp.qmd) covers exactly that case.
 - Request what you will use: `seff` after a few jobs tells you (GPU utilization near 100%, memory with headroom). Over-requesting wastes resources and lengthens your queue wait.
 - For much more on moving data (Globus for large transfers), running families of similar jobs (GLOST, GNU Parallel), and cluster conventions generally, see [the HPC section of our introductory PyTorch course](../pt/pt_hpc.qmd) and our notes on [GPUs on clusters](/python/gpu_clusters.qmd).
+
+## Moving from your computer to the cluster
+
+If you prototyped your project locally and want to move it to an Alliance cluster to run it at scale, clone the project from a Git remote (or [copy it with `scp -r`, `rsync`, or Globus](../../bash/intro_transfer.qmd)):
+
+```{.bash}
+[local]$ scp -r </path/to/local/project> <user>@<cluster>.alliancecan.ca:~/<path/to/remote/project>
+```
+
+Then install the packages with `pip` as shown above.
