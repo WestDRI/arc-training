@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-
+For this course, we have already installed the required packages, but this section is important for you when you want to install packages on your machine or on the Alliance clusters.
 
 :::
 
@@ -79,120 +79,139 @@ $ uv sync
 
 ## On the Alliance clusters
 
-### Login vs compute nodes
+### Modules
 
-When you `ssh` into a cluster, you land on a *login node*: a shared machine for editing files, compiling scripts, moving data, and submitting work. [Never run anything compute-intensive there]{.emph}: hundreds of other researchers are also using it and you would stall everybody's work.
+You will of course need a Python module:
 
-Actual computing happens on *compute nodes*, and you reach them through [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager), the job scheduler: either an *interactive job* (a shell on a node, for developing and testing) or a *batch job* (a script that runs unattended, for real work).
+```{.bash}
+# Look for available Python modules
+module spider python
+```
 
-:::{.note}
+```{.bash}
+# Look for needed dependencies to load Python 3.15.2
+module spider python/3.15.2
+```
 
-For the live sessions of this course, we hand out a small training cluster with the same layout. Its specifics (account flag, GPU availability) are given in the session; everything on this page applies to it and to the production Alliance clusters alike.
+No CUDA module is required: PyTorch's wheels ship with their own CUDA libraries.
+
+Some of the packages we are using need the Arrow module (if you try to install without loading it, the error message will hint that you need to load it).
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
 
 :::
 
-### One-time setup
+- What is the latest available Arrow module?
 
+- What are its dependencies?
 
+- If you want to use [ipython](https://github.com/ipython/ipython) in the terminal for syntax highlighting while prototyping, what do you need to do?
 
-No CUDA module is required: PyTorch's wheels ship with their own CUDA libraries. If a cluster's driver is too old for them, pin an older CUDA build in `pyproject.toml` (e.g. the `+cu126` variant of torch) and `uv sync` again.
+::::
 
-**Data.** EuroSAT is 27,000 small JPEG files, and clusters are slowed to a crawl by swarms of small files. Pack the data directory once, copy the archive, and extract it *inside each job* onto the node's local disk:
-
-```{.bash}
-[local]$ tar cf data.tar -C </path/to/mint>/ai/pt2 data
-[local]$ scp data.tar <user>@<cluster>.alliancecan.ca:~/projects/def-<user>/
-```
-
-### Interactive jobs
-
-For testing and developing code, ask Slurm for a node with one GPU:
+Now that we have a list, let's load the modules:
 
 ```{.bash}
-[cluster]$ salloc --account=def-<account> --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=0:30:0
+module load StdEnv/2026 python/3.15.2 arrow/26.0.0 ipykernel/2026b
 ```
 
-- `--gres=gpu:1` requests one GPU; [always name the model](https://docs.alliancecan.ca/wiki/Using_GPUs_with_Slurm) (`--gres=gpu:v100:1`) on production clusters.
-- Each cluster caps the CPUs and memory you may request per GPU; [check the bundle table](https://docs.alliancecan.ca/wiki/Allocations_and_compute_scheduling#Ratios_in_bundles) for yours. Four workers in the DataLoader make four CPUs a natural ask for our training.
-- The allocation ends at `--time` or when you exit the shell (`exit` or `Ctrl+d`). While you hold it, nobody else can use those resources: release it when done.
-
-Inside the job, verify the GPU, stage the data, and run the script by hand:
-
-```{.bash}
-[alloc]$ nvidia-smi
-[alloc]$ mkdir $SLURM_TMPDIR/data && tar xf ~/projects/def-<user>/data.tar -C $SLURM_TMPDIR/data --strip-components=1
-[alloc]$ cd ~/pt2 && uv run python train.py --epochs 1 --data $SLURM_TMPDIR/data
-```
-
-`train.py` is the training loop of [the loop section](pt2_loop.qmd) as a script: same model, same schedule, plus command-line arguments and a checkpoint that also stores the optimizer state (for resuming). Note the main guard at its bottom: [with Python 3.14's forkserver default](pt2_dataloaders.qmd), scripts that spawn DataLoader workers must keep their launch code under `if __name__ == "__main__":` or the workers re-import the script and crash.
-
-### Batch jobs
-
-Once a script works, run it unattended. Write the job script (this is the whole file, `job.sh`):
-
-```{.bash}
-#!/bin/bash
-#SBATCH --job-name=eurosat-cnn       # name shown by sq
-#SBATCH --account=def-<account>      # allocation to charge
-#SBATCH --time=1:00:00               # max walltime (D-HH:MM or HH:MM:SS)
-#SBATCH --cpus-per-task=4            # cores (our 4 DataLoader workers)
-#SBATCH --gres=gpu:1                 # one GPU (name the model in production)
-#SBATCH --mem=16G                    # memory per node
-#SBATCH --output=%x_%j.out           # stdout file (%x: job name, %j: job id)
-
-# stage the data onto the node's local disk (deleted when the job ends)
-mkdir $SLURM_TMPDIR/data
-tar xf ~/projects/def-<user>/data.tar -C $SLURM_TMPDIR/data --strip-components=1
-
-# environment + run
-cd ~/pt2
-uv run python train.py --epochs 15 --data $SLURM_TMPDIR/data
-
-# keep the checkpoint
-cp $SLURM_TMPDIR/data/best_script.pt ~/projects/def-<user>/
-```
-
-Submit it, watch it, and check its efficiency afterwards:
-
-```{.bash}
-[cluster]$ cd </dir/containing/job.sh>
-[cluster]$ sbatch job.sh
-[cluster]$ sq          # R: running, PD: pending, nothing: finished
-[cluster]$ scancel <jobid>
-[cluster]$ seff <jobid>  # after it ran: GPU/memory utilization vs requested
-```
+### Virtual environment
 
 :::{.note}
 
-`$SLURM_TMPDIR` is scratch space on the compute node itself. Reading the 27,000 images from it is much faster than from the network filesystem, which is the second reason (after the small-files tax) we extract the tar there. Anything in it is deleted when the job ends: the last line copies the checkpoint back out.
+I already installed all the necessary packages in the training cluster to save time and space. The instructions for today thus differ from what you would normally do and production cluster instructions in the second tab are for your future reference only.
 
 :::
 
-### Resuming from a checkpoint
+::: {.panel-tabset}
 
-Long jobs should checkpoint often enough that an outage costs at most a few hours (on Alliance clusters, at least once every 24 hours). `train.py` already saves the optimizer state next to the model weights; a resume is then three lines before the loop:
+### Today
 
-```{.python}
-ckpt = torch.load(out, weights_only=True)
-model.load_state_dict(ckpt["model"])
-optimizer.load_state_dict(ckpt["optimizer"])
-start_epoch = ckpt["epoch"] + 1
+I created a virtual Python environment called `ptenv` with all necessary packages under `/project`. All you have to do today is activate it with:
+
+```{.bash}
+source /project/def-sponsor00/ptenv/bin/activate
 ```
 
-Reload the optimizer as well as the model: AdamW's per-parameter moments are part of the learned state, and a resumed run without them lurches before recovering. If you resume often, teach `fit()` to start its epoch counter and its schedule at `start_epoch` rather than 1.
+### Production cluster
 
-### Asking for GPUs responsibly
+Create a Python virtual environment:
 
-- [One GPU first.]{.emph} Porting a working training to a cluster is the goal of this page; multiplying GPUs only pays for models and datasets that genuinely need them — the [next section](pt2_ddp.qmd) covers exactly that case.
-- Request what you will use: `seff` after a few jobs tells you (GPU utilization near 100%, memory with headroom). Over-requesting wastes resources and lengthens your queue wait.
-- For much more on moving data (Globus for large transfers), running families of similar jobs (GLOST, GNU Parallel), and cluster conventions generally, see [the HPC section of our introductory PyTorch course](../pt/pt_hpc.qmd) and our notes on [GPUs on clusters](/python/gpu_clusters.qmd).
+```{.bash}
+python -m venv ~/ptenv	# give it the name you want
+```
+
+Activate it:
+
+```{.bash}
+source ~/ptenv/bin/activate
+```
+
+Update pip from wheel:
+
+```{.bash}
+python -m pip install --upgrade --no-index pip
+```
+
+:::{.notenoit}
+
+Whenever a [Python wheel](https://pythonwheels.com/) for a package is available on the Alliance clusters, you should use it instead of downloading the package from [PyPI](https://pypi.org/). To do this, simply add the `--no-index` flag to the install command.
+
+You can see whether a wheel is available with `avail_wheels <package>` or look at [the list of available wheels](https://docs.alliancecan.ca/wiki/Available_Python_wheels).
+
+Advantages of wheels:
+
+- compiled for the clusters' hardware,
+- ensures no missing or conflicting dependencies,
+- much faster installation.
+
+If a wheel does not exist on our clusters, you can install it from [pypi](https://pypi.org/) by omitting the `--no-index` flag for that package or you can open a ticket so that the wheel be installed.
+
+:::
+
+All the packages needed for this course exist in our wheelhouse:
+
+```{.bash}
+python -m pip install --no-index torch torchvision timm torchmetrics datasets safetensors matplotlib open-clip-torch
+```
+
+:::
 
 ## Moving from your computer to the cluster
 
-If you prototyped your project locally and want to move it to an Alliance cluster to run it at scale, clone the project from a Git remote (or [copy it with `scp -r`, `rsync`, or Globus](../../bash/intro_transfer.qmd)):
+If you prototyped your project locally and want to move it to an Alliance cluster to run it at scale, here are some tips.
+
+### Environment
+
+Install the packages in a Python virtual environment with `venv` and `pip` as shown above.
+
+### Code
+
+Clone the project from a Git remote (or [copy it with `scp -r` or `rsync`](../../bash/intro_transfer.qmd)):
 
 ```{.bash}
 [local]$ scp -r </path/to/local/project> <user>@<cluster>.alliancecan.ca:~/<path/to/remote/project>
 ```
 
-Then install the packages with `pip` as shown above.
+### Data
+
+EuroSAT contains 27,000 small JPEG files. This is common in deep learning, but clusters are slowed to a crawl by swarms of small files.
+
+Pack the data directory into an archive on your machine and copy the archive to the cluster:
+
+```{.bash}
+[local]$ tar cf data.tar -C </path/to/local/project/data>
+[local]$ scp data.tar <user>@<cluster>.alliancecan.ca:~/projects/def-<user>/
+```
+
+:::{.note}
+
+If the archive is very large, you can use [Globus](../jxai/jxai_getdata.qmd#globus) for the transfer.
+
+:::
+
+Then keep the archive as is on the cluster and only extract it *inside jobs*.
