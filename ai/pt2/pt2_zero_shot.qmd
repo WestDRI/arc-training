@@ -15,6 +15,7 @@ We try it on EuroSAT, and we compare with the model [we fine-tuned](pt2_transfer
 
 ```{python}
 import re  # to split CamelCase class names into words
+from pathlib import Path
 
 import torch
 from matplotlib import pyplot as plt
@@ -60,17 +61,26 @@ Resizing to 224 is not a choice this time. The image encoder is a [vision transf
 Our class names are CamelCase identifiers (`AnnualCrop`); text encoders want words. A regular expression splits a name wherever an uppercase letter starts a new word:
 
 ```{python}
+#| echo: false
+root = Path("data")
+```
+
+```{.python}
+root = Path("/project/def-sponsor00/data")
+```
+
+```{python}
 def to_words(name):
     # insert a space before each capital (except the first), lowercase
     return re.sub(r"(?<!^)(?=[A-Z])", " ", name).lower()
 
-print([to_words(c) for c in EuroSAT(root="data").classes[:3]])
+print([to_words(c) for c in EuroSAT(root=root).classes[:3]])
 ```
 
 The classifier is a list of sentences, one per class, described the way a caption would describe them:
 
 ```{python}
-classes = EuroSAT(root="data").classes
+classes = EuroSAT(root=root).classes
 prompts = [f"a satellite image of {to_words(c)}" for c in classes]
 print(prompts[:3])
 ```
@@ -94,8 +104,8 @@ print(text_features.shape)
 The image side is one pass over the validation set with CLIP's preprocessing, no training machinery anywhere:
 
 ```{python}
-val = Subset(EuroSAT(root="data", transform=preprocess),
-             torch.load("data/split.pt", weights_only=True)["val"])
+val = Subset(EuroSAT(root=root, transform=preprocess),
+             torch.load(root/"split.pt", weights_only=True)["val"])
 val_loader = DataLoader(
     val, batch_size=128, num_workers=4, pin_memory=torch.accelerator.is_available(),
 )

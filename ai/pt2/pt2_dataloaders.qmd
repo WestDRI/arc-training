@@ -17,6 +17,7 @@ This page covers the options that matter and how to diagnose a run in which the 
 
 ```{python}
 import time  # to time experiments
+from pathlib import Path
 
 import torch
 from matplotlib import pyplot as plt  # to look at a batch
@@ -43,7 +44,16 @@ to_tensor = T.Compose([T.ToImage(), T.ToDtype(torch.float32, scale=True)])
 We store that transform as an attribute to the dataset:
 
 ```{python}
-eurosat = EuroSAT(root="data", transform=to_tensor)
+#| echo: false
+root = Path("data")
+```
+
+```{.python}
+root = Path("/project/def-sponsor00/data")
+```
+
+```{python}
+eurosat = EuroSAT(root=root, transform=to_tensor)
 eurosat.transform
 ```
 
@@ -56,7 +66,7 @@ Transforms are applied on-the-fly inside the dataset's `__getitem__()` method wh
 Then we need to restore the split saved [in the previous section](pt2_datasets.qmd#train-and-validation-sets), so that every section of the course evaluates on the same validation set:
 
 ```{python}
-idx = torch.load("data/split.pt", weights_only=True)
+idx = torch.load(root/"split.pt", weights_only=True)
 train = Subset(eurosat, idx["train"])
 val = Subset(eurosat, idx["val"])
 print(f"{len(train)} training examples and {len(val)} validation examples")
@@ -203,7 +213,7 @@ Should you shuffle the data?
 As seen [in the previous section](pt2_datasets.qmd), EuroSAT files are stored class by class (`AnnualCrop` first, then `Forest`, etc.). Without shuffling, a loader feeds batches of a single class:
 
 ```{python}
-plain = EuroSAT(root="data", transform=to_tensor)
+plain = EuroSAT(root=root, transform=to_tensor)
 print(next(iter(DataLoader(plain, batch_size=8)))[1])
 ```
 

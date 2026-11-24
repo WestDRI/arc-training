@@ -16,6 +16,7 @@ In this section, we assemble all of it into a loop and run it on EuroSAT to trai
 ```{python}
 import math  # for the cosine schedule
 import time  # to time epochs
+from pathlib import Path
 
 import torch
 from matplotlib import pyplot as plt
@@ -44,6 +45,15 @@ print(f"torch version: {torch.__version__}\ndevice: {device}")
 The data pipeline is the one built in the last two sections: [transforms with augmentation](pt2_augmentation.qmd) for training and deterministic transforms for validation, [loaders](pt2_dataloaders.qmd) with 4 persistent workers. The training shuffle gets a seeded generator, the pattern [seen earlier](pt2_dataloaders.qmd), so that runs are reproducible:
 
 ```{python}
+#| echo: false
+root = Path("data")
+```
+
+```{.python}
+root = Path("/project/def-sponsor00/data")
+```
+
+```{python}
 IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 train_tf = T.Compose([
@@ -60,9 +70,9 @@ val_tf = T.Compose([
     T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
 ])
 
-idx = torch.load("data/split.pt", weights_only=True)
-train = Subset(EuroSAT(root="data", transform=train_tf), idx["train"])
-val = Subset(EuroSAT(root="data", transform=val_tf), idx["val"])
+idx = torch.load(root/"split.pt", weights_only=True)
+train = Subset(EuroSAT(root=root, transform=train_tf), idx["train"])
+val = Subset(EuroSAT(root=root, transform=val_tf), idx["val"])
 
 loader_kwargs = {
     "batch_size": 64,
@@ -261,7 +271,7 @@ def fit():
             best_acc, best_epoch, wait = val_acc, epoch, 0
             torch.save(
                 {"model": model.state_dict(), "epoch": epoch, "val_acc": val_acc},
-                "data/best.pt",
+                root/"best.pt",
             )
             marker = " *"
         else:
@@ -313,7 +323,7 @@ ax2.set_ylabel("validation accuracy")
 The file saved along the way holds the best model seen:
 
 ```{python}
-ckpt = torch.load("data/best.pt", weights_only=True)
+ckpt = torch.load(root/"best.pt", weights_only=True)
 print(f"best epoch: {ckpt['epoch']}  val acc: {ckpt['val_acc']:.1%}")
 model.load_state_dict(ckpt["model"])
 val_loss, val_acc = evaluate()

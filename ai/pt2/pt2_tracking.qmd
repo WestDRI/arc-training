@@ -9,6 +9,7 @@ A model nobody can reproduce or run is a result that evaporates. This short clos
 
 :::
 
+from pathlib import Path
 ## Tracking runs
 
 Every run of this course printed its metrics and moved on. Real projects compare dozens of runs, and "the one with the good learning rate, in some terminal, last Tuesday" is not a finding you can build on.
@@ -33,25 +34,32 @@ The payoff is comparability: every run's parameters and curves side by side, fil
 Converting our fine-tuned model is a few lines (serialization is a CPU affair; no accelerator needed):
 
 ```{python}
+#| echo: false
+root = Path("data")
 import torch
 from safetensors.torch import save_file
 
-state = torch.load("data/best_ft.pt", weights_only=True)
+```{.python}
+root = Path("/project/def-sponsor00/data")
+```
+
+```{python}
+state = torch.load(root/"best_ft.pt", weights_only=True)
 tensors = {k: v.contiguous().cpu() for k, v in state["model"].items()}
 save_file(
-    tensors, "data/best_ft.safetensors",
+    tensors, root/"best_ft.safetensors",
     metadata={"val_acc": f"{state['val_acc']:.3f}", "epoch": str(state["epoch"])},
 )
 print("saved", len(tensors), "tensors")
 ```
 
 ```{python}
+loaded = load_file(root/"best_ft.safetensors")
 from safetensors.torch import load_file, safe_open
 
-loaded = load_file("data/best_ft.safetensors")
 print(torch.equal(loaded["fc.weight"], tensors["fc.weight"]))
 
-with safe_open("data/best_ft.safetensors", framework="pt") as f:
+with safe_open(root/"best_ft.safetensors", framework="pt") as f:
     print(f.metadata())  # our metadata travelled along
 ```
 
@@ -99,15 +107,15 @@ Convert the from-scratch baseline (`data/best.pt`) to safetensors with metadata 
 - Hint: the checkpoint stores the whole `state["model"]` dict; metadata values must be strings.
 
 <!-- ```{python} -->
+<!-- state = torch.load(root/"best.pt", weights_only=True) -->
 <!-- import subprocess -->
 <!-- from safetensors.torch import save_file -->
 
-<!-- state = torch.load("data/best.pt", weights_only=True) -->
 <!-- commit = subprocess.check_output( -->
 <!--     ["git", "rev-parse", "--short", "HEAD"], text=True).strip() -->
 <!-- save_file( -->
 <!--     {k: v.contiguous().cpu() for k, v in state["model"].items()}, -->
-<!--     "data/best.safetensors", -->
+<!--     root/"best.safetensors", -->
 <!--     metadata={"val_acc": f"{state['val_acc']:.3f}", "commit": commit}, -->
 <!-- ) -->
 <!-- ``` -->

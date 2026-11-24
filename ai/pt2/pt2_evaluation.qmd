@@ -12,6 +12,8 @@ Accuracy only tells you so much. Before trusting a model, you should investigate
 ## Setup
 
 ```{python}
+from pathlib import Path
+
 import torch
 from matplotlib import pyplot as plt
 from torch import nn
@@ -35,6 +37,15 @@ print(f"torch version: {torch.__version__}\ndevice: {device}")
 We evaluate on the validation split with its deterministic transform ([never random at evaluation time](pt2_augmentation.qmd)):
 
 ```{python}
+#| echo: false
+root = Path("data")
+```
+
+```{.python}
+root = Path("/project/def-sponsor00/data")
+```
+
+```{python}
 IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 val_tf = T.Compose([
     T.ToImage(),
@@ -42,9 +53,9 @@ val_tf = T.Compose([
     T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
 ])
 
-eurosat = EuroSAT(root="data")
-idx = torch.load("data/split.pt", weights_only=True)
-val = Subset(EuroSAT(root="data", transform=val_tf), idx["val"])
+eurosat = EuroSAT(root=root)
+idx = torch.load(root/"split.pt", weights_only=True)
+val = Subset(EuroSAT(root=root, transform=val_tf), idx["val"])
 val_loader = DataLoader(
     val, batch_size=64, num_workers=4, persistent_workers=True,
     pin_memory=torch.accelerator.is_available(),
@@ -78,14 +89,14 @@ class Net(nn.Module):
 loss_fn = nn.CrossEntropyLoss()                  # batch mean, for metrics
 per_sample_loss = nn.CrossEntropyLoss(reduction="none")  # one loss per image
 cnn = Net().to(device)
-cnn.load_state_dict(torch.load("data/best.pt", weights_only=True)["model"])
+cnn.load_state_dict(torch.load(root/"best.pt", weights_only=True)["model"])
 ft = resnet18(num_classes=10).to(device)
-ft.load_state_dict(torch.load("data/best_ft.pt", weights_only=True)["model"])
+ft.load_state_dict(torch.load(root/"best_ft.pt", weights_only=True)["model"])
 ```
 
 ```{python}
-for name, path in [("from-scratch CNN", "data/best.pt"),
-                   ("fine-tuned resnet18", "data/best_ft.pt")]:
+for name, path in [("from-scratch CNN", root/"best.pt"),
+                   ("fine-tuned resnet18", root/"best_ft.pt")]:
     ckpt = torch.load(path, weights_only=True)
     print(f"{name}: best epoch {ckpt['epoch']}, saved val acc {ckpt['val_acc']:.1%}")
 ```
