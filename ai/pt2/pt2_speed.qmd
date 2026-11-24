@@ -12,13 +12,16 @@ author: Marie-Hélène Burle
 ## Setup
 
 ```{python}
+import os
 import time  # to time epochs
 from pathlib import Path
 
 import torch
 from torch import nn
+from torch.profiler import ProfilerActivity, profile
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import EuroSAT
+from torchvision.models import resnet18
 from torchvision.transforms import v2 as T
 ```
 
@@ -191,10 +194,6 @@ TF32 needs Ampere or newer. The RTX 2060 this page renders on is a Turing GPU: n
 Before optimizing anything longer than a page, measure. [torch.profiler](https://pytorch.org/docs/stable/profiler.html) records what each part of a step costs: which kernels ran, for how long, on which device.
 
 ```{python}
-import os
-
-from torch.profiler import ProfilerActivity, profile
-
 os.environ["KINETO_LOG_LEVEL"] = "100"  # silence the profiler's own logging
 
 x, y = next(iter(train_loader))
@@ -261,8 +260,6 @@ print(f"our CNN:        {n_ours:>10,} params  ~{training_footprint(n_ours):6.1f}
 Apply the same arithmetic to [ResNet-18](https://pytorch.org/vision/stable/models/resnet.html), the pretrained model of the [next section](pt2_transfer.qmd) (the classifier head replaced for our 10 classes):
 
 ```{python}
-from torchvision.models import resnet18
-
 resnet = resnet18(num_classes=10)  # random weights: we only count parameters here
 n_rn18 = sum(p.numel() for p in resnet.parameters())
 print(f"resnet18:       {n_rn18:>10,} params  ~{training_footprint(n_rn18):6.1f} MiB")

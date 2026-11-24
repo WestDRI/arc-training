@@ -9,17 +9,21 @@ Training runs into two walls: not enough memory and not enough time. This course
 
 :::
 
-## Gradient accumulation
-
-[We promised this one](pt2_dataloaders.qmd) when discussing batch sizes: when the batch you *want* does not fit in memory, simulate it with several smaller **microbatches** whose gradients add up. Since `backward()` [accumulates into `.grad`](pt2_intro.qmd) by default, the mechanism is almost free:
+## Packages
 
 ```{python}
 import copy
 
 import torch
 from torch import nn
+from torch.utils.checkpoint import checkpoint
+```
 
+## Gradient accumulation
 
+[We promised this one](pt2_dataloaders.qmd) when discussing batch sizes: when the batch you *want* does not fit in memory, simulate it with several smaller **microbatches** whose gradients add up. Since `backward()` [accumulates into `.grad`](pt2_intro.qmd) by default, the mechanism is almost free:
+
+```{python}
 class Tiny(nn.Module):
     def __init__(self):
         super().__init__()
@@ -87,8 +91,6 @@ The other memory eater after parameters and optimizer state is **activations**: 
 Activation checkpointing (recomputation) throws most of them away and recomputes them on demand during the backward pass:
 
 ```{.python}
-from torch.utils.checkpoint import checkpoint
-
 def forward(self, x):
     for block in self.blocks:
         x = checkpoint(block, x, use_reentrant=False)  # recompute in backward
