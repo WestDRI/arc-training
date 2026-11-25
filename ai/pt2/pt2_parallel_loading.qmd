@@ -219,7 +219,7 @@ Situations in which you should not consider this option include:
 Each worker prepares `prefetch_factor` batches (2 by default) ahead of the one being consumed, so up to `num_workers × prefetch_factor` batches sit in the queue. With fast storage and cheap transforms the default is plenty. Raise it when the storage is slow (e.g. a network filesystem) or the transforms are expensive, so that occasional slow reads get absorbed by the queue rather than stalling the accelerator. It costs buffer RAM and only takes effect with `num_workers > 0`:
 
 ```{.python}
-loader = DataLoader(train, batch_size=64, num_workers=4, prefetch_factor=4)
+loader = DataLoader(train, batch_size=64, num_workers=8, prefetch_factor=4)
 ```
 
 ## Pinned memory
@@ -230,22 +230,22 @@ Transfers to the accelerator from *pinned* (page-locked) memory are faster and c
 
 With `pin_memory=True`, the DataLoader copies each batch into pinned memory for you.
 
-Measured on our GPU for our batch shape (64, 3, 64, 64) float32 (3 MiB) and for a batch 8 times larger (24 MiB), one host-to-device copy:
+Measured on my laptop GPU for our batch shape (64, 3, 64, 64) [float32]{.codelike} (3 MiB) and for a batch 8 times larger (24 MiB), one host-to-device copy:
 
 ```
 batch  64:  pageable 541 µs   pinned 495 µs
 batch 512:  pageable 6250 µs  pinned 3933 µs
 ```
 
-A few percent at our batch size and about 40% for the larger one: small, but free. The caveat is that pinned memory cannot be swapped: pin batches, not datasets.
+That's only a few percent at our batch size and about 40% for the larger one: it's small, but it doesn't have many downsides. The caveat is that pinned memory cannot be swapped, so pin batches, but not full datasets.
 
 ## Data loading bottleneck
 
 How do you diagnose an accelerator-starved run?
 
-The classic symptom is an accelerator that alternates between busy and idle: watch the GPU-Util column of `nvidia-smi` while training (see our [GPU notes](../gpu_intro.qmd)) or check epoch times against a rough estimate of pure compute.
+The classic symptom is an accelerator that alternates between busy and idle: watch the `GPU-Util` column of `nvidia-smi` while training (see our [GPU notes](../gpu_intro.qmd)) or check epoch times against a rough estimate of pure compute.
 
-We trained a small CNN (about 95,000 parameters) on EuroSAT for two epochs per configuration on a laptop GPU (RTX 2060, 6 GiB):
+I trained a small CNN (about 95,000 parameters) on EuroSAT for two epochs per configuration on my laptop GPU (RTX 2060, 6 GiB):
 
 ```{.python}
 for num_workers in (0, 2, 4, 8):
@@ -267,7 +267,7 @@ for num_workers in (0, 2, 4, 8):
                   f"{time.perf_counter() - t0:5.1f} s/epoch, GPU util {mean_util:3.0f}%")
 ```
 
-We sampled utilization with [`nvidia-smi`](../../python/gpu_clusters.qmd#logging-metrics) in a background thread and got the following results:
+I sampled utilization with [`nvidia-smi`](../../python/gpu_clusters.qmd#logging-metrics) in a background thread and got the following results:
 
 ```
 num_workers=0:  10.7 s/epoch, GPU util  31%
@@ -283,6 +283,20 @@ These numbers show that:
 - The eighth worker bought almost nothing: with this model, 4 workers already feed the GPU as fast as it consumes.
 
 These ratios are specific to a small model on a laptop GPU. A larger model computes longer per batch, so it needs fewer workers to stay busy. When a run is accelerator-starved, tune in this order: more workers first, then `prefetch_factor`, then `pin_memory`.
+
+::::{.exo}
+
+:::{.yourturn}
+
+Your turn:
+
+:::
+
+- Write a Python script to test this on the training cluster.
+
+- Run the test.
+
+::::
 
 ## Our final loaders
 
