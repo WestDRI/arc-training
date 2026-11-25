@@ -50,20 +50,20 @@ root = Path("/project/def-sponsor00/data")
 ```
 
 ```{python}
-state = torch.load(root/"best_ft.pt", weights_only=True)
+state = torch.load(root / "best_ft.pt", weights_only=True)
 tensors = {k: v.contiguous().cpu() for k, v in state["model"].items()}
 save_file(
-    tensors, root/"best_ft.safetensors",
+    tensors, root / "best_ft.safetensors",
     metadata={"val_acc": f"{state['val_acc']:.3f}", "epoch": str(state["epoch"])},
 )
 print("saved", len(tensors), "tensors")
 ```
 
 ```{python}
-loaded = load_file(root/"best_ft.safetensors")
+loaded = load_file(root / "best_ft.safetensors")
 print(torch.equal(loaded["fc.weight"], tensors["fc.weight"]))
 
-with safe_open(root/"best_ft.safetensors", framework="pt") as f:
+with safe_open(root / "best_ft.safetensors", framework="pt") as f:
     print(f.metadata())  # our metadata travelled along
 ```
 
@@ -77,7 +77,7 @@ Roughly in order of how often each one actually saves people:
 
 1. **The seed**: set it ([we did, on every page](pt2_intro.qmd)), and know its limits: cuDNN picks nondeterministic kernels, and a different GPU gives different floating-point sums. `torch.use_deterministic_algorithms(True)` exists, costs performance, and still does not span hardware. What is achievable is a reproducible *protocol*: same code, data, versions, seed — same trajectory up to noise.
 2. **The environment**: the `uv.lock` file pins every version (ours lives beside this page's source); `uv sync` rebuilds it exactly. We cover this in our webinar on [uv](../../tools/wb_uv_content.qmd). Record the hardware too: `torch.version.cuda`, the GPU model — it belongs in any report.
-3. **The data**: our split is `data/split.pt`, but which images were in it depends on the seed and the torch version that drew it. For data that evolves, [version it like code](../wb_dvc.qmd).
+3. **The data**: our split is in `split.pt`, but which images were in it depends on the seed and the torch version that drew it. For data that evolves, [version it like code](../wb_dvc.qmd).
 4. **The code**: put the git commit hash in the checkpoint (or its metadata, as above). One line:
 
 ```{.python}
@@ -109,12 +109,12 @@ Convert the from-scratch baseline (`data/best.pt`) to safetensors with metadata 
 - Hint: the checkpoint stores the whole `state["model"]` dict; metadata values must be strings.
 
 <!-- ```{python} -->
-<!-- state = torch.load(root/"best.pt", weights_only=True) -->
+<!-- state = torch.load(root / "best.pt", weights_only=True) -->
 <!-- commit = subprocess.check_output( -->
 <!--     ["git", "rev-parse", "--short", "HEAD"], text=True).strip() -->
 <!-- save_file( -->
 <!--     {k: v.contiguous().cpu() for k, v in state["model"].items()}, -->
-<!--     root/"best.safetensors", -->
+<!--     root / "best.safetensors", -->
 <!--     metadata={"val_acc": f"{state['val_acc']:.3f}", "commit": commit}, -->
 <!-- ) -->
 <!-- ``` -->

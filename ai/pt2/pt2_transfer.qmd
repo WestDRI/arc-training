@@ -70,7 +70,7 @@ val_tf = T.Compose([
     T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
 ])
 
-idx = torch.load(root/"split.pt", weights_only=True)
+idx = torch.load(root / "split.pt", weights_only=True)
 train = Subset(EuroSAT(root=root, transform=train_tf), idx["train"])
 val = Subset(EuroSAT(root=root, transform=val_tf), idx["val"])
 
@@ -244,7 +244,7 @@ def fit(max_epochs, ckpt_path, patience=4):
 Phase 1, six epochs:
 
 ```{python}
-history_fe = fit(6, root/"best_fe.pt")
+history_fe = fit(6, root / "best_fe.pt")
 ```
 
 The frozen model settles in the mid 80s: past the from-scratch baseline already, with only the 5,130 values of the head ever trained. The head had a real mapping to learn (features to 10 scores), but the ceiling is set by the frozen features themselves: they were tuned to 224-pixel photographs, and we are feeding them 64-pixel satellite patches. Lifting that ceiling is the next phase's job.
@@ -254,7 +254,7 @@ The frozen model settles in the mid 80s: past the from-scratch baseline already,
 Now that the head produces sensible scores, gradients through the whole network are meaningful (a randomly-initialized head would have shredded the pretrained features). We unfreeze, start from the best phase-1 weights, and retrain with **differential learning rates**: the pretrained backbone gets a small rate (its features need gentle adjustments), the head keeps a larger one (it is still the fastest learner):
 
 ```{python}
-model.load_state_dict(torch.load(root/"best_fe.pt", weights_only=True)["model"])
+model.load_state_dict(torch.load(root / "best_fe.pt", weights_only=True)["model"])
 for p in model.parameters():
     p.requires_grad_(True)
 freeze_bn = False  # the whole network, normalization included, adapts now
@@ -269,13 +269,13 @@ trainable = [p for p in model.parameters() if p.requires_grad]  # now all of the
 ```
 
 ```{python}
-history_ft = fit(5, root/"best_ft.pt")
+history_ft = fit(5, root / "best_ft.pt")
 ```
 
 The epochs are slower (backward now runs through the whole network) and the gains come in smaller steps: this is refinement, not a jump. But the validation accuracy climbs into the middle 90s, where the from-scratch baseline's 81% looks like a warm-up.
 
 ```{python}
-ckpt = torch.load(root/"best_ft.pt", weights_only=True)
+ckpt = torch.load(root / "best_ft.pt", weights_only=True)
 print(f"best epoch: {ckpt['epoch']}  val acc: {ckpt['val_acc']:.1%}")
 ```
 
@@ -284,7 +284,7 @@ print(f"best epoch: {ckpt['epoch']}  val acc: {ckpt['val_acc']:.1%}")
 The learning curves of the fine-tuning phase, for the record:
 
 ```{python}
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.7, 3.5))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.5))
 epochs = range(1, len(history_ft["train_loss"]) + 1)
 ax1.plot(epochs, history_ft["train_loss"], label="train")
 ax1.plot(epochs, history_ft["val_loss"], label="validation")
@@ -350,9 +350,9 @@ Our phase 2 used differential learning rates (backbone 1e-4, head 1e-3). Retrain
 <!-- ```{python} -->
 <!-- model = resnet18(weights=weights).to(device) -->
 <!-- model.fc = nn.Linear(512, 10).to(device) -->
-<!-- model.load_state_dict(torch.load(root/"best_fe.pt", weights_only=True)["model"]) -->
+<!-- model.load_state_dict(torch.load(root / "best_fe.pt", weights_only=True)["model"]) -->
 <!-- optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01) -->
-<!-- history_uni = fit(5, root/"best_uni.pt") -->
+<!-- history_uni = fit(5, root / "best_uni.pt") -->
 <!-- ``` -->
 
 <!-- The uniform rate lands within a point or so of the differential -->
