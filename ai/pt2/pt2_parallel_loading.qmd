@@ -1,0 +1,243 @@
+---
+title: Loading data in parallel
+author: Marie-Hélène Burle
+mermaid:
+  theme: neutral
+---
+
+:::{.def}
+
+Dataloaders can handle multiple workers to load and transform data in parallel.
+
+In this section, we start launching batch jobs to do this efficiently.
+
+:::
+
+## Worker processes
+
+Decoding and transforming images is CPU work. With the default `num_workers=0`, it all happens in the main Python process, one image at a time. While the main process decodes the next batch, the accelerator has nothing to do.
+
+With `num_workers=n`, the DataLoader spawns `n` worker processes. Each worker prepares whole batches (decodes, transforms, collates) and pushes them into a queue, from which the main process pulls as it consumes them:
+
+```{mermaid}
+%%| echo: false
+
+flowchart TB
+    classDef default color:#0081c2, stroke:#0081c2;
+    D[(files on disk)] --> w1 & w2 & w3
+    subgraph W [worker processes]
+        w1[decode + transform] --> b1[batch]
+        w2[decode + transform] --> b2[batch]
+        w3[decode + transform] --> b3[batch]
+    end
+    b1 & b2 & b3 --> Q[prefetch queue]
+    Q --> P[pinned memory] -->|async copy| G([training step on the accelerator])
+```
+
+The queue smooths out the hiccups: workers run ahead of the consumer (by how much is the `prefetch_factor` option seen below), so loading overlaps with compute.
+
+## How many workers to use?
+
+Obviously, workers beyond your CPU count are wasted. But you shouldn't necessarily use as much hardware as is available: every worker is a separate process with a copy of the dataset object and its prefetch buffers. This means that more workers use more RAM.
+
+4 is a reasonable default, but ideally, you want to run tests to find the optimum value. Once the gains flatten, decoding is no longer the bottleneck.
+
+I ran some measurements on my laptop (8 CPU cores, 16 threads) with the following script. The `timed_pass` function runs one warmup pass (spawning workers and paying the one-time startup cost), then times a second pass in a steady state:
+
+```{.python filename="n_workers.py"}
+import time  # to time experiments
+from pathlib import Path
+
+import torch
+from torch.utils.data import DataLoader, Subset
+from torchvision.datasets import EuroSAT
+from torchvision.transforms import v2 as T
+
+to_tensor = T.Compose([T.ToImage(), T.ToDtype(torch.float32, scale=True)])
+root = Path("/project/def-sponsor00/data")
+eurosat = EuroSAT(root=root, transform=to_tensor)
+idx = torch.load(root / "split.pt", weights_only=True)
+train = Subset(eurosat, idx["train"])
+
+
+def timed_pass(num_workers):
+    """Time one full pass over the training data at steady state."""
+    loader = DataLoader(
+        train,
+        batch_size=64,
+        num_workers=num_workers,
+        persistent_workers=num_workers > 0,  # keeps workers alive: next section
+    )
+    for _ in loader:
+        pass  # warmup
+    t0 = time.perf_counter()
+    n = 0
+    for _, labels in loader:
+        n += labels.numel()
+    dt = time.perf_counter() - t0
+    del loader  # shuts the workers down
+    assert n == len(train)
+    return dt
+
+
+if __name__ == "__main__":
+    for w in (0, 2, 4, 8, 16):
+        print(f"num_workers={w}: {timed_pass(w):5.1f} s")
+```
+
+:::{.notenoit}
+
+In a Python script, code that creates DataLoaders with workers must sit under the main guard:
+
+```python
+if __name__ == "__main__":
+```
+
+Without it, worker startup re-imports your script: module-level code runs again and the run crashes with a `RuntimeError`. Jupyter notebook cells are immune: an interactive `__main__` cannot be re-imported.
+
+:::
+
+On my laptop, one pass over the 21,600 training images took about 6 s in the main process, and less than 1 s with 16 workers.
+
+```
+num_workers=0:   6.1 s
+num_workers=2:   3.6 s
+num_workers=4:   1.9 s
+num_workers=8:   1.2 s
+num_workers=16:   0.8 s
+```
+
+The benefit of additional workers is going down but hasn't quite flattened yet, so on my system, I could use all my threads.
+
+Let's test it on the cluster. The current training cluster contains 2 CPU nodes made of 8 CPU and 30 GB each. Save the Python file and launch it with:
+
+```{.bash}
+srun --mem-per-cpu=3600 --cpus-per-task=8  python n_workers.py
+```
+
+## Worker lifetime
+
+Workers are spawned when iteration starts and die when the iterator is exhausted, so a fresh set is spawned at every epoch. `persistent_workers=True` (used in the timings above) keeps them alive across epochs. To see why this matters, I timed two passes without it:
+
+```{python}
+loader = DataLoader(train, batch_size=64, num_workers=2)
+for _ in range(2):
+    t0 = time.perf_counter()
+    n = 0
+    for _, labels in loader:
+        n += labels.numel()
+    print(f"pass: {time.perf_counter() - t0:5.1f} s")
+```
+
+Each pass took around 8 s on this machine: about the same as loading with no workers at all (8.5 s). What happened?
+
+Python 3.14 changed the default multiprocessing start method on Linux from `fork` to `forkserver`. A fresh worker no longer inherits the parent process with its libraries already imported: it starts from the forkserver's pristine interpreter and must import torch before it can decode anything. Every pass re-spawned workers and re-paid those imports.
+
+With `persistent_workers=True`, the startup is paid once:
+
+```{python}
+loader = DataLoader(train, batch_size=64, num_workers=4, persistent_workers=True)
+for _ in range(3):
+    t0 = time.perf_counter()
+    n = 0
+    for _, labels in loader:
+        n += labels.numel()
+    print(f"pass: {time.perf_counter() - t0:5.1f} s")
+```
+
+The first pass pays the worker startup (about 11 s), then each full pass takes about 2 s.
+
+There is a trade-off though: idle workers hold RAM between epochs, and the data must not change during loading. For training loops, this option is almost always worth it.
+
+## Prefetching
+
+Each worker prepares `prefetch_factor` batches (2 by default) ahead of the one being consumed, so up to `num_workers × prefetch_factor` batches sit in the queue. With fast storage and cheap transforms the default is plenty. Raise it when the storage is slow (e.g. a network filesystem) or the transforms are expensive, so that occasional slow reads get absorbed by the queue rather than stalling the accelerator. It costs buffer RAM and only takes effect with `num_workers > 0`:
+
+```{.python}
+loader = DataLoader(train, batch_size=64, num_workers=4, prefetch_factor=4)
+```
+
+## Pinned memory
+
+By default, tensors loaded in the main process live in pageable memory, which the operating system can move or swap out to disk.
+
+Transfers to the accelerator from *pinned* (page-locked) memory are faster and can run asynchronously (with `.to(device, non_blocking=True)`) while the previous training step computes.
+
+With `pin_memory=True`, the DataLoader copies each batch into pinned memory for you.
+
+Measured on our GPU for our batch shape (64, 3, 64, 64) float32 (3 MiB) and for a batch 8 times larger (24 MiB), one host-to-device copy:
+
+```
+batch  64:  pageable 541 µs   pinned 495 µs
+batch 512:  pageable 6250 µs  pinned 3933 µs
+```
+
+A few percent at our batch size and about 40% for the larger one: small, but free. The caveat is that pinned memory cannot be swapped: pin batches, not datasets.
+
+## Data loading bottleneck
+
+How do you diagnose an accelerator-starved run?
+
+The classic symptom is an accelerator that alternates between busy and idle: watch the GPU-Util column of `nvidia-smi` while training (see our [GPU notes](../gpu_intro.qmd)) or check epoch times against a rough estimate of pure compute.
+
+We trained a small CNN (about 95,000 parameters) on EuroSAT for two epochs per configuration on a laptop GPU (RTX 2060, 6 GiB):
+
+```{.python}
+for num_workers in (0, 2, 4, 8):
+    loader = DataLoader(
+        train, batch_size=64, shuffle=True, pin_memory=True,
+        num_workers=num_workers, persistent_workers=num_workers > 0,
+    )
+    for epoch in range(2):  # warmup, then the timed epoch
+        t0 = time.perf_counter()
+        for x, y in loader:
+            x = x.to(device, non_blocking=True)
+            y = y.to(device, non_blocking=True)
+            loss = loss_fn(model(x), y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        if epoch:  # mean_util: average of the nvidia-smi samples
+            print(f"num_workers={num_workers}: "
+                  f"{time.perf_counter() - t0:5.1f} s/epoch, GPU util {mean_util:3.0f}%")
+```
+
+We sampled utilization with [`nvidia-smi`](../../python/gpu_clusters.qmd#logging-metrics) in a background thread and got the following results:
+
+```
+num_workers=0:  10.7 s/epoch, GPU util  31%
+num_workers=2:   5.2 s/epoch, GPU util  51%
+num_workers=4:   3.2 s/epoch, GPU util  85%
+num_workers=8:   3.1 s/epoch, GPU util  89%
+```
+
+These numbers show that:
+
+- With loading in the main process, the GPU did useful work 31% of the time: the rest was waiting for JPEG decoding. A pure loading pass took 8.1 s—longer than a compute-bound epoch.
+- Four workers hid loading under compute: epochs got 3.4× faster and utilization reached 85%.
+- The eighth worker bought almost nothing: with this model, 4 workers already feed the GPU as fast as it consumes.
+
+These ratios are specific to a small model on a laptop GPU. A larger model computes longer per batch, so it needs fewer workers to stay busy. When a run is accelerator-starved, tune in this order: more workers first, then `prefetch_factor`, then `pin_memory`.
+
+## Our final loaders
+
+Here are the loaders that we will use for the rest of the course:
+
+```{python}
+loader_kwargs = {
+    "batch_size": 64,
+    "num_workers": 4,
+    "persistent_workers": True,
+    "pin_memory": torch.accelerator.is_available(),
+}
+train_loader = DataLoader(train, shuffle=True, **loader_kwargs)
+val_loader = DataLoader(val, **loader_kwargs)
+print(len(train_loader), len(val_loader))
+```
+
+- Batches of 64: a good size for the small models of this course.
+- Four persistent workers each, as measured above.
+- Pinned memory when an accelerator is present.
+- Shuffling for training only.
+
+Batches of [float32]{.codelike} tensors in `[0, 1]` now flow from both splits.
