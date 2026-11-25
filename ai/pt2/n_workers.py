@@ -15,12 +15,7 @@ train = Subset(eurosat, idx["train"])
 
 def timed_pass(num_workers):
     """Time one full pass over the training data at steady state."""
-    loader = DataLoader(
-        train,
-        batch_size=64,
-        num_workers=num_workers,
-        persistent_workers=num_workers > 0,  # keeps workers alive: next section
-    )
+    loader = DataLoader(train, batch_size=64, num_workers=num_workers)
     for _ in loader:
         pass  # warmup
     t0 = time.perf_counter()
