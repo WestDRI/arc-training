@@ -1,0 +1,103 @@
+---
+title: Cluster workflow
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+This section gives a brief review of a workflow on the Alliance supercomputers.
+
+:::
+
+## Login vs compute nodes
+
+When you `ssh` into a cluster, you land on a *login node*: a shared machine for editing files, compiling scripts, moving data, and submitting work. [Never run anything compute-intensive there]{.emph}: hundreds of other researchers are also using it and you would stall everybody's work.
+
+Actual computing happens on *compute nodes*, and you reach them via [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager), the job scheduler: either an *interactive job* (a shell on a node, for developing and testing) or a *batch job* (a script that runs unattended, for real work).
+
+:::{.note}
+
+For the live sessions of this course, we hand out a small training cluster with the same layout. Its specifics (account flag, GPU availability) are given in the session; everything on this page applies to it and to the production Alliance clusters alike.
+
+:::
+
+## Interactive jobs
+
+For testing and developing code, ask Slurm for a node with one GPU:
+
+```{.bash}
+[cluster]$ salloc --account=def-<account> --gpus-per-node=<model>:1 --cpus-per-task=4 --mem=16G --time=0:30:0
+```
+
+- `--gpus-per-node=<model>:1` requests one GPU; [always name the model](https://docs.alliancecan.ca/wiki/Using_GPUs_with_Slurm) (`--gres=gpu:v100:1`) on production clusters.
+- Each cluster caps the CPUs and memory you may request per GPU; [check the bundle table](https://docs.alliancecan.ca/wiki/Allocations_and_compute_scheduling#Ratios_in_bundles) for yours. Four workers in the DataLoader make four CPUs a natural ask for our training.
+- The allocation ends at `--time` or when you exit the shell (`exit` or `Ctrl+d`). While you hold it, nobody else can use those resources: release it when done.
+
+Inside the job, verify the GPU, stage the data, and run the script by hand:
+
+```{.bash}
+[alloc]$ nvidia-smi
+[alloc]$ mkdir $SLURM_TMPDIR/data && tar xf ~/projects/def-<user>/data.tar -C $SLURM_TMPDIR/data --strip-components=1
+[alloc]$ cd ~/pt2 && uv run python train.py --epochs 1 --data $SLURM_TMPDIR/data
+```
+
+`train.py` is the training loop of [the loop section](pt2_loop.qmd) as a script: same model, same schedule, plus command-line arguments and a checkpoint that also stores the optimizer state (for resuming). Note the main guard at its bottom: [with Python 3.14's forkserver default](pt2_dataloaders.qmd), scripts that spawn DataLoader workers must keep their launch code under `if __name__ == "__main__":` or the workers re-import the script and crash.
+
+## Batch jobs
+
+Once a script works, run it unattended. Write the job script (this is the whole file, `job.sh`):
+
+```{.bash}
+#!/bin/bash
+#SBATCH --job-name=eurosat-cnn       # name shown by sq
+#SBATCH --account=def-<account>      # allocation to charge
+#SBATCH --time=1:00:00               # max walltime (D-HH:MM or HH:MM:SS)
+#SBATCH --cpus-per-task=4            # cores (our 4 DataLoader workers)
+#SBATCH --gpus-per-node=<model>:1    # one GPU
+#SBATCH --mem=16G                    # memory per node
+#SBATCH --output=%x_%j.out           # stdout file (%x: job name, %j: job id)
+
+# stage the data onto the node's local disk (deleted when the job ends)
+mkdir $SLURM_TMPDIR/data
+tar xf ~/projects/def-<user>/data.tar -C $SLURM_TMPDIR/data --strip-components=1
+
+# environment + run
+cd ~/pt2
+uv run python train.py --epochs 15 --data $SLURM_TMPDIR/data
+
+# keep the checkpoint
+cp $SLURM_TMPDIR/data/best_script.pt ~/projects/def-<user>/
+```
+
+Submit it, watch it, and check its efficiency afterwards:
+
+```{.bash}
+[cluster]$ cd </dir/containing/job.sh>
+[cluster]$ sbatch job.sh
+[cluster]$ sq          # R: running, PD: pending, nothing: finished
+[cluster]$ scancel <jobid>
+[cluster]$ seff <jobid>  # after it ran: GPU/memory utilization vs requested
+```
+
+:::{.note}
+
+`$SLURM_TMPDIR` is scratch space on the compute node itself. Reading the 27,000 images from it is much faster than from the network filesystem, which is the second reason (after the small-files tax) we extract the tar there. Anything in it is deleted when the job ends: the last line copies the checkpoint back out.
+
+:::
+
+## Resuming from a checkpoint
+
+Long jobs should checkpoint often enough that an outage costs at most a few hours (on Alliance clusters, at least once every 24 hours). `train.py` already saves the optimizer state next to the model weights; a resume is then three lines before the loop:
+
+```{.python}
+ckpt = torch.load(out, weights_only=True)
+model.load_state_dict(ckpt["model"])
+optimizer.load_state_dict(ckpt["optimizer"])
+start_epoch = ckpt["epoch"] + 1
+```
+
+Reload the optimizer as well as the model: AdamW's per-parameter moments are part of the learned state, and a resumed run without them lurches before recovering. If you resume often, teach `fit()` to start its epoch counter and its schedule at `start_epoch` rather than 1.
+
+## GPUs on Alliance clusters
+
+[Our page on using GPUs on Alliance clusters](../../python/gpu_clusters.qmd) talks about the various models available and how to request them, MIGs, GPU monitoring and other topics extremely important to be aware of.
