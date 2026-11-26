@@ -24,17 +24,21 @@ With `num_workers=n`, the DataLoader spawns `n` worker processes. Each worker pr
 
 flowchart TB
     classDef default color:#0081c2, stroke:#0081c2;
-    D[(files on disk)] --> w1 & w2 & w3
-    subgraph W [worker processes]
-        w1[decode + transform] --> b1[batch]
-        w2[decode + transform] --> b2[batch]
-        w3[decode + transform] --> b3[batch]
+    D[(Files on disk)] --> w1 & w2 & w3
+    subgraph W["`**&emsp;Worker&emsp;processes**`"]
+        w1[Decode + transform] --> b1[Batch]
+        w2[Decode + transform] --> b2[Batch]
+        w3[Decode + transform] --> b3[Batch]
     end
-    b1 & b2 & b3 --> Q[prefetch queue]
-    Q --> P[pinned memory] -->|async copy| G([training step on the accelerator])
+    b1 & b2 & b3 --> Q[Prefetch queue]
+    Q --> P[Pinned memory] -->|async copy| G([Training step on the accelerator])
 ```
 
+:::{.note}
+
 The queue smooths out the hiccups: workers run ahead of the consumer (by how much is the `prefetch_factor` option seen below), so loading overlaps with compute.
+
+:::
 
 ## How many workers to use?
 
@@ -111,7 +115,11 @@ The benefit of additional workers is going down but hasn't quite flattened yet, 
 Let's test it on the cluster. The current training cluster contains 2 CPU nodes made of 8 CPU and 30 GB each. First, save the snippet above as a Python script (e.g. `nano n_workers.py`). If you launch it as is, you will get:
 
 ```
-UserWarning: This DataLoader will create 16 worker processes in total. Our suggested max number of worker in current system is 8, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+UserWarning: This DataLoader will create 16 worker processes in total. Our suggested max
+number of worker in current system is 8, which is smaller than what this DataLoader is
+going to create. Please be aware that excessive worker creation might get DataLoader
+running slow or even freeze, lower the worker number to avoid potential slowness/freeze
+if necessary.
 ```
 
 Which makes sense since you would be trying to launch 16 workers on 8 CPU. So edit the script first to remove the 16 worker run, then run it with:
@@ -245,7 +253,7 @@ How do you diagnose an accelerator-starved run?
 
 The classic symptom is an accelerator that alternates between busy and idle: watch the `GPU-Util` column of `nvidia-smi` while training (see our [GPU notes](../gpu_intro.qmd)) or check epoch times against a rough estimate of pure compute.
 
-I trained a small CNN (about 95,000 parameters) on EuroSAT for two epochs per configuration on my laptop GPU (RTX 2060, 6 GiB):
+I trained a small CNN that we will see later (about 95,000 parameters) on EuroSAT for two epochs per configuration on my laptop GPU (RTX 2060, 6 GiB):
 
 ```{.python}
 for num_workers in (0, 2, 4, 8):
@@ -284,33 +292,18 @@ These numbers show that:
 
 These ratios are specific to a small model on a laptop GPU. A larger model computes longer per batch, so it needs fewer workers to stay busy. When a run is accelerator-starved, tune in this order: more workers first, then `prefetch_factor`, then `pin_memory`.
 
-::::{.exo}
-
-:::{.yourturn}
-
-Your turn:
-
-:::
-
-- Write a Python script to test this on the training cluster.
-
-- Run the test.
-
-::::
-
 ## Our final loaders
 
 Here are the loaders that we will use for the rest of the course:
 
-```{python}
+```{.python}
 loader_kwargs = {
     "batch_size": 64,
     "num_workers": 8,
-    "pin_memory": torch.accelerator.is_available(),
+    "pin_memory": torch.accelerator.is_available()
 }
 train_loader = DataLoader(train, shuffle=True, **loader_kwargs)
 val_loader = DataLoader(val, **loader_kwargs)
-print(f"Length of training loader: {len(train_loader)}\nValidation loader: {len(val_loader)}")
 ```
 
 - Batches of 64: a good size for the small models of this course.
