@@ -72,7 +72,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../../">
-<link href="../../ai/pt2/pt2_speed.html" rel="next">
+<link href="../../ai/pt2/pt2_gpu.html" rel="next">
 <link href="../../ai/pt2/pt2_augmentation.html" rel="prev">
 <link href="../..//img/favicon_sfu.png" rel="icon" type="image/png">
 <script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
@@ -555,6 +555,12 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
   <div class="sidebar-item-container"> 
   <a href="../../ai/pt2/pt2_loop.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">A realistic training loop</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ai/pt2/pt2_gpu.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GPUs on the Alliance clusters</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1198,13 +1204,9 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <p><a href="../../ai/pt2/pt2_intro.html">The toy example</a> early in this course trained a model with a bare five-line loop. Real training needs more: mixed precision, a learning-rate schedule, gradient clipping, proper metrics, early stopping, and checkpointing of the best model.</p>
 <p>In this section, we assemble all of it into a loop and run it on EuroSAT to train a small <a href="https://en.wikipedia.org/wiki/Convolutional_neural_network">convolutional neural network (CNN)</a> from scratch.</p>
 </div>
-<div class="info">
-<p>We will use a GPU in this section, so <a href="../../ai/pt2/pt2_login.html">let’s go back to SSH</a>.</p>
-<p>Again, please remember to log out of the JupyterHub session to relinquish the hardware: click on <span class="codelike">File</span> in the top menu and select <span class="codelike">Log out</span> at the very bottom.</p>
-</div>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="43632a83" class="cell" data-execution_count="1">
+<div id="43632a83" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math  <span class="co"># for the cosine schedule</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time  <span class="co"># to time epochs</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
@@ -1220,7 +1222,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 <p><code>torchmetrics</code> provides composable, device-aware metrics (<code>MeanMetric</code> for weighted averages, <code>MulticlassAccuracy</code> for the classification score).</p>
 <p>As <a href="../../ai/pt2/pt2_intro.html">we saw in the first section</a>, we pick the accelerator if there is one, fall back to the CPU otherwise, and seed for reproducibility:</p>
-<div id="f884786a" class="cell" data-execution_count="2">
+<div id="f884786a" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    torch.accelerator.current_accelerator()</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> torch.accelerator.is_available()</span>
@@ -1235,7 +1237,7 @@ Device: cuda</code></pre>
 </div>
 <p>The data pipeline is the one built in the previous sections: <a href="../../ai/pt2/pt2_augmentation.html">transforms with augmentation for training and deterministic transforms for validation</a>, <a href="../../ai/pt2/pt2_parallel_loading.html">loaders</a> with 8 workers. <a href="../../ai/pt2/pt2_dataloaders.html#shuffling">The training shuffle gets a seeded generator</a>, so that runs are reproducible:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>root <span class="op">=</span> Path(<span class="st">"/project/def-sponsor00/data"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div id="b18b3851" class="cell" data-execution_count="4">
+<div id="b18b3851" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>IMAGENET_MEAN, IMAGENET_STD <span class="op">=</span> [<span class="fl">0.485</span>, <span class="fl">0.456</span>, <span class="fl">0.406</span>], [<span class="fl">0.229</span>, <span class="fl">0.224</span>, <span class="fl">0.225</span>]</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>train_tf <span class="op">=</span> T.Compose(</span>
@@ -1279,7 +1281,7 @@ Val batches: 85</code></pre>
 <section id="a-deliberately-small-model" class="level2">
 <h2 class="anchored" data-anchor-id="a-deliberately-small-model">A deliberately small model</h2>
 <p>The model is a small convolutional network: three conv blocks that double the channels (the first two also halve the image), then a global average pool and a linear layer producing one score per class.</p>
-<div id="40b9a4fe" class="cell" data-execution_count="5">
+<div id="40b9a4fe" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Net(nn.Module):</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""A small CNN for 64x64 images and 10 classes."""</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1307,7 +1309,7 @@ Val batches: 85</code></pre>
 <li>Each <a href="https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html"><code>nn.Conv2d</code></a> slides 3 × 3 filters over the image (<code>padding=1</code> keeps the size).</li>
 <li><a href="https://pytorch.org/docs/stable/generated/torch.nn.AdaptiveAvgPool2d.html"><code>nn.AdaptiveAvgPool2d(1)</code></a> averages each channel over the whole image: whatever the input size, the output is 128 numbers. This makes the architecture tolerant to other image sizes.</li>
 </ul>
-<div id="b1d92196" class="cell" data-execution_count="6">
+<div id="b1d92196" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Net().to(device)</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Parameters:"</span>, <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> model.parameters()))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -1320,7 +1322,7 @@ Val batches: 85</code></pre>
 <h2 class="anchored" data-anchor-id="hyperparameters">Hyperparameters</h2>
 <p>The training hyperparameters include the loss function, the optimizer, and the learning-rate schedule.</p>
 <p>The loss function and optimizer are the <a href="../../ai/pt2/pt2_intro.html">ones used in our toy example</a>: cross-entropy for classification, AdamW with decoupled weight decay:</p>
-<div id="1d69cd17" class="cell" data-execution_count="7">
+<div id="1d69cd17" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>loss_fn <span class="op">=</span> nn.CrossEntropyLoss()</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.AdamW(model.parameters(), lr<span class="op">=</span><span class="fl">1e-3</span>, weight_decay<span class="op">=</span><span class="fl">0.01</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
@@ -1329,7 +1331,7 @@ Val batches: 85</code></pre>
 <li><strong>Warmup</strong>: the learning rate ramps up from almost zero over the first epoch. The first steps happen on random weights, where gradients are large and noisy.</li>
 <li><strong>Cosine decay</strong>: afterwards, it anneals smoothly down to zero: large steps while the model is coarse, small steps while it refines.</li>
 </ul>
-<div id="1e48bc57" class="cell" data-execution_count="8">
+<div id="1e48bc57" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>max_epochs, patience, warmup <span class="op">=</span> <span class="dv">15</span>, <span class="dv">4</span>, <span class="bu">len</span>(train_loader)  <span class="co"># warmup: 1 epoch</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>total_steps <span class="op">=</span> max_epochs <span class="op">*</span> <span class="bu">len</span>(train_loader)</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1349,7 +1351,7 @@ Total: 5070 steps</code></pre>
 </div>
 </div>
 <p><code>LambdaLR</code> multiplies the base learning rate (1e-3) by our function at every step. Here is its shape over the planned run:</p>
-<div id="20070ca5" class="cell" data-execution_count="9">
+<div id="20070ca5" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>base_lr <span class="op">=</span> optimizer.param_groups[<span class="dv">0</span>][<span class="st">"initial_lr"</span>]</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>lrs <span class="op">=</span> [base_lr <span class="op">*</span> lr_lambda(s) <span class="cf">for</span> s <span class="kw">in</span> <span class="bu">range</span>(total_steps)]</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">3</span>))</span>
@@ -1369,7 +1371,7 @@ Total: 5070 steps</code></pre>
 <h2 class="anchored" data-anchor-id="metrics">Metrics</h2>
 <p>Hand-rolled accuracy is easy to get subtly wrong (averaging over batches instead of samples is a classic mistake). We use the <a href="https://github.com/Lightning-AI/torchmetrics">torchmetrics</a> package: metrics are objects with an <code>update()</code> method called once per batch and a <code>compute()</code> method called at the end.</p>
 <p>We need two metrics: <code>MeanMetric</code> for a weighted average (per-batch losses weighted by batch size, since the last batch is smaller), and <code>MulticlassAccuracy</code>:</p>
-<div id="fcb55d56" class="cell" data-execution_count="10">
+<div id="fcb55d56" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>metric <span class="op">=</span> MulticlassAccuracy(num_classes<span class="op">=</span><span class="dv">10</span>).to(device)</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.inference_mode():</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    logits <span class="op">=</span> torch.eye(<span class="dv">10</span>).repeat(<span class="dv">3</span>, <span class="dv">1</span>).to(device)  <span class="co"># 30 rows of perfect logits</span></span>
@@ -1385,7 +1387,7 @@ Total: 5070 steps</code></pre>
 <section id="one-epoch-of-training" class="level2">
 <h2 class="anchored" data-anchor-id="one-epoch-of-training">One epoch of training</h2>
 <p>One more modern ingredient: <strong>mixed precision</strong>. The compute happens in <code>bfloat16</code>, which halves memory traffic and, on recent GPUs, uses dedicated fast paths, while sensitive operations stay in float32. <code>torch.autocast</code> handles the casting per operation:</p>
-<div id="4e9f86e9" class="cell" data-execution_count="11">
+<div id="4e9f86e9" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># bf16 only accelerates on Ampere (2020) and newer GPUs; on older ones it</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co"># runs in emulation and can be slower than plain fp32, hence the gate</span></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>use_bf16 <span class="op">=</span> device.<span class="bu">type</span> <span class="op">==</span> <span class="st">"cuda"</span> <span class="kw">and</span> torch.cuda.get_device_capability()[<span class="dv">0</span>] <span class="op">&gt;=</span> <span class="dv">8</span></span>
@@ -1398,7 +1400,7 @@ Total: 5070 steps</code></pre>
 <p>Why bf16 rather than the classic fp16? bf16 keeps the exponent range of float32, so it does not need the gradient scaling that fp16 training requires (the <code>GradScaler</code> you will meet in older tutorials). On GPUs too old to accelerate bf16, like the RTX 2060 this page renders on, fp32 remains the honest choice: we measured bf16 emulation there at twice the epoch time of fp32. On the GPUs of the later cluster section, the gate opens and the same code runs in bf16.</p>
 </div>
 <p>Here is one epoch, the production version of <a href="../../ai/pt2/pt2_intro.html">the toy loop</a>:</p>
-<div id="555371a6" class="cell" data-execution_count="12">
+<div id="555371a6" class="cell" data-execution_count="13">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> train_epoch():</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    model.train()</span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    loss_metric <span class="op">=</span> MeanMetric().to(device)</span>
@@ -1429,7 +1431,7 @@ Total: 5070 steps</code></pre>
 <section id="evaluation" class="level2">
 <h2 class="anchored" data-anchor-id="evaluation">Evaluation</h2>
 <p>Evaluation runs the validation batches through the model without the training machinery:</p>
-<div id="7aa0a7cc" class="cell" data-execution_count="13">
+<div id="7aa0a7cc" class="cell" data-execution_count="14">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> evaluate():</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    model.<span class="bu">eval</span>()</span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    loss_metric <span class="op">=</span> MeanMetric().to(device)</span>
@@ -1453,7 +1455,7 @@ Total: 5070 steps</code></pre>
 <section id="early-stopping" class="level2">
 <h2 class="anchored" data-anchor-id="early-stopping">Early stopping</h2>
 <p>The last piece is the loop around the epochs. It keeps a history for plotting, saves a checkpoint whenever validation improves, and stops when it has not improved for <code>patience</code> epochs:</p>
-<div id="1e65be38" class="cell" data-execution_count="14">
+<div id="1e65be38" class="cell" data-execution_count="15">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fit():</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    history <span class="op">=</span> {<span class="st">"train_loss"</span>: [], <span class="st">"val_loss"</span>: [], <span class="st">"val_acc"</span>: [], <span class="st">"lr"</span>: []}</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    best_acc, best_epoch, wait <span class="op">=</span> <span class="fl">0.0</span>, <span class="dv">0</span>, <span class="dv">0</span></span>
@@ -1493,7 +1495,7 @@ Total: 5070 steps</code></pre>
 </section>
 <section id="the-run" class="level2">
 <h2 class="anchored" data-anchor-id="the-run">The run</h2>
-<div id="4a208236" class="cell" data-execution_count="15">
+<div id="4a208236" class="cell" data-execution_count="16">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>history, best_epoch, best_acc <span class="op">=</span> fit()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>epoch  1  train 1.698  val 1.275  acc 52.3%  lr 1.00e-03  35.8 s *
@@ -1522,7 +1524,7 @@ epoch 15  train 0.512  val 0.539  acc 80.6%  lr 0.00e+00  38.1 s *</code></pre>
 </section>
 <section id="learning-curves" class="level2">
 <h2 class="anchored" data-anchor-id="learning-curves">Learning curves</h2>
-<div id="56702d8e" class="cell" data-execution_count="16">
+<div id="56702d8e" class="cell" data-execution_count="17">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">3.5</span>))</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>epochs <span class="op">=</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(history[<span class="st">"train_loss"</span>]) <span class="op">+</span> <span class="dv">1</span>)</span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>ax1.plot(epochs, history[<span class="st">"train_loss"</span>], label<span class="op">=</span><span class="st">"train"</span>)</span>
@@ -1546,7 +1548,7 @@ epoch 15  train 0.512  val 0.539  acc 80.6%  lr 0.00e+00  38.1 s *</code></pre>
 <section id="the-best-checkpoint" class="level2">
 <h2 class="anchored" data-anchor-id="the-best-checkpoint">The best checkpoint</h2>
 <p>The file saved along the way holds the best model seen:</p>
-<div id="4b1d4d9c" class="cell" data-execution_count="17">
+<div id="4b1d4d9c" class="cell" data-execution_count="18">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>ckpt <span class="op">=</span> torch.load(root <span class="op">/</span> <span class="st">"best.pt"</span>, weights_only<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Best epoch: </span><span class="sc">{</span>ckpt[<span class="st">'epoch'</span>]<span class="sc">}</span><span class="ss"> (val acc: </span><span class="sc">{</span>ckpt[<span class="st">'val_acc'</span>]<span class="sc">:.1%}</span><span class="ss">)"</span>)</span>
 <span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>model.load_state_dict(ckpt[<span class="st">"model"</span>])</span>
@@ -2439,8 +2441,8 @@ Restored model: val loss 0.538, acc 80.8%</code></pre>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../../ai/pt2/pt2_speed.html" class="pagination-link" aria-label="Faster training">
-        <span class="nav-page-text">Faster training</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../../ai/pt2/pt2_gpu.html" class="pagination-link" aria-label="GPUs on the Alliance clusters">
+        <span class="nav-page-text">GPUs on the Alliance clusters</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

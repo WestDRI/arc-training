@@ -73,7 +73,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../../">
 <link href="../../ai/pt2/pt2_resources.html" rel="next">
-<link href="../../ai/pt2/pt2_loop.html" rel="prev">
+<link href="../../ai/pt2/pt2_gpu.html" rel="prev">
 <link href="../..//img/favicon_sfu.png" rel="icon" type="image/png">
 <script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -555,6 +555,12 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
   <div class="sidebar-item-container"> 
   <a href="../../ai/pt2/pt2_loop.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">A realistic training loop</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ai/pt2/pt2_gpu.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GPUs on the Alliance clusters</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1153,7 +1159,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
   <ul>
   <li><a href="#setup" id="toc-setup" class="nav-link active" data-scroll-target="#setup">Setup</a></li>
   <li><a href="#a-baseline-epoch" id="toc-a-baseline-epoch" class="nav-link" data-scroll-target="#a-baseline-epoch">A baseline epoch</a></li>
-  <li><a href="#torch.compile" id="toc-torch.compile" class="nav-link" data-scroll-target="#torch.compile">torch.compile</a></li>
+  <li><a href="#just-in-time-jit-compilation" id="toc-just-in-time-jit-compilation" class="nav-link" data-scroll-target="#just-in-time-jit-compilation">Just-in-time (JIT) compilation</a></li>
   <li><a href="#tf32" id="toc-tf32" class="nav-link" data-scroll-target="#tf32">TF32</a></li>
   <li><a href="#profiling" id="toc-profiling" class="nav-link" data-scroll-target="#profiling">Profiling</a></li>
   <li><a href="#the-memory-side" id="toc-the-memory-side" class="nav-link" data-scroll-target="#the-memory-side">The memory side</a></li>
@@ -1195,7 +1201,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="4447fedf" class="cell" data-execution_count="1">
+<div id="4447fedf" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time  <span class="co"># to time epochs</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
@@ -1208,7 +1214,7 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torchvision.models <span class="im">import</span> resnet18</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torchvision.transforms <span class="im">import</span> v2 <span class="im">as</span> T</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="d92ffdac" class="cell" data-execution_count="2">
+<div id="d92ffdac" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    torch.accelerator.current_accelerator()</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> torch.accelerator.is_available()</span>
@@ -1223,7 +1229,7 @@ Device: cuda</code></pre>
 </div>
 <p>The data pipeline is <a href="../../ai/pt2/pt2_augmentation.html">the canonical one of the course</a>: training transforms with augmentation, batches of 64, 8 workers. Only the training loader is needed here:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>root <span class="op">=</span> Path(<span class="st">"/project/def-sponsor00/data"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div id="2a739896" class="cell" data-execution_count="4">
+<div id="2a739896" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>IMAGENET_MEAN, IMAGENET_STD <span class="op">=</span> [<span class="fl">0.485</span>, <span class="fl">0.456</span>, <span class="fl">0.406</span>], [<span class="fl">0.229</span>, <span class="fl">0.224</span>, <span class="fl">0.225</span>]</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>train_tf <span class="op">=</span> T.Compose(</span>
@@ -1250,8 +1256,8 @@ Device: cuda</code></pre>
 <pre><code>338 batches</code></pre>
 </div>
 </div>
-<p>And the model is <a href="../../ai/pt2/pt2_loop.html">the small CNN</a> of the previous section, with its loss and optimizer. This page only times training steps, so the metrics, the schedule, and the early stopping are left out:</p>
-<div id="e7a3ff89" class="cell" data-execution_count="5">
+<p>We will use the same <a href="../../ai/pt2/pt2_loop.html">small CNN</a> we used earlier, with its loss and optimizer. This page only times training steps, so the metrics, the schedule, and the early stopping are left out:</p>
+<div id="e7a3ff89" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Net(nn.Module):</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""A small CNN for 64x64 images and 10 classes."""</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1287,7 +1293,7 @@ Device: cuda</code></pre>
 <section id="a-baseline-epoch" class="level2">
 <h2 class="anchored" data-anchor-id="a-baseline-epoch">A baseline epoch</h2>
 <p>Here is the timing harness for this page: one warmup epoch (worker startup, CUDA context, caches), then one timed epoch at steady state:</p>
-<div id="4e13e9b6" class="cell" data-execution_count="6">
+<div id="4e13e9b6" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> timed_epoch(m):</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run one epoch of bare training steps on model m, return seconds."""</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    t0 <span class="op">=</span> time.perf_counter()</span>
@@ -1301,7 +1307,7 @@ Device: cuda</code></pre>
 <span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    torch.accelerator.synchronize()</span>
 <span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> time.perf_counter() <span class="op">-</span> t0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="ddef8a5b" class="cell" data-execution_count="7">
+<div id="ddef8a5b" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>timed_epoch(model)  <span class="co"># warmup</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"eager: </span><span class="sc">{</span>timed_epoch(model)<span class="sc">:4.1f}</span><span class="ss"> s"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -1310,10 +1316,10 @@ Device: cuda</code></pre>
 </div>
 <p>This is eager PyTorch: each operation is launched one at a time, exactly as the code is written. On small models like ours, the accelerator spends much of each step waiting for the next kernel launch: the model is so small that its 95,000 parameters cannot keep the hardware busy.</p>
 </section>
-<section id="torch.compile" class="level2">
-<h2 class="anchored" data-anchor-id="torch.compile">torch.compile</h2>
-<p><a href="https://pytorch.org/docs/stable/generated/torch.compile.html"><code>torch.compile</code></a> wraps a module so that its first call captures the operations into a graph, which is then compiled into fused kernels and optimized as a whole:</p>
-<div id="79e15de8" class="cell" data-execution_count="8">
+<section id="just-in-time-jit-compilation" class="level2">
+<h2 class="anchored" data-anchor-id="just-in-time-jit-compilation">Just-in-time (JIT) compilation</h2>
+<p><a href="https://pytorch.org/docs/stable/generated/torch.compile.html"><code>torch.compile</code></a> wraps a module so that its first call captures the operations into a graph, which is then <a href="https://en.wikipedia.org/wiki/Just-in-time_compilation">JIT-compiled</a> into fused kernels and optimized as a whole:</p>
+<div id="79e15de8" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>compiled <span class="op">=</span> torch.<span class="bu">compile</span>(model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <ul>
@@ -1321,7 +1327,7 @@ Device: cuda</code></pre>
 <li>The wrapped model’s parameters are the same objects the optimizer already holds: no new optimizer needed.</li>
 <li>Nothing happens yet: compilation is deferred to the first call.</li>
 </ul>
-<div id="8535ea4b" class="cell" data-execution_count="9">
+<div id="8535ea4b" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>t0 <span class="op">=</span> time.perf_counter()</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>timed_epoch(compiled)  <span class="co"># first call: compiles</span></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>torch.accelerator.synchronize()</span>
@@ -1333,7 +1339,7 @@ Device: cuda</code></pre>
 <pre><code>first epoch (with compilation): 31.7 s</code></pre>
 </div>
 </div>
-<div id="f57d4cc4" class="cell" data-execution_count="10">
+<div id="f57d4cc4" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"compiled, steady state: </span><span class="sc">{</span>timed_epoch(compiled)<span class="sc">:4.1f}</span><span class="ss"> s"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>compiled, steady state: 19.3 s</code></pre>
@@ -1341,14 +1347,17 @@ Device: cuda</code></pre>
 </div>
 <p>Two things to read in these numbers:</p>
 <ul>
-<li>The first epoch pays a one-time compilation cost, typically tens of seconds for a model this size. The compiled artifacts are cached on disk (under <span class="codelike">Triton</span>’s cache directory), so a later process that compiles the same graph starts faster.</li>
-<li>From the second epoch on, the compiled model runs the same training step faster than eager. How much faster varies a lot: our CNN interleaves convolutions with small elementwise operations, and fusing those helps, but the big convolutions were already well served by cuDNN. Models with more Python-level overhead (transformers are the classic) see larger gains.</li>
+<li>The first epoch pays a one-time compilation cost—typically tens of seconds for a model this size. The compiled artifacts are cached on disk (under <span class="codelike">Triton</span>’s cache directory), so a later process that compiles the same graph starts faster.</li>
+<li>From the second epoch on, the compiled model runs the same training step faster than eager. How much faster varies a lot: our CNN interleaves convolutions with small elementwise operations, and fusing those helps, but the big convolutions were already well served by <a href="https://developer.nvidia.com/cuda/cuda-x-libraries/cudnn">cuDNN</a>. Models with more Python-level overhead (e.g.&nbsp;transformers) see larger gains.</li>
 </ul>
 <div class="note">
-<p><strong>What happens under the hood?</strong> Two things. First, <a href="https://pytorch.org/docs/stable/torch.compiler_dynamo_overview.html">TorchDynamo</a> records the operations your Python code performs on the model into a graph (stopping at “graph breaks” it cannot handle, and compiling each fragment). Second, the <a href="https://pytorch.org/docs/stable/torch.compiler.html">Inductor</a> backend generates optimized kernels for that graph: <a href="https://github.com/openai/triton">Triton</a> kernels on GPUs. Fusing sequences of elementwise operations into one kernel is where much of the speedup comes from: fewer launches, and intermediate results stay in fast GPU memory.</p>
+<p><strong>What happens under the hood?</strong></p>
+<p>First, <a href="https://pytorch.org/docs/stable/torch.compiler_dynamo_overview.html">TorchDynamo</a> records the operations your Python code performs on the model into a graph (stopping at “graph breaks” it cannot handle and compiling each fragment).</p>
+<p>Then the <a href="https://pytorch.org/docs/stable/torch.compiler.html">Inductor</a> backend generates optimized kernels for that graph: <a href="https://github.com/triton-lang/triton">Triton</a> kernels on GPUs. Fusing sequences of elementwise operations into one kernel is where much of the speedup comes from: fewer launches and intermediate results stay in fast GPU memory.</p>
 </div>
 <div class="note">
-<p><strong>Watch out for recompilations.</strong> A graph is compiled for the shapes it sees. Our training loader yields batches of shape <code>(64, 3, 64, 64)</code> all the way, except the last one, which has 32 images: the first epoch compiles the model twice. With many distinct shapes (variable sequence lengths, varying image sizes), <code>torch.compile</code> can spend its time recompiling instead of training. Two remedies: <code>drop_last=True</code> on the training loader (<a href="../../ai/pt2/pt2_dataloaders.html">we met the option</a> when counting batches), and <code>torch.compile(model, dynamic=True)</code> to compile shape-generic graphs.</p>
+<p><strong>Watch out for recompilations.</strong></p>
+<p>A graph is compiled for the shapes it sees. Our training loader yields batches of shape <code>(64, 3, 64, 64)</code> all the way, except the last one, which has 32 images, so the first epoch compiles the model twice. With many distinct shapes (variable sequence lengths, varying image sizes), <code>torch.compile</code> can spend its time recompiling instead of training. In that case, there are two remedies: <code>drop_last=True</code> on the training loader (we saw that option <a href="../../ai/pt2/pt2_dataloaders.html#from-samples-to-batches">earlier in the course</a> when counting batches), and <code>torch.compile(model, dynamic=True)</code> to compile shape-generic graphs.</p>
 </div>
 <p><code>torch.compile</code> also takes a <code>mode</code> argument: the default balances compile time against speed, while <code>mode="max-autotune"</code> lets the compiler try more kernel variants at the cost of longer compilation. For a loop that runs for hours, a few extra minutes of compilation are a good trade.</p>
 </section>
@@ -1390,7 +1399,7 @@ Device: cuda</code></pre>
 </tbody>
 </table>
 <p>PyTorch lets you pick how float32 matmuls are allowed to degrade:</p>
-<div id="363c486e" class="cell" data-execution_count="11">
+<div id="363c486e" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(torch.get_float32_matmul_precision())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>highest</code></pre>
@@ -1405,7 +1414,7 @@ Device: cuda</code></pre>
 <section id="profiling" class="level2">
 <h2 class="anchored" data-anchor-id="profiling">Profiling</h2>
 <p>Before optimizing anything, measure. <a href="https://pytorch.org/docs/stable/profiler.html">torch.profiler</a> records what each part of a step costs: which kernels ran, for how long, on which device.</p>
-<div id="0bda0d52" class="cell" data-execution_count="12">
+<div id="0bda0d52" class="cell" data-execution_count="13">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"KINETO_LOG_LEVEL"</span>] <span class="op">=</span> <span class="st">"100"</span>  <span class="co"># silence the profiler's own logging</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>x, y <span class="op">=</span> <span class="bu">next</span>(<span class="bu">iter</span>(train_loader))</span>
@@ -1425,7 +1434,7 @@ Device: cuda</code></pre>
 <span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>        loss.backward()</span>
 <span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>        optimizer.step()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="8511003c" class="cell" data-execution_count="13">
+<div id="8511003c" class="cell" data-execution_count="14">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>sort_by <span class="op">=</span> <span class="st">"self_cpu_time_total"</span> <span class="cf">if</span> device.<span class="bu">type</span> <span class="op">==</span> <span class="st">"cpu"</span> <span class="cf">else</span> <span class="st">"self_cuda_time_total"</span></span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(prof.key_averages().table(sort_by<span class="op">=</span>sort_by, row_limit<span class="op">=</span><span class="dv">8</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -1462,7 +1471,7 @@ Self CUDA time total: 46.964ms
 <h2 class="anchored" data-anchor-id="the-memory-side">The memory side</h2>
 <p>Speed is one constraint; memory (<a href="https://en.wikipedia.org/wiki/Video_random-access_memory">VRAM</a>) is the other. Training a model keeps several copies of the parameters in GPU memory, and knowing their sizes tells you at a glance what fits.</p>
 <p>For a model trained in float32 with an adaptive optimizer like AdamW:</p>
-<div id="7d67b333" class="cell" data-execution_count="14">
+<div id="7d67b333" class="cell" data-execution_count="15">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> training_footprint(n_params):</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Approximate VRAM for the learned state of a model in MiB."""</span></span>
 <span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    per_param <span class="op">=</span> (</span>
@@ -1481,7 +1490,7 @@ Self CUDA time total: 46.964ms
 </div>
 </div>
 <p>Apply the same arithmetic to <a href="https://pytorch.org/vision/stable/models/resnet.html">ResNet-18</a>, the pretrained model of the <a href="../../ai/pt2/pt2_transfer.html">next section</a> (the classifier head replaced for our 10 classes):</p>
-<div id="f34e9424" class="cell" data-execution_count="15">
+<div id="f34e9424" class="cell" data-execution_count="16">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>resnet <span class="op">=</span> resnet18(num_classes<span class="op">=</span><span class="dv">10</span>)  <span class="co"># random weights: we only count parameters here</span></span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>n_rn18 <span class="op">=</span> <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> resnet.parameters())</span>
 <span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"resnet18:       </span><span class="sc">{</span>n_rn18<span class="sc">:&gt;10,}</span><span class="ss"> params  ~</span><span class="sc">{</span>training_footprint(n_rn18)<span class="sc">:6.1f}</span><span class="ss"> MiB"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1494,7 +1503,7 @@ Self CUDA time total: 46.964ms
 <li>Both models fit easily in the 6 GiB of the laptop GPU this course renders on. Add activations (the intermediate results of the forward pass, which scale with batch size), and ResNet-18 training at batch 64 still stays in the neighbourhood of a couple of GiB.</li>
 <li>The arithmetic explains when models stop fitting: a 7-billion-parameter model trained in float32 with AdamW needs about 104 GiB for weights, gradients, and moments alone, before a single activation. Few GPUs hold that much; splitting the training state across several of them is the topic of <a href="../../ai/pt2/pt2_fsdp.html">a later section</a>.</li>
 </ul>
-<div class="note">
+<div class="notenoit">
 <p>To measure rather than estimate on a CUDA GPU, read the allocator’s high-water mark after a training step:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>torch.cuda.reset_peak_memory_stats()  <span class="co"># then run one step</span></span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"peak: </span><span class="sc">{</span>torch<span class="sc">.</span>cuda<span class="sc">.</span>max_memory_allocated() <span class="op">/</span> <span class="dv">2</span><span class="op">**</span><span class="dv">20</span><span class="sc">:.0f}</span><span class="ss"> MiB"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1505,31 +1514,35 @@ Self CUDA time total: 46.964ms
 <h2 class="anchored" data-anchor-id="where-to-start">Where to start</h2>
 <p>In the order that pays off the soonest:</p>
 <ol type="1">
-<li><strong>Feed the accelerator</strong> (<a href="../../ai/pt2/pt2_parallel_loading.html">parallel loading section</a>): workers, prefetching, pinned memory. No code change in the model.</li>
-<li><strong><code>torch.compile</code></strong>: one line, meaningful gains on most models, first-call compilation cost.</li>
+<li><a href="../../ai/pt2/pt2_parallel_loading.html"><strong>Feed the accelerator</strong></a>: workers, prefetching, pinned memory. No code change in the model.</li>
+<li><strong>JIT-compilation of the model</strong>: one line, meaningful gains on most models, first-call compilation cost.</li>
 <li><strong>Precision</strong>: TF32 where available, bf16 autocast otherwise (<a href="../../ai/pt2/pt2_loop.html">the gate of our loop</a>).</li>
-<li><strong>More hardware</strong>: when one GPU is genuinely not enough, <a href="../../ai/pt2/pt2_cluster.html">the cluster sections</a> take over.</li>
+<li><strong>More hardware</strong>: when one GPU is genuinely not enough, use multiple GPUs as we will see later.</li>
 </ol>
-<p>And measure between steps: the profiler for compute, epoch times for the big picture.</p>
+<p>Measure between each of these steps: the profiler for compute, epoch times for the big picture.</p>
 <div class="exo">
 <div class="yourturn">
 <p>Your turn:</p>
 </div>
-<p>Compile with <code>mode="max-autotune"</code> and compare the steady-state epoch time with the default mode. Then add <code>drop_last=True</code> to the training loader and check that the recompilation for the small final batch disappears from the first epoch.</p>
-<ul>
-<li>Hint: <code>max-autotune</code> compiles for noticeably longer; watch the first epoch’s total time versus the second.</li>
-</ul>
-<!-- ```{python} -->
-<!-- compiled_mt = torch.compile(model, mode="max-autotune") -->
-<!-- timed_epoch(compiled_mt)  # compilation + epoch -->
-<!-- print(f"max-autotune, steady state: {timed_epoch(compiled_mt):4.1f} s") -->
-<!-- ``` -->
-<!-- Expect max-autotune to trade a much longer first epoch for a -->
-<!-- modest additional gain: worth it for long runs, not for our -->
-<!-- 15-epoch loop. With drop_last=True, the first epoch still -->
-<!-- compiles, but only once: the second compilation for the -->
-<!-- 32-image final batch is gone. -->
+<p>Wrap the code of this page in a script and launch a job on the cluster.</p>
 </div>
+<!-- ::::{.exo} -->
+<!-- :::{.yourturn} -->
+<!-- Your turn: -->
+<!-- ::: -->
+<!-- Compile with `mode="max-autotune"` and compare the steady-state epoch time with the default mode. Then add `drop_last=True` to the training loader and check that the recompilation for the small final batch disappears from the first epoch. -->
+<!-- - Hint: `max-autotune` compiles for noticeably longer; watch the first epoch's total time versus the second. -->
+<!-- <\!-- ```{python} -\-> -->
+<!-- <\!-- compiled_mt = torch.compile(model, mode="max-autotune") -\-> -->
+<!-- <\!-- timed_epoch(compiled_mt)  # compilation + epoch -\-> -->
+<!-- <\!-- print(f"max-autotune, steady state: {timed_epoch(compiled_mt):4.1f} s") -\-> -->
+<!-- <\!-- ``` -\-> -->
+<!-- <\!-- Expect max-autotune to trade a much longer first epoch for a -\-> -->
+<!-- <\!-- modest additional gain: worth it for long runs, not for our -\-> -->
+<!-- <\!-- 15-epoch loop. With drop_last=True, the first epoch still -\-> -->
+<!-- <\!-- compiles, but only once: the second compilation for the -\-> -->
+<!-- <\!-- 32-image final batch is gone. -\-> -->
+<!-- :::: -->
 
 
 </section>
@@ -2085,8 +2098,8 @@ Self CUDA time total: 46.964ms
   </script>
 <nav class="page-navigation" aria-label="Page">
   <div class="nav-page nav-page-previous">
-      <a href="../../ai/pt2/pt2_loop.html" class="pagination-link" aria-label="A realistic training loop">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">A realistic training loop</span>
+      <a href="../../ai/pt2/pt2_gpu.html" class="pagination-link" aria-label="GPUs on the Alliance clusters">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">GPUs on the Alliance clusters</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
