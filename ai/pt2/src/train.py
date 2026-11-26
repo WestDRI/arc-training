@@ -13,9 +13,9 @@ import time
 
 import torch
 from torch import nn
+from torch.utils.data import DataLoader, Subset
 from torchmetrics import MeanMetric
 from torchmetrics.classification import MulticlassAccuracy
-from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import EuroSAT
 from torchvision.transforms import v2 as T
 
@@ -28,9 +28,14 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.ReLU(),
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
             nn.Linear(128, 10),
@@ -42,19 +47,23 @@ class Net(nn.Module):
 
 def make_loaders(data_dir, max_batches=None):
     """Canonical loaders; with max_batches, epochs cover a subset (smoke tests)."""
-    train_tf = T.Compose([
-        T.ToImage(),
-        T.RandomHorizontalFlip(),
-        T.RandomVerticalFlip(),
-        T.RandomRotation(90),
-        T.ToDtype(torch.float32, scale=True),
-        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-    ])
-    val_tf = T.Compose([
-        T.ToImage(),
-        T.ToDtype(torch.float32, scale=True),
-        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-    ])
+    train_tf = T.Compose(
+        [
+            T.ToImage(),
+            T.RandomHorizontalFlip(),
+            T.RandomVerticalFlip(),
+            T.RandomRotation(90),
+            T.ToDtype(torch.float32, scale=True),
+            T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+        ]
+    )
+    val_tf = T.Compose(
+        [
+            T.ToImage(),
+            T.ToDtype(torch.float32, scale=True),
+            T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+        ]
+    )
     idx = torch.load(f"{data_dir}/split.pt", weights_only=True)
     train = Subset(EuroSAT(root=data_dir, transform=train_tf), idx["train"])
     val = Subset(EuroSAT(root=data_dir, transform=val_tf), idx["val"])
@@ -69,7 +78,9 @@ def make_loaders(data_dir, max_batches=None):
         "pin_memory": torch.accelerator.is_available(),
     }
     train_loader = DataLoader(
-        train, shuffle=True, generator=torch.Generator().manual_seed(42),
+        train,
+        shuffle=True,
+        generator=torch.Generator().manual_seed(42),
         **loader_kwargs,
     )
     val_loader = DataLoader(val, **loader_kwargs)
@@ -82,8 +93,12 @@ def main():
     parser.add_argument("--patience", type=int, default=4)
     parser.add_argument("--data", default="data", help="data directory")
     parser.add_argument("--out", default=None, help="checkpoint path")
-    parser.add_argument("--max-batches", type=int, default=None,
-                        help="truncate epochs (smoke tests only)")
+    parser.add_argument(
+        "--max-batches",
+        type=int,
+        default=None,
+        help="truncate epochs (smoke tests only)",
+    )
     args = parser.parse_args()
     out = args.out or f"{args.data}/best_script.pt"
 
@@ -161,9 +176,11 @@ def main():
             marker = " *"
         else:
             wait += 1
-        print(f"epoch {epoch:2d}  train {train_loss:.3f}  val {val_loss:.3f}  "
-              f"acc {val_acc:5.1%}  {time.perf_counter() - t0:4.1f} s{marker}",
-              flush=True)
+        print(
+            f"epoch {epoch:2d}  train {train_loss:.3f}  val {val_loss:.3f}  "
+            f"acc {val_acc:5.1%}  {time.perf_counter() - t0:4.1f} s{marker}",
+            flush=True,
+        )
         if wait >= args.patience:
             print(f"early stop: no improvement for {args.patience} epochs")
             break
