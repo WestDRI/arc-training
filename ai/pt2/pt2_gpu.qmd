@@ -1,0 +1,252 @@
+---
+title: GPUs on the Alliance clusters
+author: Marie-Hélène Burle
+---
+
+:::{.def}
+
+The next section of the course is our first training loop. While reading in and preprocessing data is CPU work, training is very much GPU work, so we will use our first GPU.
+
+If you plan on using GPUs on the Alliance clusters, there are a number of things you need to be aware of. This section gives a summary.
+
+:::
+
+:::{.info}
+
+Since we will use a GPU in this section, [let's go back to SSH](pt2_login.qmd). Having GPUs sit idle while you work on a Jupyter notebook is not an efficient use of this high-demand and limited resource.
+
+Again, please remember to log out of the JupyterHub session to relinquish the hardware: click on [File]{.codelike} in the top menu and select [Log out]{.codelike} at the very bottom.
+
+:::
+
+## Available GPU models
+
+You can find a [list of GPU models for each cluster on the Alliance wiki](https://docs.alliancecan.ca/wiki/Using_GPUs_with_Slurm#Available_GPUs).
+
+While logged on any cluster, you can print a list of available GPU models for that cluster with:
+
+```{.bash}
+sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq
+```
+
+You should also visit the wiki page for that cluster for additional information ([here is an example for Fir](https://docs.alliancecan.ca/wiki/Fir#GPU_instances)).
+
+## Multi-instance GPU (MIG)
+
+[Multi-instance GPU (MIG)](https://www.nvidia.com/en-us/technologies/multi-instance-gpu/) is an [Nvidia](https://en.wikipedia.org/wiki/Nvidia) technology that partitions GPUs into multiple isolated and independent instances (virtual GPUs), each with its dedicated compute and memory resources.
+
+:::{.notenoit}
+
+This technology only works for GPGPUs (general-purpose GPUs) and not for graphic rendering.
+
+You can only request a single MIG per job. If you want more computing power, choose a bigger MIG, a full GPU, or have a look at [MPS](https://docs.alliancecan.ca/wiki/Hyper-Q_/_MPS), all of which are a lot more efficient than a multi-MIG setup.
+
+:::
+
+If your jobs cannot fully utilize the modern and high-performing GPUs that are present in the Alliance clusters, using a GPU instance allows you to use less of your job priority and have your jobs start sooner.
+
+To use a GPU instance instead of a full GPU, you select the profile name of the instance size that corresponds to the size of your job.
+
+:::{.notenoit}
+
+**Here is an example for the Fir cluster:**
+
+List all GPU and MIG flavours available:
+
+```{.bash}
+sinfo -o "%G"|grep gpu|sed 's/gpu://g'|sed 's/),/\n/g'|cut -d: -f1|sort|uniq
+```
+
+```
+h100
+nvidia_h100_80gb_hbm3_1g.10gb
+nvidia_h100_80gb_hbm3_2g.20gb
+nvidia_h100_80gb_hbm3_3g.40gb
+```
+
+`h100` is a full H100 GPU.
+
+The other flavours are MIGs:
+
+| Name                            | Memory | Compute                                         |
+|---------------------------------|--------|-------------------------------------------------|
+| `nvidia_h100_80gb_hbm3_1g.10gb` | 10 GB  | ≈ 1/8^th^ of a full `nvidia_h100_80gb_hbm3` GPU |
+| `nvidia_h100_80gb_hbm3_2g.20gb` | 20 GB  | ≈ 2/8^th^ of a full `nvidia_h100_80gb_hbm3` GPU |
+| `nvidia_h100_80gb_hbm3_3g.40gb` | 40 GB  | ≈ 3/8^th^ of a full `nvidia_h100_80gb_hbm3` GPU |
+
+You can refer to [NVIDIA MIG names](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/mig-device-names.html) and the [full NVIDIA MIG user guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/index.html) for more details.
+
+To request an instance of `nvidia_h100_80gb_hbm3_2g.20gb` in a Slurm batch job, you would use the Bash script:
+
+```{.bash filename="slurm_script.sh"}
+#!/bin/bash
+#SBATCH --time=xxx
+#SBATCH --mem=xxx
+#SBATCH --gpus=nvidia_h100_80gb_hbm3_2g.20gb:1
+#SBATCH --account=def-xxx
+```
+
+:::
+
+Refer to [the Alliance wiki](https://docs.alliancecan.ca/wiki/Multi-Instance_GPU) for more details on this.
+
+## GPU farming
+
+If you want to run multiple instances of a CUDA application, but the application is too small to saturate a modern GPU, consider using GPU farming using [CUDA Multi Process Service (MPS)](https://docs.nvidia.com/deploy/mps/index.html). Multiple instances will then be processed concurrently on the same GPU.
+
+Refer to [the Alliance wiki](https://docs.alliancecan.ca/wiki/Hyper-Q_/_MPS) for more details on this as well.
+
+## CPUs/GPU ratio
+
+Ideally, you want that neither the GPUs nor the CPUs become a bottleneck for your job by having a balanced approach, both in terms of their respective computing powers and in terms of their memory.
+
+A balanced ratio highly depends on the type of task your code performs as well as the type of GPU you are using. Typical ratios vary from 4:1 to 12:1, but if your code contains heavy steps that can only be performed on CPUs (e.g. I/O, data preprocessing), you will want more CPUs per GPU. More powerful GPUs also require more CPUs to handle the increased data throughput.
+
+The Alliance wiki maximum recommendations are (per GPU):
+
+- on Fir, no more than 12 CPU cores
+- on Narval, no more than 12 CPU cores
+- on Nibi, no more than 14 CPU cores
+- on Rorqual, no more than 16 CPU cores
+
+### RAM to vRAM ratio
+
+You also need to pay attention to the vRAM of the GPU(s) you are using and pair this appropriately with RAM on your CPUs. Here too, the type of task you are performing and the GPU model you are using will dictate the ideal ratio.
+
+2:1 to 4:1 RAM to vRAM works for most applications.
+
+## Requesting GPUs from Slurm
+
+Below is the general syntax, however make sure to look at cluster-specific instructions.
+
+### GPUs spread anywhere
+
+```{.bash}
+--gpus=<type>:<number>
+```
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+--gpus=h100:2
+```
+
+### GPUs per node
+
+```{.bash}
+--gpus-per-node=<type>:<number>
+```
+
+:::{.example}
+
+Example:
+
+:::
+
+```{.bash}
+--gpus-per-node=h100:6
+```
+
+## Monitoring GPUs
+
+### Metrix portal
+
+A growing number of Alliance clusters (as of March 2026, this includes Rorqual, Narval, and Nibi) have a [Metrix](https://docs.alliancecan.ca/wiki/Metrix/en) portal that allows you to monitor resource usage (CPU, GPU, memory, filesystem) in real time in a graphical and intuitive fashion from your browser.
+
+The data can be watched while the code is running, but also after the code has finished running.
+
+### Nsight Systems
+
+If you use [JupyterHub](https://jupyter.org/hub) on [the Alliance supercomputers that support it](https://docs.alliancecan.ca/wiki/JupyterHub), you can access [NVIDIA Nsight Systems](https://developer.nvidia.com/nsight-systems) easily.
+
+Loading a `cuda` or `nvhpc` module will add a launcher to start the graphical user interface in a VNC session.
+
+### Logging metrics
+
+For clusters that don't have a monitoring portal yet, you can run [nvidia-smi](https://docs.nvidia.com/deploy/nvidia-smi/) on the compute nodes with GPU(s) to get a snapshot of GPU(s) usage while the job is running by adding the command `nvidia-smi` to your job script.
+
+If you want to log the monitoring to a file, run instead:
+
+```{.bash}
+nvidia-smi -l 30 > gpu_log.txt
+```
+
+:::{.note}
+
+Replace `30` with the number of seconds that is appropriate for the monitoring of your job (based on the length of your job).
+
+:::
+
+You can also query specific metrics with, for instance:
+
+```{.bash}
+nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv
+```
+
+This will return information on the GPU(s) utilization and memory used.
+
+### Live monitoring
+
+#### nvtop
+
+A great option for live monitoring on clusters that don't have a monitoring portal yet is [nvtop](https://github.com/Syllo/nvtop). You can connect it to a compute node running your code with `srun`.
+
+:::{.example}
+
+Example to monitor the GPU(s) every second if you have a single GPU node:
+
+:::
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --pty nvtop
+```
+
+:::{.note}
+
+You can find the running job ID with `sq`.
+
+:::
+
+If you have multiple GPU nodes, you need to specify the node name:
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --nodelist=<node_name> --pty nvtop
+```
+
+:::{.notenoit}
+
+You can find the node name with:
+
+```{.bash}
+srun --jobid=<your_running_job_id> -n1 -c1 scontrol show hostname
+```
+
+:::
+
+Refer to [our wiki page](https://docs.alliancecan.ca/wiki/NVTOP) for more information on `nvtop`.
+
+#### Watching nvidia-smi
+
+An alternative option is to run `nvidia-smi` periodically with `watch` and use `srun` as above to access the compute node of your choice.
+
+:::{.example}
+
+Example to monitor the GPU(s) every second if you have a single GPU node:
+
+:::
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --pty watch -n 1 nvidia-smi
+```
+
+This will create a static dashboard in your terminal with values updated every second.
+
+If you have multiple GPU nodes, you need to specify the node name:
+
+```{.bash}
+srun --jobid=<your_running_job_id> --overlap --nodelist=<node_name> --pty watch -n 1 nvidia-smi
+```
