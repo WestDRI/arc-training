@@ -17,7 +17,7 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            # 3 conv blocks: each halves the image, doubles the channels
+            # 3 conv blocks: each doubles the channels; the first two halve the image
             nn.Conv2d(3, 32, 3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),  # 64 -> 32
@@ -177,7 +177,7 @@ def main():
                 break
         return history, best_epoch, best_acc
 
-    fit()  # the page uses the returned history for its learning curves
+    fit()  # returns history, best_epoch, best_acc
 
     ckpt = torch.load(root / "best.pt", weights_only=True)
     print(f"Best epoch: {ckpt['epoch']} (val acc: {ckpt['val_acc']:.1%})")
