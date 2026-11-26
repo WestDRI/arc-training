@@ -17,8 +17,8 @@ In this section, we look at serial data loading.
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader, Subset
 from matplotlib import pyplot as plt  # to look at a batch
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import EuroSAT
 from torchvision.transforms import v2 as T
 ```
@@ -28,7 +28,7 @@ from torchvision.transforms import v2 as T
 
 ## Dataset with transform
 
-We need to reload the EuroSAT data and we need to turn our PIL images into tensors because this what the whole PyTorch machinery (DataLoaders, training, etc.) expects. For this, we create a transform with [torchvision transforms v2](https://pytorch.org/vision/stable/transforms.html):
+We need to reload the EuroSAT data and turn our PIL images into tensors because this is what the whole PyTorch machinery (DataLoaders, training, etc.) expects. For this, we create a transform with [torchvision transforms v2](https://pytorch.org/vision/stable/transforms.html):
 
 ```{python}
 to_tensor = T.Compose([T.ToImage(), T.ToDtype(torch.float32, scale=True)])
@@ -36,9 +36,9 @@ to_tensor = T.Compose([T.ToImage(), T.ToDtype(torch.float32, scale=True)])
 
 - [`T.ToImage()`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToImage.html) turns the PIL image into a [uint8]{.codelike} tensor of shape `(channels, height, width)`.
 - [`T.ToDtype(torch.float32, scale=True)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToDtype.html) converts it to [float32]{.codelike} and rescales the values from the 0-255 range into `[0, 1]`.
-- `T.Compose` chains the two. This minimal pair is all we need to obtain batches; the full preprocessing pipeline (with normalization and augmentation) is the topic of the [next section of the course](pt2_augmentation.qmd).
+- `T.Compose` chains the two. This minimal pair is all we need to obtain batches; the full preprocessing pipeline (with normalization and augmentation) is the topic of [a later section of the course](pt2_augmentation.qmd).
 
-We store that transform as an attribute to the dataset:
+We store that transform as an attribute of the dataset:
 
 ```{python}
 #| echo: false
@@ -71,7 +71,7 @@ print(f"{len(train)} training examples and {len(val)} validation examples")
 
 ## From samples to batches
 
-A dataset or Subset can be indexed to return one sample at a time (here an image tensor and its label):
+A dataset or a `Subset` can be indexed to return one sample at a time (here an image tensor and its label):
 
 ```{python}
 img, label = train[0]
@@ -131,7 +131,7 @@ Always use powers of 2 (32, 64, 128, 256) because GPUs and CPUs are optimized fo
 
 |  | **Small batch size**  | **Large batch size**  |
 | :--- | :--- | :--- |
-| **Training speed** | Slower: less efficient use of GPU | Faster: maximizes GPU throughput |
+| **Training speed** | Slower: less efficient use of the GPU | Faster: maximizes GPU throughput |
 | **Generalization** | Better: the "noise" in the gradient helps the model escape sharp local minima | Worse: can lead to overfitting |
 | **Convergence** | Noisy training curve: loss fluctuates | Smoother training curve: stable descent |
 | **Memory usage** | Low: good for limited VRAM | High: risk of OOM |
@@ -178,9 +178,9 @@ Your turn:
 
 :::
 
-- How many batches does `DataLoader(val, batch_size=128)` produce? (Predict first, then check).
+- How many batches does `DataLoader(val, batch_size=128)` produce? (Predict first, then check.)
 
-- How many batches does `DataLoader(val, batch_size=128, drop_last=True)` produce? (Predict first, then check).
+- How many batches does `DataLoader(val, batch_size=128, drop_last=True)` produce? (Predict first, then check.)
 
 - How large is the last batch?
 
@@ -253,13 +253,13 @@ b = next(iter(DataLoader(train, batch_size=8, shuffle=True, generator=g)))[1]
 print(torch.equal(a, b))
 ```
 
-- The generator also seeds the random draws happening inside worker processes, which will matter once we add random augmentation in the next section.
+- The generator also seeds the random draws happening inside worker processes, which will matter once we add random augmentation [in a later section](pt2_augmentation.qmd).
 
 - Shuffle the training data only: validation must be deterministic and its order is irrelevant.
 
 :::
 
-Here is one shuffled batch:
+Here are the first 8 images of one shuffled batch:
 
 ```{python}
 loader = DataLoader(train, batch_size=64, shuffle=True)
@@ -281,8 +281,8 @@ Do not shuffle the validation or test data: it is better to keep them in order t
 
 :::{.info}
 
-One way to make data loading and transforming a lot faster is to do this in parallel using multiple CPUs.
+One way to make data loading and transforming a lot faster is to do so in parallel using multiple CPUs.
 
-So far, we have worked on a single CPU and JupyterHub was thus a suitable option: it is convenient and we can display images directly. Now that we will start using multiple CPUs, then GPUs, it is time to move to a workflow that is much more resource efficient: batch jobs with the [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager) scheduler.
+So far, we have worked on a single CPU and JupyterHub was thus a suitable option: it is convenient and we can display images directly. Since we are about to use multiple CPUs, then GPUs, it is time to move to a workflow that is much more resource-efficient: batch jobs with the [Slurm](https://en.wikipedia.org/wiki/Slurm_Workload_Manager) scheduler.
 
 :::

@@ -7,13 +7,13 @@ csl: ../../diabetologia.csl
 
 :::{.def}
 
-We already saw that before images reach a model, they must be transformed into tensors with uniform size and data type, and values in a sensible range. On top of this, randomly perturbing the training images (augmentation) is a cheap way to get more out of a small dataset and prevent overtraining.
+We already saw that, before images reach a model, they must be transformed into tensors with a uniform size and data type, and with values in a sensible range. On top of this, randomly perturbing the training images (augmentation) is a cheap way to get more out of a small dataset and prevent overfitting.
 
 :::
 
 :::{.info}
 
-[Let's go back to JupyterHub](pt2_jh.qmd) for this section: it doesn't require much computing power and that will make visualizing the augmented test image as well as playing with code snippets easier.
+[Let's go back to JupyterHub](pt2_jh.qmd) for this section: it doesn't require much computing power and that will make visualizing the augmented images as well as playing with code snippets easier.
 
 :::
 
@@ -31,9 +31,9 @@ from torchvision.transforms import v2 as T
 torch.manual_seed(42)
 ```
 
-[In an earlier section](pt2_dataloaders.qmd#dataset-with-transform) we stored a very simple transform as an attribute of the whole dataset because we needed to convert the images to tensors to play with DataLoaders. In this section, we will create more sophisticated transforms for the validation and the training sets.
+[In an earlier section](pt2_dataloaders.qmd#dataset-with-transform) we stored a very simple transform as an attribute of the whole dataset because we needed to convert the images to tensors to play with DataLoaders. In this section, we will create more sophisticated transforms for the validation and training sets.
 
-So first let's reload the dataset (without any transform this time) and [the split saved earlier](pt2_datasets.qmd#train-and-validation-sets):
+So first, let's reload the dataset (without any transform this time) and [the split saved earlier](pt2_datasets.qmd#train-and-validation-sets):
 
 ```{python}
 #| echo: false
@@ -49,7 +49,7 @@ eurosat = EuroSAT(root=root)
 idx = torch.load(root / "split.pt", weights_only=True)
 ```
 
-Then, let's pick a training image to work on:
+Then let's pick a training image to work on:
 
 ```{python}
 img, label = eurosat[idx["train"][0]]
@@ -64,14 +64,18 @@ A model needs every input as a [float32]{.codelike} tensor of the same shape, wi
 
 ```{python}
 x = T.ToImage()(img)
-print(f"Tensor shape: {x.shape}\nTensor type: {x.dtype}\nMin, max: {int(x.min())}, {int(x.max())}")
+print(
+    f"Tensor shape: {x.shape}\nTensor type: {x.dtype}\nMin, max: {int(x.min())}, {int(x.max())}"
+)
 ```
 
 [`T.ToDtype`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.ToDtype.html) with `scale=True` rescales to `[0, 1]` while converting to [float32]{.codelike} (the data type models compute in):
 
 ```{python}
 x = T.ToDtype(torch.float32, scale=True)(x)
-print(f"Tensor shape: {x.shape}\nTensor type: {x.dtype}\nMin, max: {x.min():.3f}, {x.max():.3f}")
+print(
+    f"Tensor shape: {x.shape}\nTensor type: {x.dtype}\nMin, max: {x.min():.3f}, {x.max():.3f}"
+)
 ```
 
 :::{.note}
@@ -80,24 +84,28 @@ Older versions of PyTorch used `transforms.ToTensor()`: the modern v2 equivalent
 
 :::
 
-[`T.Normalize`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.Normalize.html) standardizes each channel (red, green, and blue) by subtracting the mean and dividing by the standard deviation. We use the mean and standard deviation of the [ImageNet dataset](https://en.wikipedia.org/wiki/ImageNet) because later in the course we will use models pretrained on ImageNet which expect inputs normalized exactly this way. We adopt them for the whole course, including our from-scratch baseline, so that every run stays comparable:
+[`T.Normalize`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.Normalize.html) standardizes each channel (red, green, and blue) by subtracting the mean and dividing by the standard deviation. We use the mean and standard deviation of the [ImageNet dataset](https://en.wikipedia.org/wiki/ImageNet) because later in the course we will use models pretrained on ImageNet, which expect inputs normalized exactly this way. We adopt them for the whole course, including our from-scratch baseline, so that every run stays comparable:
 
 ```{python}
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 x = T.Normalize(IMAGENET_MEAN, IMAGENET_STD)(x)
-print(f"Tensor shape: {x.shape}\nTensor type: {x.dtype}\nMin, max: {x.min():.2f}, {x.max():.2f}")
+print(
+    f"Tensor shape: {x.shape}\nTensor type: {x.dtype}\nMin, max: {x.min():.2f}, {x.max():.2f}"
+)
 ```
 
-Let's combine the three steps together with `T.Compose`:
+Let's combine the three steps with `T.Compose`:
 
 ```{python}
-val_tf = T.Compose([
-    T.ToImage(),                           # PIL image -> uint8 CHW tensor
-    T.ToDtype(torch.float32, scale=True),  # /255 -> float32 in [0, 1]
-    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-])
+val_tf = T.Compose(
+    [
+        T.ToImage(),  # PIL image -> uint8 CHW tensor
+        T.ToDtype(torch.float32, scale=True),  # /255 -> float32 in [0, 1]
+        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+    ]
+)
 ```
 
 :::{.notenoit}
@@ -112,15 +120,15 @@ EuroSAT is darker and greener than the average ImageNet photo. When training a m
 
 :::
 
-Two things are missing from this pipeline that you will usually need for your own data. EuroSAT images are all 64 × 64 pixels, so there is no [`T.Resize`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.Resize.html), and evaluation crops are deterministic, so there is no random crop. For mixed-size images, the standard evaluation recipe is `T.Resize(256)` followed by [`T.CenterCrop(224)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.CenterCrop.html).
+Two things that you will usually need for your own data are missing from this pipeline. EuroSAT images are all 64 × 64 pixels, so there is no [`T.Resize`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.Resize.html), and the crop is deterministic at evaluation time, so there is no random crop. For mixed-size images, the standard evaluation recipe is `T.Resize(256)` followed by [`T.CenterCrop(224)`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.CenterCrop.html).
 
 ## Data augmentation
 
 ### What is data augmentation?
 
-Training deep learning models requires vast amounts of labelled data. The more diverse and numerous the data, the better the models will perform on new, unseen data. Labelled data is however limited.
+Training deep learning models requires vast amounts of labelled data. The more diverse and numerous the data, the better the models will perform on new, unseen data. Labelled data, however, is limited.
 
-[Data augmentation](https://en.wikipedia.org/wiki/Data_augmentation) is the artificial creation of new data by modifying the existing one in small ways. This prevents the model from seeing the exact same tensors at each epoch. It is very powerful to avoid overfitting, particularly where datasets are small (if you were lucky enough to have a huge dataset, you wouldn't need to bother with data augmentation which would actually create an additional computationally costly step with extremely little benefit).
+[Data augmentation](https://en.wikipedia.org/wiki/Data_augmentation) is the artificial creation of new data by modifying the existing data in small ways. This prevents the model from seeing the exact same tensors at each epoch. It is a very effective way to avoid overfitting, particularly where datasets are small (if you were lucky enough to have a huge dataset, you wouldn't need to bother with data augmentation, which would actually be an additional, computationally costly step with extremely little benefit).
 
 Xu *et al.* performed a comprehensive survey of image augmentation techniques for deep learning in 2023 [-@Xu_2023], but the field is evolving very fast with new techniques coming out all the time.
 
@@ -132,10 +140,10 @@ Validation and test transforms must be deterministic. Random transforms at evalu
 
 ### Augmentation libraries
 
-Data augmentation being such a classic technique, many libraries offer sets of augmentation tools. Among the very popular, we can list:
+Data augmentation being such a classic technique, many libraries offer sets of augmentation tools. Among the most popular ones, we can list:
 
 - [AlbumentationsX](https://github.com/albumentations-team/AlbumentationsX),
-- [Torchvision transforms](https://docs.pytorch.org/vision/0.8/transforms.html),
+- [Torchvision transforms](https://pytorch.org/vision/stable/transforms.html),
 - [skimage.transform](https://scikit-image.org/docs/stable/api/skimage.transform.html) from [scikit-image](https://github.com/scikit-image/scikit-image).
 
 There are others: Amarù *et al.* created a curated repository of libraries for data augmentation in computer vision [-@jimaging9100232]. In this course, we will use Torchvision transforms.
@@ -145,12 +153,12 @@ There are others: Amarù *et al.* created a curated repository of libraries for 
 There are many techniques:
 
 - Geometric transformations (flips, rotations, scaling, crops...).
-- Color space transformations (brightness, contrast, gamma, hue, saturation, grayscale conversion, channel shuffling...).
+- Colour space transformations (brightness, contrast, gamma, hue, saturation, grayscale conversion, channel shuffling...).
 - Noise transformations (Gaussian noise, blurring...).
 - Occlusive transformations (erasing parts of the image).
 - Mixing images (various techniques mixing images and appropriately applying the same treatment to labels).
 
-For a quick strong default on natural images, torchvision also ships one-liner policies such as [`T.TrivialAugmentWide`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.TrivialAugmentWide.html) and [`T.RandAugment`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.RandAugment.html), which compose random transforms for you.
+For a quick, strong default on natural images, torchvision also ships one-liner policies such as [`T.TrivialAugmentWide`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.TrivialAugmentWide.html) and [`T.RandAugment`](https://pytorch.org/vision/stable/generated/torchvision.transforms.v2.RandAugment.html), which compose random transforms for you.
 
 ### Choosing techniques
 
@@ -162,43 +170,47 @@ The size of your dataset dictates how aggressively you should augment.
 | :--- | :--- | :--- |
 | **Tiny (<1k images)** | **Heavy augmentation.** You should be worried about overfitting, so you need to create more artificial data | **4-6 techniques** |
 | **Medium (1k - 100k)** | **Standard augmentation.** Balance variety with training speed | **3-4 techniques** |
-| **Large (>100K images)** | **Light augmentation.** | **1-2 techniques**  |
-| **Massive (>1M images)** | **No augmentation**. The data itself provides enough diversity. Augmentation will only slow down training. | **0 technique** |
+| **Large (>100k images)** | **Light augmentation.** | **1-2 techniques** |
+| **Massive (>1M images)** | **No augmentation**. The data itself provides enough diversity. Augmentation will only slow down training. | **0 techniques** |
 
-<br>Our dataset contains 27K images (including the validation set). This puts us in the medium category and a standard approach with **3 or 4 techniques** should be reasonable.
+<br>Our dataset contains 27K images (including the validation set). This puts us in the medium category, and a standard approach with **3 or 4 techniques** should be reasonable.
 
 #### Which ones to use?
 
-Which augmentation to chose is domain-specific: every transform must be label-preserving and representative of real variation. Which transform will respect this depends on the type of data.
+Which augmentation to choose is domain-specific: every transform must be label-preserving and representative of real variation. Which transform will respect this depends on the type of data.
 
-For instance, geometric flips and rotations would not work for handwritten digits (rotations would turn some 6s into 9s and flipping text left to right destroys it). For satellite images which look straight down however, a field, a highway, or a lake flipped or rotated still belongs to the same class.
+For instance, geometric flips and rotations would not work for handwritten digits (rotations would turn some 6s into 9s, and flipping text left to right destroys it). For satellite images, which look straight down, however, a field, a highway, or a lake flipped or rotated still belongs to the same class.
 
-On the contrary, photometric jitter on satellite images could be tricky: colour carries physical signal there (e.g. vegetation vs water), but it is safe for handwritten digits.
+Conversely, photometric jitter on satellite images could be tricky: colour carries a physical signal there (e.g. vegetation vs water), but it is safe for handwritten digits.
 
 ## The training pipeline
 
 Order matters: the random transforms sit before the dtype conversion because geometry on [uint8]{.codelike} tensors is cheaper than on [float32]{.codelike}, and `Normalize` must come last:
 
 ```{python}
-train_tf = T.Compose([
-    T.ToImage(),
-    T.RandomHorizontalFlip(),  # p=0.5 by default
-    T.RandomVerticalFlip(),    # p=0.5 by default
-    T.RandomRotation(90),      # random angle in [-90, 90]
-    T.ToDtype(torch.float32, scale=True),
-    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-])
+train_tf = T.Compose(
+    [
+        T.ToImage(),
+        T.RandomHorizontalFlip(),  # p=0.5 by default
+        T.RandomVerticalFlip(),  # p=0.5 by default
+        T.RandomRotation(90),  # random angle in [-90, 90]
+        T.ToDtype(torch.float32, scale=True),
+        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+    ]
+)
 ```
 
-Here is one image (a highway) next to seven passes of the random part of the pipeline:
+Here is one image (a highway) next to seven versions of it produced by the random part of the pipeline:
 
 ```{python}
-aug_display = T.Compose([           # for screens: without Normalize
-    T.ToImage(),
-    T.RandomHorizontalFlip(),
-    T.RandomVerticalFlip(),
-    T.RandomRotation(90),
-])
+aug_display = T.Compose(
+    [  # for screens: without Normalize
+        T.ToImage(),
+        T.RandomHorizontalFlip(),
+        T.RandomVerticalFlip(),
+        T.RandomRotation(90),
+    ]
+)
 
 img, label = eurosat[10000]
 print(label, eurosat.classes[label])
@@ -218,9 +230,9 @@ a, b, c = train_tf(img), train_tf(img), train_tf(img)
 print(torch.equal(a, b), torch.equal(b, c))
 ```
 
-Our 21,600 training files now yield effectively unbounded distinct training tensors: after 10 epochs, the model has seen each file 10 times, but never the same tensor twice.
+Our 21,600 training files now yield effectively unbounded distinct training tensors: after 10 epochs, the model has seen each file 10 times, but almost never the same tensor twice.
 
-And the validation transform, being deterministic, returns the identical tensor every time:
+And the validation transform, being deterministic, returns the same tensor every time:
 
 ```{python}
 a, b = val_tf(img), val_tf(img)
@@ -229,11 +241,11 @@ print(torch.equal(a, b))
 
 :::{.note}
 
-Remember that the transforms run inside `__getitem__()`, once per sample. This means that augmentation is parallelized by the DataLoaders (based on the number of worker processes).
+Remember that the transforms run inside `__getitem__()`, once per sample. This means that augmentation is parallelized across the DataLoader worker processes.
 
 On my laptop, one pass over the training set with 16 workers took about 1 s without augmentation and 2.5 s with flips, rotation, and normalization. Cheap transforms keep the workers ahead of the accelerator; expensive ones [starve it again](pt2_parallel_loading.qmd#data-loading-bottleneck). This means that, with augmentation, you might need to increase the number of workers to keep the GPU busy.
 
-Augmentation is a form of regularization: it trades easy fit on the training set for generalization. Expect the training loss to fall more slowly with augmentation: the task got harder, not the model worse. Judge on validation metrics.
+Augmentation is a form of regularization: it trades an easy fit on the training set for generalization. Expect the training loss to fall more slowly with augmentation: the task got harder, not the model worse. Judge on validation metrics.
 
 :::
 
@@ -247,7 +259,7 @@ Your turn:
 
 Add `T.RandomResizedCrop(64, scale=(0.4, 1.0))` to the training pipeline (right after `T.ToImage()`), then display 8 variants of one image. Finally, think: which EuroSAT classes could lose their identity if crops get very tight?
 
-- First hint: copy `aug_display`, without `Normalize`. \
+- First hint: start from `aug_display` and insert the crop right after `T.ToImage()`. \
 - Second hint: `scale` bounds the fraction of the image area kept by the crop. \
 - Third hint: two classes are long and thin.
 
@@ -288,19 +300,21 @@ Batched calls remain useful for deterministic transforms such as `Normalize`.
 
 ## The complete data pipeline
 
-The data side of the course is now complete: datasets with the right transform per split, loaders with the proper options measured. Here is what it looks like:
+The data side of the course is now complete: datasets with the right transform per split, loaders with the options measured earlier. Here is what it looks like:
 
 ```{python}
 train = Subset(EuroSAT(root=root, transform=train_tf), idx["train"])
 val = Subset(EuroSAT(root=root, transform=val_tf), idx["val"])
-print(f"Length training set: {len(train)}\nLength validation set: {len(val)}")
+print(
+    f"Length of the training set: {len(train)}\nLength of the validation set: {len(val)}"
+)
 ```
 
 ```{python}
 loader_kwargs = {
     "batch_size": 64,
     "num_workers": 8,
-    "pin_memory": torch.accelerator.is_available()
+    "pin_memory": torch.accelerator.is_available(),
 }
 train_loader = DataLoader(train, shuffle=True, **loader_kwargs)
 val_loader = DataLoader(val, **loader_kwargs)
@@ -308,7 +322,7 @@ val_loader = DataLoader(val, **loader_kwargs)
 
 :::{.note}
 
-Of course we get a warning when we run this on JupyterHub since we requested a single CPU and we are asking for 8 processes.
+Of course, we get a warning when we run this on JupyterHub since we requested a single CPU and are asking for 8 processes.
 
 :::
 
@@ -316,7 +330,9 @@ One training batch:
 
 ```{python}
 images, labels = next(iter(train_loader))
-print(f"Images batch shape: {images.shape}\nImages batch type: {images.dtype}\nMin, max image values: {images.min():.2f}, {images.max():.2f}")
+print(
+    f"Images batch shape: {images.shape}\nImages batch type: {images.dtype}\nMin, max image values: {images.min():.2f}, {images.max():.2f}"
+)
 print(f"First few labels: {labels[:8]}")
 ```
 

@@ -49,19 +49,23 @@ root = Path("/project/def-sponsor00/data")
 ```{python}
 IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
-train_tf = T.Compose([
-    T.ToImage(),
-    T.RandomHorizontalFlip(),
-    T.RandomVerticalFlip(),
-    T.RandomRotation(90),
-    T.ToDtype(torch.float32, scale=True),
-    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-])
+train_tf = T.Compose(
+    [
+        T.ToImage(),
+        T.RandomHorizontalFlip(),
+        T.RandomVerticalFlip(),
+        T.RandomRotation(90),
+        T.ToDtype(torch.float32, scale=True),
+        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+    ]
+)
 
 idx = torch.load(root / "split.pt", weights_only=True)
 train = Subset(EuroSAT(root=root, transform=train_tf), idx["train"])
 train_loader = DataLoader(
-    train, batch_size=64, num_workers=8,
+    train,
+    batch_size=64,
+    num_workers=8,
     pin_memory=torch.accelerator.is_available(),
 )
 print(len(train_loader), "batches")
@@ -76,9 +80,14 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.ReLU(),
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
             nn.Linear(128, 10),
@@ -86,6 +95,7 @@ class Net(nn.Module):
 
     def forward(self, x):
         return self.layers(x)
+
 
 model = Net().to(device)
 loss_fn = nn.CrossEntropyLoss()
@@ -127,7 +137,7 @@ This is eager PyTorch: each operation is launched one at a time, exactly as the 
 compiled = torch.compile(model)
 ```
 
-- The return value is a drop-in replacement: call it, pass it to the profiling code below, everything works as before.
+- The return value is a drop-in replacement: call it, train with it, everything works as before.
 - The wrapped model's parameters are the same objects the optimizer already holds: no new optimizer needed.
 - Nothing happens yet: compilation is deferred to the first call.
 
@@ -149,7 +159,7 @@ Two things to read in these numbers:
 
 :::{.note}
 
-**What happens under the hood?** Two things. First, [TorchDynamo](https://pytorch.org/docs/stable/dynamo.html) records the operations your Python code performs on the model into a graph (stopping at "graph breaks" it cannot handle, and compiling each fragment). Second, the [Inductor](https://pytorch.org/docs/stable/inductor.html) backend generates optimized kernels for that graph: [Triton](https://github.com/openai/triton) kernels on GPUs. Fusing sequences of elementwise operations into one kernel is where much of the speedup comes from: fewer launches, and intermediate results stay in fast GPU memory.
+**What happens under the hood?** Two things. First, [TorchDynamo](https://pytorch.org/docs/stable/torch.compiler_dynamo_overview.html) records the operations your Python code performs on the model into a graph (stopping at "graph breaks" it cannot handle, and compiling each fragment). Second, the [Inductor](https://pytorch.org/docs/stable/torch.compiler.html) backend generates optimized kernels for that graph: [Triton](https://github.com/openai/triton) kernels on GPUs. Fusing sequences of elementwise operations into one kernel is where much of the speedup comes from: fewer launches, and intermediate results stay in fast GPU memory.
 
 :::
 
@@ -163,7 +173,7 @@ Two things to read in these numbers:
 
 ## TF32
 
-The compute that dominates training is matrix multiplication, and GPUs have fast units for it. Since the Ampere generation (2020), NVIDIA GPUs can run float32 matrix products in [TF32](https://pytorch.org/docs/stable/notes/cuda.html#tf32-on-nvidia-ampere-and-later), a format that keeps float32's range but carries only 10 bits of mantissa. The accuracy loss is invisible for deep learning, and the speedup on matmul-heavy workloads is substantial.
+The compute that dominates training is matrix multiplication, and GPUs have fast units for it. Since the Ampere generation (2020), NVIDIA GPUs can run float32 matrix products in [TF32](https://pytorch.org/docs/stable/notes/cuda.html#tf32-on-ampere), a format that keeps float32's range but carries only 10 bits of mantissa. The accuracy loss is invisible for deep learning, and the speedup on matmul-heavy workloads is substantial.
 
 | Format | Sign | Exponent | Mantissa | Notes |
 | :--- | :---: | :---: | :---: | :--- |
@@ -233,7 +243,7 @@ prof.export_chrome_trace("trace.json")  # then open https://ui.perfetto.dev
 
 :::{.note}
 
-The profiler only sees what runs inside its context: our snippet reuses one batch to keep the trace focused on compute, so the data pipeline of the [DataLoaders section](pt2_dataloaders.qmd) is invisible here. For a data-starved run, the diagnosis tools of that section (epoch times, `nvidia-smi`) come first.
+The profiler only sees what runs inside its context: our snippet reuses one batch to keep the trace focused on compute, so the data pipeline of the [parallel loading section](pt2_parallel_loading.qmd#data-loading-bottleneck) is invisible here. For a data-starved run, the diagnosis tools of that section (epoch times, `nvidia-smi`) come first.
 
 :::
 
@@ -249,9 +259,11 @@ def training_footprint(n_params):
     per_param = (
         4  # weights
         + 4  # gradients
-        + 4 + 4  # AdamW keeps two moments per parameter
+        + 4
+        + 4  # AdamW keeps two moments per parameter
     )
     return n_params * per_param / 2**20
+
 
 n_ours = sum(p.numel() for p in model.parameters())
 print(f"our CNN:        {n_ours:>10,} params  ~{training_footprint(n_ours):6.1f} MiB")
@@ -268,7 +280,7 @@ print(f"resnet18:       {n_rn18:>10,} params  ~{training_footprint(n_rn18):6.1f}
 Two conclusions:
 
 - Both models fit easily in the 6 GiB of the laptop GPU this course renders on. Add activations (the intermediate results of the forward pass, which scale with batch size), and ResNet-18 training at batch 64 still stays in the neighbourhood of a couple of GiB.
-- The arithmetic explains when models stop fitting: a 7-billion-parameter model trained in float32 with AdamW needs about 104 GiB for weights, gradients, and moments alone, before a single activation. No single GPU holds that; splitting the training state across several of them is the topic of [a later section](pt2_fsdp.qmd).
+- The arithmetic explains when models stop fitting: a 7-billion-parameter model trained in float32 with AdamW needs about 104 GiB for weights, gradients, and moments alone, before a single activation. Few GPUs hold that much; splitting the training state across several of them is the topic of [a later section](pt2_fsdp.qmd).
 
 :::{.note}
 
@@ -287,7 +299,7 @@ Note that mixed precision does not halve this footprint: with autocast, weights,
 
 In the order that pays off the soonest:
 
-1. **Feed the accelerator** ([previous section](pt2_dataloaders.qmd)): workers, prefetching, pinned memory. No code change in the model.
+1. **Feed the accelerator** ([parallel loading section](pt2_parallel_loading.qmd)): workers, prefetching, pinned memory. No code change in the model.
 2. **`torch.compile`**: one line, meaningful gains on most models, first-call compilation cost.
 3. **Precision**: TF32 where available, bf16 autocast otherwise ([the gate of our loop](pt2_loop.qmd)).
 4. **More hardware**: when one GPU is genuinely not enough, [the cluster sections](pt2_cluster.qmd) take over.

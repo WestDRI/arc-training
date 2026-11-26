@@ -64,19 +64,23 @@ root = Path("/project/def-sponsor00/data")
 ```{python}
 IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
-train_tf = T.Compose([
-    T.ToImage(),
-    T.RandomHorizontalFlip(),
-    T.RandomVerticalFlip(),
-    T.RandomRotation(90),
-    T.ToDtype(torch.float32, scale=True),
-    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-])
-val_tf = T.Compose([
-    T.ToImage(),
-    T.ToDtype(torch.float32, scale=True),
-    T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-])
+train_tf = T.Compose(
+    [
+        T.ToImage(),
+        T.RandomHorizontalFlip(),
+        T.RandomVerticalFlip(),
+        T.RandomRotation(90),
+        T.ToDtype(torch.float32, scale=True),
+        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+    ]
+)
+val_tf = T.Compose(
+    [
+        T.ToImage(),
+        T.ToDtype(torch.float32, scale=True),
+        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+    ]
+)
 
 idx = torch.load(root / "split.pt", weights_only=True)
 train = Subset(EuroSAT(root=root, transform=train_tf), idx["train"])
@@ -88,8 +92,7 @@ loader_kwargs = {
     "pin_memory": torch.accelerator.is_available(),
 }
 train_loader = DataLoader(
-    train, shuffle=True, generator=torch.Generator().manual_seed(42),
-    **loader_kwargs
+    train, shuffle=True, generator=torch.Generator().manual_seed(42), **loader_kwargs
 )
 val_loader = DataLoader(val, **loader_kwargs)
 print(f"Train batches: {len(train_loader)}\nVal batches: {len(val_loader)}")
@@ -97,7 +100,7 @@ print(f"Train batches: {len(train_loader)}\nVal batches: {len(val_loader)}")
 
 ## A deliberately small model
 
-The model is a small convolutional network: three conv blocks that halve the image and double the channels, then a global average pool and a linear layer producing one score per class.
+The model is a small convolutional network: three conv blocks that double the channels (the first two also halve the image), then a global average pool and a linear layer producing one score per class.
 
 ```{python}
 class Net(nn.Module):
@@ -106,10 +109,15 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            # 3 conv blocks: each halves the image, doubles the channels
-            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),  # 64 -> 32
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),  # 32 -> 16
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),  # 16 -> 16
+            # 3 conv blocks: each doubles the channels; the first two halve the image
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),  # 64 -> 32
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),  # 32 -> 16
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.ReLU(),  # 16 -> 16
             nn.AdaptiveAvgPool2d(1),  # one value per channel: 128 features
             nn.Flatten(),
             nn.Linear(128, 10),  # one score per class
@@ -127,11 +135,11 @@ model = Net().to(device)
 print("Parameters:", sum(p.numel() for p in model.parameters()))
 ```
 
-Roughly 95,000 parameters: the same small CNN that served to measure GPU starvation [in the DataLoaders section](pt2_parallel_loading.qmd#data-loading-bottleneck). It is deliberately modest. Trained from scratch, it will land on a mediocre baseline, and that is the point: it gives every later technique something to improve upon, and its epochs run in seconds even on small GPUs.
+Roughly 95,000 parameters: the same small CNN that we used to measure GPU starvation [in the parallel loading section](pt2_parallel_loading.qmd#data-loading-bottleneck). It is deliberately modest. Trained from scratch, it will land on a mediocre baseline, and that is the point: it gives every later technique something to improve upon, and its epochs run in seconds even on small GPUs.
 
 ## Hyperparameters
 
-Model training hyperparameters include loss, optimizer, and learning-rate schedule.
+The training hyperparameters include the loss function, the optimizer, and the learning-rate schedule.
 
 The loss function and optimizer are the [ones used in our toy example](pt2_intro.qmd): cross-entropy for classification, AdamW with decoupled weight decay:
 
@@ -149,17 +157,19 @@ The new ingredient is the schedule. A constant learning rate is a poor default: 
 max_epochs, patience, warmup = 15, 4, len(train_loader)  # warmup: 1 epoch
 total_steps = max_epochs * len(train_loader)
 
+
 def lr_lambda(step):
     if step < warmup:
         return (step + 1) / warmup  # linear ramp from ~0 to 1
     progress = (step - warmup) / (total_steps - warmup)
     return 0.5 * (1.0 + math.cos(math.pi * progress))  # cosine down to ~0
 
+
 scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 print(f"Warmup: {warmup} steps\nTotal: {total_steps} steps")
 ```
 
-`LambdaLR` multiplies the base learning rate (1e-3) by our function at every step. Here is the shape of it over the planned run:
+`LambdaLR` multiplies the base learning rate (1e-3) by our function at every step. Here is its shape over the planned run:
 
 ```{python}
 base_lr = optimizer.param_groups[0]["initial_lr"]
@@ -174,7 +184,7 @@ ax.set_ylabel("learning rate")
 
 Hand-rolled accuracy is easy to get subtly wrong (averaging over batches instead of samples is a classic mistake). We use the [torchmetrics](https://github.com/Lightning-AI/torchmetrics) package: metrics are objects with an `update()` method called once per batch and a `compute()` method called at the end.
 
-We need two measures: `MeanMetric` for a weighted average (per-batch losses weighted by batch size, since the last batch is smaller), and `MulticlassAccuracy`:
+We need two metrics: `MeanMetric` for a weighted average (per-batch losses weighted by batch size, since the last batch is smaller), and `MulticlassAccuracy`:
 
 ```{python}
 metric = MulticlassAccuracy(num_classes=10).to(device)
@@ -227,15 +237,15 @@ def train_epoch():
 ```
 
 - `model.train()` switches to training behaviour (our CNN has no mode-dependent layers, but the habit prevents silent bugs the day the model changes).
-- Batches move to the accelerator with `non_blocking=True`: with [pinned memory](pt2_dataloaders.qmd), the copies overlap with compute.
-- The forward pass and the loss sit inside the autocast context; the backward pass and the optimizer work outside it on scaled gradients.
+- Batches move to the accelerator with `non_blocking=True`: with [pinned memory](pt2_parallel_loading.qmd#pinned-memory), the copies overlap with compute.
+- The forward pass and the loss sit inside the autocast context; the backward pass and the optimizer work outside it: autocast casts the inputs of selected operations, the weights stay in float32, and no gradient scaling is needed.
 - [`clip_grad_norm_`](https://pytorch.org/docs/stable/generated/torch.nn.utils.clip_grad_norm_.html) rescales the gradients if their global norm exceeds 1.0: one pathological batch cannot produce a huge parameter jump. This protects the run at a negligible cost.
 - The scheduler advances at every batch, matching the per-step warmup and cosine.
 - `loss_metric.update` receives the detached loss weighted by the batch size, so the epoch loss is the mean over images, not over batches.
 
 ## Evaluation
 
-Evaluation runs the same batches through the model without training machinery:
+Evaluation runs the validation batches through the model without the training machinery:
 
 ```{python}
 def evaluate():
@@ -254,7 +264,7 @@ def evaluate():
 ```
 
 - `model.eval()` is the counterpart of `model.train()`.
-- [`torch.inference_mode()`](https://pytorch.org/docs/stable/generated/torch.inference_mode.html) disables the autograd engine: no graph is recorded, so evaluation is faster and leaner.
+- [`torch.inference_mode()`](https://pytorch.org/docs/stable/generated/torch.autograd.grad_mode.inference_mode.html) disables the autograd engine: no graph is recorded, so evaluation is faster and leaner.
 - Predictions are the class with the highest logit, computed inside the context. The loss and the metric updates come after it, on tensors created inside. That works because such tensors can be read anywhere: outside `inference_mode()`, their only limits are in-place modification and autograd. The loss and the updates would work inside the context as well.
 
 ## Early stopping
@@ -283,9 +293,11 @@ def fit():
             marker = " *"
         else:
             wait += 1
-        print(f"epoch {epoch:2d}  train {train_loss:.3f}  val {val_loss:.3f}  "
-              f"acc {val_acc:5.1%}  lr {scheduler.get_last_lr()[0]:.2e}  "
-              f"{time.perf_counter() - t0:4.1f} s{marker}")
+        print(
+            f"epoch {epoch:2d}  train {train_loss:.3f}  val {val_loss:.3f}  "
+            f"acc {val_acc:5.1%}  lr {scheduler.get_last_lr()[0]:.2e}  "
+            f"{time.perf_counter() - t0:4.1f} s{marker}"
+        )
         if wait >= patience:
             print(f"early stop: no improvement for {patience} epochs")
             break
@@ -293,7 +305,7 @@ def fit():
 ```
 
 - The `*` marks epochs that improved on the best validation accuracy so far, each of which overwrites the checkpoint.
-- Why checkpoint at all? Validation metrics wobble from epoch to epoch, so the last epoch is not necessarily the best model. The saved checkpoint is the one to keep and evaluate.
+- Why checkpoint at all? Validation metrics wobble from epoch to epoch, so the model at the last epoch is not necessarily the best one. The saved checkpoint is the one to keep and evaluate.
 - Early stopping ends the run when `wait` reaches `patience`: the model has stopped improving and further epochs are wasted compute (and, given enough of them, would slowly overfit).
 
 ## The run
@@ -346,9 +358,9 @@ Let's wrap all this code in a Python script so that we can test it on the cluste
 
 There are a couple of changes we need to make to the code:
 
-- Earlier, we used the `if __name__ == "__main__":` guards directly above the for loops in which the loaders were launching multiple workers. This would not work here because the loops are now inside functions (`train_epoch()` and `evaluate()`) while `fit()` is called at the module level. The proper way to handle this is to bring the setup and the three functions inside a `main()` function and run it under the guard.
+- Earlier, we used the `if __name__ == "__main__":` guard directly above the for loop in which the loaders were launching multiple workers. This would not work here because the loops are now inside functions (`train_epoch()` and `evaluate()`) while `fit()` is called at the module level. The proper way to handle this is to bring the setup and the three functions inside a `main()` function and run it under the guard.
 
-- The current training cluster has CPU nodes with 8 CPUs so previously we could request 8 worker processes to load the data in parallel. For the first time we will use a GPU node (we need that GPU for training). Unfortunately, the GPU nodes only have 3 CPUs. We should thus limit our `num_workers` to 3.
+- The current training cluster has CPU nodes with 8 CPUs, so previously we could request 8 worker processes to load the data in parallel. For the first time, we will use a GPU node (we need that GPU for training). Unfortunately, the GPU nodes only have 3 CPUs. We should thus limit our `num_workers` to 3.
 
 :::{.callout-note collapse="true"}
 
@@ -374,7 +386,7 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            # 3 conv blocks: each halves the image, doubles the channels
+            # 3 conv blocks: each doubles the channels; the first two halve the image
             nn.Conv2d(3, 32, 3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),  # 64 -> 32
@@ -557,11 +569,11 @@ srun --mem=10000 --gpus-per-node=1 --cpus-per-task=3 python loop.py
 
 :::{.note}
 
-`--mem` is the memory for the whole node. Since we have 3 CPU in this node, let's roughly triple the memory we were asking per CPU in the CPU node.
+`--mem` is the memory requested for all the CPUs of the job (3 here), not per CPU. Let's thus roughly triple the memory we were asking for per CPU on the CPU nodes.
 
 :::
 
-When I tried it earlier, I got the following:
+When I ran it on the training cluster earlier, I got the following:
 
 ```
 Torch version: 2.14.1
@@ -623,7 +635,7 @@ Best epoch: 14 (val acc: 80.8%)
 Restored model: val loss 0.538, acc 80.8%
 ```
 
-Remember that we are using `srun` here because the jobs are very short and we want to be notified and get the results as soon as they become available. On a production cluster and for a normal job, you would create a batch script:
+Remember that we are using `srun` here because the jobs are very short and we want to be notified and get the results as soon as they become available. On a production cluster, for a normal job, you would create a batch script:
 
 ```{.bash filename="loop.sh"}
 #!/bin/bash
@@ -641,7 +653,7 @@ Then you would launch the job with:
 sbatch loop.sh
 ```
 
-And you would monitor it with `sq`, `seff`, etc.
+You would then monitor it with `sq`, `seff`, etc.
 
 ::::{.exo}
 
@@ -669,7 +681,7 @@ The learning rate is the hyperparameter that most affects this run. Train for 3 
 <!-- With lr=1e-1, the first epochs are rough (epoch 1 train loss about 1.9 -->
 <!-- versus 1.7 at lr=1e-3), then the run recovers as the schedule anneals: -->
 <!-- warmup and clipping keep even a large learning rate from exploding. -->
-<!-- With lr=1e-4, nothing protects you from slowness: the epoch 3 loss is -->
+<!-- With lr=1e-4, nothing protects you from a slow run: the epoch 3 loss is -->
 <!-- still about 1.5, versus about 0.9 at lr=1e-3. -->
 
 ::::

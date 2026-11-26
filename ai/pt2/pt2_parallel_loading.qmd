@@ -36,7 +36,7 @@ flowchart TB
 
 :::{.note}
 
-The queue smooths out the hiccups: workers run ahead of the consumer (by how much is the `prefetch_factor` option seen below), so loading overlaps with compute.
+The queue smooths out the hiccups: workers run ahead of the consumer (by how much is set by the `prefetch_factor` option seen below), so loading overlaps with compute.
 
 :::
 
@@ -66,11 +66,7 @@ train = Subset(eurosat, idx["train"])
 
 def timed_pass(num_workers):
     """Time one full pass over the training data at steady state."""
-    loader = DataLoader(
-        train,
-        batch_size=64,
-        num_workers=num_workers
-    )
+    loader = DataLoader(train, batch_size=64, num_workers=num_workers)
     for _ in loader:
         pass  # warmup
     t0 = time.perf_counter()
@@ -110,9 +106,9 @@ num_workers=8:   1.2 s
 num_workers=16:  0.8 s
 ```
 
-The benefit of additional workers is going down but hasn't quite flattened yet, so on my system, I could use all my threads.
+The benefit of additional workers is decreasing but hasn't quite flattened out yet, so on my system, I could use all my threads.
 
-Let's test it on the cluster. The current training cluster contains 2 CPU nodes made of 8 CPU and 30 GB each. First, save the snippet above as a Python script (e.g. `nano n_workers.py`). If you launch it as is, you will get:
+Let's test it on the cluster. The current training cluster contains 2 CPU nodes, each with 8 CPUs and 30 GB of RAM. First, save the script above as a Python file (e.g. with `nano n_workers.py`). If you launch it as is, you will get:
 
 ```
 UserWarning: This DataLoader will create 16 worker processes in total. Our suggested max
@@ -122,17 +118,17 @@ running slow or even freeze, lower the worker number to avoid potential slowness
 if necessary.
 ```
 
-Which makes sense since you would be trying to launch 16 workers on 8 CPU. So edit the script first to remove the 16 worker run, then run it with:
+This makes sense, since you would be trying to launch 16 workers on 8 CPUs. So edit the script first to remove the 16-worker run, then run it with:
 
 ```{.bash}
-srun --mem-per-cpu=3600 --cpus-per-task=8  python n_workers.py
+srun --mem-per-cpu=3600 --cpus-per-task=8 python n_workers.py
 ```
 
 :::{.note}
 
-- Because we only have 2 compute nodes, only 2 persons can run this at a time, so this might take some time. Not everybody has to run it though.
+- Because we only have 2 compute nodes, only 2 people can run this at a time, so this might take some time. Not everybody has to run it though.
 
-- Normally, batch jobs are launched with `sbatch`, but `srun` is convenient here because the jobs are extremely short and we can see immediately when the job has finished running, without having to run a series of `sq` to inquire.
+- Normally, batch jobs are launched with `sbatch`, but `srun` is convenient here because the jobs are extremely short and we can see immediately when the job has finished running, without having to run `sq` repeatedly to check on them.
 
 :::
 
@@ -145,7 +141,7 @@ num_workers=4:   2.7 s
 num_workers=8:   1.8 s
 ```
 
-So you can see that we don't reach a plateau either and we would probably benefit from more CPUs (but we don't have them).
+So you can see that we don't reach a plateau here either, and we would probably benefit from more CPUs (but we don't have them).
 
 ## Worker lifetime
 
@@ -173,7 +169,7 @@ def timed_pass(num_workers):
         train,
         batch_size=64,
         num_workers=num_workers,
-        persistent_workers=num_workers > 0  # keeps workers alive
+        persistent_workers=num_workers > 0,  # keeps workers alive
     )
     for _ in loader:
         pass  # warmup
@@ -211,9 +207,9 @@ num_workers=4:   2.7 s
 num_workers=8:   1.9 s
 ```
 
-We get very much the same timing. In addition, idle workers hold RAM between epochs, and the data must not change during loading. In our situation, it isn't worth it.
+We get very much the same timings. In addition, idle workers hold RAM between epochs, and the dataset must not change while the workers are alive. In our situation, it isn't worth it.
 
-In many cases, it will make multi-epoch training loops more efficient, so whenever you use `num_workers > 0` on static datasets for multiple epochs, you should consider it. On Linux (my system and the cluster), workers are launched by `fork` which is very efficient. On Windows, they are started by the much slower `spawn` and avoiding multiple launches by keeping your workers alive is likely to make a big difference there.
+In many cases, it will make multi-epoch training loops more efficient, so whenever you use `num_workers > 0` on static datasets for multiple epochs, you should consider it. On Linux (my system and the cluster), Python 3.14 launches them with `forkserver`, which is efficient. On Windows and macOS, they are started by the much slower `spawn`, so avoiding multiple launches by keeping your workers alive is likely to make a big difference there.
 
 Situations in which you should not consider this option include:
 
@@ -224,7 +220,7 @@ Situations in which you should not consider this option include:
 
 ## Prefetching
 
-Each worker prepares `prefetch_factor` batches (2 by default) ahead of the one being consumed, so up to `num_workers × prefetch_factor` batches sit in the queue. With fast storage and cheap transforms the default is plenty. Raise it when the storage is slow (e.g. a network filesystem) or the transforms are expensive, so that occasional slow reads get absorbed by the queue rather than stalling the accelerator. It costs buffer RAM and only takes effect with `num_workers > 0`:
+Each worker prepares `prefetch_factor` batches (2 by default) ahead of the one being consumed, so up to `num_workers × prefetch_factor` batches sit in the queue. With fast storage and cheap transforms, the default is plenty. Raise it when the storage is slow (e.g. a network filesystem) or the transforms are expensive, so that occasional slow reads get absorbed by the queue rather than stalling the accelerator. It costs buffer RAM and only takes effect with `num_workers > 0`:
 
 ```{.python}
 loader = DataLoader(train, batch_size=64, num_workers=8, prefetch_factor=4)
@@ -238,14 +234,14 @@ Transfers to the accelerator from *pinned* (page-locked) memory are faster and c
 
 With `pin_memory=True`, the DataLoader copies each batch into pinned memory for you.
 
-Measured on my laptop GPU for our batch shape (64, 3, 64, 64) [float32]{.codelike} (3 MiB) and for a batch 8 times larger (24 MiB), one host-to-device copy:
+Here is the time of one host-to-device copy, measured on my laptop GPU for our batch shape (64, 3, 64, 64) in [float32]{.codelike} (3 MiB) and for a batch 8 times larger (24 MiB):
 
 ```
 batch  64:  pageable 541 µs   pinned 495 µs
 batch 512:  pageable 6250 µs  pinned 3933 µs
 ```
 
-That's only a few percent at our batch size and about 40% for the larger one: it's small, but it doesn't have many downsides. The caveat is that pinned memory cannot be swapped, so pin batches, but not full datasets.
+That is only a few percent at our batch size and about 40% for the larger one: the gain is small, but it has few downsides. The caveat is that pinned memory cannot be swapped, so pin batches, but not full datasets.
 
 ## Data loading bottleneck
 
@@ -258,8 +254,12 @@ I trained a small CNN that we will see later (about 95,000 parameters) on EuroSA
 ```{.python}
 for num_workers in (0, 2, 4, 8):
     loader = DataLoader(
-        train, batch_size=64, shuffle=True, pin_memory=True,
-        num_workers=num_workers, persistent_workers=num_workers > 0,
+        train,
+        batch_size=64,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=num_workers,
+        persistent_workers=num_workers > 0,
     )
     for epoch in range(2):  # warmup, then the timed epoch
         t0 = time.perf_counter()
@@ -271,8 +271,10 @@ for num_workers in (0, 2, 4, 8):
             loss.backward()
             optimizer.step()
         if epoch:  # mean_util: average of the nvidia-smi samples
-            print(f"num_workers={num_workers}: "
-                  f"{time.perf_counter() - t0:5.1f} s/epoch, GPU util {mean_util:3.0f}%")
+            print(
+                f"num_workers={num_workers}: "
+                f"{time.perf_counter() - t0:5.1f} s/epoch, GPU util {mean_util:3.0f}%"
+            )
 ```
 
 I sampled utilization with [`nvidia-smi`](../../python/gpu_clusters.qmd#logging-metrics) in a background thread and got the following results:
@@ -286,9 +288,9 @@ num_workers=8:   3.1 s/epoch, GPU util  89%
 
 These numbers show that:
 
-- With loading in the main process, the GPU did useful work 31% of the time: the rest was waiting for JPEG decoding. A pure loading pass took 8.1 s—longer than a compute-bound epoch.
+- With loading in the main process, the GPU did useful work 31% of the time: the rest was waiting for JPEG decoding. A pure loading pass took 8.1 s, longer than a compute-bound epoch.
 - Four workers hid loading under compute: epochs got 3.4× faster and utilization reached 85%.
-- The eighth worker bought almost nothing: with this model, 4 workers already feed the GPU as fast as it consumes.
+- Going from 4 to 8 workers bought almost nothing: with this model, 4 workers already feed the GPU as fast as it consumes.
 
 These ratios are specific to a small model on a laptop GPU. A larger model computes longer per batch, so it needs fewer workers to stay busy. When a run is accelerator-starved, tune in this order: more workers first, then `prefetch_factor`, then `pin_memory`.
 
@@ -300,14 +302,14 @@ Here are the loaders that we will use for the rest of the course:
 loader_kwargs = {
     "batch_size": 64,
     "num_workers": 8,
-    "pin_memory": torch.accelerator.is_available()
+    "pin_memory": torch.accelerator.is_available(),
 }
 train_loader = DataLoader(train, shuffle=True, **loader_kwargs)
 val_loader = DataLoader(val, **loader_kwargs)
 ```
 
 - Batches of 64: a good size for the small models of this course.
-- 9 workers each.
+- 8 workers each.
 - Pinned memory when an accelerator is present.
 - Shuffling for training only.
 

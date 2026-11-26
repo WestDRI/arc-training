@@ -5,7 +5,7 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-Let's start by examining how PyTorch works by training a model: we build a small neural network, train it on a toy dataset, and dissect every step of the process.
+Let's start by examining how PyTorch works: we build a small neural network, train it on a toy dataset, and dissect every step of the process.
 
 If you have never used PyTorch, [our introductory course](../top_pt.qmd) covers the same ground at a gentler pace.
 
@@ -15,8 +15,8 @@ If you have never used PyTorch, [our introductory course](../top_pt.qmd) covers 
 
 ```{python}
 import torch
-from torch import nn
 from matplotlib import pyplot as plt
+from torch import nn
 ```
 
 `torch` is the core library and `torch.nn` (imported as `nn` by convention) provides the neural network building blocks. We use `matplotlib` to visualize the data and the model predictions.
@@ -60,12 +60,12 @@ a.dtype
 ```
 
 ```{python}
-b = a.to(device)                            # copy to the accelerator
+b = a.to(device)  # copy to the accelerator
 print(b)
 ```
 
 ```{python}
-w = torch.randn(2, 5, device=device)        # create directly on the accelerator
+w = torch.randn(2, 5, device=device)  # create directly on the accelerator
 print(w)
 ```
 
@@ -103,11 +103,14 @@ def two_spirals(n_per_class=500, noise=0.15):  # noise adds jitter
     # stack classes in x and move to accelerator
     x = torch.vstack([arm1, arm2]).to(device)
     # create labels (class 1 ➔ 0, class 2 ➔ 1) and send to accelerator
-    y = torch.cat([
-        torch.zeros(n_per_class, dtype=torch.long),
-        torch.ones(n_per_class, dtype=torch.long),
-    ]).to(device)
+    y = torch.cat(
+        [
+            torch.zeros(n_per_class, dtype=torch.long),
+            torch.ones(n_per_class, dtype=torch.long),
+        ]
+    ).to(device)
     return x, y
+
 
 x, y = two_spirals()
 print(x.shape, y.shape)
@@ -146,12 +149,13 @@ Models in PyTorch are Python classes that subclass [`nn.Module`](https://pytorch
 
 ```{python}
 class Net(nn.Module):
-
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(2, 64), nn.ReLU(),
-            nn.Linear(64, 32), nn.ReLU(),
+            nn.Linear(2, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
             nn.Linear(32, 2),
         )
 
@@ -161,7 +165,7 @@ class Net(nn.Module):
 
 - `super().__init__()` runs the initialization of `nn.Module`.
 - [`nn.Sequential`](https://pytorch.org/docs/stable/generated/torch.nn.Sequential.html) chains layers in order.
-- Each [`nn.Linear`](https://pytorch.org/docs/stable/generated/torch.nn.Linear.html) performs an affine transformation (multiplication by a weight matrix, addition of a bias vector), here from 2 input coordinates to 64 features, then from 64 to 32, and finally from 32 to 2 output labels.
+- Each [`nn.Linear`](https://pytorch.org/docs/stable/generated/torch.nn.Linear.html) performs an affine transformation (multiplication by a weight matrix, addition of a bias vector), here from 2 input coordinates to 64 features, then from 64 to 32, and finally from 32 to 2 output scores (one per class).
 - The [`nn.ReLU`](https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html) functions introduce non-linear transformations.
 - The layer widths (64, 32) use powers of 2: GPUs and CPUs work in base 2, so power-of-2 sizes use memory and processing hardware efficiently.
 
@@ -197,7 +201,7 @@ This gives the probability that each point belongs to one or the other class. Be
 
 ## The loss
 
-Training requires a measure of how wrong the model is: the **loss**, calculated by a **loss function** from the model predictions and the real values (`y` in our case).
+Training requires a measure of how wrong the model is: the **loss**, calculated by a **loss function** from the model predictions and the true values (`y` in our case).
 
 For classification problems, [`nn.CrossEntropyLoss`](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) is the standard loss function.
 
@@ -211,7 +215,7 @@ print(loss.item())
 
 Because it applies the softmax function internally, `nn.CrossEntropyLoss()` expects raw logits and integer class labels. Passing it softmaxed outputs is a classic mistake that quietly cripples training.
 
-Note that some loss functions do need softmaxed outputs, so make sure to read the documentation of the function you use.
+Note that some loss functions do need softmaxed (or log-softmaxed) outputs, so make sure to read the documentation of the function you use.
 
 :::
 
@@ -287,7 +291,7 @@ block
     classDef default color:#0081c2, stroke:#0081c2;
 ```
 
-Programmatically, this is done via a loop. Let's train our model over 500 epochs and print the value of the loss every 100 epoch:
+Programmatically, this is done via a loop. Let's train our model over 500 epochs and print the value of the loss every 100 epochs:
 
 ```{python}
 for epoch in range(1, 501):
@@ -326,7 +330,7 @@ This is the accuracy on the *training data* (the points the model learned from).
 
 :::
 
-As an informal sanity check we classify every point of a fine grid (data the model was never trained on) and colour the two predicted regions:
+As an informal sanity check, we classify every point of a fine grid (data the model was never trained on) and colour the two predicted regions:
 
 ```{python}
 x_min, x_max = x[:, 0].min() - 0.5, x[:, 0].max() + 0.5
