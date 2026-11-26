@@ -5,9 +5,17 @@ author: Marie-Hélène Burle
 
 :::{.def}
 
-[The toy example](pt2_intro.qmd) in the first section of this course trained a model with a bare five-line loop. Real training needs more: mixed precision, a learning-rate schedule, gradient clipping, proper metrics, early stopping, and checkpointing of the best model.
+[The toy example](pt2_intro.qmd) early in this course trained a model with a bare five-line loop. Real training needs more: mixed precision, a learning-rate schedule, gradient clipping, proper metrics, early stopping, and checkpointing of the best model.
 
 In this section, we assemble all of it into a loop and run it on EuroSAT to train a small [convolutional neural network (CNN)](https://en.wikipedia.org/wiki/Convolutional_neural_network) from scratch.
+
+:::
+
+:::{.info}
+
+We will use a GPU in this section, so [let's go back to SSH](pt2_login.qmd).
+
+Again, please remember to log out of the JupyterHub session to relinquish the hardware: click on [File]{.codelike} in the top menu and select [Log out]{.codelike} at the very bottom.
 
 :::
 
@@ -21,9 +29,9 @@ from pathlib import Path
 import torch
 from matplotlib import pyplot as plt
 from torch import nn
+from torch.utils.data import DataLoader, Subset
 from torchmetrics import MeanMetric
 from torchmetrics.classification import MulticlassAccuracy
-from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import EuroSAT
 from torchvision.transforms import v2 as T
 ```
@@ -39,10 +47,10 @@ device = (
     else torch.device("cpu")
 )
 torch.manual_seed(42)
-print(f"torch version: {torch.__version__}\ndevice: {device}")
+print(f"Torch version: {torch.__version__}\nDevice: {device}")
 ```
 
-The data pipeline is the one built in the last two sections: [transforms with augmentation](pt2_augmentation.qmd) for training and deterministic transforms for validation, [loaders](pt2_dataloaders.qmd) with 4 persistent workers. The training shuffle gets a seeded generator, the pattern [seen earlier](pt2_dataloaders.qmd), so that runs are reproducible:
+The data pipeline is the one built in the previous sections: [transforms with augmentation for training and deterministic transforms for validation](pt2_augmentation.qmd), [loaders](pt2_parallel_loading.qmd) with 8 workers. [The training shuffle gets a seeded generator](pt2_dataloaders.qmd#shuffling), so that runs are reproducible:
 
 ```{python}
 #| echo: false
@@ -76,16 +84,15 @@ val = Subset(EuroSAT(root=root, transform=val_tf), idx["val"])
 
 loader_kwargs = {
     "batch_size": 64,
-    "num_workers": 4,
-    "persistent_workers": True,
+    "num_workers": 8,
     "pin_memory": torch.accelerator.is_available(),
 }
 train_loader = DataLoader(
     train, shuffle=True, generator=torch.Generator().manual_seed(42),
-    **loader_kwargs,
+    **loader_kwargs
 )
 val_loader = DataLoader(val, **loader_kwargs)
-print(len(train_loader), "train batches,", len(val_loader), "val batches")
+print(f"Train batches: {len(train_loader)}\nVal batches: {len(val_loader)}")
 ```
 
 ## A deliberately small model
@@ -117,16 +124,16 @@ class Net(nn.Module):
 
 ```{python}
 model = Net().to(device)
-print("parameters:", sum(p.numel() for p in model.parameters()))
+print("Parameters:", sum(p.numel() for p in model.parameters()))
 ```
 
-Roughly 95,000 parameters: the same small CNN that served to measure GPU starvation [in the DataLoaders section](pt2_dataloaders.qmd). It is deliberately modest. Trained from scratch, it will land on a mediocre baseline, and that is the point: it gives every later technique something to improve upon, and its epochs run in seconds even on small GPUs.
+Roughly 95,000 parameters: the same small CNN that served to measure GPU starvation [in the DataLoaders section](pt2_parallel_loading.qmd#data-loading-bottleneck). It is deliberately modest. Trained from scratch, it will land on a mediocre baseline, and that is the point: it gives every later technique something to improve upon, and its epochs run in seconds even on small GPUs.
 
 ## Hyperparameters
 
 Model training hyperparameters include loss, optimizer, and learning-rate schedule.
 
-The loss function and optimizer are the [familiar ones](pt2_intro.qmd): cross-entropy for classification, AdamW with decoupled weight decay:
+The loss function and optimizer are the [ones used in our toy example](pt2_intro.qmd): cross-entropy for classification, AdamW with decoupled weight decay:
 
 ```{python}
 loss_fn = nn.CrossEntropyLoss()
@@ -149,7 +156,7 @@ def lr_lambda(step):
     return 0.5 * (1.0 + math.cos(math.pi * progress))  # cosine down to ~0
 
 scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-print(f"warmup {warmup} steps, total {total_steps} steps")
+print(f"Warmup: {warmup} steps\nTotal: {total_steps} steps")
 ```
 
 `LambdaLR` multiplies the base learning rate (1e-3) by our function at every step. Here is the shape of it over the planned run:
@@ -165,9 +172,9 @@ ax.set_ylabel("learning rate")
 
 ## Metrics
 
-Hand-rolled accuracy is easy to get subtly wrong (averaging over batches instead of samples is the classic). We use [torchmetrics](https://github.com/Lightning-AI/torchmetrics): metrics are objects with an `update()` called per batch and a `compute()` called once at the end, and they weight correctly. They will also plug into experiment tracking later in the course.
+Hand-rolled accuracy is easy to get subtly wrong (averaging over batches instead of samples is a classic mistake). We use the [torchmetrics](https://github.com/Lightning-AI/torchmetrics) package: metrics are objects with an `update()` method called once per batch and a `compute()` method called at the end.
 
-The two we need: `MeanMetric` for a weighted average (per-batch losses weighted by batch size, since the last batch is smaller), and `MulticlassAccuracy`:
+We need two measures: `MeanMetric` for a weighted average (per-batch losses weighted by batch size, since the last batch is smaller), and `MulticlassAccuracy`:
 
 ```{python}
 metric = MulticlassAccuracy(num_classes=10).to(device)
@@ -175,10 +182,10 @@ with torch.inference_mode():
     logits = torch.eye(10).repeat(3, 1).to(device)  # 30 rows of perfect logits
     preds = logits.argmax(dim=1)
 metric.update(preds, torch.arange(10).repeat(3).to(device))
-print(metric.compute().item())
+print(f"Accurancy: {metric.compute().item()}")
 ```
 
-Perfect predictions on three passes over the 10 classes: the accuracy is 1.0.
+We get perfect predictions on three passes over the 10 classes: the accuracy is 1.0.
 
 ## One epoch of training
 
@@ -188,7 +195,7 @@ One more modern ingredient: **mixed precision**. The compute happens in `bfloat1
 # bf16 only accelerates on Ampere (2020) and newer GPUs; on older ones it
 # runs in emulation and can be slower than plain fp32, hence the gate
 use_bf16 = device.type == "cuda" and torch.cuda.get_device_capability()[0] >= 8
-print(use_bf16)
+print(f"Use of mixed precision: {use_bf16}")
 ```
 
 :::{.note}
