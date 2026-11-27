@@ -419,23 +419,43 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 <section id="how-ddp-works" class="level2">
 <h2 class="anchored" data-anchor-id="how-ddp-works">How DDP works</h2>
+<!-- dagre draws the subgraph declared last on the left (Mermaid 11.12), hence GPU 1 before GPU 0 below -->
+<!-- the batch arrows enter the GPU boxes above their first node: the generous subGraphTitleMargin keeps them clear of the titles -->
 <div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div>
 <p></p><figure class="figure"><p></p>
 <div>
 
-<pre class="mermaid mermaid-js">flowchart TB
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"rankSpacing": 25, "nodeSpacing": 20, "wrappingWidth": 300, "subGraphTitleMargin": {"top": 0, "bottom": 50}}}}%%
+
+flowchart TB
     classDef default color:#0081c2, stroke:#0081c2;
-    D[(Batch)] --&gt; S0[Shard 1]
-    D --&gt; S1[Shard 2]
-    S0 --&gt; F0[Forward + backward&lt;br&gt;on GPU 0]
-    S1 --&gt; F1[Forward + backward&lt;br&gt;on GPU 1]
-    F0 --&gt; G0[Local gradients]
-    F1 --&gt; G1[Local gradients]
-    G0 &amp; G1 --&gt; A([All-reduce: average the gradients])
-    A --&gt; U0[Same update on GPU 0]
-    A --&gt; U1[Same update on GPU 1]
+    classDef comm color:#b5111b, stroke:#b5111b, fill:#fbecec;
+    subgraph G1 [GPU 1]
+        S1[shard 1]
+        F1[forward + backward]
+        L1[local gradients]
+        U1[same update]
+    end
+    subgraph G0 [GPU 0]
+        S0[shard 0]
+        F0[forward + backward]
+        L0[local gradients]
+        U0[same update]
+    end
+    B[(batch)]
+    A(["&lt;b&gt;all-reduce&lt;/b&gt;&lt;br&gt;average the gradients"]):::comm
+    B --&gt; S0
+    S0 --&gt; F0
+    F0 --&gt; L0
+    L0 --&gt; A
+    A --&gt; U0
+    B --&gt; S1
+    S1 --&gt; F1
+    F1 --&gt; L1
+    L1 --&gt; A
+    A --&gt; U1
 </pre>
 </div>
 <p></p></figure><p></p>

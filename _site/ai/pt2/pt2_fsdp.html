@@ -419,27 +419,47 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 <section id="sharding-the-training-state" class="level2">
 <h2 class="anchored" data-anchor-id="sharding-the-training-state">Sharding the training state</h2>
-<p>PyTorch 2.13 ships FSDP’s second generation, built on one call, <a href="https://pytorch.org/docs/stable/fsdp.html"><code>fully_shard</code></a>:</p>
+<p>PyTorch 2.13 ships FSDP’s second generation, built on one call, <a href="https://pytorch.org/docs/stable/fsdp.html"><code>fully_shard</code></a>. Here is what one training step looks like on two GPUs, for a single layer:</p>
 <!-- Try mermaid swimlanes diagram once quarto bundles a mermaid version 11.16 or above -->
+<!-- dagre draws the subgraph declared last on the left (Mermaid 11.12), hence GPU 1 before GPU 0 below -->
 <div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div>
 <p></p><figure class="figure"><p></p>
 <div>
 
-<pre class="mermaid mermaid-js">flowchart TB
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"rankSpacing": 25, "nodeSpacing": 20, "wrappingWidth": 300, "subGraphTitleMargin": {"top": 0, "bottom": 12}}}}%%
+
+flowchart TB
     classDef default color:#0081c2, stroke:#0081c2;
-    subgraph G0 [GPU 0]
-        S0[stores shard 0 of every parameter] --&gt; A
-        A([all-gather: this layer's parameters, in full]) --&gt; C0[forward + backward]
-        C0 --&gt; R([reduce-scatter: each GPU keeps&lt;br&gt;its shard of the gradients])
-        R --&gt; O0[optimizer updates&lt;br&gt;the local shards only]
-    end
+    classDef comm color:#b5111b, stroke:#b5111b, fill:#fbecec;
     subgraph G1 [GPU 1]
-        S1[stores shard 1 of every parameter] --&gt; A
-        C1[forward + backward] --&gt; R
-        R --&gt; O1[optimizer updates&lt;br&gt;the local shards only]
+        S1[stores shard 1 of&lt;br&gt;every parameter]
+        F1[forward on its microbatch,&lt;br&gt;then frees the full copy]
+        B1[backward on its microbatch:&lt;br&gt;full gradients of the layer]
+        O1[optimizer updates&lt;br&gt;the local shards only]
     end
+    subgraph G0 [GPU 0]
+        S0[stores shard 0 of&lt;br&gt;every parameter]
+        F0[forward on its microbatch,&lt;br&gt;then frees the full copy]
+        B0[backward on its microbatch:&lt;br&gt;full gradients of the layer]
+        O0[optimizer updates&lt;br&gt;the local shards only]
+    end
+    M1(["&lt;b&gt;all-gather&lt;/b&gt;&lt;br&gt;every GPU sends its shard,&lt;br&gt;receives the layer in full"]):::comm
+    M2(["&lt;b&gt;all-gather again&lt;/b&gt;&lt;br&gt;before this layer's backward"]):::comm
+    M3(["&lt;b&gt;reduce-scatter&lt;/b&gt;&lt;br&gt;every GPU sends its gradients,&lt;br&gt;receives its averaged shard"]):::comm
+    S0 --&gt; M1
+    M1 --&gt; F0
+    F0 --&gt; M2
+    M2 --&gt; B0
+    B0 --&gt; M3
+    M3 --&gt; O0
+    S1 --&gt; M1
+    M1 --&gt; F1
+    F1 --&gt; M2
+    M2 --&gt; B1
+    B1 --&gt; M3
+    M3 --&gt; O1
 </pre>
 </div>
 <p></p></figure><p></p>
@@ -448,8 +468,8 @@ gtag('config', 'G-7E8D6VP6FH', { 'anonymize_ip': true});
 </div>
 <ul>
 <li>Parameters live as shards, distributed across the GPUs, between steps.</li>
-<li>Just before a layer computes, its parameters are gathered in full across the GPUs (an <em>all-gather</em>), used, then released back to shards.</li>
-<li>After the backward pass, gradients are summed and each GPU keeps only its shard (a <em>reduce-scatter</em>).</li>
+<li>Just before a layer computes, its parameters are gathered in full across the GPUs (an <em>all-gather</em>), used, then released back to shards. This happens twice per layer: once for the forward pass, once for the backward pass.</li>
+<li>After each layer’s backward pass, gradients are averaged and each GPU keeps only its shard (a <em>reduce-scatter</em>).</li>
 <li>Optimizer state is created per shard, so it is sharded too: momentum and second moments never exist in full anywhere.</li>
 </ul>
 <p>The 104 GiB of our 7-billion-parameter example spread over 8 GPUs becomes about 13 GiB per GPU: training-state memory divides by the number of GPUs. What does not divide is the activations of the current microbatch (each GPU computes its own data shard) — <a href="../../ai/pt2/pt2_efficiency.html">activation checkpointing</a> is the companion lever when those become the obstacle.</p>
